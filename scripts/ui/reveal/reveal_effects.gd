@@ -9,6 +9,7 @@ const BEAMS := 9
 const BEAM_LENGTH := 520.0
 const SHOCK_EVERY := 0.9
 const SHAFT_HEIGHT := 300.0
+const SOURCE_DEPTH := 48.0  # how far below the opening the light comes from
 
 var color := Color("8a7f99"):
 	set(value):
@@ -122,59 +123,63 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	# all light starts at the opening (y = 0 here) and goes up and out; nothing below it
+	# The light source sits inside the pack, below the opening (y = 0 here). Everything is drawn
+	# from there; the front of the pack hides what's still inside, so rays leave the opening at
+	# the angles the opening lets through.
+	var source := Vector2(0, SOURCE_DEPTH)
+	var half := opening_width / 2.0
+	var spread := atan2(half, SOURCE_DEPTH)  # widest angle that still gets out of the opening
+
 	var glow: float = maxf(leak * 0.7, _layers.get("glow", 0.0))
 	if glow > 0.0:
 		var pulse := 1.0 + sin(_time * 3.0) * 0.05
-		var half := opening_width / 2.0
 		# soft ambient dome above the pack
 		var s := GLOW_SIZE * pulse * lerpf(0.5, 1.0, glow)
 		draw_texture_rect(_dome_tex, Rect2(-s / 2.0, -s / 2.0, s, s / 2.0), false, Color(color, 0.5 * glow))
-		# the shaft of light rising out of the opening, widening and fading as it goes up
+		# the shaft: everything the opening lets through, widening as it rises
 		var h := SHAFT_HEIGHT * pulse * lerpf(0.4, 1.0, glow)
-		_draw_soft_quad(PackedVector2Array([Vector2(half, 0), Vector2(half * 2.4, -h), Vector2(-half * 2.4, -h), Vector2(-half, 0)]),
-			Color(color, 0.55 * glow))
+		var top_half := (h + SOURCE_DEPTH) * tan(spread) * 0.85
+		_draw_ray(source, Vector2(0, -h), top_half, Color(color, 0.5 * glow))
 		# the bright slit itself
 		var slit := Color(color.lerp(Color.WHITE, 0.6), minf(1.0, glow * 1.2))
-		draw_texture_rect(_glow_tex, Rect2(-half * 1.15, -12, half * 2.3, 24), false, slit)
+		draw_texture_rect(_glow_tex, Rect2(-half * 1.1, -10, half * 2.2, 20), false, slit)
 
 	var beams: float = _layers.get("beams", 0.0)
 	if beams > 0.0:
 		var sway: float = _layers.get("rotate", 0.0)
-		# a fan out of the opening; with "rotate" it widens and the rays sweep side to side
-		var fan := lerpf(PI * 0.55, PI * 0.95, sway)
 		for i in BEAMS:
 			var t := (i + 0.5) / BEAMS
-			var angle := -PI / 2.0 + (t - 0.5) * fan + sin(_time * 0.9 + i * 0.4) * 0.35 * sway
+			# rays fill the opening's cone; with "rotate" they sweep side to side inside it
+			var offset := (t - 0.5) * 2.0 * spread * 0.9 + sin(_time * 0.9 + i * 0.4) * 0.25 * sway
+			var angle := -PI / 2.0 + clampf(offset, -spread, spread)
 			# each ray breathes a little on its own so they never look ruler-straight
 			var wobble := sin(_time * (1.3 + i * 0.37) + i * 2.1)
-			var width := 26.0 + 10.0 * sin(i * 1.7) + 6.0 * wobble
-			var length := BEAM_LENGTH * (0.75 + 0.2 * sin(i * 2.3) + 0.05 * wobble)
+			var width := 22.0 + 8.0 * sin(i * 1.7) + 5.0 * wobble
+			var length := BEAM_LENGTH * (0.75 + 0.2 * sin(i * 2.3) + 0.05 * wobble) + SOURCE_DEPTH
 			var alpha := 0.3 * beams * (0.8 + 0.2 * wobble)
-			# rays start spread along the opening, not from one point
-			var from := Vector2((t - 0.5) * opening_width * 0.8, 0)
-			_draw_beam(from, angle, width * 2.6, length * 0.9, Color(color, alpha * 0.35))  # soft halo
-			_draw_beam(from, angle, width, length, Color(color, alpha))
+			_draw_beam(source, angle, width * 2.6, length * 0.9, Color(color, alpha * 0.35))  # soft halo
+			_draw_beam(source, angle, width, length, Color(color, alpha))
 
 	for age in _shock_rings:
 		var r := 30.0 + age * 380.0
 		draw_arc(Vector2(0, -20), r, PI, TAU, 48, Color(color, (1.0 - age / 1.2) * 0.8), 6.0 - age * 4.0)
 
 
-## One ray: narrow at the light, wider at the far end, with soft edges that fade out
-## towards the tip (the texture does the softness).
+## One ray from `from` at `angle`: a point at the light, `width` either side of its middle at
+## the far end, soft at the edges and fading out towards the tip (the texture does that).
 func _draw_beam(from: Vector2, angle: float, width: float, length: float, c: Color) -> void:
-	var dir := Vector2.from_angle(angle)
-	var side := dir.orthogonal()
-	var tip := from + dir * length
-	_draw_soft_quad(PackedVector2Array([from + side * width * 0.12, tip + side * width, tip - side * width,
-		from - side * width * 0.12]), c)
+	_draw_ray(from, from + Vector2.from_angle(angle) * length, width, c)
 
 
-## A quad drawn with the soft ray texture: points go base-right, tip-right, tip-left, base-left.
-func _draw_soft_quad(points: PackedVector2Array, c: Color) -> void:
-	var uvs := PackedVector2Array([Vector2(1, 0), Vector2(1, 1), Vector2(0, 1), Vector2(0, 0)])
-	draw_polygon(points, PackedColorArray([c, c, c, c]), uvs, _beam_tex)
+## Drawn as two mirrored triangles sharing the middle line, so the soft texture stays
+## symmetric (a single stretched quad skews to one side).
+func _draw_ray(from: Vector2, tip: Vector2, half_width: float, c: Color) -> void:
+	var side := (tip - from).normalized().orthogonal() * half_width
+	var colors := PackedColorArray([c, c, c])
+	draw_polygon(PackedVector2Array([from, tip + side, tip]), colors,
+		PackedVector2Array([Vector2(0.5, 0), Vector2(1, 1), Vector2(0.5, 1)]), _beam_tex)
+	draw_polygon(PackedVector2Array([from, tip, tip - side]), colors,
+		PackedVector2Array([Vector2(0.5, 0), Vector2(0.5, 1), Vector2(0, 1)]), _beam_tex)
 
 
 func _particles(amount: int, lifetime: float) -> CPUParticles2D:
