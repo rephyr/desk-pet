@@ -65,14 +65,26 @@ func to_dict() -> Dictionary:
 	return { "pets": list, "active": active_uid, "next_id": _next_id, "seen": _seen }
 
 
-static func from_dict(d: Dictionary) -> Collection:
-	var c := Collection.new()
+## Replaces the contents in place, so everything connected to this collection stays connected.
+func load_from(d: Dictionary) -> void:
+	pets.clear()
+	_by_uid.clear()
+	_seen.clear()
 	for raw in d.get("pets", []):
 		var pet := Pet.from_dict(raw)
-		c.pets.append(pet)
-		c._by_uid[pet.uid] = pet
-	c.active_uid = str(d.get("active", ""))
-	c._next_id = int(d.get("next_id", c.pets.size() + 1))
+		pets.append(pet)
+		_by_uid[pet.uid] = pet
+	active_uid = str(d.get("active", ""))
+	if not _by_uid.has(active_uid):
+		active_uid = pets[0].uid if not pets.is_empty() else ""
+	_next_id = int(d.get("next_id", pets.size() + 1))
 	for key in d.get("seen", {}):
-		c._seen[key] = int(d.seen[key])
+		_seen[key] = int(d.seen[key])
+	pets_added.emit(pets)
+	active_changed.emit(active())
+
+
+static func from_dict(d: Dictionary) -> Collection:
+	var c := Collection.new()
+	c.load_from(d)
 	return c

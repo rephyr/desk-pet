@@ -22,6 +22,7 @@ var happiness := 80.0
 var pet_out := false
 
 var _roller := PetRoller.new(catalog)
+var _can_save := true  # false if the save came from a newer version of the game
 var _coin_timer := 0.0
 var _save_timer := 0.0
 
@@ -116,6 +117,8 @@ func set_pet_out(value: bool) -> void:
 # ---- saving ---------------------------------------------------------------
 
 func save_game() -> void:
+	if not _can_save:
+		return
 	var data := {
 		"version": SAVE_VERSION,
 		"coins": coins,
@@ -125,24 +128,23 @@ func save_game() -> void:
 		"collection": collection.to_dict(),
 		"saved_at": Time.get_unix_time_from_system(),
 	}
-	var file := FileAccess.open(SAVE_PATH, FileAccess.WRITE)
-	if file:
-		file.store_string(JSON.stringify(data))
+	SaveFile.write(SAVE_PATH, data)
 
 
 func load_game() -> void:
-	if not FileAccess.file_exists(SAVE_PATH):
+	var data := SaveFile.read(SAVE_PATH)
+	if data.is_empty():
 		return
-	var data = JSON.parse_string(FileAccess.get_file_as_string(SAVE_PATH))
-	if typeof(data) != TYPE_DICTIONARY:
-		push_warning("save file is unreadable, starting fresh")
-		return
+	if int(data.get("version", 1)) > SAVE_VERSION:
+		# don't downgrade a save from a newer game: play with it, but never write over it
+		push_warning("save is from a newer version of the game; it won't be overwritten")
+		_can_save = false
 	data = _migrate(data)
 	coins = int(data.get("coins", coins))
 	hunger = data.get("hunger", hunger)
 	happiness = data.get("happiness", happiness)
 	pet_out = data.get("pet_out", false)
-	collection = Collection.from_dict(data.get("collection", {}))
+	collection.load_from(data.get("collection", {}))
 
 	# catch up on time spent closed: coins at the slowest rate, stats to the floor at worst
 	var away := Time.get_unix_time_from_system() - float(data.get("saved_at", 0.0))
@@ -155,6 +157,8 @@ func load_game() -> void:
 ## Brings older save files up to the current format, one version at a time.
 func _migrate(data: Dictionary) -> Dictionary:
 	var version := int(data.get("version", 1))
+	if version >= SAVE_VERSION:
+		return data
 	if version < 2:
 		data.collection = {}  # v1 had no pets yet; a first pet is given after loading
 	data.version = SAVE_VERSION
