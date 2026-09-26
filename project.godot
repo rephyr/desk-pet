@@ -12,7 +12,12 @@ config_version=5
 
 config/name="Desk Pets"
 config/description="An idle game where pets live on your desktop: care for them, open packs, collect variants."
+run/main_scene="res://scenes/home.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
+
+[autoload]
+
+GameState="*res://scripts/game_state.gd"
 
 [display]
 
@@ -20,6 +25,15 @@ config/features=PackedStringArray("4.7", "GL Compatibility")
 window/size/borderless=true
 window/size/transparent=true
 window/per_pixel_transparency/allowed=true
+; the home window: a small pinned panel
+window/size/viewport_width=300
+window/size/viewport_height=236
+window/size/resizable=false
+window/size/always_on_top=true
+; the pet overlay is a real OS window, not drawn inside the home window
+window/subwindows/embed_subwindows=false
+; X11/XWayland on Linux for now: lets windows be placed and made click-through
+display_server/driver.linuxbsd="x11"
 
 [rendering]
 
