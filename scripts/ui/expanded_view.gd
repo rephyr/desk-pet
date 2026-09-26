@@ -28,7 +28,7 @@ func _init() -> void:
 
 	var body := MarginContainer.new()
 	body.size_flags_vertical = SIZE_EXPAND_FILL
-	_tabs = { "boxes": boxes, "collection": collection }
+	_tabs = { "boxes": boxes, "collection": collection, "settings": SettingsTab.new() }
 	var group := ButtonGroup.new()
 	for tab_name in _tabs:
 		body.add_child(_tabs[tab_name])
