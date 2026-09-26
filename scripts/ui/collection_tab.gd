@@ -60,6 +60,9 @@ func _init() -> void:
 	GameState.collection.pets_added.connect(func(_p):
 		_dirty = true
 		_rebuild_if_visible())
+	GameState.collection.pet_changed.connect(func(_p):
+		_dirty = true
+		_rebuild_if_visible())
 	GameState.new_game.connect(func():
 		_selected_uid = ""
 		_page = 0

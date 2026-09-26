@@ -82,6 +82,8 @@ func _set_expanded(on: bool) -> void:
 	if on == _expanded_mode:
 		return
 	_expanded_mode = on
+	if on:
+		_expanded.show_start()  # the full game always opens in your pet's room
 	_compact.visible = not on
 	_expanded.visible = on
 	_apply_size()

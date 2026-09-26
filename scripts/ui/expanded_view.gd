@@ -1,6 +1,7 @@
 class_name ExpandedView
 extends VBoxContainer
-## The full game layer: tabs for boxes, the collection, adventures and your inventory.
+## The full game layer: your pet's room (home), then tabs for boxes, the collection, adventures
+## and your inventory.
 
 signal collapse_requested
 signal quit_requested
@@ -9,6 +10,7 @@ var _coins := UiTheme.label("", UiTheme.CYAN)
 var boxes := BoxesTab.new()
 var collection := CollectionTab.new()
 var adventures := AdventuresTab.new()
+var home := HomeTab.new()
 var _tabs := {}  # name -> Control
 var _tab_buttons := {}  # name -> Button
 
@@ -33,7 +35,11 @@ func _init() -> void:
 	inventory.open_box_requested.connect(func(box_id):
 		show_tab("boxes")
 		boxes.open(box_id, 1))
-	_tabs = { "boxes": boxes, "collection": collection, "adventures": adventures, "inventory": inventory, "settings": SettingsTab.new() }
+	home.go.connect(show_tab)
+	home.open_box.connect(func(box_id):
+		show_tab("boxes")
+		boxes.open(box_id, 1))
+	_tabs = { "home": home, "boxes": boxes, "collection": collection, "adventures": adventures, "inventory": inventory, "settings": SettingsTab.new() }
 	var group := ButtonGroup.new()
 	for tab_name in _tabs:
 		body.add_child(_tabs[tab_name])
@@ -46,7 +52,7 @@ func _init() -> void:
 		header.add_child(b)
 		_tab_buttons[tab_name] = b
 	add_child(body)
-	show_tab("boxes")
+	show_start()
 
 	var gap := UiTheme.spacer()
 	gap.mouse_filter = MOUSE_FILTER_PASS
@@ -96,6 +102,11 @@ func tutorial_target() -> Control:
 		"send":
 			return adventures.tutorial_target() if adventures.visible else _tab_buttons.adventures
 	return null
+
+
+## Where the full game opens: your pet's room, or the boxes while the tutorial is on.
+func show_start() -> void:
+	show_tab("boxes" if GameState.tutorial_active() else "home")
 
 
 func show_tab(tab_name: String) -> void:

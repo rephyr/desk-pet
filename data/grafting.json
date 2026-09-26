@@ -1,0 +1,4 @@
+{
+	"_note": "Sewing a part from the inventory onto your active pet. 'fail' is the chance by the part's rarity that the stitch doesn't hold: the new part is lost and the pet keeps its old one. On success the old part goes back to the inventory ('none' parts, like no accessory, just go away).",
+	"fail": { "common": 0.05, "uncommon": 0.1, "rare": 0.2, "epic": 0.3, "legendary": 0.45, "mythic": 0.6 }
+}

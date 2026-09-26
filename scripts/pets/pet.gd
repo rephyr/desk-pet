@@ -6,6 +6,7 @@ const STATS: Array[String] = ["power", "luck", "speed"]
 
 var uid := ""
 var parts := {}  # slot -> part id, see Catalog.SLOTS
+var sewn: Array[String] = []  # slots whose part was sewn on (they show stitch marks)
 var finish := "normal"
 var traits: Array[String] = []
 var stats := {}  # stat name -> int
@@ -28,6 +29,7 @@ func to_dict() -> Dictionary:
 	return {
 		"uid": uid,
 		"parts": parts,
+		"sewn": sewn,
 		"finish": finish,
 		"traits": traits,
 		"stats": stats,
@@ -47,6 +49,7 @@ static func from_dict(d: Dictionary, catalog: Catalog = Catalog.shared()) -> Pet
 		var id: String = saved.get(slot, "")
 		p.parts[slot] = id if not catalog.part(slot, id).is_empty() else catalog.default_part(slot)
 	p.finish = catalog.finish(d.get("finish", "")).id
+	p.sewn.assign(d.get("sewn", []).filter(func(s): return s in Catalog.SLOTS))
 	p.traits.assign(d.get("traits", []))
 	p.stats = {}
 	for key in d.get("stats", {}):

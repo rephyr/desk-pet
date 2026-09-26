@@ -1,5 +1,5 @@
 {
-	"_note": "What the active pet says on the adventures tab. It is the only voice in the game: sincerely innocent, cheerful, and it never understands what's really happening. Its EYES pick its personality; its ACCESSORY adds a little tic at the end of each line. Situations: idle (nothing going on), away (a trip is out), needs_you (a trip is waiting for a choice), someone_back (a trip is back, not welcomed yet), back_all / back_some / back_none (just welcomed a trip back), part_found (it brought parts), rumour (word of somewhere new, waiting for you to decide), spotted (a pet saw a new place on its trip). {place} {home} {sent} {lost} {rumour} {spot} {who} are filled in. Lines are picked at random. HINTS are what the active pet says under each option on a trip (never numbers): 'risk' has 5 steps from sure to scared, picked from the real chance; 'reward' has 4 steps from a crumb to something special, picked from what the option can give; 'home' is for going home, 'rest' for options that heal. 'bias' shifts how this personality reads risk (-1 always sounds surer, +1 more scared). {trip} is the pet on the trip. 'feeling' is the line on top of a trip: how the pet on the trip seems after the last event (start / good / bad / hurt).",
+	"_note": "What the active pet says on the adventures tab. It is the only voice in the game: sincerely innocent, cheerful, and it never understands what's really happening. Its EYES pick its personality; its ACCESSORY adds a little tic at the end of each line. Situations: idle (nothing going on), away (a trip is out), needs_you (a trip is waiting for a choice), someone_back (a trip is back, not welcomed yet), back_all / back_some / back_none (just welcomed a trip back), part_found (it brought parts), rumour (word of somewhere new, waiting for you to decide), spotted (a pet saw a new place on its trip). {place} {home} {sent} {lost} {rumour} {spot} {who} are filled in. Lines are picked at random. HINTS are what the active pet says under each option on a trip (never numbers): 'risk' has 5 steps from sure to scared, picked from the real chance; 'reward' has 4 steps from a crumb to something special, picked from what the option can give; 'home' is for going home, 'rest' for options that heal. 'bias' shifts how this personality reads risk (-1 always sounds surer, +1 more scared). {trip} is the pet on the trip. 'feeling' is the line on top of a trip: how the pet on the trip seems after the last event (start / good / bad / hurt). GRAFT is what your active pet says about a part being sewn onto it: 'risk' has 5 steps from sure to scared (from the real chance, with the same bias), then a 'success' or 'fail' line.",
 	"default": "cheerful",
 	"personalities": [
 		{
@@ -73,6 +73,23 @@
 					"bad": "{trip} shook it off!",
 					"hurt": "{trip} is limping a little, but smiling!"
 				}
+			},
+			"graft": {
+				"risk": [
+					"i'm ready! sew away!",
+					"i feel good about this!",
+					"a little nervous, but okay!",
+					"ooh, this one's a bit scary…",
+					"i'm a little scared of this one…"
+				],
+				"success": [
+					"ooh! look at me!",
+					"new me! i love it!"
+				],
+				"fail": [
+					"oops! it fell off! i'm still me!",
+					"aw, it didn't stick. next time!"
+				]
 			}
 		},
 		{
@@ -94,8 +111,8 @@
 					"someone at {place} is waiting for you!"
 				],
 				"someone_back": [
-					"the {place} gang is home!",
-					"the {place} trip is done! hooray!"
+					"everyone from {place} is home!",
+					"the trip to {place} is done! hooray!"
 				],
 				"back_all": [
 					"all {sent} home! perfect day!",
@@ -146,6 +163,23 @@
 					"bad": "{trip} is still smiling. mostly!",
 					"hurt": "{trip} has a little ouchie."
 				}
+			},
+			"graft": {
+				"risk": [
+					"what a lovely idea!",
+					"this will look so nice!",
+					"hmm, let's be careful!",
+					"i'm a tiny bit worried…",
+					"this one worries me…"
+				],
+				"success": [
+					"i look wonderful!",
+					"so pretty!"
+				],
+				"fail": [
+					"oh well! still smiling!",
+					"it'll stick next time!"
+				]
 			}
 		},
 		{
@@ -167,7 +201,7 @@
 					"pick the brave one. it's always the brave one."
 				],
 				"someone_back": [
-					"the {place} team is back! as expected!",
+					"team {place} is back! as expected!",
 					"back already? they must have won."
 				],
 				"back_all": [
@@ -219,6 +253,23 @@
 					"bad": "{trip} meant to do that.",
 					"hurt": "{trip} has a scratch. walk it off."
 				}
+			},
+			"graft": {
+				"risk": [
+					"obviously.",
+					"easy.",
+					"i can handle it.",
+					"i'll be fine. mostly.",
+					"i believe in me!"
+				],
+				"success": [
+					"as expected. i look amazing.",
+					"perfect. like me."
+				],
+				"fail": [
+					"it wasn't worthy of me.",
+					"i meant for that to happen."
+				]
 			}
 		},
 		{
@@ -292,6 +343,23 @@
 					"bad": "{trip}… oops…",
 					"hurt": "{trip} is… limping…? or skipping…"
 				}
+			},
+			"graft": {
+				"risk": [
+					"okay…",
+					"sure…",
+					"hmm…?",
+					"is it… pokey…?",
+					"ow…? maybe…"
+				],
+				"success": [
+					"oh… a new bit… nice…",
+					"i feel… different…"
+				],
+				"fail": [
+					"it… fell off…",
+					"where did it… go…"
+				]
 			}
 		},
 		{
@@ -365,6 +433,23 @@
 					"bad": "{trip} is okay! right? right!",
 					"hurt": "{trip} is hurt! a little! it's fine!"
 				}
+			},
+			"graft": {
+				"risk": [
+					"okay! okay! i'm okay!",
+					"i think i'm okay!",
+					"is it going to hurt? no? okay!",
+					"eek! are you sure?!",
+					"i'm shaking! is that normal!?"
+				],
+				"success": [
+					"it worked! phew! it worked!",
+					"i'm new! i'm fine! i'm new!"
+				],
+				"fail": [
+					"it fell off! i'm fine! i'm fine!",
+					"oh no! oh… it's fine!"
+				]
 			}
 		},
 		{
@@ -438,6 +523,23 @@
 					"bad": "{trip} made a face.",
 					"hurt": "{trip} is walking funny. like a crab."
 				}
+			},
+			"graft": {
+				"risk": [
+					"stitch me.",
+					"sure. i like thread.",
+					"a needle. hello, needle.",
+					"this one hums. interesting.",
+					"it's a big one. i'll hold still."
+				],
+				"success": [
+					"new part. same me. mostly.",
+					"i feel roomier."
+				],
+				"fail": [
+					"it fell off. it wanted to go.",
+					"gone. like a sock."
+				]
 			}
 		}
 	],

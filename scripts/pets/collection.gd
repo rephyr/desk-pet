@@ -7,6 +7,7 @@ extends RefCounted
 signal pets_added(pets: Array[Pet])
 signal active_changed(pet: Pet)
 signal pets_removed(uids: Array[String])
+signal pet_changed(pet: Pet)  # a pet's parts changed (sewn on)
 
 var pets: Array[Pet] = []  # in pull order
 var active_uid := ""

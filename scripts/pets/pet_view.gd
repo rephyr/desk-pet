@@ -70,8 +70,8 @@ func _process(delta: float) -> void:
 func _refresh() -> void:
 	if pet == null:
 		return
-	_texture = PetLook.texture_for(pet.parts, false)
-	_blink_texture = PetLook.texture_for(pet.parts, true)
+	_texture = PetLook.texture_for(pet.parts, false, pet.sewn)
+	_blink_texture = PetLook.texture_for(pet.parts, true, pet.sewn)
 	var mode: int = SILHOUETTE_MODE if silhouette else int(Catalog.shared().finish(pet.finish).shader)
 	_material.set_shader_parameter("mode", mode)
 	material = _material if mode != 0 else null

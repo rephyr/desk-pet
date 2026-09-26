@@ -21,6 +21,7 @@ var events := {}  # event id -> event, shared by the locations
 var rumours: Array[Dictionary] = []  # what exploration can bring back
 var voice := {}  # what the active pet says, see data/voice.json
 var tutorial := {}  # the first few minutes of a new game, see data/tutorial.json
+var grafting := {}  # sewing parts onto your active pet, see data/grafting.json
 
 var _tier_rank := {}  # tier id -> index
 var _parts_by_id := {}  # slot -> { part id -> part }
@@ -67,6 +68,7 @@ func _init() -> void:
 	_rumour_by_id = _index(rumours)
 	voice = _load("voice.json")
 	tutorial = _load("tutorial.json")
+	grafting = _load("grafting.json")
 
 
 # ---- rarity ---------------------------------------------------------------

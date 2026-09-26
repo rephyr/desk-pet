@@ -158,3 +158,20 @@ static func spotted(speaker: Pet, event: Dictionary, party: Party, location: Dic
 			best = score
 			tempting = option
 	return hint(speaker, tempting, party, location, catalog, boost) if not tempting.is_empty() else ""
+
+
+## What your active pet says about having a part sewn on: how it feels about the risk before
+## (`kind` "risk", from the real chance and its bias), or "success" / "fail" after.
+static func graft_line(pet: Pet, kind: String, fail_chance: float, rng: RandomNumberGenerator, catalog: Catalog) -> String:
+	var p := _personality(pet, catalog)
+	var lines: Dictionary = p.get("graft", {})
+	if kind != "risk":
+		var options: Array = lines.get(kind, [""])
+		return str(options[rng.randi_range(0, options.size() - 1)])
+	var band := 4
+	for i in RISK_STEPS.size():
+		if 1.0 - fail_chance >= RISK_STEPS[i]:
+			band = i
+			break
+	band = clampi(band + int(p.get("hints", {}).get("bias", 0)), 0, 4)
+	return str(lines.get("risk", [""])[band])

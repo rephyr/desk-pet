@@ -95,6 +95,16 @@ const ACCESSORIES := {
 	"horns": [[2, 2, "ff4f5a"], [3, 3, "ff4f5a"], [4, 4, "c9303a"], [13, 2, "ff4f5a"], [12, 3, "ff4f5a"], [11, 4, "c9303a"]],
 }
 
+# Stitch marks for sewn-on parts: little thread dashes at that part's seam, [x, y] per slot.
+const STITCHES := {
+	"body": [[4, 6], [6, 6], [9, 6], [11, 6]],  # round the neck, where the head was sewn on
+	"palette": [[13, 10], [13, 12]],  # a patch on the side
+	"pattern": [[2, 11], [2, 13]],
+	"eyes": [[6, 10], [9, 10]],  # just under the eyes
+	"accessory": [[12, 6], [13, 7]],
+}
+const THREAD := Color("ffe3f1")
+
 const OUTLINE := Color("2a1033")
 const CHEEK := Color("ff79c6")
 
@@ -102,14 +112,15 @@ static var _cache := {}  # look key -> ImageTexture
 
 
 ## The pet's picture. Finish effects are not baked in (see shaders/finish.gdshader).
-static func texture_for(parts: Dictionary, blink := false) -> ImageTexture:
-	var key := "%s|%s|%s|%s|%s|%s" % [parts.body, parts.palette, parts.pattern, parts.eyes, parts.accessory, blink]
+## `sewn` lists slots whose part was sewn on: they get stitch marks.
+static func texture_for(parts: Dictionary, blink := false, sewn: Array = []) -> ImageTexture:
+	var key := "%s|%s|%s|%s|%s|%s|%s" % [parts.body, parts.palette, parts.pattern, parts.eyes, parts.accessory, blink, ",".join(sewn)]
 	if not _cache.has(key):
-		_cache[key] = ImageTexture.create_from_image(_build(parts, blink))
+		_cache[key] = ImageTexture.create_from_image(_build(parts, blink, sewn))
 	return _cache[key]
 
 
-static func _build(parts: Dictionary, blink: bool) -> Image:
+static func _build(parts: Dictionary, blink: bool, sewn: Array = []) -> Image:
 	var palette := Catalog.shared().part("palette", parts.palette)
 	var body := Color(palette.get("body", "#c9a0ff"))
 	var light := Color(palette.get("light", "#f5dcec"))
@@ -133,6 +144,9 @@ static func _build(parts: Dictionary, blink: bool) -> Image:
 	_paint_eyes(img, parts.eyes, body, blink)
 	for p in ACCESSORIES.get(parts.accessory, []):
 		img.set_pixel(p[0], p[1], Color(p[2]))
+	for slot in sewn:
+		for p in STITCHES.get(slot, []):
+			img.set_pixel(p[0], p[1], THREAD)
 	return img
 
 

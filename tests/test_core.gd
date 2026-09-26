@@ -26,6 +26,7 @@ func _init() -> void:
 	_test_voice(catalog)
 	_test_garden(catalog)
 	_test_intel(catalog)
+	_test_grafting(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -283,6 +284,7 @@ func _test_voice(catalog: Catalog) -> void:
 				var text := PetVoice.line(pet, { "kind": kind, "place": "the woods", "home": 12, "sent": 100, "lost": 88,
 					"rumour": "a deep well", "spot": "the meadow", "who": "bean", "then": ["part_found", "spotted", "rumour"] }, rng, catalog)
 				_check(not "{" in text and text != "", "%s %s line fills in: %s" % [p.id, kind, text])
+				_check(not " the the " in " " + text, "%s %s line doesn't say 'the the': %s" % [p.id, kind, text])
 	var news := { "place": "the woods", "home": 0, "sent": 5, "parts": 0 }
 	var none: Array[RunState] = []
 	var quiet: Array[String] = []
@@ -439,6 +441,61 @@ func _test_intel(catalog: Catalog) -> void:
 	_check(worst <= 5, "the meadow is always spotted within a few garden trips (worst %d)" % worst)
 	var all_known := Intel.roll(garden, func(_id): return true, {}, rng)
 	_check(all_known.is_empty(), "places already known aren't spotted again")
+
+
+## Sewing parts onto your active pet: it works or it doesn't, rarer is riskier, the old part comes
+## back, a failed stitch only costs the new part, and sewn parts show and survive a save.
+func _test_grafting(catalog: Catalog) -> void:
+	_check(Grafting.fail_chance("eyes", "round", catalog) < Grafting.fail_chance("eyes", "cyclops", catalog)
+		or catalog.part("eyes", "round").rarity == catalog.part("eyes", "cyclops").rarity, "rarer parts are riskier to sew on")
+	var rng := RandomNumberGenerator.new()
+	var worked := 0
+	var failed := 0
+	for t in 400:
+		rng.seed = t
+		var pet := Pet.new()
+		for slot in Catalog.SLOTS:
+			pet.parts[slot] = catalog.default_part(slot)
+		pet.rarity = "common"
+		var legendary: Dictionary = catalog.parts_of_tier("body", "legendary")[0]
+		var inventory := { "body:%s" % legendary.id: 1 }
+		var old_body: String = pet.parts.body
+		var result := Grafting.sew(pet, "body", legendary.id, inventory, rng, catalog)
+		_check(not inventory.has("body:%s" % legendary.id), "the part is used up either way")
+		if result.ok:
+			worked += 1
+			if pet.parts.body != legendary.id or not "body" in pet.sewn or pet.rarity != "legendary" or inventory.get("body:" + old_body, 0) != 1:
+				_check(false, "a stitch that holds swaps the part, marks it sewn, raises the rarity and gives the old part back")
+		else:
+			failed += 1
+			if pet.parts.body != old_body or not pet.sewn.is_empty():
+				_check(false, "a stitch that fails leaves the pet as it was")
+	_check(worked > 0 and failed > 0, "legendary parts sometimes hold and sometimes don't (%d / %d)" % [worked, failed])
+	var fail_rate := float(failed) / 400.0
+	_check(absf(fail_rate - float(catalog.grafting.fail.legendary)) < 0.08, "fails about as often as the data says (%.2f)" % fail_rate)
+
+	var pet := Pet.new()
+	for slot in Catalog.SLOTS:
+		pet.parts[slot] = catalog.default_part(slot)
+	_check(not Grafting.can_sew(pet, "eyes", pet.parts.eyes, { "eyes:%s" % pet.parts.eyes: 1 }), "can't sew on what it's already wearing")
+	_check(not Grafting.can_sew(pet, "eyes", "sparkle", {}), "can't sew on a part you don't have")
+	var look := Grafting.preview(pet, "eyes", "sparkle")
+	_check(pet.parts.eyes != "sparkle" and look.parts.eyes == "sparkle", "the preview doesn't change the real pet")
+	var plain := PetLook.texture_for(look.parts, false, []).get_image()
+	var stitched := PetLook.texture_for(look.parts, false, ["eyes"]).get_image()
+	_check(plain.get_data() != stitched.get_data(), "sewn parts show stitch marks")
+	look.sewn.assign(["eyes", "body"])
+	_check(Pet.from_dict(JSON.parse_string(JSON.stringify(look.to_dict())), catalog).sewn == look.sewn, "stitches survive a save")
+
+	var bands := {}
+	for p in catalog.voice.personalities:
+		var speaker := Pet.new()
+		speaker.parts = { "eyes": p.eyes[0], "accessory": "none" }
+		for kind in ["risk", "success", "fail"]:
+			var line := PetVoice.graft_line(speaker, kind, 0.6, rng, catalog)
+			_check(line != "" and not "{" in line, "%s has a %s line for sewing" % [p.id, kind])
+		bands[p.id] = p.graft.risk.find(PetVoice.graft_line(speaker, "risk", 0.6, rng, catalog))
+	_check(bands.overconfident <= bands.cheerful and bands.cheerful <= bands.nervous, "overconfident pets sound braver about sewing (%s)" % [bands])
 
 
 ## Allowed difference between expected and rolled odds (about 4 standard deviations).

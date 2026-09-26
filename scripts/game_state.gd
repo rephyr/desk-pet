@@ -245,6 +245,18 @@ func max_party(location_id: String) -> int:
 	return mini(most, cap) if cap > 0 else most
 
 
+## Debug: a handful of random parts, one of each rarity, to try sewing with.
+func debug_give_parts() -> void:
+	for tier in catalog.tiers:
+		var slots: Array = Catalog.SLOTS.filter(func(s): return not catalog.parts_of_tier(s, tier.id).is_empty())
+		var slot: String = slots[_rng.randi_range(0, slots.size() - 1)]
+		var options := catalog.parts_of_tier(slot, tier.id)
+		var key := "%s:%s" % [slot, options[_rng.randi_range(0, options.size() - 1)].id]
+		parts[key] = int(parts.get(key, 0)) + 1
+	changed.emit()
+	save_game()
+
+
 func debug_unlock_all() -> void:
 	unlock(AUTOMATION)
 	unlock(PARTIES)
@@ -280,6 +292,21 @@ func debug_new_game() -> void:
 	new_game.emit()
 	adventures_changed.emit()
 	changed.emit()
+
+
+# ---- grafting ----------------------------------------------------------------
+
+## Sews a part from the inventory onto your active pet (see Grafting). Returns { ok, old }, or {}.
+func sew_part(slot: String, part_id: String) -> Dictionary:
+	var pet := collection.active()
+	var result := Grafting.sew(pet, slot, part_id, parts, _rng, catalog)
+	if result.is_empty():
+		return result
+	collection.pet_changed.emit(pet)
+	collection.active_changed.emit(pet)  # everything showing your pet redraws it
+	changed.emit()
+	save_game()
+	return result
 
 
 # ---- tutorial ----------------------------------------------------------------
