@@ -29,6 +29,20 @@ func _init() -> void:
 
 	add_child(_toggle("skip the pack animation when opening one box", "skip_single_reveal"))
 	add_child(_toggle("skip the mist on very rare pulls", "skip_ritual"))
+	if OS.is_debug_build():
+		add_child(UiTheme.label("dev", UiTheme.PINK))
+		var fresh := UiTheme.button("dev: new game (backs up your save first)")
+		fresh.pressed.connect(func():
+			# a second click within a few seconds confirms, so it can't happen by accident
+			if fresh.text.begins_with("sure?"):
+				GameState.debug_new_game()
+				fresh.text = "done ♡ (old save: save-before-new-game-*.json)"
+			else:
+				fresh.text = "sure? click again to start over"
+				get_tree().create_timer(4.0).timeout.connect(func():
+					if fresh.text.begins_with("sure?"):
+						fresh.text = "dev: new game (backs up your save first)"))
+		add_child(fresh)
 
 
 func _toggle(text: String, key: String) -> CheckButton:

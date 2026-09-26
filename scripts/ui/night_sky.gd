@@ -13,6 +13,7 @@ func _init() -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
 	resized.connect(queue_redraw)
 	GameState.collection.pets_removed.connect(func(_uids): queue_redraw())
+	GameState.new_game.connect(queue_redraw)
 
 
 func _draw() -> void:

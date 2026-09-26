@@ -4,10 +4,12 @@ extends Node
 
 signal changed  # coins, care stats, the bag, adventures or unlocks changed
 signal run_ended(run: RunState)  # an adventure is back and waiting to be collected
+signal new_game  # everything was reset to a fresh start
+signal tutorial_changed  # the tutorial moved on a step (or finished)
 signal adventures_changed  # a trip was sent, moved on, answered or collected, or something unlocked
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 7
+const SAVE_VERSION := 8
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
 const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
@@ -16,6 +18,7 @@ const OFFLINE_CAP := 12.0 * 3600.0
 const FEED_COST := 3
 const FIRST_PET_BOX := "starter"
 const DEBUG_COINS := 1000
+const TUTORIAL_BOX := "tutorial"  # hidden box the tutorial's pets come from, see data/boxes.json
 
 var catalog := Catalog.shared()
 var collection := Collection.new()
@@ -34,6 +37,8 @@ var runs: Array[RunState] = []
 ## The last trip you welcomed back, for the active pet to talk about: { place, home, sent, parts }.
 ## Not saved: it's small talk.
 var news := {}
+## Where the tutorial is ("open_first", "open_second", "make_active", "send"), or "done".
+var tutorial := "done"
 
 var _roller := PetRoller.new(catalog)
 var _rng := RandomNumberGenerator.new()
@@ -47,9 +52,12 @@ var _run_timer := 0.0
 # and the UI reads the pets while it's being built.
 func _init() -> void:
 	_rng.randomize()
-	load_game()
-	if collection.pets.is_empty():
+	if not load_game():
+		_start_tutorial()  # a brand new player
+	elif collection.pets.is_empty() and tutorial == "done":
 		_give_first_pet()
+	collection.active_changed.connect(func(_p): _check_tutorial())
+	collection.pets_added.connect(func(_p): _check_tutorial())
 
 
 func _process(delta: float) -> void:
@@ -89,13 +97,15 @@ func open_boxes(box_id: String, count := 1, force_tier := "") -> Array[Pet]:
 	if count <= 0 or coins < price:
 		return pulled
 	coins -= price
+	# the tutorial's boxes are plain commons: your first pets shouldn't be a mythic by luck
+	var roll_from := TUTORIAL_BOX if tutorial_active() else box_id
 	if from_bag > 0:
 		bag[box_id] = in_bag(box_id) - from_bag
 		if bag[box_id] <= 0:
 			bag.erase(box_id)
-	var forced := force_tier if OS.is_debug_build() else ""
+	var forced := force_tier if OS.is_debug_build() and not tutorial_active() else ""
 	for i in count:
-		pulled.append(_roller.roll(box_id, forced))
+		pulled.append(_roller.roll(roll_from, forced))
 	collection.add(pulled)
 	changed.emit()
 	save_game()
@@ -217,6 +227,76 @@ func debug_unlock_all() -> void:
 		unlock("location:" + l.id)
 
 
+## Debug: a completely fresh game, as a new player would start it. The old save is copied to
+## user://save-before-new-game-<time>.json first, so it can be put back by hand.
+func debug_new_game() -> void:
+	save_game()
+	var backup := "user://save-before-new-game-%d.json" % int(Time.get_unix_time_from_system())
+	DirAccess.copy_absolute(ProjectSettings.globalize_path(SAVE_PATH), ProjectSettings.globalize_path(backup))
+	coins = 100
+	hunger = 80.0
+	happiness = 80.0
+	bag.clear()
+	parts.clear()
+	items.clear()
+	unlocks.clear()
+	trips_done = 0
+	heard.clear()
+	rumours.clear()
+	runs.clear()
+	news = {}
+	collection.load_from({})
+	_start_tutorial()
+	collection.active_changed.emit(collection.active())
+	save_game()
+	new_game.emit()
+	adventures_changed.emit()
+	changed.emit()
+
+
+# ---- tutorial ----------------------------------------------------------------
+
+func tutorial_active() -> bool:
+	return tutorial != "done"
+
+
+## The current tutorial step's data (see data/tutorial.json), or {} when it's done.
+func tutorial_info() -> Dictionary:
+	for step in catalog.tutorial.steps:
+		if step.id == tutorial:
+			return step
+	return {}
+
+
+func _start_tutorial() -> void:
+	coins = 100  # exactly two starter boxes
+	tutorial = catalog.tutorial.steps[0].id
+	collection.auto_active = false
+
+
+## Moves the tutorial on once its step is done: two boxes opened, a pet made active, one sent.
+func _check_tutorial() -> void:
+	var before := tutorial
+	for i in 4:
+		match tutorial:
+			"open_first":
+				if collection.pets.size() >= 1:
+					tutorial = "open_second"
+			"open_second":
+				if collection.pets.size() >= 2:
+					tutorial = "make_active"
+			"make_active":
+				if collection.active() != null:
+					tutorial = "send"
+			"send":
+				if not runs.is_empty():
+					tutorial = "done"
+					collection.auto_active = true
+	if tutorial != before:
+		tutorial_changed.emit()
+		save_game()
+
+
 ## Debug: back to how a new game starts: only the first adventure type, no trips counted, no
 ## rumours heard. Trips already out still finish.
 func debug_lock_all() -> void:
@@ -261,6 +341,7 @@ func send_on_adventure(location_id: String, pets: Array[Pet]) -> RunState:
 		return null
 	var run := AdventureRunner.start(location_id, going, Time.get_unix_time_from_system(), _rng.randi(), catalog)
 	runs.append(run)
+	_check_tutorial()
 	adventures_changed.emit()
 	changed.emit()
 	save_game()
@@ -390,16 +471,18 @@ func save_game() -> void:
 		"trips_done": trips_done,
 		"heard": heard.keys(),
 		"rumours": rumours,
+		"tutorial": tutorial,
 		"runs": runs.map(func(r): return r.to_dict()),
 		"saved_at": Time.get_unix_time_from_system(),
 	}
 	SaveFile.write(SAVE_PATH, data)
 
 
-func load_game() -> void:
+## Loads the save. Returns false if there's none yet (a brand new player).
+func load_game() -> bool:
 	var data := SaveFile.read(SAVE_PATH)
 	if data.is_empty():
-		return
+		return false
 	if int(data.get("version", 1)) > SAVE_VERSION:
 		# don't downgrade a save from a newer game: play with it, but never write over it
 		push_warning("save is from a newer version of the game; it won't be overwritten")
@@ -409,6 +492,8 @@ func load_game() -> void:
 	hunger = data.get("hunger", hunger)
 	happiness = data.get("happiness", happiness)
 	pet_out = data.get("pet_out", false)
+	tutorial = str(data.get("tutorial", "done"))  # saves from before the tutorial skip it
+	collection.auto_active = tutorial == "done"  # mid-tutorial, you still choose your active pet
 	collection.load_from(data.get("collection", {}))
 	bag.clear()
 	var saved_bag: Dictionary = data.get("bag", {})
@@ -448,6 +533,7 @@ func load_game() -> void:
 		coins += int(minf(away, OFFLINE_CAP) * 0.4 / COIN_INTERVAL)
 		hunger = maxf(STAT_FLOOR, hunger - HUNGER_DECAY * away)
 		happiness = maxf(STAT_FLOOR, happiness - HAPPY_DECAY * away)
+	return true
 
 
 ## Brings older save files up to the current format, one version at a time.

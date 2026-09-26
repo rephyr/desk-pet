@@ -1,5 +1,5 @@
 {
-	"_note": "Box types. 'tiers' are weights for each part's rarity roll, 'finishes' for the finish roll, 'traits' for how many traits (index = count).",
+	"_note": "Box types. 'hidden' boxes aren't sold in the shop (the tutorial box: what your first two pets come from, only commons). 'tiers' are weights for each part's rarity roll, 'finishes' for the finish roll, 'traits' for how many traits (index = count).",
 	"boxes": [
 		{
 			"id": "starter",
@@ -16,6 +16,15 @@
 			"tiers": { "common": 300, "uncommon": 330, "rare": 230, "epic": 100, "legendary": 32, "mythic": 8 },
 			"finishes": { "normal": 600, "shiny": 250, "holo": 100, "ghost": 35, "glitch": 12, "prismatic": 3 },
 			"traits": [0, 30, 45, 25]
+		},
+		{
+			"id": "tutorial",
+			"name": "starter box",
+			"hidden": true,
+			"price": 50,
+			"tiers": { "common": 1 },
+			"finishes": { "normal": 1 },
+			"traits": [0, 70, 30, 0]
 		}
 	]
 }

@@ -8,6 +8,7 @@ signal quit_requested
 var _coins := UiTheme.label("", UiTheme.CYAN)
 var boxes := BoxesTab.new()
 var collection := CollectionTab.new()
+var adventures := AdventuresTab.new()
 var _tabs := {}  # name -> Control
 var _tab_buttons := {}  # name -> Button
 
@@ -32,7 +33,7 @@ func _init() -> void:
 	inventory.open_box_requested.connect(func(box_id):
 		show_tab("boxes")
 		boxes.open(box_id, 1))
-	_tabs = { "boxes": boxes, "collection": collection, "adventures": AdventuresTab.new(), "inventory": inventory, "settings": SettingsTab.new() }
+	_tabs = { "boxes": boxes, "collection": collection, "adventures": adventures, "inventory": inventory, "settings": SettingsTab.new() }
 	var group := ButtonGroup.new()
 	for tab_name in _tabs:
 		body.add_child(_tabs[tab_name])
@@ -60,7 +61,41 @@ func _init() -> void:
 	header.add_child(UiTheme.small_button("×", func(): quit_requested.emit()))
 
 	GameState.changed.connect(_refresh)
+	GameState.tutorial_changed.connect(_refresh_tabs)
+	GameState.new_game.connect(_refresh_tabs)
 	_refresh()
+	_refresh_tabs()
+
+
+## Which tabs a tutorial step shows: they appear one by one as you learn them.
+const TUTORIAL_TABS := {
+	"open_first": ["boxes", "settings"],
+	"open_second": ["boxes", "settings"],
+	"make_active": ["boxes", "collection", "settings"],
+	"send": ["boxes", "collection", "adventures", "settings"],
+}
+
+
+func _refresh_tabs() -> void:
+	var shown: Array = TUTORIAL_TABS.get(GameState.tutorial, _tabs.keys())
+	for tab_name in _tab_buttons:
+		_tab_buttons[tab_name].visible = tab_name in shown
+	# jump to where the tutorial wants you
+	match GameState.tutorial:
+		"open_first":
+			show_tab("boxes")
+
+
+## The button the tutorial is pointing at right now, or null.
+func tutorial_target() -> Control:
+	match GameState.tutorial:
+		"open_first", "open_second":
+			return null if boxes.is_revealing() else (boxes.tutorial_target() if boxes.visible else _tab_buttons.boxes)
+		"make_active":
+			return collection.tutorial_target() if collection.visible else _tab_buttons.collection
+		"send":
+			return adventures.tutorial_target() if adventures.visible else _tab_buttons.adventures
+	return null
 
 
 func show_tab(tab_name: String) -> void:

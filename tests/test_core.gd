@@ -13,6 +13,13 @@ func _init() -> void:
 	_test_data_is_consistent(catalog)
 	_test_odds_match_box(catalog, "starter")
 	_test_odds_match_box(catalog, "lucky")
+	var tutorial_roller := PetRoller.new(catalog)
+	for i in 500:
+		var first := tutorial_roller.roll("tutorial")
+		if first.rarity != "common" or first.finish != "normal":
+			_check(false, "the tutorial box only gives plain commons (got %s %s)" % [first.finish, first.rarity])
+			break
+	_check(catalog.box("tutorial").get("hidden", false), "the tutorial box isn't sold in the shop")
 	_test_save_round_trip(catalog)
 	_test_old_pets_still_load(catalog)
 	_test_adventures(catalog)

@@ -60,6 +60,11 @@ func _init() -> void:
 	GameState.collection.pets_added.connect(func(_p):
 		_dirty = true
 		_rebuild_if_visible())
+	GameState.new_game.connect(func():
+		_selected_uid = ""
+		_page = 0
+		_dirty = true
+		_rebuild_if_visible())
 	GameState.collection.pets_removed.connect(func(uids):
 		if _selected_uid in uids:
 			_selected_uid = ""
@@ -95,6 +100,16 @@ func _next_sort() -> void:
 	_sort.text = "sort: " + SORTS[_sort_index]
 	_page = 0
 	_rebuild()
+
+
+## For the tutorial: a pet to tap, or once one's picked, the button to make it active.
+func tutorial_target() -> Control:
+	if _details.visible and not _details.active_button().disabled:
+		return _details.active_button()
+	for card in _grid.get_children():
+		if card is PetCard:
+			return card
+	return null
 
 
 func _turn(step: int) -> void:

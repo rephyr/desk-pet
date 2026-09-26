@@ -34,6 +34,10 @@ func _ready() -> void:
 	panel.add_child(_compact)
 	panel.add_child(_expanded)
 	_expanded.visible = false
+	var guide := TutorialGuide.new()
+	guide.target_for = func() -> Control:
+		return _expanded.tutorial_target() if _expanded_mode else _compact.expand_button
+	panel.add_child(guide)
 
 	_compact.expand_requested.connect(_set_expanded.bind(true))
 	_compact.let_out_toggled.connect(func(): _set_out(not GameState.pet_out))
@@ -41,6 +45,7 @@ func _ready() -> void:
 	_expanded.collapse_requested.connect(_set_expanded.bind(false))
 	_expanded.quit_requested.connect(_quit)
 	GameState.collection.active_changed.connect(func(p): if _pet: _pet.set_pet(p))
+	GameState.new_game.connect(func(): _set_expanded(true))
 
 	_overlay = _make_overlay()
 	add_child(_overlay)
@@ -51,6 +56,8 @@ func _ready() -> void:
 	_source.setup(win, _overlay)
 	_apply_size()
 	_set_out(GameState.pet_out)
+	if GameState.tutorial_active():
+		_set_expanded(true)  # a new player starts in the full game, at the boxes
 	_apply_dev_args()
 
 

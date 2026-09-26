@@ -284,6 +284,16 @@ func _picked_pets() -> Array[Pet]:
 	return out
 
 
+## For the tutorial: a pet to pick for the trip, then the send button.
+func tutorial_target() -> Control:
+	if not _picked.is_empty():
+		return _send
+	for card in _grid.get_children():
+		if card is PetCard:
+			return card
+	return null
+
+
 func _turn(step: int) -> void:
 	_page += step
 	_rebuild_picker()

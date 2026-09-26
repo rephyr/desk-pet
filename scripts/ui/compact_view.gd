@@ -12,6 +12,7 @@ var _coins := UiTheme.label("", UiTheme.CYAN)
 var _hunger := UiTheme.bar(UiTheme.PINK)
 var _happy := UiTheme.bar(UiTheme.LILAC)
 var _out_button: Button
+var expand_button: Button  # the tutorial points at it if you shrink the window
 
 
 func _init() -> void:
@@ -25,7 +26,8 @@ func _init() -> void:
 	header.add_child(title)
 	_coins.mouse_filter = MOUSE_FILTER_PASS
 	header.add_child(_coins)
-	header.add_child(UiTheme.small_button("▴", func(): expand_requested.emit()))
+	expand_button = UiTheme.small_button("▴", func(): expand_requested.emit())
+	header.add_child(expand_button)
 	header.add_child(UiTheme.small_button("×", func(): quit_requested.emit()))
 	add_child(header)
 

@@ -35,6 +35,11 @@ func _init() -> void:
 	show_pet(null)
 
 
+## The "make active" button (the tutorial points at it).
+func active_button() -> Button:
+	return _active_button
+
+
 func show_pet(pet: Pet) -> void:
 	_pet = pet
 	visible = pet != null

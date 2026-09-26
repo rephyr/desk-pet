@@ -41,6 +41,10 @@ var _pet_view := PetView.new()
 var _blocker := RevealBlocker.new()
 var _banner := UiTheme.label("", UiTheme.TEXT, 30)
 var _hint := UiTheme.label("", UiTheme.MUTED)
+var _speech := UiTheme.label("", UiTheme.PINK)  # the pet inside talking (tutorial only)
+## Lines the pet inside says while you open it: on landing, while you rip, once it's out.
+## Empty outside the tutorial: then boxes just rip.
+var box_talk: Array = []
 var _result := RevealResult.new()
 var _tweens: Array[Tween] = []
 
@@ -87,6 +91,12 @@ func _init() -> void:
 	_banner.position.y = 18
 	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_banner)
+	_speech.theme = UiTheme.get_theme()  # it lives under a Node2D, which doesn't pass the theme on
+	_speech.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_speech.position = Vector2(-160, CardPack.rim_y() - CardPack.STRIP - 60)
+	_speech.size = Vector2(320, 40)
+	_speech.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_scene.add_child(_speech)
 	_hint.set_anchors_preset(PRESET_BOTTOM_WIDE)
 	_hint.position.y = -30
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
@@ -151,6 +161,11 @@ func _land(run: int) -> void:
 		return
 	_stage = Stage.RIP
 	_say("rip the top off ✦")
+	_box_says(0)
+	if box_talk.size() > 1:
+		get_tree().create_timer(1.8).timeout.connect(func():
+			if run == _run and _stage == Stage.RIP:
+				_box_says(1))
 	if autoplay:
 		await _wait(0.6)
 		# a pretend hand: pick up the left end, pull it up and right, back left (which mustn't
@@ -173,6 +188,10 @@ func _land(run: int) -> void:
 func _rip_off(run: int, velocity: Vector2) -> void:
 	_stage = Stage.CLIMB
 	_say("")
+	_box_says(2)
+	get_tree().create_timer(1.5).timeout.connect(func():
+		if run == _run:
+			_speech.text = "")
 	_set_tear(1.0)
 	_pack.throw_strip(velocity)
 	_shake = 3.0
@@ -321,6 +340,7 @@ func _close() -> void:
 
 func _reset() -> void:
 	_run += 1
+	_speech.text = ""
 	_kill_tweens()
 	_stage = Stage.IDLE
 	_effects.clear()
@@ -438,6 +458,17 @@ func _end_drag() -> void:
 
 
 # ---- helpers --------------------------------------------------------------
+
+## Whether a box is mid-opening (not idle, not showing the result).
+func is_busy() -> bool:
+	return not _stage in [Stage.IDLE, Stage.RESULT]
+
+
+func _box_says(line: int) -> void:
+	_speech.text = str(box_talk[line]) if line < box_talk.size() else ""
+	if _speech.text != "":
+		_pop_in(_speech)
+
 
 func _process(delta: float) -> void:
 	var jitter := Vector2.ZERO

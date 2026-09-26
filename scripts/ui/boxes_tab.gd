@@ -8,7 +8,7 @@ const OPEN_MAX_LIMIT := 500  # "open max" stops here so one click can't hang the
 
 var _reveal := BoxReveal.new()
 var _opening := PackOpening.new()
-var _buttons := {}  # box id -> { "one": Button, "many": Button, "max": Button, "bag": Label }
+var _buttons := {}  # box id -> { "one": Button, "many": Button, "max": Button, "bag": Label, "panel": the offer }
 
 
 func _init() -> void:
@@ -18,7 +18,8 @@ func _init() -> void:
 	shop.add_theme_constant_override("separation", 10)
 	add_child(shop)
 	for box in Catalog.shared().boxes:
-		shop.add_child(_offer(box))
+		if not box.get("hidden", false):
+			shop.add_child(_offer(box))
 	if OS.is_debug_build():
 		shop.add_child(_dev_buttons())
 	add_child(_reveal)
@@ -26,6 +27,7 @@ func _init() -> void:
 	_opening.open_again.connect(func(box_id): open(box_id, 1))
 	_show_opening(true)
 	GameState.changed.connect(_refresh)
+	GameState.tutorial_changed.connect(_refresh)
 	_refresh()
 
 
@@ -79,7 +81,7 @@ func _offer(box: Dictionary) -> PanelContainer:
 		b.size_flags_horizontal = SIZE_EXPAND_FILL
 		buttons.add_child(b)
 	col.add_child(buttons)
-	_buttons[box.id] = { "one": one, "many": many, "max": most, "bag": in_bag }
+	_buttons[box.id] = { "one": one, "many": many, "max": most, "bag": in_bag, "panel": panel }
 	return panel
 
 
@@ -110,9 +112,23 @@ func open(box_id: String, count: int, force_tier := "") -> void:
 		return
 	_show_opening(pulled.size() == 1)
 	if pulled.size() == 1:
+		# in the tutorial the pet inside talks while you open its box
+		var talk: Array = Catalog.shared().tutorial.box_talk
+		var nth := GameState.collection.pets.size() - 1
+		_opening.box_talk = talk[nth] if GameState.tutorial_active() and nth < talk.size() else []
 		_opening.play(pulled[0], box_id)
 	else:
 		_reveal.play(pulled)
+
+
+## Whether a box is being opened right now (the pack is mid-ritual).
+func is_revealing() -> bool:
+	return _opening.visible and _opening.is_busy()
+
+
+## The tutorial's "open a box" button.
+func tutorial_target() -> Control:
+	return _buttons[Catalog.shared().boxes[0].id].one
 
 
 func _show_opening(single: bool) -> void:
@@ -131,3 +147,8 @@ func _refresh() -> void:
 		var owned := GameState.in_bag(box_id)
 		b.bag.text = "%d in your bag  " % owned
 		b.bag.visible = owned > 0
+		# the tutorial is one starter box at a time
+		var learning := GameState.tutorial_active()
+		b.panel.visible = not learning or box_id == Catalog.shared().boxes[0].id
+		b.many.visible = not learning
+		b.max.visible = not learning

@@ -10,6 +10,8 @@ signal pets_removed(uids: Array[String])
 
 var pets: Array[Pet] = []  # in pull order
 var active_uid := ""
+## The first pet you get becomes active by itself; the tutorial turns this off so you choose.
+var auto_active := true
 var _by_uid := {}
 var _next_id := 1
 var _seen := {}  # book key -> times pulled, see part_key() / finish_key()
@@ -34,7 +36,7 @@ func add(new_pets: Array[Pet]) -> void:
 		for slot in Catalog.SLOTS:
 			_count(part_key(slot, pet.parts[slot]))
 		_count(finish_key(pet.parts.body, pet.finish))
-	if active_uid == "" and not pets.is_empty():
+	if active_uid == "" and auto_active and not pets.is_empty():
 		active_uid = pets[0].uid
 	pets_added.emit(new_pets)
 
@@ -99,7 +101,7 @@ func load_from(d: Dictionary) -> void:
 		_by_uid[pet.uid] = pet
 	active_uid = str(d.get("active", ""))
 	if not _by_uid.has(active_uid):
-		active_uid = pets[0].uid if not pets.is_empty() else ""
+		active_uid = pets[0].uid if auto_active and not pets.is_empty() else ""
 	_next_id = int(d.get("next_id", pets.size() + 1))
 	for key in d.get("seen", {}):
 		_seen[key] = int(d.seen[key])
