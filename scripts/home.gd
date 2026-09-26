@@ -105,11 +105,11 @@ func _apply_dev_args() -> void:
 		_expanded.show_tab(DevArgs.value("tab"))
 	if DevArgs.has("book"):
 		_expanded.collection.show_book(true)
-	var open := DevArgs.value("open")  # e.g. starter:10
+	var open := DevArgs.value("open")  # e.g. starter:10, plus --force=mythic to pick the rarity
 	if open != "":
 		var bits := open.split(":")
 		GameState.add_debug_coins()
-		_expanded.boxes.open(bits[0], int(bits[1]) if bits.size() > 1 else 1)
+		_expanded.boxes.open(bits[0], int(bits[1]) if bits.size() > 1 else 1, DevArgs.value("force"))
 
 
 func _quit() -> void:

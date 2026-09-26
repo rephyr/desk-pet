@@ -63,13 +63,15 @@ func can_open(box_id: String, count := 1) -> bool:
 
 
 ## Pays for and opens boxes. Returns the new pets (empty if you can't afford them).
-func open_boxes(box_id: String, count := 1) -> Array[Pet]:
+## `force_tier` only works in debug builds, for testing reveals.
+func open_boxes(box_id: String, count := 1, force_tier := "") -> Array[Pet]:
 	var pulled: Array[Pet] = []
 	if count <= 0 or not can_open(box_id, count):
 		return pulled
 	coins -= box_price(box_id, count)
+	var forced := force_tier if OS.is_debug_build() else ""
 	for i in count:
-		pulled.append(_roller.roll(box_id))
+		pulled.append(_roller.roll(box_id, forced))
 	collection.add(pulled)
 	changed.emit()
 	save_game()

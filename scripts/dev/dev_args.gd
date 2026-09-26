@@ -2,6 +2,7 @@ class_name DevArgs
 extends RefCounted
 ## Debug-build launch flags for testing screens quickly, passed after "--":
 ##   godot . -- --expanded --tab=collection --book --open=starter:10
+##   godot . -- --expanded --open=starter:1 --force=mythic   (test a reveal at a given rarity)
 ## Release builds ignore them.
 
 

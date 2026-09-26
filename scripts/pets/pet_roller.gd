@@ -17,13 +17,14 @@ func _init(p_catalog: Catalog = Catalog.shared(), p_rng: RandomNumberGenerator =
 		rng.randomize()
 
 
-func roll(box_id: String) -> Pet:
+## Rolls one pet. `force_tier` fixes the rarity (for testing reveals); leave empty normally.
+func roll(box_id: String, force_tier := "") -> Pet:
 	var box := catalog.box(box_id)
 	assert(not box.is_empty(), "unknown box: " + box_id)
 	var pet := Pet.new()
 	pet.box = box_id
 	pet.pulled_at = int(Time.get_unix_time_from_system())
-	var tier_rank := catalog.rank(Weighted.pick(box.tiers, rng))
+	var tier_rank := catalog.rank(force_tier if force_tier != "" else Weighted.pick(box.tiers, rng))
 	var signature := _signature_slot(tier_rank)
 	tier_rank = mini(tier_rank, _best_rank_in(signature, tier_rank))
 	for slot in Catalog.SLOTS:
