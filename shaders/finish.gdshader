@@ -7,6 +7,12 @@ uniform int mode = 0;
 uniform float seed = 0.0; // so pets don't all sparkle in sync
 uniform vec3 silhouette_color = vec3(0.22, 0.15, 0.3);
 
+varying vec4 vertex_color; // COLOR before the texture, which carries modulate (fades)
+
+void vertex() {
+	vertex_color = COLOR;
+}
+
 float hash(float n) {
 	return fract(sin(n) * 43758.5453);
 }
@@ -31,7 +37,8 @@ void fragment() {
 		uv.x += (hash(band + t) - 0.5) * 0.3 * step(0.5, hash(band * 3.1 + t));
 	}
 
-	vec4 c = mode == 4 ? texture(TEXTURE, uv) : COLOR;
+	// glitch samples the texture itself (shifted), so it re-applies modulate by hand
+	vec4 c = mode == 4 ? texture(TEXTURE, uv) * vertex_color : COLOR;
 	float lum = dot(c.rgb, vec3(0.3, 0.59, 0.11));
 	float bright = smoothstep(0.2, 0.6, lum); // keeps the outline and eyes dark
 
