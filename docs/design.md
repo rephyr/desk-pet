@@ -40,8 +40,14 @@ troops off to be killed. The mask slips slowly as you progress.
   the one part that makes your favourite cat perfect.
 - **Plushie logic** (**Open**): parts are sewn on with stitches and button eyes, so grafting reads
   as crafting.
-- **Examples:** "send on an adventure" becomes "send", then "7 came home"; lost pets get a quiet
-  star in the book; the perfect pet watches the others a bit too long.
+- **Examples:** "send on an adventure" becomes "send", then "7 came home"; the perfect pet
+  watches the others a bit too long.
+- **The night sky** (**Decided**, inspired by Noita's star per death): every pet that doesn't come
+  back adds one tiny, dim star to the background of the home panel, in a spot and colour taken
+  from that pet. Never explained, never counted, really hard to notice. Early on there are a
+  handful of specks; late game the panel is a dark starry sky, so the mood darkens by itself as
+  a direct result of what you've done. Past what a small panel can hold, new stars thicken a
+  faint milky band instead of adding specks.
 
 ## Core loop
 
