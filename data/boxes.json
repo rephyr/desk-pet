@@ -1,0 +1,21 @@
+{
+	"_note": "Box types. 'tiers' are weights for each part's rarity roll, 'finishes' for the finish roll, 'traits' for how many traits (index = count).",
+	"boxes": [
+		{
+			"id": "starter",
+			"name": "starter box",
+			"price": 50,
+			"tiers": { "common": 600, "uncommon": 250, "rare": 110, "epic": 32, "legendary": 7, "mythic": 1 },
+			"finishes": { "normal": 800, "shiny": 150, "holo": 38, "ghost": 9, "glitch": 2.5, "prismatic": 0.5 },
+			"traits": [0, 60, 30, 10]
+		},
+		{
+			"id": "lucky",
+			"name": "lucky box",
+			"price": 250,
+			"tiers": { "common": 300, "uncommon": 330, "rare": 230, "epic": 100, "legendary": 32, "mythic": 8 },
+			"finishes": { "normal": 600, "shiny": 250, "holo": 100, "ghost": 35, "glitch": 12, "prismatic": 3 },
+			"traits": [0, 30, 45, 25]
+		}
+	]
+}

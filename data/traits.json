@@ -1,0 +1,13 @@
+{
+	"_note": "Personality traits. 'mods' multiply stats or rates; unused keys are for later systems.",
+	"traits": [
+		{ "id": "greedy", "name": "greedy", "desc": "earns more coins", "mods": { "coins": 1.2 } },
+		{ "id": "lucky", "name": "lucky", "desc": "better luck", "mods": { "luck": 1.25 } },
+		{ "id": "brave", "name": "brave", "desc": "stronger on raids", "mods": { "power": 1.2 } },
+		{ "id": "zoomy", "name": "zoomy", "desc": "faster expeditions", "mods": { "speed": 1.25 } },
+		{ "id": "lazy", "name": "lazy", "desc": "naps a lot, earns a bit less", "mods": { "coins": 0.9 } },
+		{ "id": "cuddly", "name": "cuddly", "desc": "loves pats", "mods": { "mood": 1.3 } },
+		{ "id": "hungry", "name": "hungry", "desc": "always wants snacks", "mods": { "hunger": 1.3 } },
+		{ "id": "curious", "name": "curious", "desc": "finds more stuff", "mods": { "finds": 1.2 } }
+	]
+}

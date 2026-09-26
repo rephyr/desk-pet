@@ -1,0 +1,11 @@
+{
+	"_note": "The 'foil' layer on top of a pet, lowest to highest. 'shader' picks the effect in shaders/finish.gdshader.",
+	"finishes": [
+		{ "id": "normal", "name": "", "rarity": "common", "shader": 0 },
+		{ "id": "shiny", "name": "shiny", "rarity": "uncommon", "shader": 1 },
+		{ "id": "holo", "name": "holo", "rarity": "rare", "shader": 2 },
+		{ "id": "ghost", "name": "ghost", "rarity": "epic", "shader": 3 },
+		{ "id": "glitch", "name": "glitch", "rarity": "legendary", "shader": 4 },
+		{ "id": "prismatic", "name": "prismatic", "rarity": "mythic", "shader": 5 }
+	]
+}

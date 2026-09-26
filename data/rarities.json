@@ -1,0 +1,11 @@
+{
+	"_note": "Rarity tiers from lowest to highest. Colours are the card frames.",
+	"tiers": [
+		{ "id": "common", "name": "common", "color": "#8a7f99" },
+		{ "id": "uncommon", "name": "uncommon", "color": "#6fe3a8" },
+		{ "id": "rare", "name": "rare", "color": "#5cc8ff" },
+		{ "id": "epic", "name": "epic", "color": "#b77dff" },
+		{ "id": "legendary", "name": "legendary", "color": "#ffc857" },
+		{ "id": "mythic", "name": "mythic", "color": "#ff4f9a" }
+	]
+}

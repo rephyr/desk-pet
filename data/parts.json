@@ -1,0 +1,50 @@
+{
+	"_note": "Pet parts per slot. Each part has a rarity tier; a box rolls a tier, then a part of that tier.",
+	"slots": {
+		"body": [
+			{ "id": "blob", "name": "blob", "rarity": "common" },
+			{ "id": "cat", "name": "cat", "rarity": "common" },
+			{ "id": "bear", "name": "bear", "rarity": "uncommon" },
+			{ "id": "bunny", "name": "bunny", "rarity": "rare" },
+			{ "id": "fox", "name": "fox", "rarity": "epic" },
+			{ "id": "dragon", "name": "dragon", "rarity": "legendary" },
+			{ "id": "void", "name": "void", "rarity": "mythic" }
+		],
+		"palette": [
+			{ "id": "lilac", "name": "lilac", "rarity": "common", "body": "#c9a0ff", "light": "#f5dcec", "accent": "#9b6fe0" },
+			{ "id": "mint", "name": "mint", "rarity": "common", "body": "#8fe8c0", "light": "#e6fff4", "accent": "#4fb893" },
+			{ "id": "peach", "name": "peach", "rarity": "common", "body": "#ffb59a", "light": "#fff0e6", "accent": "#e07f62" },
+			{ "id": "sky", "name": "sky", "rarity": "uncommon", "body": "#8cc8ff", "light": "#e8f4ff", "accent": "#4f8fd6" },
+			{ "id": "bubblegum", "name": "bubblegum", "rarity": "uncommon", "body": "#ff8fc8", "light": "#ffe6f3", "accent": "#d95c9e" },
+			{ "id": "midnight", "name": "midnight", "rarity": "rare", "body": "#4a3b7a", "light": "#8f7fc8", "accent": "#2a1f4f" },
+			{ "id": "toxic", "name": "toxic", "rarity": "epic", "body": "#b6ff5c", "light": "#f0ffd6", "accent": "#6fbf1f" },
+			{ "id": "gold", "name": "gold", "rarity": "legendary", "body": "#ffd166", "light": "#fff6d6", "accent": "#d99a1f" },
+			{ "id": "abyss", "name": "abyss", "rarity": "mythic", "body": "#1c1024", "light": "#ff4f9a", "accent": "#5cf2ff" }
+		],
+		"pattern": [
+			{ "id": "plain", "name": "plain", "rarity": "common" },
+			{ "id": "spots", "name": "spots", "rarity": "common" },
+			{ "id": "stripes", "name": "stripes", "rarity": "uncommon" },
+			{ "id": "checker", "name": "checker", "rarity": "rare" },
+			{ "id": "stars", "name": "stars", "rarity": "epic" },
+			{ "id": "circuit", "name": "circuit", "rarity": "legendary" }
+		],
+		"eyes": [
+			{ "id": "round", "name": "round", "rarity": "common" },
+			{ "id": "sleepy", "name": "sleepy", "rarity": "common" },
+			{ "id": "happy", "name": "happy", "rarity": "uncommon" },
+			{ "id": "sparkle", "name": "sparkle", "rarity": "rare" },
+			{ "id": "cyclops", "name": "cyclops", "rarity": "epic" },
+			{ "id": "x", "name": "x-eyes", "rarity": "legendary" }
+		],
+		"accessory": [
+			{ "id": "none", "name": "no accessory", "rarity": "common" },
+			{ "id": "bow", "name": "bow", "rarity": "common" },
+			{ "id": "leaf", "name": "leaf", "rarity": "uncommon" },
+			{ "id": "headphones", "name": "headphones", "rarity": "rare" },
+			{ "id": "halo", "name": "halo", "rarity": "epic" },
+			{ "id": "crown", "name": "crown", "rarity": "legendary" },
+			{ "id": "horns", "name": "demon horns", "rarity": "mythic" }
+		]
+	}
+}
