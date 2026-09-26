@@ -12,8 +12,9 @@ enum State { IDLE, WALK, FALL, DRAG }
 
 var source: WindowSource
 var overlay: Window
+var pixel := 4  # screen pixels per art pixel; set before adding to the tree
 
-var _sprite: PetSprite
+var _sprite := PetView.new()
 var _state := State.FALL
 var _vel := Vector2.ZERO
 var _dir := 1
@@ -28,9 +29,18 @@ var _hearts: Array[Vector3] = []  # (x, y, age)
 
 
 func _ready() -> void:
-	_sprite = PetSprite.new()
+	_sprite.pixel = pixel
 	add_child(_sprite)
 	_refresh_world()
+
+
+func set_pet(pet: Pet) -> void:
+	_sprite.pet = pet
+
+
+## Pet size on screen.
+func _size() -> Vector2:
+	return PetView.size_for(pixel)
 
 
 ## Drops the pet in at a point (overlay pixels), e.g. under the mouse.
@@ -78,8 +88,8 @@ func _walk(delta: float) -> void:
 		_start_fall()
 		return
 	position.y = seg.z
-	position.x += _dir * WALK_SPEED * delta
-	var half := PetSprite.size().x * 0.3
+	position.x += _dir * WALK_SPEED * (pixel / 4.0) * delta
+	var half := _size().x * 0.3
 	if position.x < seg.x + half or position.x > seg.y - half:
 		if seg.z < overlay.size.y - 2 and randf() < 0.4:
 			position.x += _dir * half * 2.0  # hop off the edge
@@ -145,7 +155,7 @@ func _refresh_world() -> void:
 	var rects := source.get_windows(overlay)
 	var w := float(overlay.size.x)
 	var h := float(overlay.size.y)
-	var min_y := PetSprite.size().y  # the pet has to fit above the edge
+	var min_y := _size().y  # the pet has to fit above the edge
 	_platforms.clear()
 	for i in rects.size():
 		var r := rects[i]
@@ -159,7 +169,7 @@ func _refresh_world() -> void:
 			if f.position.y <= y and f.end.y > y:
 				spans = _subtract(spans, f.position.x, f.end.x)
 		for s in spans:
-			if s.y - s.x >= PetSprite.size().x * 0.8:
+			if s.y - s.x >= _size().x * 0.8:
 				_platforms.append(Vector3(s.x, s.y, y))
 	_platforms.append(Vector3(0.0, w, h))  # the floor
 
@@ -178,8 +188,8 @@ func _subtract(spans: Array[Vector2], a: float, b: float) -> Array[Vector2]:
 
 
 func _body_rect() -> Rect2:
-	var s := PetSprite.size()
-	return Rect2(position - Vector2(s.x / 2.0, s.y + PetSprite.PIXEL * 2), Vector2(s.x, s.y + PetSprite.PIXEL * 2))
+	var s := _size()
+	return Rect2(position - Vector2(s.x / 2.0, s.y + pixel * 2), Vector2(s.x, s.y + pixel * 2))
 
 
 func _update_click_area() -> void:
@@ -226,7 +236,7 @@ func _draw() -> void:
 	# little pixel hearts floating up after a pat
 	for heart in _hearts:
 		var a := 1.0 - heart.z / 1.2
-		var base := Vector2(heart.x, -PetSprite.size().y - 8 - heart.z * 40.0)
+		var base := Vector2(heart.x, -_size().y - 8 - heart.z * 40.0)
 		var c := Color("ff79c6", a)
 		for p in [Vector2(-2, 0), Vector2(1, 0), Vector2(-3, 1), Vector2(-2, 1), Vector2(-1, 1),
 				Vector2(0, 1), Vector2(1, 1), Vector2(2, 1), Vector2(-2, 2), Vector2(-1, 2),
