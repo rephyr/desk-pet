@@ -27,7 +27,7 @@ func _init() -> void:
 		Settings.set_value("reveal_speed", v))
 	add_child(speed_row)
 
-	add_child(_toggle("skip the chest when opening one box", "skip_single_reveal"))
+	add_child(_toggle("skip the pack animation when opening one box", "skip_single_reveal"))
 	add_child(_toggle("skip the mist on very rare pulls", "skip_ritual"))
 
 

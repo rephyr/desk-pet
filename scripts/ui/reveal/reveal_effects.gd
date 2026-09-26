@@ -1,8 +1,8 @@
 class_name RevealEffects
 extends Node2D
-## The light and particles coming out of the chest. Effects are layers that stack: each rarity
+## The light and particles coming out of the pack. Effects are layers that stack: each rarity
 ## step adds its layers (from data/reveal.json) on top of the ones already running.
-## Place this node at the chest's mouth.
+## Place this node at the pack's mouth.
 
 const GLOW_SIZE := 420.0
 const BEAMS := 9

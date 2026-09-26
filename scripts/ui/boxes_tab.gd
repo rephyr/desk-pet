@@ -1,13 +1,13 @@
 class_name BoxesTab
 extends HBoxContainer
 ## Box shop on the left (price, odds, open buttons), the reveal on the right:
-## one box gets the chest ritual (ChestOpening), several get the quick grid (BoxReveal).
+## one box gets the card pack ritual (PackOpening), several get the quick grid (BoxReveal).
 
 const OPEN_MANY := 10
 const OPEN_MAX_LIMIT := 500  # "open max" stops here so one click can't hang the game
 
 var _reveal := BoxReveal.new()
-var _opening := ChestOpening.new()
+var _opening := PackOpening.new()
 var _buttons := {}  # box id -> { "one": Button, "many": Button, "max": Button }
 
 
