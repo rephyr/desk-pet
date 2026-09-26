@@ -69,3 +69,5 @@ has a `version`; `GameState._migrate` upgrades older files step by step, so bump
 - `godot -s tests/look_sheet.gd -- out.png` - renders every part and finish into one picture.
 - Debug launch flags (`DevArgs`): `godot . -- --expanded --tab=collection --book --open=starter:10`,
   and `--open=starter:1 --force=mythic --autoplay` to watch a reveal at any rarity hands-free.
+- `python3 tools/film.py <out_dir> <name> "<godot args>" 1.5 3 5` - launches the game on Hyprland
+  and screenshots its window at those times (combine with `--autoplay` to check animations).
