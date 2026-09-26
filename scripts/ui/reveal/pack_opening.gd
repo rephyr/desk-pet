@@ -15,7 +15,7 @@ signal closed
 enum Stage { IDLE, LANDING, RIP, CLIMB, PEEK, PULL, RITUAL, CELEBRATE, RESULT }
 
 const PET_PIXEL := 6
-const RIP_DRAG := 120.0  # drag (px) across the top to rip it fully
+const RIP_DRAG := 220.0  # drag (px) across the top to rip it fully
 const PULL_DRAG := 170.0  # upward drag (px) from peeking to fully out
 const FLICK_SPEED := 900.0  # px/s: a quick flick pops the pet out / throws the mist away
 const MIST_THROW := 170.0  # dragging the mist this far off the pet also clears it

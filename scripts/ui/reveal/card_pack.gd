@@ -11,7 +11,7 @@ const WIDTH := 30 * U
 const HEIGHT := 42 * U
 const STRIP := 7 * U  # the part that rips off
 const CRIMP := 2 * U  # zigzag sealed edges
-const TILT := 0.3  # how far the strip lifts while you rip it (radians)
+const TILT := 0.55  # how far the strip lifts while you rip it (radians)
 
 const FOIL := Color("6b4fa0")
 const FOIL_LIGHT := Color("8e6fd0")

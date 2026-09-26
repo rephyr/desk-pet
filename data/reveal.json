@@ -1,7 +1,7 @@
 {
 	"_note": "Single box opening (the card pack). Times are seconds at 1x reveal speed. Effect names in 'adds' are drawn by scripts/ui/reveal/reveal_effects.gd and stack from tier to tier.",
 	"ritual_max_chance": 0.01,
-	"rip_pop_at": 0.6,
+	"rip_pop_at": 0.9,
 	"pull_pop_at": 0.75,
 	"land_time": 0.45,
 	"finish_flash_time": 1.1,

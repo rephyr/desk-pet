@@ -20,6 +20,7 @@ var leak := 0.0
 var _layers := {}  # layer name -> strength 0..1
 var _time := 0.0
 var _glow_tex := _make_glow_texture()
+var _beam_tex := _make_beam_texture()
 var _sparkles := _particles(40, 1.6)
 var _fountain := _particles(50, 1.4)
 var _burst := _particles(60, 0.9)
@@ -31,6 +32,7 @@ func _init() -> void:
 	var add := CanvasItemMaterial.new()
 	add.blend_mode = CanvasItemMaterial.BLEND_MODE_ADD
 	material = add  # light adds up instead of covering things
+	texture_filter = TEXTURE_FILTER_LINEAR  # light is soft, unlike the pixel art around it
 
 	_sparkles.emission_shape = CPUParticles2D.EMISSION_SHAPE_RECTANGLE
 	_sparkles.emission_rect_extents = Vector2(50, 4)
@@ -128,18 +130,28 @@ func _draw() -> void:
 		for i in BEAMS:
 			var t := (i + 0.5) / BEAMS
 			var angle := -PI / 2.0 + (t - 0.5) * fan + _time * 0.5 * spin
-			_draw_beam(angle, Color(color, 0.22 * beams))
+			# each ray breathes a little on its own so they never look ruler-straight
+			var wobble := sin(_time * (1.3 + i * 0.37) + i * 2.1)
+			var width := 26.0 + 10.0 * sin(i * 1.7) + 6.0 * wobble
+			var length := BEAM_LENGTH * (0.75 + 0.2 * sin(i * 2.3) + 0.05 * wobble)
+			var alpha := 0.3 * beams * (0.8 + 0.2 * wobble)
+			_draw_beam(angle, width * 2.6, length * 0.9, Color(color, alpha * 0.35))  # soft halo
+			_draw_beam(angle, width, length, Color(color, alpha))
 
 	for age in _shock_rings:
 		var r := 30.0 + age * 380.0
 		draw_arc(Vector2(0, -20), r, 0.0, TAU, 64, Color(color, (1.0 - age / 1.2) * 0.8), 6.0 - age * 4.0)
 
 
-func _draw_beam(angle: float, c: Color) -> void:
+## One ray: narrow at the light, wider at the far end, with soft edges that fade out
+## towards the tip (the texture does the softness).
+func _draw_beam(angle: float, width: float, length: float, c: Color) -> void:
 	var dir := Vector2.from_angle(angle)
-	var side := dir.orthogonal() * 18.0
-	var tip := dir * BEAM_LENGTH
-	draw_colored_polygon(PackedVector2Array([side * 0.3, -side * 0.3, tip - side * 2.0, tip + side * 2.0]), c)
+	var side := dir.orthogonal()
+	var tip := dir * length
+	var points := PackedVector2Array([side * width * 0.12, tip + side * width, tip - side * width, -side * width * 0.12])
+	var uvs := PackedVector2Array([Vector2(1, 0), Vector2(1, 1), Vector2(0, 1), Vector2(0, 0)])
+	draw_polygon(points, PackedColorArray([c, c, c, c]), uvs, _beam_tex)
 
 
 func _particles(amount: int, lifetime: float) -> CPUParticles2D:
@@ -150,6 +162,20 @@ func _particles(amount: int, lifetime: float) -> CPUParticles2D:
 	p.use_parent_material = true
 	p.color = color
 	return p
+
+
+## Soft ray texture: u runs across the ray (bright middle, see-through edges),
+## v runs along it (full at the light, fading out at the tip).
+static func _make_beam_texture() -> ImageTexture:
+	var img := Image.create_empty(32, 64, false, Image.FORMAT_RGBA8)
+	for y in 64:
+		var along := 1.0 - y / 63.0
+		along = along * along * (3.0 - 2.0 * along)  # smoothstep
+		for x in 32:
+			var across := 1.0 - absf(x / 31.0 * 2.0 - 1.0)
+			across = pow(across, 1.6)
+			img.set_pixel(x, y, Color(1, 1, 1, across * along))
+	return ImageTexture.create_from_image(img)
 
 
 static func _make_glow_texture() -> GradientTexture2D:
