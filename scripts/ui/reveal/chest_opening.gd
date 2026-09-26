@@ -69,13 +69,14 @@ func _init() -> void:
 	add_child(_dim)
 	add_child(_scene)
 
+	# draw order: inside + open lid, light (shines over them), pet, mist, front of the chest
+	_scene.add_child(_chest.back)
 	_effects.position = Chest.mouth()
 	_scene.add_child(_effects)
-	_scene.add_child(_chest.back)
 	_pet_clip.clip_contents = true
 	_pet_clip.mouse_filter = MOUSE_FILTER_IGNORE
-	_pet_clip.position = Vector2(-160, Chest.mouth().y - 700)
-	_pet_clip.size = Vector2(320, 700)  # bottom edge = the chest's mouth
+	_pet_clip.position = Vector2(-160, Chest.rim_y() - 700)
+	_pet_clip.size = Vector2(320, 700)  # bottom edge = the chest's front rim
 	_scene.add_child(_pet_clip)
 	_pet_view.pixel = PET_PIXEL
 	_pet_clip.add_child(_pet_view)
@@ -140,6 +141,7 @@ func skip() -> void:
 
 func _land(run: int) -> void:
 	_stage = Stage.LANDING
+	_say("")
 	_chest.position = Vector2(0, -DROP_HEIGHT)
 	var t := _tween()
 	t.tween_property(_chest, "position:y", 0.0, float(_cfg.land_time)).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
@@ -332,11 +334,11 @@ func _set_lid(value: float) -> void:
 ## -0.45 hidden in the chest, 0 peeking out, 1 all the way out.
 func _set_pull(value: float) -> void:
 	_pull = value
-	var mouth_y := Chest.mouth().y
+	var rim_y := Chest.rim_y()
 	var pet_h := PetView.size_for(PET_PIXEL).y
-	var hidden := mouth_y + pet_h + 8.0
-	var peek := mouth_y + pet_h * 0.72
-	var out := mouth_y - 14.0
+	var hidden := rim_y + pet_h + 8.0
+	var peek := rim_y + pet_h * 0.72
+	var out := rim_y - 18.0
 	var feet_y := lerpf(peek, hidden, -value / -PULL_HIDDEN) if value < 0.0 else lerpf(peek, out, value)
 	_pet_view.position = Vector2(_pet_clip.size.x / 2.0, feet_y - _pet_clip.position.y)
 	# while it's still coming out, the mist rides along; after that the player moves it
