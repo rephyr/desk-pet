@@ -15,7 +15,6 @@ signal closed
 enum Stage { IDLE, LANDING, RIP, CLIMB, PEEK, PULL, RITUAL, CELEBRATE, RESULT }
 
 const PET_PIXEL := 6
-const RIP_DRAG := 220.0  # drag (px) across the top to rip it fully
 const PULL_DRAG := 170.0  # upward drag (px) from peeking to fully out
 const FLICK_SPEED := 900.0  # px/s: a quick flick pops the pet out / throws the mist away
 const MIST_THROW := 170.0  # dragging the mist this far off the pet also clears it
@@ -154,19 +153,29 @@ func _land(run: int) -> void:
 	_say("rip the top off ✦")
 	if autoplay:
 		await _wait(0.6)
+		# a pretend hand: pick up the left end, pull it up and right, back left (which mustn't
+		# tear), then up and away until it tears off
+		var top := CardPack.rim_y()
+		var path := [Vector2(-60, top - 12), Vector2(-10, top - 35), Vector2(-170, top - 10), Vector2(160, top - 170)]
 		if run == _run:
-			_set_tear(0.35)
-			await _wait(0.4)
-			if run == _run:
-				_rip_off(run)
+			_pack.pick_up(path[0])
+		for i in 150:
+			if run != _run or _stage != Stage.RIP:
+				return
+			var f := i / 50.0
+			var k := mini(int(f), 2)
+			_pack.grab = path[k].lerp(path[k + 1], f - k)
+			await get_tree().process_frame
+		if run == _run and _stage == Stage.RIP:
+			_rip_off(run, Vector2(500, -500))
 
 
-func _rip_off(run: int) -> void:
+func _rip_off(run: int, velocity: Vector2) -> void:
 	_stage = Stage.CLIMB
 	_say("")
-	var t := _tween()
-	t.tween_method(_set_tear, _tear, 1.0, 0.08)
-	t.tween_property(_pack, "strip_gone", 1.0, 0.45).set_ease(Tween.EASE_IN)
+	_set_tear(1.0)
+	_pack.throw_strip(velocity)
+	_shake = 3.0
 	var catalog := Catalog.shared()
 	_effects.color = catalog.tier_color(catalog.tier_at(0).id)
 	_effects.add_layers(catalog.reveal_tier(catalog.tier_at(0).id).adds, float(_cfg.layer_fade) / Settings.reveal_speed)
@@ -319,6 +328,7 @@ func _reset() -> void:
 	_set_tear(0.0)
 	_pack.strip_gone = 0.0
 	_pack.direction = 1.0
+	_pack.grabbing = false
 	_set_pull(PULL_HIDDEN)
 	_blocker_offset = Vector2.ZERO
 	_mist_on = false
@@ -388,22 +398,16 @@ func _start_drag(pos: Vector2) -> void:
 	_velocity = Vector2.ZERO
 	_drag_value = _tear if _stage == Stage.RIP else _pull
 	_drag_offset_start = _blocker_offset
+	if _stage == Stage.RIP:
+		_pack.pick_up(_pack_local(pos))
 
 
 func _drag_to(pos: Vector2) -> void:
 	var up := _drag_from.y - pos.y
 	match _stage:
 		Stage.RIP:
-			# rip along the top in either direction (or upwards); the first sideways pull decides
-			# which end peels up
-			var sideways := pos.x - _drag_from.x
-			if _tear == 0.0 and absf(sideways) > 4.0:
-				_pack.direction = sideways
-			var rip := maxf(absf(sideways), up)
-			_set_tear(clampf(_drag_value + rip / RIP_DRAG, 0.0, 1.0))
-			if _tear >= float(_cfg.rip_pop_at):
-				_dragging = false
-				_rip_off(_run)
+			# the strip folds towards the cursor; the pack works out how far that tears it
+			_pack.grab = _pack_local(pos)
 		Stage.PULL:
 			_set_pull(clampf(_drag_value + up / PULL_DRAG, 0.0, 1.0))
 			if _pull >= float(_cfg.pull_pop_at):
@@ -422,7 +426,9 @@ func _end_drag() -> void:
 	var flick := _velocity.length() > FLICK_SPEED
 	match _stage:
 		Stage.RIP:
-			pass  # a half-ripped strip stays half ripped
+			_pack.grabbing = false  # a half-ripped strip flops down and stays half ripped
+			if flick and _tear > 0.2:
+				_rip_off(_run, _velocity)
 		Stage.PULL:
 			if flick and _velocity.y < 0.0:
 				_pop_pet(_run)
@@ -444,6 +450,16 @@ func _process(delta: float) -> void:
 	_pack.rotation = sin(Time.get_ticks_msec() * 0.05) * 0.02 if rattling else 0.0
 	_pack.back.position = _pack.position
 	_pack.back.rotation = _pack.rotation
+	if _stage == Stage.RIP and _pack.tear > _tear:
+		_set_tear(_pack.tear)
+		if _tear >= float(_cfg.rip_pop_at):
+			_dragging = false
+			_rip_off(_run, _velocity if _velocity.length() > 1.0 else Vector2(_pack.direction * 400.0, -400.0))
+
+
+## A point in this control, in the card pack's own coordinates.
+func _pack_local(pos: Vector2) -> Vector2:
+	return (_scene.transform * _pack.transform).affine_inverse() * pos
 
 
 func _layout() -> void:
