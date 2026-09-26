@@ -14,6 +14,7 @@ func _init() -> void:
 	_test_odds_match_box(catalog, "lucky")
 	_test_save_round_trip(catalog)
 	_test_old_pets_still_load(catalog)
+	_test_dungeon(catalog)
 	print("\n%s" % ("ALL PASSED" if _failures == 0 else "%d FAILED" % _failures))
 	quit(1 if _failures > 0 else 0)
 
@@ -33,6 +34,9 @@ func _test_data_is_consistent(catalog: Catalog) -> void:
 			_check(catalog.tiers.any(func(t): return t.id == tier), "box %s tier %s exists" % [b.id, tier])
 		for f in b.finishes:
 			_check(not catalog.finish(f).is_empty() and catalog.finish(f).id == f, "box %s finish %s exists" % [b.id, f])
+	for f in catalog.floors:
+		_check(not catalog.box(f.box).is_empty(), "floor %s drops a real box" % f.id)
+		_check("%d" in f.back, "floor %s says how many came home" % f.id)
 
 
 ## Rolls lots of pets and compares how often each finish shows up with the box's odds.
@@ -108,6 +112,52 @@ func _test_old_pets_still_load(catalog: Catalog) -> void:
 	for slot in Catalog.SLOTS:
 		_check(not catalog.part(slot, pet.parts[slot]).is_empty(), "old pet gets a valid %s" % slot)
 	_check(pet.finish == catalog.finishes[0].id, "unknown finish falls back to normal")
+
+
+## Runs: everyone either comes home or doesn't, deeper floors lose more, lost pets leave the
+## collection but stay in the book, and runs survive a save.
+func _test_dungeon(catalog: Catalog) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 99
+	var roller := PetRoller.new(catalog, rng)
+	var c := Collection.new()
+	var batch: Array[Pet] = []
+	for i in 2000:
+		batch.append(roller.roll("starter"))
+	c.add(batch)
+
+	var lost_on := []
+	for floor_info in [catalog.floors[0], catalog.floors[-1]]:
+		var result := Dungeon.roll(floor_info, batch, rng, catalog)
+		_check(result.home.size() + result.lost.size() == batch.size(), "every pet comes home or doesn't")
+		lost_on.append(result.lost.size())
+	_check(lost_on[0] < lost_on[1], "deeper floors lose more pets (%d vs %d)" % lost_on)
+
+	var strong := batch[0]
+	strong.stats = { "power": 500, "luck": 0, "speed": 0 }
+	_check(Dungeon.survive_chance(catalog.floors[-1], strong, catalog) <= 0.99, "nobody is ever completely safe")
+
+	var gone: Array[String] = [batch[0].uid, batch[1].uid]
+	var key := Collection.part_key("body", batch[0].parts.body)
+	var seen_before := c.times_seen(key)
+	c.active_uid = batch[0].uid
+	c.remove(gone)
+	_check(c.pets.size() == 1998 and c.get_pet(gone[0]) == null, "lost pets leave the collection")
+	_check(c.times_seen(key) == seen_before, "the book still remembers them")
+	_check(c.fallen.size() == 2, "each lost pet leaves a star")
+	_check(c.active() != null, "losing the active pet picks another")
+
+	var d := Dungeon.new(catalog)
+	var going: Array[Pet] = [batch[5], batch[6]]
+	d.send(2, going, 1000.0)
+	_check(d.away().has(batch[5].uid), "sent pets are away")
+	var restored := Dungeon.new(catalog)
+	restored.load_from(JSON.parse_string(JSON.stringify(d.to_dict())))
+	_check(restored.runs.size() == 1 and restored.runs[0].pets == d.runs[0].pets, "runs survive a save")
+	_check(not Dungeon.is_done(d.runs[0], 1001.0) and Dungeon.is_done(d.runs[0], d.runs[0].ends), "runs end on time")
+
+	var c2 := Collection.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
+	_check(c2.fallen == c.fallen, "the stars survive a save")
 
 
 ## Allowed difference between expected and rolled odds (about 4 standard deviations).

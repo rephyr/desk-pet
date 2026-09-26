@@ -1,0 +1,35 @@
+{
+	"_note": "Dungeon floors, shallow to deep. 'minutes' is the run time, 'survive' the base chance each pet comes home, 'need' the stat level where a pet is neither helped nor hurt (power helps survival, luck boosts loot, speed shortens the run). 'coins' is the range each pet that comes home brings, 'box_chance' the chance it also brings a box. The texts get colder the deeper you go; '%d' is how many came home. Lost pets are never mentioned.",
+	"floors": [
+		{
+			"id": "meadow", "name": "the meadow", "minutes": 5, "survive": 0.95, "need": 5,
+			"coins": [3, 6], "box": "starter", "box_chance": 0.02,
+			"odds_word": "come home", "send": "off on an adventure! ♡", "away": "playing in the meadow ♡",
+			"back": "%d came home with treats ♡"
+		},
+		{
+			"id": "woods", "name": "the woods", "minutes": 15, "survive": 0.9, "need": 10,
+			"coins": [8, 15], "box": "starter", "box_chance": 0.04,
+			"odds_word": "come home", "send": "into the woods ♡", "away": "somewhere in the woods",
+			"back": "%d came home ♡"
+		},
+		{
+			"id": "well", "name": "the old well", "minutes": 40, "survive": 0.8, "need": 16,
+			"coins": [20, 35], "box": "starter", "box_chance": 0.06,
+			"odds_word": "come home", "send": "down the well", "away": "down the well",
+			"back": "%d came home"
+		},
+		{
+			"id": "cellar", "name": "the cellar", "minutes": 90, "survive": 0.7, "need": 24,
+			"coins": [45, 80], "box": "lucky", "box_chance": 0.05,
+			"odds_word": "return", "send": "send", "away": "downstairs",
+			"back": "%d came back"
+		},
+		{
+			"id": "below", "name": "further down", "minutes": 120, "survive": 0.6, "need": 34,
+			"coins": [70, 120], "box": "lucky", "box_chance": 0.08,
+			"odds_word": "return", "send": "send", "away": "…",
+			"back": "%d came back."
+		}
+	]
+}

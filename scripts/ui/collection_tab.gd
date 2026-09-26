@@ -60,6 +60,11 @@ func _init() -> void:
 	GameState.collection.pets_added.connect(func(_p):
 		_dirty = true
 		_rebuild_if_visible())
+	GameState.collection.pets_removed.connect(func(uids):
+		if _selected_uid in uids:
+			_selected_uid = ""
+		_dirty = true
+		_rebuild_if_visible())
 	visibility_changed.connect(_rebuild_if_visible)
 
 

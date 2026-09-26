@@ -28,6 +28,7 @@ func _ready() -> void:
 	var panel := PanelContainer.new()
 	panel.set_anchors_preset(PRESET_FULL_RECT)
 	add_child(panel)
+	panel.add_child(NightSky.new())
 	_compact = CompactView.new()
 	_expanded = ExpandedView.new()
 	panel.add_child(_compact)

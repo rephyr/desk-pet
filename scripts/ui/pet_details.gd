@@ -71,8 +71,9 @@ func _refresh_active() -> void:
 	if _pet == null:
 		return
 	var is_active := GameState.collection.active_uid == _pet.uid
-	_active_button.disabled = is_active
-	_active_button.text = "★ your active pet" if is_active else "make active ♡"
+	var away := GameState.dungeon.away().has(_pet.uid)
+	_active_button.disabled = is_active or away
+	_active_button.text = "★ your active pet" if is_active else ("away…" if away else "make active ♡")
 
 
 func _section(title: String) -> void:

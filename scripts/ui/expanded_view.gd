@@ -1,6 +1,6 @@
 class_name ExpandedView
 extends VBoxContainer
-## The full game layer: tabs for boxes and the collection.
+## The full game layer: tabs for boxes, the collection and the dungeon.
 
 signal collapse_requested
 signal quit_requested
@@ -28,7 +28,7 @@ func _init() -> void:
 
 	var body := MarginContainer.new()
 	body.size_flags_vertical = SIZE_EXPAND_FILL
-	_tabs = { "boxes": boxes, "collection": collection, "settings": SettingsTab.new() }
+	_tabs = { "boxes": boxes, "collection": collection, "dungeon": DungeonTab.new(), "settings": SettingsTab.new() }
 	var group := ButtonGroup.new()
 	for tab_name in _tabs:
 		body.add_child(_tabs[tab_name])

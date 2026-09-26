@@ -8,7 +8,7 @@ const OPEN_MAX_LIMIT := 500  # "open max" stops here so one click can't hang the
 
 var _reveal := BoxReveal.new()
 var _opening := PackOpening.new()
-var _buttons := {}  # box id -> { "one": Button, "many": Button, "max": Button }
+var _buttons := {}  # box id -> { "one": Button, "many": Button, "max": Button, "bag": Label }
 
 
 func _init() -> void:
@@ -40,6 +40,8 @@ func _offer(box: Dictionary) -> PanelContainer:
 	var top := HBoxContainer.new()
 	top.add_child(UiTheme.label(box.name, UiTheme.PINK))
 	top.add_child(UiTheme.spacer())
+	var in_bag := UiTheme.label("", UiTheme.LILAC, UiTheme.SMALL)
+	top.add_child(in_bag)
 	top.add_child(UiTheme.label("◆ %d" % box.price, UiTheme.CYAN))
 	col.add_child(top)
 
@@ -77,7 +79,7 @@ func _offer(box: Dictionary) -> PanelContainer:
 		b.size_flags_horizontal = SIZE_EXPAND_FILL
 		buttons.add_child(b)
 	col.add_child(buttons)
-	_buttons[box.id] = { "one": one, "many": many, "max": most }
+	_buttons[box.id] = { "one": one, "many": many, "max": most, "bag": in_bag }
 	return panel
 
 
@@ -126,3 +128,6 @@ func _refresh() -> void:
 		b.many.disabled = can < OPEN_MANY
 		b.max.disabled = can < 2
 		b.max.text = "open %d" % mini(can, OPEN_MAX_LIMIT) if can >= 2 else "open max"
+		var owned := GameState.in_bag(box_id)
+		b.bag.text = "%d in your bag  " % owned
+		b.bag.visible = owned > 0

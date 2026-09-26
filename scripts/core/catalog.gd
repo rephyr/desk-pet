@@ -1,6 +1,7 @@
 class_name Catalog
 extends RefCounted
-## Read-only game data loaded from data/*.json: rarities, parts, finishes, traits and boxes.
+## Read-only game data loaded from data/*.json: rarities, parts, finishes, traits, boxes and
+## dungeon floors.
 ## Use Catalog.shared() everywhere; tests can build their own with Catalog.new().
 
 const SLOTS: Array[String] = ["body", "palette", "pattern", "eyes", "accessory"]
@@ -14,6 +15,7 @@ var finishes: Array[Dictionary] = []  # lowest to highest
 var traits: Array[Dictionary] = []
 var boxes: Array[Dictionary] = []
 var reveal := {}  # how opening a box looks, see data/reveal.json
+var floors: Array[Dictionary] = []  # dungeon floors, shallow to deep
 
 var _tier_rank := {}  # tier id -> index
 var _parts_by_id := {}  # slot -> { part id -> part }
@@ -47,6 +49,7 @@ func _init() -> void:
 	boxes.assign(_load("boxes.json").boxes)
 	_box_by_id = _index(boxes)
 	reveal = _load("reveal.json")
+	floors.assign(_load("dungeons.json").floors)
 
 
 # ---- rarity ---------------------------------------------------------------

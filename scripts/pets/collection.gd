@@ -2,15 +2,19 @@ class_name Collection
 extends RefCounted
 ## Every pet the player owns, which one is active, and the collection book
 ## (how many times each part and each body+finish combo has been pulled).
+## Pets that didn't come back are kept only as `fallen` (for the night sky); the book keeps them.
 
 signal pets_added(pets: Array[Pet])
 signal active_changed(pet: Pet)
+signal pets_removed(uids: Array[String])
 
 var pets: Array[Pet] = []  # in pull order
 var active_uid := ""
 var _by_uid := {}
 var _next_id := 1
 var _seen := {}  # book key -> times pulled, see part_key() / finish_key()
+## One [uid, palette] per pet that didn't come back, in order. Never shown as a list.
+var fallen: Array = []
 
 
 static func part_key(slot: String, id: String) -> String:
@@ -33,6 +37,25 @@ func add(new_pets: Array[Pet]) -> void:
 	if active_uid == "" and not pets.is_empty():
 		active_uid = pets[0].uid
 	pets_added.emit(new_pets)
+
+
+## Takes pets out of the collection for good (they didn't come back).
+func remove(uids: Array[String]) -> void:
+	var gone: Array[String] = []
+	for uid in uids:
+		var pet: Pet = _by_uid.get(uid)
+		if pet == null:
+			continue
+		pets.erase(pet)
+		_by_uid.erase(uid)
+		fallen.append([int(uid), pet.parts.palette])
+		gone.append(uid)
+	if gone.is_empty():
+		return
+	if not _by_uid.has(active_uid):
+		active_uid = pets[0].uid if not pets.is_empty() else ""
+		active_changed.emit(active())
+	pets_removed.emit(gone)
 
 
 func get_pet(uid: String) -> Pet:
@@ -62,7 +85,7 @@ func to_dict() -> Dictionary:
 	var list := []
 	for pet in pets:
 		list.append(pet.to_dict())
-	return { "pets": list, "active": active_uid, "next_id": _next_id, "seen": _seen }
+	return { "pets": list, "active": active_uid, "next_id": _next_id, "seen": _seen, "fallen": fallen }
 
 
 ## Replaces the contents in place, so everything connected to this collection stays connected.
@@ -80,6 +103,10 @@ func load_from(d: Dictionary) -> void:
 	_next_id = int(d.get("next_id", pets.size() + 1))
 	for key in d.get("seen", {}):
 		_seen[key] = int(d.seen[key])
+	fallen.clear()
+	for f in d.get("fallen", []):
+		if f is Array and f.size() == 2:
+			fallen.append([int(f[0]), str(f[1])])
 	pets_added.emit(pets)
 	active_changed.emit(active())
 

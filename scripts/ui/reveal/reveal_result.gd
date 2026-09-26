@@ -70,7 +70,7 @@ static func new_parts(pet: Pet) -> Array[String]:
 func _refresh_buttons() -> void:
 	if _pet == null:
 		return
-	_again.disabled = not GameState.can_open(_box_id)
+	_again.disabled = GameState.affordable(_box_id) < 1
 	var is_active := GameState.collection.active_uid == _pet.uid
 	_active.disabled = is_active
 	_active.text = "★ active" if is_active else "make active ♡"
