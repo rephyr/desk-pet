@@ -19,6 +19,8 @@ func _init() -> void:
 	add_child(shop)
 	for box in Catalog.shared().boxes:
 		shop.add_child(_offer(box))
+	if OS.is_debug_build():
+		shop.add_child(_dev_buttons())
 	add_child(_reveal)
 	add_child(_opening)
 	_opening.open_again.connect(func(box_id): open(box_id, 1))
@@ -77,6 +79,26 @@ func _offer(box: Dictionary) -> PanelContainer:
 	col.add_child(buttons)
 	_buttons[box.id] = { "one": one, "many": many, "max": most }
 	return panel
+
+
+## Debug only: open one box at a chosen rarity, to test each reveal.
+func _dev_buttons() -> VBoxContainer:
+	var catalog := Catalog.shared()
+	var box_id: String = catalog.boxes[0].id
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	col.add_child(UiTheme.label("dev: open one %s at" % catalog.boxes[0].name, UiTheme.MUTED, UiTheme.SMALL))
+	var grid := GridContainer.new()
+	grid.columns = 3
+	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("v_separation", 6)
+	for tier in catalog.tiers:
+		var b := UiTheme.button(tier.name, open.bind(box_id, 1, tier.id))
+		b.size_flags_horizontal = SIZE_EXPAND_FILL
+		b.add_theme_color_override("font_color", catalog.tier_color(tier.id))
+		grid.add_child(b)
+	col.add_child(grid)
+	return col
 
 
 ## Buys and opens boxes, then plays the reveal. `force_tier` is for testing (debug builds only).
