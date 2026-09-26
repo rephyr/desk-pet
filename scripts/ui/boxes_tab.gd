@@ -1,0 +1,91 @@
+class_name BoxesTab
+extends HBoxContainer
+## Box shop on the left (price, odds, open buttons), the reveal on the right.
+
+const OPEN_MANY := 10
+const OPEN_MAX_LIMIT := 500  # "open max" stops here so one click can't hang the game
+
+var _reveal := BoxReveal.new()
+var _buttons := {}  # box id -> { "one": Button, "many": Button, "max": Button }
+
+
+func _init() -> void:
+	add_theme_constant_override("separation", 14)
+	var shop := VBoxContainer.new()
+	shop.custom_minimum_size = Vector2(290, 0)
+	shop.add_theme_constant_override("separation", 10)
+	add_child(shop)
+	for box in Catalog.shared().boxes:
+		shop.add_child(_offer(box))
+	add_child(_reveal)
+	GameState.changed.connect(_refresh)
+	_refresh()
+
+
+func _offer(box: Dictionary) -> PanelContainer:
+	var catalog := Catalog.shared()
+	var panel := PanelContainer.new()
+	panel.add_theme_stylebox_override("panel", UiTheme.box(UiTheme.BG_RAISED, UiTheme.LILAC.darkened(0.4), 10, 2, 10))
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	panel.add_child(col)
+
+	var top := HBoxContainer.new()
+	top.add_child(UiTheme.label(box.name, UiTheme.PINK))
+	top.add_child(UiTheme.spacer())
+	top.add_child(UiTheme.label("◆ %d" % box.price, UiTheme.CYAN))
+	col.add_child(top)
+
+	# odds: rarity on the left, finishes on the right
+	var odds := GridContainer.new()
+	odds.columns = 4
+	odds.add_theme_constant_override("h_separation", 10)
+	odds.add_theme_constant_override("v_separation", 0)
+	var tiers := Weighted.chances(box.tiers)
+	var finishes := Weighted.chances(box.finishes)
+	var finish_ids := finishes.keys().filter(func(id): return id != "normal")
+	for i in maxi(tiers.size(), finish_ids.size()):
+		if i < tiers.size():
+			var tier_id: String = tiers.keys()[i]
+			odds.add_child(UiTheme.tier_label(tier_id))
+			odds.add_child(UiTheme.label(UiTheme.percent(tiers[tier_id]), UiTheme.MUTED, UiTheme.SMALL))
+		else:
+			odds.add_child(Control.new())
+			odds.add_child(Control.new())
+		if i < finish_ids.size():
+			var f: Dictionary = catalog.finish(finish_ids[i])
+			odds.add_child(UiTheme.label(f.name, catalog.tier_color(f.rarity), UiTheme.SMALL))
+			odds.add_child(UiTheme.label(UiTheme.percent(finishes[f.id]), UiTheme.MUTED, UiTheme.SMALL))
+		else:
+			odds.add_child(Control.new())
+			odds.add_child(Control.new())
+	col.add_child(odds)
+
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 6)
+	var one := UiTheme.button("open 1", open.bind(box.id, 1))
+	var many := UiTheme.button("open %d" % OPEN_MANY, open.bind(box.id, OPEN_MANY))
+	var most := UiTheme.button("open max", func(): open(box.id, mini(GameState.affordable(box.id), OPEN_MAX_LIMIT)))
+	for b in [one, many, most]:
+		b.size_flags_horizontal = SIZE_EXPAND_FILL
+		buttons.add_child(b)
+	col.add_child(buttons)
+	_buttons[box.id] = { "one": one, "many": many, "max": most }
+	return panel
+
+
+## Buys and opens boxes, then plays the reveal.
+func open(box_id: String, count: int) -> void:
+	var pulled := GameState.open_boxes(box_id, count)
+	if not pulled.is_empty():
+		_reveal.play(pulled)
+
+
+func _refresh() -> void:
+	for box_id in _buttons:
+		var b: Dictionary = _buttons[box_id]
+		var can := GameState.affordable(box_id)
+		b.one.disabled = can < 1
+		b.many.disabled = can < OPEN_MANY
+		b.max.disabled = can < 2
+		b.max.text = "open %d" % mini(can, OPEN_MAX_LIMIT) if can >= 2 else "open max"
