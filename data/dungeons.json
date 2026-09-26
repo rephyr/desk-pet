@@ -1,35 +1,156 @@
 {
-	"_note": "Dungeon floors, shallow to deep. 'minutes' is the run time, 'survive' the base chance each pet comes home, 'need' the stat level where a pet is neither helped nor hurt (power helps survival, luck boosts loot, speed shortens the run). 'coins' is the range each pet that comes home brings, 'box_chance' the chance it also brings a box. The texts get colder the deeper you go; '%d' is how many came home. Lost pets are never mentioned.",
-	"floors": [
+	"_note": "Dungeons are chains of events; events are shared and each dungeon scales them. Dungeon: 'minutes' is the whole run (events are spread evenly, then the walk home), 'chooser' is who picks options (player / timeout / policy), 'max_party' 0 = any size, 'difficulty' multiplies option difficulty, 'danger' multiplies how many are lost, 'loot' multiplies coins, 'box' is the box type found and the odds for part rarity. Option: 'stat' is tested against 'difficulty' with the party's total (empty = always works), 'tag' is for future policies, 'min_party' hides it for smaller parties. Outcome: 'lost'/'injured'/'heal' are [min, max] fractions of the party, 'coins' is per pet still there, 'box_chance'/'part_chance' grow with the square root of the party, 'progress' is continue / end / skip, 'leave_injured' leaves the injured behind. {who} is the pet's name, or 'the party'.",
+	"dungeons": [
 		{
-			"id": "meadow", "name": "the meadow", "minutes": 5, "survive": 0.95, "need": 5,
-			"coins": [3, 6], "box": "starter", "box_chance": 0.02,
-			"odds_word": "come home", "send": "off on an adventure! ♡", "away": "playing in the meadow ♡",
-			"back": "%d came home with treats ♡"
+			"id": "garden", "name": "the garden path", "chooser": "player", "max_party": 1, "minutes": 4,
+			"difficulty": 1.0, "danger": 1.0, "loot": 1.0, "box": "starter",
+			"events": ["fork", "brambles", "goose", "limping", "chest"]
 		},
 		{
-			"id": "woods", "name": "the woods", "minutes": 15, "survive": 0.9, "need": 10,
-			"coins": [8, 15], "box": "starter", "box_chance": 0.04,
-			"odds_word": "come home", "send": "into the woods ♡", "away": "somewhere in the woods",
-			"back": "%d came home ♡"
+			"id": "meadow", "name": "the meadow", "chooser": "policy", "max_party": 0, "minutes": 5,
+			"difficulty": 0.5, "danger": 0.3, "loot": 0.3, "box": "starter",
+			"events": ["puddle", "fork"]
 		},
 		{
-			"id": "well", "name": "the old well", "minutes": 40, "survive": 0.8, "need": 16,
-			"coins": [20, 35], "box": "starter", "box_chance": 0.06,
-			"odds_word": "come home", "send": "down the well", "away": "down the well",
-			"back": "%d came home"
+			"id": "woods", "name": "the woods", "chooser": "policy", "max_party": 0, "minutes": 15,
+			"difficulty": 1.0, "danger": 0.6, "loot": 0.5, "box": "starter",
+			"events": ["brambles", "fox", "chest"]
 		},
 		{
-			"id": "cellar", "name": "the cellar", "minutes": 90, "survive": 0.7, "need": 24,
-			"coins": [45, 80], "box": "lucky", "box_chance": 0.05,
-			"odds_word": "return", "send": "send", "away": "downstairs",
-			"back": "%d came back"
+			"id": "well", "name": "the old well", "chooser": "policy", "max_party": 0, "minutes": 40,
+			"difficulty": 1.5, "danger": 1.0, "loot": 1.0, "box": "starter",
+			"events": ["dark", "rope", "fox"]
 		},
 		{
-			"id": "below", "name": "further down", "minutes": 120, "survive": 0.6, "need": 34,
-			"coins": [70, 120], "box": "lucky", "box_chance": 0.08,
-			"odds_word": "return", "send": "send", "away": "…",
-			"back": "%d came back."
+			"id": "cellar", "name": "the cellar", "chooser": "policy", "max_party": 0, "minutes": 90,
+			"difficulty": 2.0, "danger": 1.3, "loot": 1.6, "box": "lucky",
+			"events": ["dark", "door", "rope"]
+		},
+		{
+			"id": "below", "name": "further down", "chooser": "policy", "max_party": 0, "minutes": 120,
+			"difficulty": 2.5, "danger": 1.7, "loot": 2.4, "box": "lucky",
+			"events": ["door", "dark", "thing", "door"]
+		}
+	],
+	"events": [
+		{
+			"id": "fork", "title": "a fork in the path", "text": "the path splits in two.", "default": 1,
+			"options": [
+				{ "label": "the flowery way", "tag": "careful", "stat": "luck", "difficulty": 5,
+					"success": { "text": "{who} found a patch of sweet clover.", "coins": [2, 4] },
+					"failure": { "text": "just flowers. nice, though." } },
+				{ "label": "the dark hedge", "tag": "brave", "stat": "power", "difficulty": 8,
+					"success": { "text": "{who} found something shiny in the hedge!", "coins": [5, 9], "part_chance": 0.25 },
+					"failure": { "text": "the hedge scratched back.", "injured": [0.3, 0.6] } }
+			]
+		},
+		{
+			"id": "brambles", "title": "brambles", "text": "thorny brambles cover the path.", "default": 1,
+			"options": [
+				{ "label": "go carefully", "tag": "careful", "stat": "speed", "difficulty": 6,
+					"success": { "text": "{who} slipped through without a scratch." },
+					"failure": { "text": "slow going. a few scratches.", "injured": [0.2, 0.4] } },
+				{ "label": "push through", "tag": "fight", "stat": "power", "difficulty": 6,
+					"success": { "text": "{who} pushed straight through!", "coins": [1, 3] },
+					"failure": { "text": "ouch.", "injured": [0.5, 0.9], "lost": [0.0, 0.05] } }
+			]
+		},
+		{
+			"id": "goose", "title": "a big goose", "text": "a goose stands in the way. it is very big.", "default": 0,
+			"options": [
+				{ "label": "fight", "tag": "fight", "stat": "power", "difficulty": 10,
+					"success": { "text": "{who} chased the goose off! it dropped something.", "coins": [6, 10], "part_chance": 0.3 },
+					"failure": { "text": "the goose won.", "lost": [0.3, 0.6], "injured": [0.3, 0.6] } },
+				{ "label": "sneak past", "tag": "sneak", "stat": "speed", "difficulty": 9,
+					"success": { "text": "{who} tiptoed past. the goose didn't notice." },
+					"failure": { "text": "the goose noticed.", "injured": [0.4, 0.8] } },
+				{ "label": "go home", "tag": "retreat", "stat": "",
+					"success": { "text": "{who} decided that was enough adventure for today.", "progress": "end" } }
+			]
+		},
+		{
+			"id": "limping", "title": "sore paws", "text": "someone is limping a little.", "only_if": "injured", "default": 0,
+			"options": [
+				{ "label": "rest a while", "tag": "careful", "stat": "",
+					"success": { "text": "a little rest. everyone feels better.", "heal": [0.6, 1.0] } },
+				{ "label": "keep going", "tag": "brave", "stat": "",
+					"success": { "text": "onwards!" } },
+				{ "label": "go on without them", "tag": "leave_wounded", "stat": "", "min_party": 2,
+					"success": { "text": "the slow ones will catch up. probably.", "leave_injured": true } }
+			]
+		},
+		{
+			"id": "chest", "title": "a little chest", "text": "a little chest sits by the path, unlocked.", "default": 0,
+			"options": [
+				{ "label": "open it", "tag": "brave", "stat": "luck", "difficulty": 7,
+					"success": { "text": "treasure! {who} found a part.", "coins": [4, 8], "part_chance": 1.0 },
+					"failure": { "text": "it was a mimic. a small one.", "injured": [0.5, 1.0], "lost": [0.0, 0.1] } },
+				{ "label": "leave it", "tag": "careful", "stat": "",
+					"success": { "text": "probably for the best." } }
+			]
+		},
+		{
+			"id": "puddle", "title": "a big puddle", "text": "a big muddy puddle.", "default": 0,
+			"options": [
+				{ "label": "jump it", "tag": "brave", "stat": "speed", "difficulty": 6,
+					"success": { "text": "splash-free!", "coins": [1, 3] },
+					"failure": { "text": "splash.", "injured": [0.05, 0.15] } },
+				{ "label": "go around", "tag": "careful", "stat": "",
+					"success": { "text": "the long way round." } }
+			]
+		},
+		{
+			"id": "fox", "title": "a fox", "text": "a fox is watching from the trees.", "default": 0,
+			"options": [
+				{ "label": "chase it", "tag": "fight", "stat": "power", "difficulty": 10,
+					"success": { "text": "the fox ran off. it left something behind.", "coins": [3, 6], "part_chance": 0.1 },
+					"failure": { "text": "the fox was hungry.", "lost": [0.1, 0.3] } },
+				{ "label": "be very quiet", "tag": "sneak", "stat": "speed", "difficulty": 10,
+					"success": { "text": "nobody saw anything." },
+					"failure": { "text": "the fox saw.", "lost": [0.05, 0.2] } }
+			]
+		},
+		{
+			"id": "dark", "title": "it's dark", "text": "it's very dark down here.", "default": 0,
+			"options": [
+				{ "label": "hold paws and keep going", "tag": "brave", "stat": "luck", "difficulty": 12,
+					"success": { "text": "eyes adjust. there's stuff everywhere!", "coins": [5, 10], "box_chance": 0.03 },
+					"failure": { "text": "not everyone was holding paws.", "lost": [0.1, 0.25] } },
+				{ "label": "go back up", "tag": "retreat", "stat": "",
+					"success": { "text": "back into the light.", "progress": "end" } }
+			]
+		},
+		{
+			"id": "rope", "title": "an old rope", "text": "a rope goes further down.", "default": 0,
+			"options": [
+				{ "label": "climb down", "tag": "brave", "stat": "speed", "difficulty": 14,
+					"success": { "text": "everyone made it down.", "coins": [4, 8] },
+					"failure": { "text": "the rope was old.", "lost": [0.15, 0.35] } },
+				{ "label": "stay here", "tag": "retreat", "stat": "",
+					"success": { "text": "{who} waited by the rope. it got quiet.", "progress": "end" } }
+			]
+		},
+		{
+			"id": "door", "title": "a small door", "text": "something is knocking on the other side.", "default": 0,
+			"options": [
+				{ "label": "open it", "tag": "fight", "stat": "power", "difficulty": 20,
+					"success": { "text": "nothing there. just some coins.", "coins": [10, 18], "box_chance": 0.05, "part_chance": 0.05 },
+					"failure": { "text": "something was there.", "lost": [0.2, 0.4] } },
+				{ "label": "knock back", "tag": "careful", "stat": "luck", "difficulty": 16,
+					"success": { "text": "it stopped knocking. a gift was slipped under the door.", "box_chance": 0.08 },
+					"failure": { "text": "it knocked harder.", "lost": [0.1, 0.2] } }
+			]
+		},
+		{
+			"id": "thing", "title": "something big", "text": "something big is sleeping here.", "default": 0,
+			"options": [
+				{ "label": "take its things", "tag": "fight", "stat": "power", "difficulty": 30,
+					"success": { "text": "it didn't wake up. lots of loot!", "coins": [15, 30], "box_chance": 0.06, "part_chance": 0.08 },
+					"failure": { "text": "it woke up.", "lost": [0.3, 0.55] } },
+				{ "label": "let it sleep", "tag": "sneak", "stat": "speed", "difficulty": 24,
+					"success": { "text": "shhh.", "coins": [4, 8] },
+					"failure": { "text": "it wasn't asleep.", "lost": [0.2, 0.4] } }
+			]
 		}
 	]
 }

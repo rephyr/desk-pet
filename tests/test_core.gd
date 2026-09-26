@@ -34,9 +34,15 @@ func _test_data_is_consistent(catalog: Catalog) -> void:
 			_check(catalog.tiers.any(func(t): return t.id == tier), "box %s tier %s exists" % [b.id, tier])
 		for f in b.finishes:
 			_check(not catalog.finish(f).is_empty() and catalog.finish(f).id == f, "box %s finish %s exists" % [b.id, f])
-	for f in catalog.floors:
-		_check(not catalog.box(f.box).is_empty(), "floor %s drops a real box" % f.id)
-		_check("%d" in f.back, "floor %s says how many came home" % f.id)
+	for d in catalog.dungeons:
+		_check(not catalog.box(d.box).is_empty(), "dungeon %s drops a real box" % d.id)
+		_check(d.chooser in ["player", "timeout", "policy"], "dungeon %s has a known chooser" % d.id)
+		for e in d.events:
+			_check(catalog.events.has(e), "dungeon %s event %s exists" % [d.id, e])
+	for e in catalog.events.values():
+		for o in e.options:
+			_check(o.has("success") and o.success.has("text"), "event %s option %s has a success text" % [e.id, o.label])
+			_check(str(o.get("stat", "")) in ["", "power", "luck", "speed"], "event %s option %s tests a real stat" % [e.id, o.label])
 
 
 ## Rolls lots of pets and compares how often each finish shows up with the box's odds.
@@ -114,8 +120,9 @@ func _test_old_pets_still_load(catalog: Catalog) -> void:
 	_check(pet.finish == catalog.finishes[0].id, "unknown finish falls back to normal")
 
 
-## Runs: everyone either comes home or doesn't, deeper floors lose more, lost pets leave the
-## collection but stay in the book, and runs survive a save.
+## The event dungeons: every pet comes home or doesn't at any party size, the player chooser
+## waits for answers, catching up later gives the same result as playing along, lost pets leave
+## the collection but stay in the book, and runs survive a save.
 func _test_dungeon(catalog: Catalog) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 99
@@ -126,17 +133,45 @@ func _test_dungeon(catalog: Catalog) -> void:
 		batch.append(roller.roll("starter"))
 	c.add(batch)
 
-	var lost_on := []
-	for floor_info in [catalog.floors[0], catalog.floors[-1]]:
-		var result := Dungeon.roll(floor_info, batch, rng, catalog)
-		_check(result.home.size() + result.lost.size() == batch.size(), "every pet comes home or doesn't")
-		lost_on.append(result.lost.size())
-	_check(lost_on[0] < lost_on[1], "deeper floors lose more pets (%d vs %d)" % lost_on)
+	# a swarm run by the rules, 1 pet and 1000, resolved in one call long after
+	for size in [1, 1000]:
+		var pets: Array[Pet] = batch.slice(0, size)
+		var run := DungeonRunner.start("below", pets, 0.0, 5, catalog)
+		DungeonRunner.resolve(run, PolicyChooser.new(), 1.0e9, catalog)
+		_check(run.status == RunState.Status.DONE, "a swarm run finishes by itself (%d pets)" % size)
+		_check(run.party.size() + run.party.lost.size() == size, "every pet comes home or doesn't (%d pets)" % size)
+		_check(DungeonRunner.summary(run).begins_with("Expedition complete: %d of %d returned." % [run.party.size(), size]),
+			"the summary counts who came back")
+	var shallow := DungeonRunner.estimate_return("meadow", batch.slice(0, 200), catalog)
+	var deep := DungeonRunner.estimate_return("below", batch.slice(0, 200), catalog)
+	_check(shallow > deep, "deeper dungeons bring fewer home (%.2f vs %.2f)" % [shallow, deep])
 
-	var strong := batch[0]
-	strong.stats = { "power": 500, "luck": 0, "speed": 0 }
-	_check(Dungeon.survive_chance(catalog.floors[-1], strong, catalog) <= 0.99, "nobody is ever completely safe")
+	# catching up in one go matches checking in all the time
+	var herd: Array[Pet] = batch.slice(0, 300)
+	var at_once := DungeonRunner.start("well", herd, 0.0, 42, catalog)
+	DungeonRunner.resolve(at_once, PolicyChooser.new(), 1.0e9, catalog)
+	var bit_by_bit := DungeonRunner.start("well", herd, 0.0, 42, catalog)
+	for t in range(0, 100000, 7):
+		DungeonRunner.resolve(bit_by_bit, PolicyChooser.new(), float(t), catalog)
+	_check(bit_by_bit.party.lost == at_once.party.lost and bit_by_bit.coins == at_once.coins,
+		"resolving later gives the same run")
 
+	# the player picks: the run waits at each event until answered
+	var solo: Array[Pet] = [batch[0]]
+	var walk := DungeonRunner.start("garden", solo, 0.0, 7, catalog)
+	DungeonRunner.resolve(walk, PlayerChooser.new(), 1.0e9, catalog)
+	_check(walk.status == RunState.Status.WAITING and walk.history.is_empty(), "the garden waits for the player")
+	var answers := 0
+	var now := 1.0e9
+	while walk.status != RunState.Status.DONE and answers < 10:
+		if walk.status == RunState.Status.WAITING:
+			walk.answer = DungeonRunner.allowed_options(walk.current_event(catalog), walk.party)[0]
+			answers += 1
+		DungeonRunner.resolve(walk, PlayerChooser.new(), now, catalog)
+		now += 1.0e6  # time passes between events
+	_check(walk.status == RunState.Status.DONE and walk.history.size() == answers, "answering every event finishes the walk")
+
+	# lost pets leave the collection, the book keeps them, each leaves a star
 	var gone: Array[String] = [batch[0].uid, batch[1].uid]
 	var key := Collection.part_key("body", batch[0].parts.body)
 	var seen_before := c.times_seen(key)
@@ -146,18 +181,13 @@ func _test_dungeon(catalog: Catalog) -> void:
 	_check(c.times_seen(key) == seen_before, "the book still remembers them")
 	_check(c.fallen.size() == 2, "each lost pet leaves a star")
 	_check(c.active() != null, "losing the active pet picks another")
-
-	var d := Dungeon.new(catalog)
-	var going: Array[Pet] = [batch[5], batch[6]]
-	d.send(2, going, 1000.0)
-	_check(d.away().has(batch[5].uid), "sent pets are away")
-	var restored := Dungeon.new(catalog)
-	restored.load_from(JSON.parse_string(JSON.stringify(d.to_dict())))
-	_check(restored.runs.size() == 1 and restored.runs[0].pets == d.runs[0].pets, "runs survive a save")
-	_check(not Dungeon.is_done(d.runs[0], 1001.0) and Dungeon.is_done(d.runs[0], d.runs[0].ends), "runs end on time")
-
 	var c2 := Collection.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
 	_check(c2.fallen == c.fallen, "the stars survive a save")
+
+	# a run half way through survives a save
+	var saved := RunState.from_dict(JSON.parse_string(JSON.stringify(walk.to_dict())), catalog)
+	_check(saved != null and saved.party.lost == walk.party.lost and saved.history.size() == walk.history.size()
+		and saved.status == walk.status and saved.coins == walk.coins, "runs survive a save")
 
 
 ## Allowed difference between expected and rolled odds (about 4 standard deviations).
