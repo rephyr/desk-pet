@@ -104,8 +104,7 @@ func _rebuild_if_visible() -> void:
 
 func _rebuild() -> void:
 	_dirty = false
-	for child in _grid.get_children():
-		child.queue_free()
+	UiTheme.clear(_grid)
 	var pets := _sorted(GameState.collection.pets)
 	_count.text = "%d pets" % pets.size()
 	_page = clampi(_page, 0, _page_count() - 1)
@@ -117,9 +116,7 @@ func _rebuild() -> void:
 		_grid.add_child(card)
 	if _selected_uid == "" and not pets.is_empty():
 		_select(GameState.collection.active())
-	# a new page starts at the top (wait a frame for the old cards to be gone)
-	await get_tree().process_frame
-	_scroll.scroll_vertical = 0
+	_scroll.scroll_vertical = 0  # a new page starts at the top
 
 
 func _select(pet: Pet) -> void:

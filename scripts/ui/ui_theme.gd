@@ -103,6 +103,14 @@ static func small_button(text: String, on_pressed: Callable = Callable()) -> But
 	return b
 
 
+## Removes all children right away (not just at the end of the frame, like queue_free alone),
+## so a container can be refilled and laid out in the same frame.
+static func clear(node: Node) -> void:
+	for child in node.get_children():
+		node.remove_child(child)
+		child.queue_free()
+
+
 static func spacer() -> Control:
 	var c := Control.new()
 	c.size_flags_horizontal = Control.SIZE_EXPAND_FILL

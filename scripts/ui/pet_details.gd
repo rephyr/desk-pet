@@ -44,13 +44,13 @@ func show_pet(pet: Pet) -> void:
 	_portrait.set_pet(pet)
 	_name.text = pet.display_name(catalog)
 
-	_clear(_tags)
+	UiTheme.clear(_tags)
 	_tags.add_child(UiTheme.tier_label(pet.rarity, UiTheme.FONT_SIZE))
 	var f := catalog.finish(pet.finish)
 	if f.id != "normal":
 		_tags.add_child(UiTheme.label(f.name, catalog.tier_color(f.rarity)))
 
-	_clear(_info)
+	UiTheme.clear(_info)
 	_section("parts")
 	for slot in Catalog.SLOTS:
 		var p := catalog.part(slot, pet.parts[slot])
@@ -90,8 +90,3 @@ func _row(key: String, value: String, color: Color) -> void:
 	v.size_flags_horizontal = SIZE_EXPAND_FILL
 	row.add_child(v)
 	_info.add_child(row)
-
-
-static func _clear(node: Node) -> void:
-	for child in node.get_children():
-		child.queue_free()

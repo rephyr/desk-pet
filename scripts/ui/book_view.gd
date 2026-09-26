@@ -31,8 +31,7 @@ func _rebuild_if_needed() -> void:
 	if not _dirty or not is_visible_in_tree():
 		return
 	_dirty = false
-	for child in _pages.get_children():
-		child.queue_free()
+	UiTheme.clear(_pages)
 	var catalog := Catalog.shared()
 	var collection := GameState.collection
 	for slot in Catalog.SLOTS:
