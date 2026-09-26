@@ -25,19 +25,15 @@ func _init() -> void:
 	header.add_child(title)
 	_coins.mouse_filter = MOUSE_FILTER_PASS
 	header.add_child(_coins)
-	var grow := UiTheme.small_button("▴", func(): expand_requested.emit())
-	grow.tooltip_text = "open the game"
-	header.add_child(grow)
+	header.add_child(UiTheme.small_button("▴", func(): expand_requested.emit()))
 	header.add_child(UiTheme.small_button("×", func(): quit_requested.emit()))
 	add_child(header)
 
-	# the pet; click it to open the game
+	# the pet
 	var stage := Control.new()
 	stage.custom_minimum_size = Vector2(0, 80)
 	add_child(stage)
 	_portrait.set_anchors_preset(PRESET_FULL_RECT)
-	_portrait.clicked.connect(func(): expand_requested.emit())
-	_portrait.tooltip_text = "open the game"
 	stage.add_child(_portrait)
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER

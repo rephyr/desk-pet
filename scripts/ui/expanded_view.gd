@@ -52,9 +52,7 @@ func _init() -> void:
 		var cheat := UiTheme.small_button("+%d" % GameState.DEBUG_COINS, func(): GameState.add_debug_coins())
 		cheat.tooltip_text = "debug only: free coins for testing"
 		header.add_child(cheat)
-	var shrink := UiTheme.small_button("▾", func(): collapse_requested.emit())
-	shrink.tooltip_text = "back to the small panel (Esc)"
-	header.add_child(shrink)
+	header.add_child(UiTheme.small_button("▾", func(): collapse_requested.emit()))
 	header.add_child(UiTheme.small_button("×", func(): quit_requested.emit()))
 
 	GameState.changed.connect(_refresh)

@@ -1,10 +1,10 @@
 extends Control
-## The game window. Two layers: a small idle panel (CompactView) and the full game (ExpandedView).
+## The game window. Two layers: a small idle panel (CompactView) and the full game (ExpandedView),
+## switched only with their ▴ / ▾ buttons.
 ## Also owns the transparent overlay the pet walks around in when it's let out.
 
 const COMPACT_SIZE := Vector2i(300, 236)
 const EXPANDED_SIZE := Vector2i(920, 600)
-const FOCUS_GRACE := 0.6  # ignore focus loss right after expanding (the resize can cause one)
 const WATCH_INTERVAL := 0.25
 
 var _source: WindowSource
@@ -13,12 +13,10 @@ var _pet: DesktopPet
 var _compact: CompactView
 var _expanded: ExpandedView
 var _expanded_mode := false
-var _expanded_at := 0.0
 var _scale := 1.0
 var _watch := 0.0
 var _tucked_away := false
 var _out_request := 0  # bumps on every let-out, so an older pending one can tell it's stale
-var _keep_open := false  # debug: --expanded keeps the big layer open for testing
 
 
 func _ready() -> void:
@@ -41,7 +39,6 @@ func _ready() -> void:
 	_compact.quit_requested.connect(_quit)
 	_expanded.collapse_requested.connect(_set_expanded.bind(false))
 	_expanded.quit_requested.connect(_quit)
-	win.focus_exited.connect(_on_focus_lost)
 	GameState.collection.active_changed.connect(func(p): if _pet: _pet.set_pet(p))
 
 	_overlay = _make_overlay()
@@ -71,29 +68,15 @@ func _process(delta: float) -> void:
 		_pet.drop_at(Vector2(_overlay.size.x / 2.0, 80.0))
 
 
-func _unhandled_input(event: InputEvent) -> void:
-	if _expanded_mode and event.is_action_pressed("ui_cancel"):
-		_set_expanded(false)
-
-
 # ---- layers ---------------------------------------------------------------
 
 func _set_expanded(on: bool) -> void:
 	if on == _expanded_mode:
 		return
 	_expanded_mode = on
-	_expanded_at = Time.get_ticks_msec() / 1000.0
 	_compact.visible = not on
 	_expanded.visible = on
 	_apply_size()
-	if on:
-		get_window().grab_focus()
-
-
-func _on_focus_lost() -> void:
-	# clicking anywhere else puts the game back to the small panel
-	if _expanded_mode and not _keep_open and Time.get_ticks_msec() / 1000.0 - _expanded_at > FOCUS_GRACE:
-		_set_expanded(false)
 
 
 func _apply_size() -> void:
@@ -117,7 +100,6 @@ func _tuck_away(hide_it: bool) -> void:
 ## Debug-build shortcuts for testing, see DevArgs.
 func _apply_dev_args() -> void:
 	if DevArgs.has("expanded"):
-		_keep_open = true
 		_set_expanded(true)
 	if DevArgs.value("tab") != "":
 		_expanded.show_tab(DevArgs.value("tab"))
