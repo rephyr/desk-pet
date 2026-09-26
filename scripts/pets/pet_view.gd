@@ -1,0 +1,73 @@
+class_name PetView
+extends Node2D
+## Draws a pet with its finish effect and a bit of life (idle bob, blinking, squash).
+## The origin is at the pet's feet, centred.
+
+const FINISH_SHADER := preload("res://shaders/finish.gdshader")
+
+## Pixel size on screen for one art pixel.
+@export var pixel := 4
+## Draw as a dark shape only (undiscovered entries in the book).
+@export var silhouette := false:
+	set(value):
+		silhouette = value
+		_refresh()
+## Set false for still pictures (e.g. lots of cards) to save a little work.
+@export var animated := true
+
+var pet: Pet:
+	set(value):
+		pet = value
+		_refresh()
+
+var facing := 1  # 1 right, -1 left
+var walking := false
+var squash := 0.0  # 0..1, springs back on its own
+
+var _time := randf() * 10.0
+var _blink := randf_range(1.0, 4.0)
+var _material := _make_material()
+
+
+static func size_for(pixel_size: int) -> Vector2:
+	return Vector2(PetLook.W, PetLook.H) * pixel_size
+
+
+static func _make_material() -> ShaderMaterial:
+	var m := ShaderMaterial.new()
+	m.shader = FINISH_SHADER
+	m.set_shader_parameter("seed", randf() * 10.0)
+	return m
+
+
+func _process(delta: float) -> void:
+	if not animated or pet == null:
+		return
+	_time += delta
+	_blink -= delta
+	if _blink < -0.12:
+		_blink = randf_range(2.0, 5.0)
+	squash = move_toward(squash, 0.0, delta * 4.0)
+	queue_redraw()
+
+
+func _refresh() -> void:
+	if pet == null:
+		return
+	var mode: int = 0 if silhouette else int(Catalog.shared().finish(pet.finish).shader)
+	_material.set_shader_parameter("mode", mode)
+	material = _material if mode != 0 else null
+	modulate = Color(0.12, 0.08, 0.16) if silhouette else Color.WHITE
+	queue_redraw()
+
+
+func _draw() -> void:
+	if pet == null:
+		return
+	var tex := PetLook.texture_for(pet.parts, animated and _blink < 0.0)
+	var s := size_for(pixel)
+	var bob := 0.0
+	if animated:
+		bob = -absf(sin(_time * 12.0)) * pixel if walking else sin(_time * 2.0) * 0.5 * pixel
+	draw_set_transform(Vector2(0, bob), 0.0, Vector2((1.0 + squash * 0.25) * facing, 1.0 - squash * 0.3))
+	draw_texture_rect(tex, Rect2(Vector2(-s.x / 2.0, -s.y), s), false)
