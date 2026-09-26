@@ -32,8 +32,7 @@ func play(pets: Array[Pet]) -> void:
 	if _tween:
 		_tween.kill()
 	_skip = false
-	for child in _stage.get_children():
-		child.queue_free()
+	UiTheme.clear(_stage)
 	if pets.size() == 1:
 		_play_single(pets[0])
 	elif not pets.is_empty():
@@ -72,6 +71,7 @@ func _play_single(pet: Pet) -> void:
 		back.queue_free()
 		var card := PetCard.new(pet, 5, true)
 		card.set_anchors_preset(PRESET_FULL_RECT)
+		card.mouse_filter = MOUSE_FILTER_IGNORE
 		holder.add_child(card)
 		_announce([pet]))
 	_tween.tween_property(holder, "scale:x", 1.0, 0.16)
@@ -80,6 +80,7 @@ func _play_single(pet: Pet) -> void:
 func _card_back(glow: Color) -> PanelContainer:
 	var back := PanelContainer.new()
 	back.set_anchors_preset(PRESET_FULL_RECT)
+	back.mouse_filter = MOUSE_FILTER_IGNORE  # clicks go to the stage, which skips
 	var sb := UiTheme.box(UiTheme.BG_DEEP, glow, 12, 3)
 	sb.shadow_color = Color(glow, 0.6)
 	sb.shadow_size = 14
@@ -110,6 +111,7 @@ func _play_many(pets: Array[Pet]) -> void:
 	_tween = create_tween()
 	for pet in shown:
 		var card := PetCard.new(pet, 2, false)
+		card.mouse_filter = MOUSE_FILTER_PASS  # still shows its tooltip, and lets clicks skip
 		card.modulate.a = 0.0
 		flow.add_child(card)
 		_tween.tween_property(card, "modulate:a", 1.0, 0.04)
