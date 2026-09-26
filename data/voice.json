@@ -1,0 +1,429 @@
+{
+	"_note": "What the active pet says on the adventures tab. It is the only voice in the game: sincerely innocent, cheerful, and it never understands what's really happening. Its EYES pick its personality; its ACCESSORY adds a little tic at the end of each line. Situations: idle (nothing going on), away (a trip is out), needs_you (a trip is waiting for a choice), someone_back (a trip is back, not welcomed yet), back_all / back_some / back_none (just welcomed a trip back), part_found (it brought parts), rumour (word of somewhere new, waiting for you to decide). {place} {home} {sent} {lost} {rumour} are filled in. Lines are picked at random. HINTS are what the active pet says under each option on a trip (never numbers): 'risk' has 5 steps from sure to scared, picked from the real chance; 'reward' has 4 steps from a crumb to something special, picked from what the option can give; 'home' is for going home, 'rest' for options that heal. 'bias' shifts how this personality reads risk (-1 always sounds surer, +1 more scared). {trip} is the pet on the trip. 'feeling' is the line on top of a trip: how the pet on the trip seems after the last event (start / good / bad / hurt).",
+	"default": "cheerful",
+	"personalities": [
+		{
+			"id": "cheerful",
+			"eyes": [
+				"round"
+			],
+			"lines": {
+				"idle": [
+					"ready for an adventure? i am!",
+					"the garden smells like snacks today!"
+				],
+				"away": [
+					"{place} must be so fun right now!",
+					"i hope they bring me something from {place}!"
+				],
+				"needs_you": [
+					"they're asking what to do at {place}!",
+					"quick! {place} needs you!"
+				],
+				"someone_back": [
+					"they're back from {place}! go say hi!",
+					"welcome-back time! {place} is done!"
+				],
+				"back_all": [
+					"everyone came home! {home} of {sent}! yay!",
+					"all {sent} back safe and sound!"
+				],
+				"back_some": [
+					"only {home} came back! they must have found somewhere nicer!",
+					"{lost} of them stayed at {place}! it must be lovely there!",
+					"{home} came home! the others are probably having a sleepover!"
+				],
+				"back_none": [
+					"nobody came back! {place} must be the best place ever!",
+					"they all stayed at {place}! i want to go too!"
+				],
+				"part_found": [
+					"ooh, a new part! so shiny!",
+					"look what they found! a present!"
+				],
+				"rumour": [
+					"guess what! i heard about {rumour}! can we go?",
+					"ooh! someone found {rumour}! let's go look!"
+				]
+			},
+			"hints": {
+				"bias": 0,
+				"risk": [
+					"{trip} looks ready!",
+					"{trip} feels pretty sure about this!",
+					"{trip} looks a little unsure.",
+					"{trip} looks a bit wobbly…",
+					"{trip} is shaking a little!"
+				],
+				"reward": [
+					"{trip} spotted a crumb or two.",
+					"{trip} spotted a few coins!",
+					"{trip} spotted something shiny!",
+					"{trip} spotted something really special!"
+				],
+				"home": "{trip} would love to come home with the bag!",
+				"rest": "that looks super relaxing!",
+				"feeling": {
+					"start": "{trip} is off! bouncy bouncy!",
+					"good": "{trip} is having so much fun!",
+					"bad": "{trip} shook it off!",
+					"hurt": "{trip} is limping a little, but smiling!"
+				}
+			}
+		},
+		{
+			"id": "sunny",
+			"eyes": [
+				"happy"
+			],
+			"lines": {
+				"idle": [
+					"what a lovely day for it!",
+					"today is a good day. i can tell!"
+				],
+				"away": [
+					"sunny skies at {place}, i bet!",
+					"{place}! what a nice name!"
+				],
+				"needs_you": [
+					"{place} wants your opinion! how nice!",
+					"someone at {place} is waiting for you!"
+				],
+				"someone_back": [
+					"the {place} gang is home!",
+					"the {place} trip is done! hooray!"
+				],
+				"back_all": [
+					"all {sent} home! perfect day!",
+					"everybody's back! group hug!"
+				],
+				"back_some": [
+					"{home} came back, and {lost} made new friends!",
+					"{lost} decided to stay! {place} must have good weather!",
+					"{home} home! the rest are on a longer holiday!"
+				],
+				"back_none": [
+					"they all loved {place} so much they stayed!",
+					"everyone found a new home! that's so nice!"
+				],
+				"part_found": [
+					"a gift! they always think of us!",
+					"a new part! it's lovely!"
+				],
+				"rumour": [
+					"they say there's {rumour}! sounds lovely!",
+					"{rumour}! what an adventure that would be!"
+				]
+			},
+			"hints": {
+				"bias": 0,
+				"risk": [
+					"{trip} is all smiles about this!",
+					"{trip} feels good about it!",
+					"{trip} is thinking about it…",
+					"{trip} looks a tiny bit worried.",
+					"{trip} looks very worried!"
+				],
+				"reward": [
+					"{trip} spotted a little treat.",
+					"{trip} spotted some coins!",
+					"{trip} spotted something lovely and shiny!",
+					"{trip} spotted something wonderful!"
+				],
+				"home": "home time sounds lovely too!",
+				"rest": "a nice rest would be lovely!",
+				"feeling": {
+					"start": "{trip} set off with a big smile!",
+					"good": "{trip} is beaming!",
+					"bad": "{trip} is still smiling. mostly!",
+					"hurt": "{trip} has a little ouchie."
+				}
+			}
+		},
+		{
+			"id": "overconfident",
+			"eyes": [
+				"sparkle"
+			],
+			"lines": {
+				"idle": [
+					"send me next time. i'd do it better.",
+					"i could beat a goose. easily."
+				],
+				"away": [
+					"they're fine. i trained them.",
+					"{place} is easy. i'd know."
+				],
+				"needs_you": [
+					"{place} needs a decision. obviously: fight.",
+					"pick the brave one. it's always the brave one."
+				],
+				"someone_back": [
+					"the {place} team is back! as expected!",
+					"back already? they must have won."
+				],
+				"back_all": [
+					"{home} of {sent}! flawless! just like me!",
+					"all home! my coaching works!"
+				],
+				"back_some": [
+					"{lost} stayed to guard {place}. very brave of them!",
+					"only {home} back? the rest are still winning, probably!",
+					"{home} came home! the others are showing off somewhere!"
+				],
+				"back_none": [
+					"they all stayed to finish the job! heroes!",
+					"nobody back? they're too busy being amazing!"
+				],
+				"part_found": [
+					"a trophy! i'll allow it.",
+					"a new part. almost as nice as mine."
+				],
+				"rumour": [
+					"{rumour}? easy. send them.",
+					"i heard about {rumour}. i could handle it."
+				]
+			},
+			"hints": {
+				"bias": -1,
+				"risk": [
+					"{trip} has got this.",
+					"easy for {trip}.",
+					"{trip} can probably do it.",
+					"{trip} will be fine. mostly.",
+					"{trip} just needs to believe!"
+				],
+				"reward": [
+					"{trip} spotted a crumb. not worth the effort.",
+					"{trip} spotted a few coins. fine.",
+					"{trip} spotted something shiny. we deserve it.",
+					"{trip} spotted a real prize. go get it."
+				],
+				"home": "going home? boring. but fine.",
+				"rest": "rest is for the weak. but okay.",
+				"feeling": {
+					"start": "{trip} marched off. good form.",
+					"good": "{trip} is doing great. i taught that.",
+					"bad": "{trip} meant to do that.",
+					"hurt": "{trip} has a scratch. walk it off."
+				}
+			}
+		},
+		{
+			"id": "dim",
+			"eyes": [
+				"sleepy"
+			],
+			"lines": {
+				"idle": [
+					"is it adventure time… or nap time…",
+					"mm… what were we doing…"
+				],
+				"away": [
+					"where did everyone go… oh… {place}…",
+					"it's quiet… that's nice…"
+				],
+				"needs_you": [
+					"someone's… asking something… at {place}…",
+					"{place}… wants… a choice…"
+				],
+				"someone_back": [
+					"oh… they're back… from {place}…",
+					"i heard the door… {place} friends…"
+				],
+				"back_all": [
+					"{home}… of {sent}… that's all of them… i think…",
+					"everyone… yay… *yawn*"
+				],
+				"back_some": [
+					"{home} came back… the others must be napping there…",
+					"{lost} are… still at {place}… sleeping in…",
+					"hmm… fewer than before… or i counted wrong…"
+				],
+				"back_none": [
+					"nobody… they must be so cozy there…",
+					"everyone's asleep at {place}… lucky…"
+				],
+				"part_found": [
+					"ooh… a shiny thing… for me?…",
+					"they brought… a part… neat…"
+				],
+				"rumour": [
+					"someone said… {rumour}… or i dreamed it…",
+					"{rumour}… sounds… far…"
+				]
+			},
+			"hints": {
+				"bias": 0,
+				"risk": [
+					"{trip} looks… fine…",
+					"{trip} seems… okay…",
+					"{trip} is… hmm…",
+					"{trip} looks… wobbly…?",
+					"{trip} is… shaking… or dancing…"
+				],
+				"reward": [
+					"{trip} saw… a crumb…",
+					"{trip} saw… some coins… maybe…",
+					"{trip} saw… something shiny…",
+					"{trip} saw… something big and shiny…"
+				],
+				"home": "home… nap…",
+				"rest": "a nap… yes…",
+				"feeling": {
+					"start": "{trip} went… somewhere…",
+					"good": "{trip} seems… happy…",
+					"bad": "{trip}… oops…",
+					"hurt": "{trip} is… limping…? or skipping…"
+				}
+			}
+		},
+		{
+			"id": "nervous",
+			"eyes": [
+				"x"
+			],
+			"lines": {
+				"idle": [
+					"adventures are scary! but good! i think!",
+					"i'm fine! everything is fine!"
+				],
+				"away": [
+					"is {place} safe? it sounds safe!",
+					"i'm not worried about {place}! at all!"
+				],
+				"needs_you": [
+					"{place} needs you! hurry! please!",
+					"they're waiting at {place}! eek!"
+				],
+				"someone_back": [
+					"they're back from {place}! phew!",
+					"someone's home! i'll count them! later!"
+				],
+				"back_all": [
+					"all {sent}! i counted twice! phew!",
+					"everybody's home! i can breathe again!"
+				],
+				"back_some": [
+					"only {home}? the others just got a bit lost! they'll find the way!",
+					"{lost} are still out? they're fine! they're totally fine!",
+					"{home} came back! the rest will come later! right!"
+				],
+				"back_none": [
+					"none? they're just taking the long way! yes!",
+					"nobody came home! they're just shy!"
+				],
+				"part_found": [
+					"a part! it's a little scary! but pretty!",
+					"ooh! a part! i'll hold it very carefully!"
+				],
+				"rumour": [
+					"i heard about {rumour}! we don't have to go! unless you want to!",
+					"{rumour}?! eek! i mean… yay!"
+				]
+			},
+			"hints": {
+				"bias": 1,
+				"risk": [
+					"{trip} looks okay! i think!",
+					"{trip} looks mostly okay!",
+					"{trip} looks unsure! i'm unsure too!",
+					"{trip} looks wobbly! eek!",
+					"{trip} is shaking! so am i!"
+				],
+				"reward": [
+					"{trip} spotted a crumb! just a crumb!",
+					"{trip} spotted a few coins!",
+					"{trip} spotted something shiny! ooh!",
+					"{trip} spotted something really special! eek!"
+				],
+				"home": "home! home is safe! let's go home!",
+				"rest": "a rest! yes! rest is good!",
+				"feeling": {
+					"start": "{trip} is off! be careful! please!",
+					"good": "{trip} is okay! phew!",
+					"bad": "{trip} is okay! right? right!",
+					"hurt": "{trip} is hurt! a little! it's fine!"
+				}
+			}
+		},
+		{
+			"id": "odd",
+			"eyes": [
+				"cyclops"
+			],
+			"lines": {
+				"idle": [
+					"i see everything. mostly clouds.",
+					"one eye is plenty. two is showing off."
+				],
+				"away": [
+					"i can see {place} from here. almost.",
+					"they're at {place}. i waved."
+				],
+				"needs_you": [
+					"{place} is looking at you. look back.",
+					"a choice at {place}. i'd pick the round one."
+				],
+				"someone_back": [
+					"{place} gave them back. how polite.",
+					"back from {place}. they smell like {place}."
+				],
+				"back_all": [
+					"{home} of {sent}. a nice round number.",
+					"all back. i counted with my eye."
+				],
+				"back_some": [
+					"{home} came back. {lost} stayed to look at things.",
+					"{lost} liked {place} more than us. fair.",
+					"{home}! i like {home}. it's a good number."
+				],
+				"back_none": [
+					"none came back. {place} is very popular.",
+					"they all stayed. i would stay too. i like it here though."
+				],
+				"part_found": [
+					"a new part. i hope it's an eye.",
+					"a part! i'll keep an eye on it."
+				],
+				"rumour": [
+					"{rumour}. it sounds round. i like round things.",
+					"they found {rumour}. i knew it was there. i didn't say."
+				]
+			},
+			"hints": {
+				"bias": 0,
+				"risk": [
+					"{trip} looks round and ready.",
+					"{trip} looks mostly sure.",
+					"{trip} looks like a question.",
+					"{trip} looks wobbly. like jelly.",
+					"{trip} is vibrating."
+				],
+				"reward": [
+					"{trip} spotted a crumb. crumbs count.",
+					"{trip} spotted some coins. they jingle.",
+					"{trip} spotted something shiny. it sparkled at us.",
+					"{trip} spotted something special. it waved."
+				],
+				"home": "home is where the bag is.",
+				"rest": "rest. like a stone.",
+				"feeling": {
+					"start": "{trip} left. i watched.",
+					"good": "{trip} is glowing. not literally.",
+					"bad": "{trip} made a face.",
+					"hurt": "{trip} is walking funny. like a crab."
+				}
+			}
+		}
+	],
+	"tics": {
+		"none": "",
+		"bow": " ♡",
+		"leaf": " *rustle*",
+		"headphones": " ♪",
+		"halo": " bless!",
+		"crown": " *royal wave*",
+		"horns": " hehe"
+	}
+}

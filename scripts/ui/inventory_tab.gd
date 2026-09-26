@@ -1,7 +1,7 @@
 class_name InventoryTab
 extends VBoxContainer
-## What you're carrying: unopened boxes found in the dungeon, and loose parts (for grafting
-## later). Each part is shown on a plain pet so you can see what it looks like.
+## What you're carrying: unopened boxes found on adventures, loose parts (for grafting later)
+## and anything else pets bring back. Each part is shown on a plain pet so you can see it.
 
 signal open_box_requested(box_id: String)
 
@@ -55,7 +55,7 @@ func _rebuild() -> void:
 		row.add_child(UiTheme.button("open", func(): open_box_requested.emit(box.id)))
 		_boxes.add_child(row)
 	if _boxes.get_child_count() == 0:
-		_boxes.add_child(UiTheme.label("no boxes yet. the dungeon has some ♡", UiTheme.MUTED, UiTheme.SMALL))
+		_boxes.add_child(UiTheme.label("no boxes yet. pets find some on adventures ♡", UiTheme.MUTED, UiTheme.SMALL))
 
 	UiTheme.clear(_parts)
 	var keys: Array = GameState.parts.keys()
@@ -63,7 +63,10 @@ func _rebuild() -> void:
 	for key in keys:
 		_parts.add_child(_part_tile(key, int(GameState.parts[key])))
 	if keys.is_empty():
-		_parts.add_child(UiTheme.label("no parts yet. pets sometimes find them down there.", UiTheme.MUTED, UiTheme.SMALL))
+		_parts.add_child(UiTheme.label("no parts yet. pets sometimes find them on adventures ♡", UiTheme.MUTED, UiTheme.SMALL))
+	# anything else adventures bring back that nothing uses yet
+	for key: String in GameState.items:
+		_boxes.add_child(UiTheme.label("%s ×%d" % [key.replace(":", " ").strip_edges(), GameState.items[key]], UiTheme.TEXT, UiTheme.SMALL))
 
 
 func _part_tile(key: String, count: int) -> PanelContainer:

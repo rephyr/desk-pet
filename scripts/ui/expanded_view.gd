@@ -1,6 +1,6 @@
 class_name ExpandedView
 extends VBoxContainer
-## The full game layer: tabs for boxes, the collection, the dungeon and your inventory.
+## The full game layer: tabs for boxes, the collection, adventures and your inventory.
 
 signal collapse_requested
 signal quit_requested
@@ -32,7 +32,7 @@ func _init() -> void:
 	inventory.open_box_requested.connect(func(box_id):
 		show_tab("boxes")
 		boxes.open(box_id, 1))
-	_tabs = { "boxes": boxes, "collection": collection, "dungeon": DungeonTab.new(), "inventory": inventory, "settings": SettingsTab.new() }
+	_tabs = { "boxes": boxes, "collection": collection, "adventures": AdventuresTab.new(), "inventory": inventory, "settings": SettingsTab.new() }
 	var group := ButtonGroup.new()
 	for tab_name in _tabs:
 		body.add_child(_tabs[tab_name])

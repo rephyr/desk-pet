@@ -82,6 +82,22 @@ func injure(count: int, rng: RandomNumberGenerator) -> int:
 	return mini(count, healthy.size())
 
 
+## Hurts `count` pets, each losing `hearts` hearts: a pet has two (healthy, then hurt), so a
+## second heart lost means it doesn't come back. Returns { injured, lost }.
+func hurt(count: int, hearts: int, rng: RandomNumberGenerator) -> Dictionary:
+	var out := { "injured": 0, "lost": 0 }
+	for uid in _shuffled(uids, rng).slice(0, mini(count, uids.size())):
+		if hearts >= 2 or injured.has(uid):
+			uids.erase(uid)
+			injured.erase(uid)
+			lost.append(uid)
+			out.lost += 1
+		else:
+			injured[uid] = true
+			out.injured += 1
+	return out
+
+
 func heal(count: int, rng: RandomNumberGenerator) -> int:
 	var hurt := _shuffled(injured.keys(), rng)
 	for uid in hurt.slice(0, mini(count, hurt.size())):

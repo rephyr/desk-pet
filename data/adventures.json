@@ -1,0 +1,295 @@
+{
+	"_note": "Adventures: everything pets are sent out to do. TYPES group locations and unlock over time ('unlocked': true = from the start; 'unlock': { 'after_trips': n } = after n trips welcomed back; 'unlock': 'rumour' = when a rumour leads there). LOCATIONS are chains of events: a fixed 'events' list, or a weighted 'pool' that each trip draws 'draws' events from without repeats; 'go_home': true adds a 'go home' option (keep the bag) to every event there ('locked': true = only once a rumour leads there; 'unlock': { 'after_trips': n } = after n trips welcomed back; otherwise open whenever their type is): 'minutes' is the whole trip (events spread evenly, then the walk home), 'max_party' 0 = as many as you may send, 'difficulty' multiplies option difficulty, 'danger' multiplies how many get hurt or lost, 'loot' multiplies coins, 'box' is the box found there and the odds for part rarity. EVENTS are shared. Option: 'stat' is tested against 'difficulty' with the party's total (empty = always works), 'tag' is for policies, 'min_party' hides it for smaller parties. Option 'chance': its own chance of going well (tilted a little by 'stat' and down if hurt); no chance and no stat = always works. Outcome: 'lost'/'injured'/'heal' are [min, max] fractions of the party, 'hurt' is a fraction of pets that lose a heart ('hearts': 2 = both at once; a pet hurt twice doesn't come back, and nothing it found comes home), 'progress' is continue / end / skip, 'leave_injured' leaves the injured behind, 'rewards' is a list of { kind, ... } handled in scripts/adventure/rewards.gd (coins: 'amount' per pet; box/part/rumour/anything else: 'chance', growing with the square root of the party). RUMOURS are what exploration brings back: 'about' is how the pet describes it, 'unlocks' what saying yes opens, 'requires' what must be open before anyone can hear it. {who} is the pet's name, or 'the party'. Texts stay cheerful and plain.",
+	"types": [
+		{ "id": "foraging", "name": "foraging", "desc": "little trips for snacks and shiny things", "risk": "safe", "unlocked": true },
+		{ "id": "exploration", "name": "exploring", "desc": "going further to see what's out there", "risk": "low", "unlocked": false, "unlock": { "after_trips": 5 } },
+		{ "id": "dungeon", "name": "dungeons", "desc": "deep places with big treasure", "risk": "deadly", "unlocked": false, "unlock": "rumour" }
+	],
+	"locations": [
+		{
+			"id": "garden", "type": "foraging", "name": "the garden path", "max_party": 1, "minutes": 4, "go_home": true,
+			"difficulty": 1.0, "danger": 1.0, "loot": 1.0, "box": "starter", "draws": 4,
+			"pool": [
+				{ "event": "garden_fork", "weight": 3 }, { "event": "garden_brambles", "weight": 3 },
+				{ "event": "garden_goose", "weight": 2 }, { "event": "garden_chest", "weight": 2 },
+				{ "event": "garden_apples", "weight": 2 }, { "event": "garden_bees", "weight": 1 },
+				{ "event": "garden_ball", "weight": 2 }, { "event": "garden_pond", "weight": 2 }
+			]
+		},
+		{
+			"id": "meadow", "type": "foraging", "name": "the meadow", "max_party": 0, "minutes": 5, "unlock": { "after_trips": 1 },
+			"difficulty": 0.5, "danger": 0.3, "loot": 0.3, "box": "starter",
+			"events": ["puddle", "fork"]
+		},
+		{
+			"id": "woods", "type": "foraging", "name": "the woods", "max_party": 0, "minutes": 15, "unlock": { "after_trips": 3 },
+			"difficulty": 1.0, "danger": 0.5, "loot": 0.5, "box": "starter",
+			"events": ["brambles", "fox", "chest"]
+		},
+		{
+			"id": "orchard", "type": "foraging", "name": "the orchard", "max_party": 0, "minutes": 20, "locked": true,
+			"difficulty": 1.2, "danger": 0.4, "loot": 0.8, "box": "starter",
+			"events": ["fork", "puddle", "chest", "chest"]
+		},
+		{
+			"id": "fields", "type": "exploration", "name": "the far fields", "max_party": 0, "minutes": 25,
+			"difficulty": 1.0, "danger": 0.4, "loot": 0.3, "box": "starter",
+			"events": ["hill", "tracks", "signpost"]
+		},
+		{
+			"id": "well", "type": "dungeon", "name": "the old well", "max_party": 0, "minutes": 40,
+			"difficulty": 1.5, "danger": 1.0, "loot": 1.0, "box": "starter",
+			"events": ["dark", "rope", "fox"]
+		},
+		{
+			"id": "cellar", "type": "dungeon", "name": "the cellar", "max_party": 0, "minutes": 90, "locked": true,
+			"difficulty": 2.0, "danger": 1.3, "loot": 1.6, "box": "lucky",
+			"events": ["dark", "door", "rope"]
+		},
+		{
+			"id": "below", "type": "dungeon", "name": "further down", "max_party": 0, "minutes": 120, "locked": true,
+			"difficulty": 2.5, "danger": 1.7, "loot": 2.4, "box": "lucky",
+			"events": ["door", "dark", "thing", "door"]
+		}
+	],
+	"rumours": [
+		{ "id": "orchard", "title": "an orchard", "about": "an orchard full of apples over the hill", "unlocks": ["location:orchard"], "requires": [] },
+		{ "id": "well", "title": "a deep well", "about": "a really deep well past the fields", "unlocks": ["type:dungeon"], "requires": [] },
+		{ "id": "cellar", "title": "a little door", "about": "a little door at the bottom of the old well", "unlocks": ["location:cellar"], "requires": ["type:dungeon"] },
+		{ "id": "below", "title": "stairs going down", "about": "some stairs that go further down than anyone's been", "unlocks": ["location:below"], "requires": ["location:cellar"] }
+	],
+	"events": [
+		{
+			"id": "garden_fork", "title": "a fork in the path", "text": "one way smells of flowers. the other way is dark and twisty!", "default": 0,
+			"options": [
+				{ "label": "the flowery way", "tag": "careful",
+					"success": { "text": "{who} sniffed every flower!", "rewards": [{ "kind": "coins", "amount": [1, 2] }] } },
+				{ "label": "the twisty way", "tag": "brave", "stat": "luck", "chance": 0.65,
+					"success": { "text": "{who} found something shiny round the bend!", "rewards": [{ "kind": "coins", "amount": [5, 9] }, { "kind": "part", "chance": 0.25 }] },
+					"failure": { "text": "twisty! {who} got a bit tangled!", "hurt": [1, 1] } }
+			]
+		},
+		{
+			"id": "garden_brambles", "title": "brambles", "text": "thorny brambles! and something red and shiny right in the middle.", "default": 0,
+			"options": [
+				{ "label": "go around", "tag": "careful",
+					"success": { "text": "the long way round!", "rewards": [{ "kind": "coins", "amount": [0, 1] }] } },
+				{ "label": "reach in", "tag": "brave", "stat": "speed", "chance": 0.6,
+					"success": { "text": "{who} grabbed it! not a scratch!", "rewards": [{ "kind": "coins", "amount": [3, 5] }, { "kind": "part", "chance": 0.6 }] },
+					"failure": { "text": "ouch! prickly!", "hurt": [1, 1] } }
+			]
+		},
+		{
+			"id": "garden_goose", "title": "a big goose", "text": "a goose stands in the way. it is very big!", "default": 0,
+			"options": [
+				{ "label": "sneak past", "tag": "sneak", "stat": "speed", "chance": 0.85,
+					"success": { "text": "{who} tiptoed right past!", "rewards": [{ "kind": "coins", "amount": [1, 2] }] },
+					"failure": { "text": "the goose said hello! loudly!", "hurt": [1, 1] } },
+				{ "label": "chase it off", "tag": "fight", "stat": "power", "chance": 0.45,
+					"success": { "text": "{who} chased the goose off! it dropped something!", "rewards": [{ "kind": "coins", "amount": [8, 12] }, { "kind": "part", "chance": 0.5 }] },
+					"failure": { "text": "the goose was very good at chasing back!", "hurt": [1, 1], "hearts": 2 } }
+			]
+		},
+		{
+			"id": "garden_chest", "title": "a little chest", "text": "a little chest sits by the path. it's humming to itself.", "default": 1,
+			"options": [
+				{ "label": "open it", "tag": "brave", "stat": "luck", "chance": 0.55,
+					"success": { "text": "treasure! {who} found a part!", "rewards": [{ "kind": "coins", "amount": [4, 8] }, { "kind": "part", "chance": 1.0 }, { "kind": "box", "chance": 0.1 }] },
+					"failure": { "text": "it was a tiny mimic! it was very excited!", "hurt": [1, 1] } },
+				{ "label": "leave it be", "tag": "careful",
+					"success": { "text": "maybe next time!" } }
+			]
+		},
+		{
+			"id": "garden_apples", "title": "an apple tree", "text": "apples! and one golden apple right at the very top.", "default": 0,
+			"options": [
+				{ "label": "pick the low ones", "tag": "careful",
+					"success": { "text": "crunchy!", "rewards": [{ "kind": "coins", "amount": [2, 3] }] } },
+				{ "label": "climb to the top", "tag": "brave", "stat": "speed", "chance": 0.5,
+					"success": { "text": "{who} got the golden apple!", "rewards": [{ "kind": "coins", "amount": [10, 15] }, { "kind": "box", "chance": 0.15 }] },
+					"failure": { "text": "wheee! bump!", "hurt": [1, 1] } }
+			]
+		},
+		{
+			"id": "garden_bees", "title": "a bee hive", "text": "a hive is buzzing away in a tree. honey drips down!", "default": 0,
+			"options": [
+				{ "label": "leave the bees alone", "tag": "careful",
+					"success": { "text": "bzz bzz! bye bees!" } },
+				{ "label": "sneak a little honey", "tag": "sneak", "stat": "speed", "chance": 0.55,
+					"success": { "text": "{who} got sticky paws and a pocket of honey!", "rewards": [{ "kind": "coins", "amount": [6, 10] }] },
+					"failure": { "text": "the bees noticed!", "hurt": [1, 1] } },
+				{ "label": "take the whole hive", "tag": "fight", "stat": "power", "chance": 0.25,
+					"success": { "text": "{who} carried off the whole hive! wow!", "rewards": [{ "kind": "coins", "amount": [15, 25] }, { "kind": "part", "chance": 0.5 }] },
+					"failure": { "text": "the bees were very, very excited!", "hurt": [1, 1], "hearts": 2 } }
+			]
+		},
+		{
+			"id": "garden_ball", "title": "a lost ball", "text": "a bouncy ball, all alone in the grass.", "default": 0,
+			"options": [
+				{ "label": "have a little play", "tag": "careful",
+					"success": { "text": "boing boing! {who} feels all better!", "heal": [1, 1] } },
+				{ "label": "take it along", "tag": "careful",
+					"success": { "text": "a ball for later!", "rewards": [{ "kind": "coins", "amount": [2, 4] }] } }
+			]
+		},
+		{
+			"id": "garden_pond", "title": "a duck pond", "text": "ducks! and something sparkly at the bottom of the pond.", "default": 0,
+			"options": [
+				{ "label": "feed the ducks", "tag": "careful",
+					"success": { "text": "quack!", "rewards": [{ "kind": "coins", "amount": [1, 2] }] } },
+				{ "label": "dive for it", "tag": "brave", "stat": "luck", "chance": 0.55,
+					"success": { "text": "{who} came up with something sparkly!", "rewards": [{ "kind": "coins", "amount": [3, 6] }, { "kind": "part", "chance": 0.8 }] },
+					"failure": { "text": "splash! so cold!", "hurt": [1, 1] } }
+			]
+		},
+		{
+			"id": "fork", "title": "a fork in the path", "text": "the path splits in two!", "default": 1,
+			"options": [
+				{ "label": "the flowery way", "tag": "careful", "stat": "luck", "difficulty": 5,
+					"success": { "text": "{who} found a patch of sweet clover!", "rewards": [{ "kind": "coins", "amount": [2, 4] }] },
+					"failure": { "text": "just flowers. very pretty ones!" } },
+				{ "label": "the big hedge", "tag": "brave", "stat": "power", "difficulty": 8,
+					"success": { "text": "{who} found something shiny in the hedge!", "rewards": [{ "kind": "coins", "amount": [5, 9] }, { "kind": "part", "chance": 0.25 }] },
+					"failure": { "text": "the hedge was extra scratchy today!", "injured": [0.3, 0.6] } }
+			]
+		},
+		{
+			"id": "brambles", "title": "brambles", "text": "thorny brambles cover the path.", "default": 1,
+			"options": [
+				{ "label": "go carefully", "tag": "careful", "stat": "speed", "difficulty": 6,
+					"success": { "text": "{who} slipped through without a scratch!" },
+					"failure": { "text": "slow and scratchy, but through!", "injured": [0.2, 0.4] } },
+				{ "label": "push through", "tag": "fight", "stat": "power", "difficulty": 6,
+					"success": { "text": "{who} pushed straight through!", "rewards": [{ "kind": "coins", "amount": [1, 3] }] },
+					"failure": { "text": "ouch! nearly through!", "injured": [0.5, 0.9], "lost": [0.0, 0.05] } }
+			]
+		},
+		{
+			"id": "goose", "title": "a big goose", "text": "a goose stands in the way. it is very big!", "default": 1,
+			"options": [
+				{ "label": "fight", "tag": "fight", "stat": "power", "difficulty": 10,
+					"success": { "text": "{who} chased the goose off! it dropped something!", "rewards": [{ "kind": "coins", "amount": [6, 10] }, { "kind": "part", "chance": 0.3 }] },
+					"failure": { "text": "the goose was very good at fighting!", "lost": [0.3, 0.6], "injured": [0.3, 0.6] } },
+				{ "label": "sneak past", "tag": "sneak", "stat": "speed", "difficulty": 9,
+					"success": { "text": "{who} tiptoed right past!" },
+					"failure": { "text": "the goose said hello! loudly!", "injured": [0.4, 0.8] } },
+				{ "label": "go home", "tag": "retreat", "stat": "",
+					"success": { "text": "{who} decided that was enough adventure for today!", "progress": "end" } }
+			]
+		},
+		{
+			"id": "limping", "title": "sore paws", "text": "some paws are a bit sore.", "only_if": "injured", "default": 0,
+			"options": [
+				{ "label": "rest a while", "tag": "careful", "stat": "",
+					"success": { "text": "a little rest! everyone feels better!", "heal": [0.6, 1.0] } },
+				{ "label": "keep going", "tag": "brave", "stat": "",
+					"success": { "text": "onwards!" } },
+				{ "label": "go on without them", "tag": "leave_wounded", "stat": "", "min_party": 2,
+					"success": { "text": "the others will catch up later!", "leave_injured": true } }
+			]
+		},
+		{
+			"id": "chest", "title": "a little chest", "text": "a little chest sits by the path, unlocked!", "default": 0,
+			"options": [
+				{ "label": "open it", "tag": "brave", "stat": "luck", "difficulty": 7,
+					"success": { "text": "treasure! {who} found a part!", "rewards": [{ "kind": "coins", "amount": [4, 8] }, { "kind": "part", "chance": 1.0 }, { "kind": "box", "chance": 0.1 }] },
+					"failure": { "text": "it was a tiny mimic! it was very excited!", "injured": [0.5, 1.0], "lost": [0.0, 0.1] } },
+				{ "label": "leave it", "tag": "careful", "stat": "",
+					"success": { "text": "maybe next time!" } }
+			]
+		},
+		{
+			"id": "puddle", "title": "a big puddle", "text": "a big muddy puddle!", "default": 0,
+			"options": [
+				{ "label": "jump it", "tag": "brave", "stat": "speed", "difficulty": 6,
+					"success": { "text": "splash-free!", "rewards": [{ "kind": "coins", "amount": [1, 3] }] },
+					"failure": { "text": "splash! muddy paws!", "injured": [0.05, 0.15] } },
+				{ "label": "go around", "tag": "careful", "stat": "",
+					"success": { "text": "the long way round is nice too!" } }
+			]
+		},
+		{
+			"id": "fox", "title": "a fox", "text": "a fox is watching from the trees!", "default": 0,
+			"options": [
+				{ "label": "chase it", "tag": "fight", "stat": "power", "difficulty": 10,
+					"success": { "text": "the fox ran off! it left a present!", "rewards": [{ "kind": "coins", "amount": [3, 6] }, { "kind": "part", "chance": 0.1 }] },
+					"failure": { "text": "the fox wanted to play!", "lost": [0.1, 0.3] } },
+				{ "label": "be very quiet", "tag": "sneak", "stat": "speed", "difficulty": 10,
+					"success": { "text": "nobody made a peep!" },
+					"failure": { "text": "the fox found some new friends!", "lost": [0.05, 0.2] } }
+			]
+		},
+		{
+			"id": "hill", "title": "a big hill", "text": "you can probably see a long way from the top!", "default": 0,
+			"options": [
+				{ "label": "climb it", "tag": "brave", "stat": "speed", "difficulty": 8,
+					"success": { "text": "what a view! {who} spotted something far away!", "rewards": [{ "kind": "rumour", "chance": 0.5 }] },
+					"failure": { "text": "tumbled back down! wheee!", "injured": [0.2, 0.4] } },
+				{ "label": "walk around it", "tag": "careful", "stat": "",
+					"success": { "text": "a nice long walk!", "rewards": [{ "kind": "coins", "amount": [1, 2] }] } }
+			]
+		},
+		{
+			"id": "tracks", "title": "funny tracks", "text": "little tracks lead off the path!", "default": 0,
+			"options": [
+				{ "label": "follow them", "tag": "brave", "stat": "luck", "difficulty": 9,
+					"success": { "text": "they led somewhere new!", "rewards": [{ "kind": "rumour", "chance": 0.6 }] },
+					"failure": { "text": "the tracks went round in circles!", "lost": [0.0, 0.1] } },
+				{ "label": "stay on the path", "tag": "careful", "stat": "",
+					"success": { "text": "paths are there for a reason!" } }
+			]
+		},
+		{
+			"id": "signpost", "title": "an old signpost", "text": "the writing is very faded.", "default": 0,
+			"options": [
+				{ "label": "read it", "tag": "careful", "stat": "luck", "difficulty": 7,
+					"success": { "text": "{who} worked it out! it points somewhere!", "rewards": [{ "kind": "rumour", "chance": 0.4 }, { "kind": "coins", "amount": [2, 4] }] },
+					"failure": { "text": "it just says \"ha\"." } },
+				{ "label": "leave it", "tag": "careful", "stat": "",
+					"success": { "text": "signs are boring anyway!" } }
+			]
+		},
+		{
+			"id": "dark", "title": "it's dark", "text": "it's very dark down here!", "default": 0,
+			"options": [
+				{ "label": "hold paws and keep going", "tag": "brave", "stat": "luck", "difficulty": 12,
+					"success": { "text": "eyes adjust! there's stuff everywhere!", "rewards": [{ "kind": "coins", "amount": [5, 10] }, { "kind": "box", "chance": 0.03 }] },
+					"failure": { "text": "a few went exploring on their own!", "lost": [0.1, 0.25] } },
+				{ "label": "go back up", "tag": "retreat", "stat": "",
+					"success": { "text": "back into the sunshine!", "progress": "end" } }
+			]
+		},
+		{
+			"id": "rope", "title": "an old rope", "text": "a rope goes further down!", "default": 0,
+			"options": [
+				{ "label": "climb down", "tag": "brave", "stat": "speed", "difficulty": 14,
+					"success": { "text": "everyone made it down!", "rewards": [{ "kind": "coins", "amount": [4, 8] }] },
+					"failure": { "text": "the rope was a bit wobbly!", "lost": [0.15, 0.35] } },
+				{ "label": "stay here", "tag": "retreat", "stat": "",
+					"success": { "text": "{who} waited by the rope. what a nice rest!", "progress": "end" } }
+			]
+		},
+		{
+			"id": "door", "title": "a small door", "text": "someone is knocking on the other side!", "default": 0,
+			"options": [
+				{ "label": "open it", "tag": "fight", "stat": "power", "difficulty": 20,
+					"success": { "text": "nobody there! just some coins!", "rewards": [{ "kind": "coins", "amount": [10, 18] }, { "kind": "box", "chance": 0.05 }, { "kind": "part", "chance": 0.05 }] },
+					"failure": { "text": "someone was home! they love visitors!", "lost": [0.2, 0.4] } },
+				{ "label": "knock back", "tag": "careful", "stat": "luck", "difficulty": 16,
+					"success": { "text": "a present was slipped under the door!", "rewards": [{ "kind": "box", "chance": 0.08 }] },
+					"failure": { "text": "they knocked back! what fun!", "lost": [0.1, 0.2] } }
+			]
+		},
+		{
+			"id": "thing", "title": "something big", "text": "something big is sleeping here!", "default": 0,
+			"options": [
+				{ "label": "take its things", "tag": "fight", "stat": "power", "difficulty": 30,
+					"success": { "text": "it stayed asleep! so much loot!", "rewards": [{ "kind": "coins", "amount": [15, 30] }, { "kind": "box", "chance": 0.06 }, { "kind": "part", "chance": 0.08 }] },
+					"failure": { "text": "it woke up and wanted to play!", "lost": [0.3, 0.55] } },
+				{ "label": "let it sleep", "tag": "sneak", "stat": "speed", "difficulty": 24,
+					"success": { "text": "shhh!", "rewards": [{ "kind": "coins", "amount": [4, 8] }] },
+					"failure": { "text": "it was only pretending! silly!", "lost": [0.2, 0.4] } }
+			]
+		}
+	]
+}

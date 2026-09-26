@@ -1,7 +1,7 @@
 class_name Catalog
 extends RefCounted
 ## Read-only game data loaded from data/*.json: rarities, parts, finishes, traits, boxes and
-## dungeons and their events.
+## adventures (types, locations and their events).
 ## Use Catalog.shared() everywhere; tests can build their own with Catalog.new().
 
 const SLOTS: Array[String] = ["body", "palette", "pattern", "eyes", "accessory"]
@@ -15,15 +15,20 @@ var finishes: Array[Dictionary] = []  # lowest to highest
 var traits: Array[Dictionary] = []
 var boxes: Array[Dictionary] = []
 var reveal := {}  # how opening a box looks, see data/reveal.json
-var dungeons: Array[Dictionary] = []  # shallow to deep, see data/dungeons.json
-var events := {}  # event id -> event, shared by the dungeons
+var adventure_types: Array[Dictionary] = []  # see data/adventures.json
+var locations: Array[Dictionary] = []  # in the order they're listed, safe to deadly
+var events := {}  # event id -> event, shared by the locations
+var rumours: Array[Dictionary] = []  # what exploration can bring back
+var voice := {}  # what the active pet says, see data/voice.json
 
 var _tier_rank := {}  # tier id -> index
 var _parts_by_id := {}  # slot -> { part id -> part }
 var _finish_by_id := {}
 var _trait_by_id := {}
 var _box_by_id := {}
-var _dungeon_by_id := {}
+var _type_by_id := {}
+var _location_by_id := {}
+var _rumour_by_id := {}
 
 
 static func shared() -> Catalog:
@@ -51,10 +56,15 @@ func _init() -> void:
 	boxes.assign(_load("boxes.json").boxes)
 	_box_by_id = _index(boxes)
 	reveal = _load("reveal.json")
-	var dungeon_data := _load("dungeons.json")
-	dungeons.assign(dungeon_data.dungeons)
-	_dungeon_by_id = _index(dungeons)
-	events = _index(dungeon_data.events)
+	var adventures := _load("adventures.json")
+	adventure_types.assign(adventures.types)
+	_type_by_id = _index(adventure_types)
+	locations.assign(adventures.locations)
+	_location_by_id = _index(locations)
+	events = _index(adventures.events)
+	rumours.assign(adventures.rumours)
+	_rumour_by_id = _index(rumours)
+	voice = _load("voice.json")
 
 
 # ---- rarity ---------------------------------------------------------------
@@ -108,8 +118,16 @@ func box(id: String) -> Dictionary:
 	return _box_by_id.get(id, {})
 
 
-func dungeon(id: String) -> Dictionary:
-	return _dungeon_by_id.get(id, {})
+func location(id: String) -> Dictionary:
+	return _location_by_id.get(id, {})
+
+
+func adventure_type(id: String) -> Dictionary:
+	return _type_by_id.get(id, {})
+
+
+func rumour(id: String) -> Dictionary:
+	return _rumour_by_id.get(id, {})
 
 
 ## Chance (0..1) of pulling this rarity from this box.
