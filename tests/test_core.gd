@@ -25,6 +25,7 @@ func _init() -> void:
 	_test_adventures(catalog)
 	_test_voice(catalog)
 	_test_garden(catalog)
+	_test_intel(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -46,10 +47,28 @@ func _test_data_is_consistent(catalog: Catalog) -> void:
 			_check(not catalog.finish(f).is_empty() and catalog.finish(f).id == f, "box %s finish %s exists" % [b.id, f])
 	for t in catalog.adventure_types:
 		_check(t.has("name") and t.has("risk"), "adventure type %s has a name and risk" % t.id)
-	var starting := catalog.adventure_types.filter(func(t): return t.get("unlocked", false))
-	_check(starting.size() == 1, "the game starts with one adventure type")
-	var first_places := catalog.locations.filter(func(l): return l.type == starting[0].id and not l.get("locked", false) and not l.has("unlock"))
+	var first_places := catalog.locations.filter(func(l): return l.get("start", false))
 	_check(first_places.size() == 1, "a new game starts with exactly one place to go (%d)" % first_places.size())
+	# every place can be reached from the start: spotted on trips (leads_to) or through rumours
+	var reached := { first_places[0].id: true }
+	for round_ in catalog.locations.size():
+		for l in catalog.locations:
+			if reached.has(l.id):
+				for lead in l.get("leads_to", []):
+					reached[lead.to] = true
+		for r in catalog.rumours:
+			if r.get("requires", []).all(func(id): return reached.has(str(id).trim_prefix("location:"))):
+				for id in r.unlocks:
+					reached[str(id).trim_prefix("location:")] = true
+	for l in catalog.locations:
+		_check(reached.has(l.id), "%s can be reached from the start" % l.id)
+		_check(l.has("map") and l.map.has("x") and l.map.has("y"), "%s is on the map" % l.id)
+		for lead in l.get("leads_to", []):
+			_check(not catalog.location(lead.to).is_empty(), "%s leads to a real place (%s)" % [l.id, lead.to])
+		for other in catalog.locations:
+			if other.id < l.id and l.has("map") and other.has("map"):
+				var gap := Vector2(float(l.map.x), float(l.map.y)).distance_to(Vector2(float(other.map.x), float(other.map.y)))
+				_check(gap >= 0.8, "%s and %s aren't drawn on top of each other" % [l.id, other.id])
 	for l in catalog.locations:
 		_check(not catalog.adventure_type(l.type).is_empty(), "location %s has a real type" % l.id)
 		_check(not catalog.box(l.box).is_empty(), "location %s drops a real box" % l.id)
@@ -212,7 +231,8 @@ func _test_adventures(catalog: Catalog) -> void:
 			answers += 1
 		AdventureRunner.resolve(walk, PlayerChooser.new(), now, catalog)
 		now += 1.0e6  # time passes between events
-	_check(walk.status == RunState.Status.DONE and walk.history.size() == answers, "answering every event finishes the walk")
+	var played := walk.history.filter(func(e): return e.event != "finish").size()
+	_check(walk.status == RunState.Status.DONE and played == answers, "answering every event finishes the walk")
 
 	# lost pets leave the collection, the book keeps them, each leaves a star
 	var gone: Array[String] = [batch[0].uid, batch[1].uid]
@@ -244,7 +264,7 @@ func _test_adventures(catalog: Catalog) -> void:
 ## The pet's voice: every eye gives a personality with something to say in every situation,
 ## every accessory has a tic (even if empty), and lines never show a {placeholder}.
 func _test_voice(catalog: Catalog) -> void:
-	var situations := ["idle", "away", "needs_you", "someone_back", "back_all", "back_some", "back_none", "part_found", "rumour"]
+	var situations := ["idle", "away", "needs_you", "someone_back", "back_all", "back_some", "back_none", "part_found", "rumour", "spotted"]
 	var ids: Array = catalog.voice.personalities.map(func(p): return p.id)
 	_check(catalog.voice.default in ids, "the default personality exists")
 	for eyes in catalog.slots.eyes:
@@ -261,7 +281,7 @@ func _test_voice(catalog: Catalog) -> void:
 			_check(not p.lines.get(kind, []).is_empty(), "%s has lines for %s" % [p.id, kind])
 			for i in 6:
 				var text := PetVoice.line(pet, { "kind": kind, "place": "the woods", "home": 12, "sent": 100, "lost": 88,
-					"rumour": "a deep well", "then": ["part_found", "rumour"] }, rng, catalog)
+					"rumour": "a deep well", "spot": "the meadow", "who": "bean", "then": ["part_found", "spotted", "rumour"] }, rng, catalog)
 				_check(not "{" in text and text != "", "%s %s line fills in: %s" % [p.id, kind, text])
 	var news := { "place": "the woods", "home": 0, "sent": 5, "parts": 0 }
 	var none: Array[RunState] = []
@@ -272,11 +292,11 @@ func _test_voice(catalog: Catalog) -> void:
 	_check(PetVoice.situation({}, whisper, none, catalog).kind == "rumour", "a waiting rumour gets mentioned")
 
 	# rumours: each can be heard once, only when what it needs is open, and only if it opens something new
-	var open := { "type:foraging": true }
+	var open := {}
 	var is_open := func(id): return open.has(id)
 	var can := Rumours.hearable(catalog, {}, is_open).map(func(r): return r.id)
 	_check("well" in can and "orchard" in can and not "cellar" in can, "only rumours whose way is open can be heard (%s)" % [can])
-	open["type:dungeon"] = true
+	open["location:well"] = true
 	can = Rumours.hearable(catalog, { "orchard": true }, is_open).map(func(r): return r.id)
 	_check("cellar" in can and not "well" in can and not "orchard" in can, "heard or already open rumours don't come again (%s)" % [can])
 	for r in catalog.rumours:
@@ -350,6 +370,16 @@ func _test_garden(catalog: Catalog) -> void:
 	AdventureRunner.resolve(early, PlayerChooser.new(), 2.0e9, catalog)
 	AdventureRunner.resolve(early, PlayerChooser.new(), 3.0e9, catalog)
 	_check(early.status == RunState.Status.DONE and early.party.size() == 1 and early.history.size() == 1, "go home ends the trip, pet safe")
+	_check(not early.history.any(func(e): return e.event == "finish"), "going home early skips the treat bag")
+	var full := AdventureRunner.start("garden", bean, 0.0, 4, catalog)
+	var t := 0.0
+	for i in 20:
+		if full.status == RunState.Status.WAITING:
+			full.answer = 0  # the safe way every time
+		AdventureRunner.resolve(full, PlayerChooser.new(), t, catalog)
+		t += 1.0e5
+	_check(full.history.any(func(e): return e.event == "finish") and full.party.size() == 1, "going all the way ends with a treat bag")
+	_check(Rewards.depth_boost(3) > Rewards.depth_boost(0), "later events pay more")
 
 	# hints: every option gets words, never a number or a {placeholder}; bias tilts them
 	var risky := {}
@@ -390,6 +420,25 @@ func _test_garden(catalog: Catalog) -> void:
 				bands[id] = i
 	_check(bands.get("overconfident", 9) <= bands.get("cheerful", -1) and bands.get("cheerful", 9) <= bands.get("nervous", -1),
 		"overconfident pets sound surer and nervous ones more scared (%s)" % [bands])
+
+
+## Spotting places on trips: only unknown places, and the safety net means nobody waits long.
+func _test_intel(catalog: Catalog) -> void:
+	var garden := catalog.location("garden")
+	var rng := RandomNumberGenerator.new()
+	var worst := 0
+	for t in 300:
+		rng.seed = t
+		var tries := {}
+		var trips := 0
+		var found: Array[String] = []
+		while not "meadow" in found and trips < 50:
+			trips += 1
+			found.append_array(Intel.roll(garden, func(id): return id in found, tries, rng))
+		worst = maxi(worst, trips)
+	_check(worst <= 5, "the meadow is always spotted within a few garden trips (worst %d)" % worst)
+	var all_known := Intel.roll(garden, func(_id): return true, {}, rng)
+	_check(all_known.is_empty(), "places already known aren't spotted again")
 
 
 ## Allowed difference between expected and rolled odds (about 4 standard deviations).

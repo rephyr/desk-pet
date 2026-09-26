@@ -5,7 +5,7 @@ extends RefCounted
 
 
 ## Rumours nobody has heard yet, whose requirements are open and that would still open something
-## new. `is_open` tells whether an unlock id ("type:dungeon", "location:cellar") is open.
+## new. `is_open` tells whether an unlock id ("location:well", "parties") is open.
 static func hearable(catalog: Catalog, heard: Dictionary, is_open: Callable) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	for rumour in catalog.rumours:

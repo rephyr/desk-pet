@@ -12,6 +12,7 @@ const CHANCE_SLOPE := 0.35  # how much doubling the party's stat over the diffic
 const SIZE_SCALING := 0.85  # difficulty grows a bit slower than the party: big parties do better
 const STAT_TILT := 0.15  # most a pet's stat moves an option's own chance, either way
 const HURT_PENALTY := 0.2  # a hurt pet does this much worse at anything risky
+const FINISH_TEXT := "{who} made it all the way! a treat bag for the trip home!"
 ## Places with "go_home" offer this at every event: end the trip and keep the bag.
 const HOME_OPTION := {
 	"label": "go home", "tag": "retreat", "stat": "", "home": true,
@@ -78,6 +79,8 @@ static func resolve(state: RunState, chooser: Chooser, now: float, catalog: Cata
 		if state.step >= state.events.size() or state.party.size() == 0:
 			if state.party.size() == 0:
 				state.loot.clear()  # nobody came back to carry the bag
+			elif not state.went_home:
+				_finish_treat(state, location, catalog)
 			state.status = RunState.Status.DONE
 			break
 		var event: Dictionary = catalog.events.get(state.events[state.step], {})
@@ -96,6 +99,21 @@ static func resolve(state: RunState, chooser: Chooser, now: float, catalog: Cata
 		state.status = RunState.Status.WALKING
 		state.next_at = decided + gap(location, state.party, state.events.size())
 	return added
+
+
+## A trip that went all the way (not home early) gets a little treat bag on the way home.
+static func _finish_treat(state: RunState, location: Dictionary, catalog: Catalog) -> void:
+	var treat: Array = location.get("finish_rewards", [])
+	if treat.is_empty():
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = hash([state.rng_seed, "finish"])
+	var loot := {}
+	for reward in treat:
+		Rewards.add(loot, Rewards.roll(reward, state.party, location, rng, catalog, Rewards.depth_boost(state.history.size())))
+	Rewards.add(state.loot, loot)
+	state.history.append({ "event": "finish", "title": "", "option": "", "success": true, "lost": 0, "injured": 0,
+		"loot": loot, "text": FINISH_TEXT.replace("{who}", state.party.who()) })
 
 
 ## Whether this event happens for this party (some only happen if someone is injured).
@@ -177,12 +195,13 @@ static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog
 		entry.lost += hurt.lost
 	# loot comes from the pets still there
 	for reward in outcome.get("rewards", []):
-		Rewards.add(entry.loot, Rewards.roll(reward, party, location, rng, catalog))
+		Rewards.add(entry.loot, Rewards.roll(reward, party, location, rng, catalog, Rewards.depth_boost(state.history.size())))
 	Rewards.add(state.loot, entry.loot)
 
 	match str(outcome.get("progress", "continue")):
 		"end":
 			state.step = state.events.size()
+			state.went_home = true
 		"skip":
 			state.step += 2
 		_:

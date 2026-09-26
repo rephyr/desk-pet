@@ -9,7 +9,7 @@ signal tutorial_changed  # the tutorial moved on a step (or finished)
 signal adventures_changed  # a trip was sent, moved on, answered or collected, or something unlocked
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 8
+const SAVE_VERSION := 9
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
 const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
@@ -29,10 +29,13 @@ var pet_out := false
 var bag := {}  # box id -> unopened boxes you own (found on adventures)
 var parts := {}  # "slot:part id" -> how many you have (found on adventures, for grafting later)
 var items := {}  # anything else adventures bring back that nothing uses yet, see Rewards
-var unlocks := {}  # unlock id -> true, e.g. "automation", "type:dungeon", "location:cellar"
+var unlocks := {}  # unlock id -> true, e.g. "automation", "parties", "location:meadow"
 var trips_done := 0  # adventures welcomed back, ever (some types open after a few)
 var heard := {}  # rumour id -> true, for every rumour ever heard
 var rumours: Array[String] = []  # heard, and waiting for you to decide whether to go
+## Places a pet spotted on a trip, waiting for you: location id -> { ready_at, by, from }
+var spotted := {}
+var spot_tries := {}  # location id -> trips that could have spotted it but didn't (the safety net)
 var runs: Array[RunState] = []
 ## The last trip you welcomed back, for the active pet to talk about: { place, home, sent, parts }.
 ## Not saved: it's small talk.
@@ -135,6 +138,7 @@ func _give_first_pet() -> void:
 # ---- unlocks ---------------------------------------------------------------
 
 const AUTOMATION := "automation"  # lets you send swarms that follow your rules
+const PARTIES := "parties"  # lets you send small parties (up to Chooser.SMALL_PARTY)
 
 
 func is_unlocked(id: String) -> bool:
@@ -150,36 +154,53 @@ func unlock(id: String) -> void:
 	save_game()
 
 
-## Adventure types you can go on: open from the start, unlocked by a rumour, or after enough trips.
-func adventure_type_open(type_id: String) -> bool:
-	var t := catalog.adventure_type(type_id)
-	return bool(t.get("unlocked", false)) or is_unlocked("type:" + type_id) or _enough_trips(t)
-
-
-## A place you can go: its type is open, and it isn't waiting for a rumour or for more trips.
+## A place you can go: the starting one, or one a pet spotted (or a rumour led to) and you said yes.
 func location_open(location: Dictionary) -> bool:
-	if location.is_empty() or not adventure_type_open(location.type):
+	if location.is_empty():
 		return false
-	if is_unlocked("location:" + location.id):
-		return true
-	if location.get("locked", false):
-		return false
-	return not location.has("unlock") or _enough_trips(location)
+	return location.get("start", false) or is_unlocked("location:" + location.id)
 
 
-## Whether a type or location with an { "after_trips": n } unlock rule has had enough trips.
-func _enough_trips(thing: Dictionary) -> bool:
-	var rule = thing.get("unlock", "")
-	return rule is Dictionary and rule.has("after_trips") and trips_done >= int(rule.after_trips)
-
-
-## Whether an unlock id ("type:dungeon", "location:cellar", "automation") is open.
+## Whether an unlock id ("location:cellar", "automation", "parties") is open.
 func is_open(id: String) -> bool:
-	if id.begins_with("type:"):
-		return adventure_type_open(id.substr(5))
 	if id.begins_with("location:"):
 		return location_open(catalog.location(id.substr(9)))
 	return is_unlocked(id)
+
+
+## Seconds until a spotted place can be gone to (its time lock), 0 if it can now.
+func lead_wait(location_id: String) -> float:
+	if not spotted.has(location_id):
+		return 0.0
+	return maxf(0.0, float(spotted[location_id].ready_at) - Time.get_unix_time_from_system())
+
+
+## You say yes to a place a pet spotted: it opens, once its time lock (if any) is over.
+func follow_lead(location_id: String) -> void:
+	if not spotted.has(location_id) or lead_wait(location_id) > 0.0:
+		return
+	spotted.erase(location_id)
+	unlocks["location:" + location_id] = true
+	adventures_changed.emit()
+	changed.emit()
+	save_game()
+
+
+## A pet that made it home may have spotted somewhere new on the way.
+func _spot_places(run: RunState) -> Array[String]:
+	if run.party.size() == 0:
+		return []
+	var location := catalog.location(run.location_id)
+	var known := func(id): return location_open(catalog.location(id)) or spotted.has(id)
+	var found := Intel.roll(location, known, spot_tries, _rng)
+	var now := Time.get_unix_time_from_system()
+	for id in found:
+		var wait := 0.0
+		for lead in location.get("leads_to", []):
+			if lead.to == id:
+				wait = float(lead.get("wait_minutes", 0.0)) * 60.0
+		spotted[id] = { "ready_at": now + wait, "by": run.party.who(), "from": run.location_id }
+	return found
 
 
 ## Places you can go, in the data's order.
@@ -214,15 +235,20 @@ func _hear_rumours(count: int) -> void:
 
 ## The biggest party you may send here: small parties until automation, and a location's own cap.
 func max_party(location_id: String) -> int:
-	var most := Chooser.SMALL_PARTY if not is_unlocked(AUTOMATION) else 1 << 30
+	# one pet at a time early on; small parties and then swarms come with later unlocks
+	var most := 1
+	if is_unlocked(PARTIES):
+		most = Chooser.SMALL_PARTY
+	if is_unlocked(AUTOMATION):
+		most = 1 << 30
 	var cap := int(catalog.location(location_id).get("max_party", 0))
 	return mini(most, cap) if cap > 0 else most
 
 
 func debug_unlock_all() -> void:
 	unlock(AUTOMATION)
-	for t in catalog.adventure_types:
-		unlock("type:" + t.id)
+	unlock(PARTIES)
+	spotted.clear()
 	for l in catalog.locations:
 		unlock("location:" + l.id)
 
@@ -243,6 +269,8 @@ func debug_new_game() -> void:
 	trips_done = 0
 	heard.clear()
 	rumours.clear()
+	spotted.clear()
+	spot_tries.clear()
 	runs.clear()
 	news = {}
 	collection.load_from({})
@@ -304,6 +332,8 @@ func debug_lock_all() -> void:
 	trips_done = 0
 	heard.clear()
 	rumours.clear()
+	spotted.clear()
+	spot_tries.clear()
 	adventures_changed.emit()
 	changed.emit()
 	save_game()
@@ -370,8 +400,10 @@ func collect_run(run: RunState) -> String:
 	trips_done += 1
 	grant(run.loot)
 	collection.remove(run.party.lost)
+	var found := _spot_places(run)
 	news = { "place": catalog.location(run.location_id).name, "home": run.party.size(),
-		"sent": run.party.setting_out(), "parts": Rewards.total(run.loot, "part") }
+		"sent": run.party.setting_out(), "parts": Rewards.total(run.loot, "part"),
+		"spotted": found.map(func(id): return catalog.location(id).name), "who": run.party.who() }
 	adventures_changed.emit()
 	changed.emit()
 	save_game()
@@ -472,6 +504,8 @@ func save_game() -> void:
 		"heard": heard.keys(),
 		"rumours": rumours,
 		"tutorial": tutorial,
+		"spotted": spotted,
+		"spot_tries": spot_tries,
 		"runs": runs.map(func(r): return r.to_dict()),
 		"saved_at": Time.get_unix_time_from_system(),
 	}
@@ -517,6 +551,16 @@ func load_game() -> bool:
 	heard.clear()
 	for id in data.get("heard", []):
 		heard[str(id)] = true
+	spotted.clear()
+	var saved_spots: Dictionary = data.get("spotted", {})
+	for id in saved_spots:
+		if not catalog.location(id).is_empty():
+			spotted[id] = { "ready_at": float(saved_spots[id].get("ready_at", 0.0)), "by": str(saved_spots[id].get("by", "")),
+				"from": str(saved_spots[id].get("from", "")) }
+	spot_tries.clear()
+	var saved_tries: Dictionary = data.get("spot_tries", {})
+	for id in saved_tries:
+		spot_tries[id] = int(saved_tries[id])
 	rumours.clear()
 	for id in data.get("rumours", []):
 		if not catalog.rumour(str(id)).is_empty():
@@ -552,6 +596,19 @@ func _migrate(data: Dictionary) -> Dictionary:
 		# touched, which didn't do this yet). Old runs are read by RunState.from_dict.
 		var had: Array = data.get("unlocks", [])
 		data.unlocks = had + ["type:dungeon", AUTOMATION]
+	if version < 9:
+		# v9: places open when pets spot them, not after a number of trips; keep what was open
+		var had: Array = data.get("unlocks", [])
+		var trips := int(data.get("trips_done", 0))
+		var keep: Array = []
+		if "type:dungeon" in had:
+			keep.append("location:well")
+		if AUTOMATION in had:
+			keep.append(PARTIES)
+		for step in [[1, "meadow"], [3, "woods"], [5, "fields"]]:
+			if trips >= step[0]:
+				keep.append("location:" + step[1])
+		data.unlocks = had + keep
 	if version < 7:
 		# v7: dungeon places open one rumour at a time; saves that had the dungeons keep them all
 		var had: Array = data.get("unlocks", [])

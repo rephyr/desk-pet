@@ -5,7 +5,7 @@ extends RefCounted
 ## little tic, so the same news sounds different from different pets.
 
 const RISK_STEPS := [0.85, 0.7, 0.55, 0.4]  # chance at or above each = ready, sure, unsure, wobbly; below = shaking
-const REWARD_STEPS := [4.0, 10.0, 22.0]  # worth at or above each = coins, shiny, special; below = a crumb
+const REWARD_STEPS := [6.0, 16.0, 40.0]  # worth at or above each = coins, shiny, special; below = a crumb
 
 
 ## The personality id for a pet, from its eyes.
@@ -30,10 +30,13 @@ static func situation(news: Dictionary, rumours: Array[String], runs: Array[RunS
 		var then: Array[String] = []
 		if int(news.get("parts", 0)) > 0:
 			then.append("part_found")
+		var spots: Array = news.get("spotted", [])
+		if not spots.is_empty():
+			then.append("spotted")
 		if about != "":
 			then.append("rumour")
 		return { "kind": kind, "place": news.place, "home": home, "sent": sent, "lost": sent - home,
-			"rumour": about, "then": then }
+			"rumour": about, "spot": spots[0] if not spots.is_empty() else "", "who": news.get("who", ""), "then": then }
 	if about != "":
 		return { "kind": "rumour", "rumour": about }
 	for status in [RunState.Status.WAITING, RunState.Status.DONE, RunState.Status.WALKING]:
@@ -50,7 +53,7 @@ static func line(pet: Pet, what: Dictionary, rng: RandomNumberGenerator, catalog
 	var text := _pick(pet, str(what.kind), rng, catalog)
 	for then in what.get("then", []):
 		text += " " + _pick(pet, then, rng, catalog)
-	for key in ["place", "home", "sent", "lost", "rumour"]:
+	for key in ["place", "home", "sent", "lost", "rumour", "spot", "who"]:
 		if what.has(key):
 			text = text.replace("{%s}" % key, str(what[key]))
 	return text + str(catalog.voice.tics.get(str(pet.parts.get("accessory", "")), ""))
@@ -70,7 +73,7 @@ static func _pick(pet: Pet, kind: String, rng: RandomNumberGenerator, catalog: C
 ## bean looks a bit wobbly…". Risk is read from the real chance (and how bad failing would be), reward
 ## from what the option can give; neither is ever shown as a number. Each personality says it
 ## its own way and some read risk wrong on purpose (see "bias" in data/voice.json).
-static func hint(speaker: Pet, option: Dictionary, party: Party, location: Dictionary, catalog: Catalog) -> String:
+static func hint(speaker: Pet, option: Dictionary, party: Party, location: Dictionary, catalog: Catalog, boost := 1.0) -> String:
 	var h: Dictionary = _personality(speaker, catalog).get("hints", {})
 	if h.is_empty():
 		return ""
@@ -94,7 +97,7 @@ static func hint(speaker: Pet, option: Dictionary, party: Party, location: Dicti
 			band += 1  # failing would be very bad
 		band = clampi(band + int(h.get("bias", 0)), 0, 4)
 	# what it spotted first, then how it feels about going for it
-	var worth := reward_worth(option.success, location)
+	var worth := reward_worth(option.success, location) * boost
 	if worth > 0.0:
 		var step := 0
 		for i in REWARD_STEPS.size():
@@ -145,7 +148,7 @@ static func feeling(speaker: Pet, party: Party, history: Array[Dictionary], cata
 
 ## What the pet on a trip spotted at an event: the tempting option's reward and how dangerous it
 ## looks, in the active pet's words. With nothing risky it's the best reward on offer.
-static func spotted(speaker: Pet, event: Dictionary, party: Party, location: Dictionary, catalog: Catalog) -> String:
+static func spotted(speaker: Pet, event: Dictionary, party: Party, location: Dictionary, catalog: Catalog, boost := 1.0) -> String:
 	var tempting := {}
 	var best := -1.0
 	for option in event.options:
@@ -154,4 +157,4 @@ static func spotted(speaker: Pet, event: Dictionary, party: Party, location: Dic
 		if score > best:
 			best = score
 			tempting = option
-	return hint(speaker, tempting, party, location, catalog) if not tempting.is_empty() else ""
+	return hint(speaker, tempting, party, location, catalog, boost) if not tempting.is_empty() else ""

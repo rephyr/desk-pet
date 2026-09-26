@@ -1,5 +1,5 @@
 {
-	"_note": "What the active pet says on the adventures tab. It is the only voice in the game: sincerely innocent, cheerful, and it never understands what's really happening. Its EYES pick its personality; its ACCESSORY adds a little tic at the end of each line. Situations: idle (nothing going on), away (a trip is out), needs_you (a trip is waiting for a choice), someone_back (a trip is back, not welcomed yet), back_all / back_some / back_none (just welcomed a trip back), part_found (it brought parts), rumour (word of somewhere new, waiting for you to decide). {place} {home} {sent} {lost} {rumour} are filled in. Lines are picked at random. HINTS are what the active pet says under each option on a trip (never numbers): 'risk' has 5 steps from sure to scared, picked from the real chance; 'reward' has 4 steps from a crumb to something special, picked from what the option can give; 'home' is for going home, 'rest' for options that heal. 'bias' shifts how this personality reads risk (-1 always sounds surer, +1 more scared). {trip} is the pet on the trip. 'feeling' is the line on top of a trip: how the pet on the trip seems after the last event (start / good / bad / hurt).",
+	"_note": "What the active pet says on the adventures tab. It is the only voice in the game: sincerely innocent, cheerful, and it never understands what's really happening. Its EYES pick its personality; its ACCESSORY adds a little tic at the end of each line. Situations: idle (nothing going on), away (a trip is out), needs_you (a trip is waiting for a choice), someone_back (a trip is back, not welcomed yet), back_all / back_some / back_none (just welcomed a trip back), part_found (it brought parts), rumour (word of somewhere new, waiting for you to decide), spotted (a pet saw a new place on its trip). {place} {home} {sent} {lost} {rumour} {spot} {who} are filled in. Lines are picked at random. HINTS are what the active pet says under each option on a trip (never numbers): 'risk' has 5 steps from sure to scared, picked from the real chance; 'reward' has 4 steps from a crumb to something special, picked from what the option can give; 'home' is for going home, 'rest' for options that heal. 'bias' shifts how this personality reads risk (-1 always sounds surer, +1 more scared). {trip} is the pet on the trip. 'feeling' is the line on top of a trip: how the pet on the trip seems after the last event (start / good / bad / hurt).",
 	"default": "cheerful",
 	"personalities": [
 		{
@@ -44,6 +44,10 @@
 				"rumour": [
 					"guess what! i heard about {rumour}! can we go?",
 					"ooh! someone found {rumour}! let's go look!"
+				],
+				"spotted": [
+					"{who} saw {spot} on the way! can we go? can we?",
+					"guess what! {who} found {spot}!"
 				]
 			},
 			"hints": {
@@ -113,6 +117,10 @@
 				"rumour": [
 					"they say there's {rumour}! sounds lovely!",
 					"{rumour}! what an adventure that would be!"
+				],
+				"spotted": [
+					"{who} spotted {spot}! what a lovely find!",
+					"there's {spot} out there! {who} saw it!"
 				]
 			},
 			"hints": {
@@ -182,6 +190,10 @@
 				"rumour": [
 					"{rumour}? easy. send them.",
 					"i heard about {rumour}. i could handle it."
+				],
+				"spotted": [
+					"{who} found {spot}. obviously i'd have found it faster.",
+					"{spot}? {who} found it. good scouting."
 				]
 			},
 			"hints": {
@@ -251,6 +263,10 @@
 				"rumour": [
 					"someone said… {rumour}… or i dreamed it…",
 					"{rumour}… sounds… far…"
+				],
+				"spotted": [
+					"{who} saw… {spot}… i think…",
+					"{spot}… exists… apparently…"
 				]
 			},
 			"hints": {
@@ -320,6 +336,10 @@
 				"rumour": [
 					"i heard about {rumour}! we don't have to go! unless you want to!",
 					"{rumour}?! eek! i mean… yay!"
+				],
+				"spotted": [
+					"{who} saw {spot}! it's new! new is fine!",
+					"{spot}!? {who} found it! should we? maybe!"
 				]
 			},
 			"hints": {
@@ -389,6 +409,10 @@
 				"rumour": [
 					"{rumour}. it sounds round. i like round things.",
 					"they found {rumour}. i knew it was there. i didn't say."
+				],
+				"spotted": [
+					"{who} found {spot}. it was waiting.",
+					"{spot}. {who} saw it first. then it saw {who}."
 				]
 			},
 			"hints": {

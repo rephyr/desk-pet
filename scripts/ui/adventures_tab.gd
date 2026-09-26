@@ -1,7 +1,8 @@
 class_name AdventuresTab
 extends VBoxContainer
 ## Sending pets on adventures. At the top your active pet chats about what's going on (PetVoice);
-## below, pick a place on the left, pick pets in the middle, trips on the right. A trip waiting at an event shows its options there (small parties also show when the
+## below, your pet's doodle map of the world (MapView) and the trips out on the right. Tapping a
+## place on the map swaps the map for picking who goes there. A trip waiting at an event shows its options there (small parties also show when the
 ## default gets picked); a trip that's back shows its summary.
 ## All the rules live in AdventureRunner; this only shows them and passes on clicks.
 
@@ -9,8 +10,9 @@ const PAGE_SIZE := 24
 const QUICK_PICK := 10
 
 var _location_id := ""
-var _places := VBoxContainer.new()
-var _places_key := ""  # which places are listed, to rebuild when something unlocks
+var _map := MapView.new()
+var _picker: VBoxContainer
+var _place_label := UiTheme.label("", UiTheme.PINK)
 var _odds := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
 var _send: Button
 var _picked := {}  # uid -> true
@@ -41,9 +43,14 @@ func _init() -> void:
 	_columns.size_flags_vertical = SIZE_EXPAND_FILL
 	add_child(_columns)
 	_location_id = GameState.open_locations()[0].id
-	_columns.add_child(_places_column())
-	_columns.add_child(_picker_column())
+	_columns.add_child(_map)
+	_picker = _picker_column()
+	_picker.visible = false
+	_columns.add_child(_picker)
 	_columns.add_child(_runs_column())
+	_map.place_picked.connect(_choose_place)
+	_map.lead_picked.connect(func(id): GameState.follow_lead(id))
+	_map.rumour_picked.connect(func(id): GameState.follow_rumour(id))
 	# not GameState.changed: that also fires on every passive coin
 	GameState.adventures_changed.connect(func(): _dirty = true)
 	GameState.collection.pets_added.connect(func(_p): _dirty = true)
@@ -88,78 +95,39 @@ func _speak() -> void:
 	_portrait.view.squash = 0.4
 
 
-func _places_column() -> VBoxContainer:
-	var col := VBoxContainer.new()
-	col.custom_minimum_size = Vector2(230, 0)
-	col.add_theme_constant_override("separation", 6)
-	_places.add_theme_constant_override("separation", 6)
-	col.add_child(_places)
-	var gap := Control.new()
-	gap.size_flags_vertical = SIZE_EXPAND_FILL
-	col.add_child(gap)
-	_odds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(_odds)
-	_send = UiTheme.button("send ♡", _send_picked)
-	col.add_child(_send)
-	return col
+## A place on the map was tapped: pick who goes there.
+func _choose_place(location_id: String) -> void:
+	_location_id = location_id
+	_trim_to_party_size()
+	_show_map(false)
+	_rebuild_picker()
 
 
-## Rumours waiting for you at the top, then one heading per open adventure type with its places.
-func _rebuild_places() -> void:
-	var open := GameState.open_locations()
-	var key := ",".join(open.map(func(l): return l.id)) + "|" + ",".join(GameState.rumours)
-	if key == _places_key:
-		return
-	_places_key = key
-	if not open.any(func(l): return l.id == _location_id):
-		_location_id = open[0].id
-	UiTheme.clear(_places)
-	var catalog := Catalog.shared()
-	if not GameState.rumours.is_empty():
-		_places.add_child(UiTheme.label("rumours", UiTheme.PINK))
-		for id in GameState.rumours:
-			_places.add_child(_rumour_row(catalog.rumour(id)))
-	var group := ButtonGroup.new()
-	for type in catalog.adventure_types:
-		var here := open.filter(func(l): return l.type == type.id)
-		if here.is_empty():
-			continue
-		_places.add_child(UiTheme.label(type.name, UiTheme.PINK))
-		for location in here:
-			_places.add_child(_place_button(location, group))
-
-
-func _rumour_row(rumour: Dictionary) -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	var title := UiTheme.label(rumour.title, UiTheme.LILAC)
-	title.size_flags_horizontal = SIZE_EXPAND_FILL
-	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	title.tooltip_text = rumour.about
-	title.mouse_filter = MOUSE_FILTER_PASS
-	row.add_child(title)
-	row.add_child(UiTheme.button("let's go!", func(): GameState.follow_rumour(rumour.id)))
-	return row
-
-
-func _place_button(location: Dictionary, group: ButtonGroup) -> Button:
-	var b := UiTheme.button("%s\n%s" % [location.name, _about(location.minutes)])
-	b.toggle_mode = true
-	b.button_group = group
-	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
-	b.button_pressed = location.id == _location_id
-	b.toggled.connect(func(on):
-		if on:
-			_location_id = location.id
-			_trim_to_party_size()
-			_rebuild_picker())
-	return b
+func _show_map(on: bool) -> void:
+	_map.visible = on
+	_picker.visible = not on
+	if on:
+		_map.refresh()
 
 
 func _picker_column() -> VBoxContainer:
 	var col := VBoxContainer.new()
 	col.size_flags_horizontal = SIZE_EXPAND_FILL
 	col.add_theme_constant_override("separation", 6)
+
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	head.add_child(UiTheme.button("‹ map", func(): _show_map(true)))
+	head.add_child(_place_label)
+	col.add_child(head)
+	var go := HBoxContainer.new()
+	go.add_theme_constant_override("separation", 8)
+	_odds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_odds.size_flags_horizontal = SIZE_EXPAND_FILL
+	go.add_child(_odds)
+	_send = UiTheme.button("send ♡", _send_picked)
+	go.add_child(_send)
+	col.add_child(go)
 
 	var top := HBoxContainer.new()
 	top.add_child(_picked_label)
@@ -284,8 +252,10 @@ func _picked_pets() -> Array[Pet]:
 	return out
 
 
-## For the tutorial: a pet to pick for the trip, then the send button.
+## For the tutorial: the place on the map, then a pet to pick for the trip, then the send button.
 func tutorial_target() -> Control:
+	if _map.visible:
+		return _map.hotspot(_location_id)
 	if not _picked.is_empty():
 		return _send
 	for card in _grid.get_children():
@@ -303,6 +273,7 @@ func _send_picked() -> void:
 	if GameState.send_on_adventure(_location_id, _picked_pets()) != null:
 		_picked.clear()
 		_result.visible = false
+		_show_map(true)
 		_rebuild()
 
 
@@ -315,7 +286,10 @@ func _rebuild_if_dirty() -> void:
 
 func _rebuild() -> void:
 	_dirty = false
-	_rebuild_places()
+	if not GameState.open_locations().any(func(l): return l.id == _location_id):
+		_location_id = GameState.open_locations()[0].id
+		_show_map(true)
+	_map.refresh()
 	_rebuild_picker()
 	_rebuild_runs()
 
@@ -343,6 +317,7 @@ func _rebuild_picker() -> void:
 func _refresh_send() -> void:
 	var catalog := Catalog.shared()
 	var d := catalog.location(_location_id)
+	_place_label.text = "%s · %s" % [d.name, _about(d.minutes)]
 	var pets := _picked_pets()
 	var most := _max_party()
 	if most == 1:
@@ -403,7 +378,7 @@ func _rebuild_runs() -> void:
 				col.add_child(_wrapped(event.title, UiTheme.TEXT))
 				var scene := str(event.text)
 				if solo:
-					scene += " " + PetVoice.spotted(speaker, event, run.party, d, catalog)
+					scene += " " + PetVoice.spotted(speaker, event, run.party, d, catalog, Rewards.depth_boost(run.history.size()))
 				col.add_child(_wrapped(scene, UiTheme.LILAC))
 				for i in allowed:
 					var option: Dictionary = options[i]
