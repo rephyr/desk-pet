@@ -13,8 +13,11 @@ const SILHOUETTE_MODE := 6  # see shaders/finish.gdshader
 	set(value):
 		silhouette = value
 		_refresh()
-## Set false for still pictures (e.g. lots of cards) to save a little work.
-@export var animated := true
+## Set false for still pictures (e.g. lots of cards): no per-frame work at all.
+@export var animated := true:
+	set(value):
+		animated = value
+		set_process(value)
 
 var pet: Pet:
 	set(value):
@@ -28,6 +31,8 @@ var squash := 0.0  # 0..1, springs back on its own
 var _time := randf() * 10.0
 var _blink := randf_range(1.0, 4.0)
 var _material := _make_material()
+var _texture: Texture2D
+var _blink_texture: Texture2D
 
 
 static func size_for(pixel_size: int) -> Vector2:
@@ -41,8 +46,12 @@ static func _make_material() -> ShaderMaterial:
 	return m
 
 
+func _ready() -> void:
+	set_process(animated)
+
+
 func _process(delta: float) -> void:
-	if not animated or pet == null:
+	if pet == null:
 		return
 	_time += delta
 	_blink -= delta
@@ -55,6 +64,8 @@ func _process(delta: float) -> void:
 func _refresh() -> void:
 	if pet == null:
 		return
+	_texture = PetLook.texture_for(pet.parts, false)
+	_blink_texture = PetLook.texture_for(pet.parts, true)
 	var mode: int = SILHOUETTE_MODE if silhouette else int(Catalog.shared().finish(pet.finish).shader)
 	_material.set_shader_parameter("mode", mode)
 	material = _material if mode != 0 else null
@@ -64,7 +75,7 @@ func _refresh() -> void:
 func _draw() -> void:
 	if pet == null:
 		return
-	var tex := PetLook.texture_for(pet.parts, animated and _blink < 0.0)
+	var tex := _blink_texture if animated and _blink < 0.0 else _texture
 	var s := size_for(pixel)
 	var bob := 0.0
 	if animated:

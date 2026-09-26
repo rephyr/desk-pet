@@ -10,6 +10,12 @@ const POLL_INTERVAL := 0.1
 
 enum State { IDLE, WALK, FALL, DRAG }
 
+# a polygon outside the window: everything clicks through (packed arrays can't be const)
+static var NO_CLICKS := PackedVector2Array([Vector2(-3, -3), Vector2(-2, -3), Vector2(-2, -2)])
+const HEART := [Vector2(-2, 0), Vector2(1, 0), Vector2(-3, 1), Vector2(-2, 1), Vector2(-1, 1),
+	Vector2(0, 1), Vector2(1, 1), Vector2(2, 1), Vector2(-2, 2), Vector2(-1, 2),
+	Vector2(0, 2), Vector2(1, 2), Vector2(-1, 3), Vector2(0, 3)]
+
 var source: WindowSource
 var overlay: Window
 var pixel := 4  # screen pixels per art pixel; set before adding to the tree
@@ -26,6 +32,7 @@ var _press_pos := Vector2.ZERO
 var _drag_offset := Vector2.ZERO
 var _moved := false
 var _hearts: Array[Vector3] = []  # (x, y, age)
+var _click_shape := PackedVector2Array([Vector2.ONE])  # last shape sent; starts as "unset"
 
 
 func _ready() -> void:
@@ -64,12 +71,13 @@ func _process(delta: float) -> void:
 
 	_sprite.walking = _state == State.WALK
 	_sprite.facing = _dir
-	for i in range(_hearts.size() - 1, -1, -1):
-		_hearts[i].z += delta
-		if _hearts[i].z > 1.2:
-			_hearts.remove_at(i)
+	if not _hearts.is_empty():
+		for i in range(_hearts.size() - 1, -1, -1):
+			_hearts[i].z += delta
+			if _hearts[i].z > 1.2:
+				_hearts.remove_at(i)
+		queue_redraw()  # also clears the last heart once it's gone
 	_update_click_area()
-	queue_redraw()
 
 
 func _idle(delta: float) -> void:
@@ -192,17 +200,20 @@ func _body_rect() -> Rect2:
 	return Rect2(position - Vector2(s.x / 2.0, s.y + pixel * 2), Vector2(s.x, s.y + pixel * 2))
 
 
+## Only the pet catches clicks; everything else on the overlay clicks through.
+## Setting the shape is not free (the OS reshapes the window), so only do it when it changes.
 func _update_click_area() -> void:
+	var shape: PackedVector2Array
 	if _state == State.DRAG:
-		overlay.mouse_passthrough_polygon = PackedVector2Array()  # whole overlay catches the drag
-		return
-	if _hidden:
-		# a polygon outside the window: everything clicks through
-		overlay.mouse_passthrough_polygon = PackedVector2Array([Vector2(-3, -3), Vector2(-2, -3), Vector2(-2, -2)])
-		return
-	var r := _body_rect().grow(2)
-	overlay.mouse_passthrough_polygon = PackedVector2Array([
-		r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)])
+		shape = PackedVector2Array()  # the whole overlay catches the drag
+	elif _hidden or not visible:
+		shape = NO_CLICKS
+	else:
+		var r := Rect2(_body_rect().grow(2).position.round(), _body_rect().grow(2).size.round())
+		shape = PackedVector2Array([r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)])
+	if shape != _click_shape:
+		_click_shape = shape
+		overlay.mouse_passthrough_polygon = shape
 
 
 func _input(event: InputEvent) -> void:
@@ -238,7 +249,5 @@ func _draw() -> void:
 		var a := 1.0 - heart.z / 1.2
 		var base := Vector2(heart.x, -_size().y - 8 - heart.z * 40.0)
 		var c := Color("ff79c6", a)
-		for p in [Vector2(-2, 0), Vector2(1, 0), Vector2(-3, 1), Vector2(-2, 1), Vector2(-1, 1),
-				Vector2(0, 1), Vector2(1, 1), Vector2(2, 1), Vector2(-2, 2), Vector2(-1, 2),
-				Vector2(0, 2), Vector2(1, 2), Vector2(-1, 3), Vector2(0, 3)]:
+		for p in HEART:
 			draw_rect(Rect2(base + p * 3, Vector2(3, 3)), c)
