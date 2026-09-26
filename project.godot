@@ -28,7 +28,8 @@ window/per_pixel_transparency/allowed=true
 ; the home window: a small pinned panel
 window/size/viewport_width=300
 window/size/viewport_height=236
-window/size/resizable=false
+; resizable so the game can grow between its two layers (borderless, so not by hand)
+window/size/resizable=true
 window/size/always_on_top=true
 ; the pet overlay is a real OS window, not drawn inside the home window
 window/subwindows/embed_subwindows=false
