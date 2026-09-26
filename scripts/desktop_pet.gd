@@ -69,6 +69,7 @@ func _process(delta: float) -> void:
 		State.FALL: _fall(delta)
 		State.DRAG: position = overlay.get_mouse_position() + _drag_offset
 
+	_sprite.position = position.round() - position  # draw on whole pixels, no shimmer while walking
 	_sprite.walking = _state == State.WALK
 	_sprite.facing = _dir
 	if not _hearts.is_empty():

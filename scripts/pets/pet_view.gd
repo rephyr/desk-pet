@@ -46,6 +46,12 @@ static func _make_material() -> ShaderMaterial:
 	return m
 
 
+func _init() -> void:
+	# pixel art: always sharp, even in windows that don't use the project's default filter
+	# (like the desktop overlay, which is its own viewport)
+	texture_filter = TEXTURE_FILTER_NEAREST
+
+
 func _ready() -> void:
 	set_process(animated)
 
@@ -80,5 +86,6 @@ func _draw() -> void:
 	var bob := 0.0
 	if animated:
 		bob = -absf(sin(_time * 12.0)) * pixel if walking else sin(_time * 2.0) * 0.5 * pixel
+		bob = roundf(bob)
 	draw_set_transform(Vector2(0, bob), 0.0, Vector2((1.0 + squash * 0.25) * facing, 1.0 - squash * 0.3))
 	draw_texture_rect(tex, Rect2(Vector2(-s.x / 2.0, -s.y), s), false)
