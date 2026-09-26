@@ -1,0 +1,16 @@
+{
+	"_note": "Single box opening (the chest). Times are seconds at 1x reveal speed. Effect names in 'adds' are drawn by scripts/ui/reveal/reveal_effects.gd and stack from tier to tier.",
+	"ritual_max_chance": 0.01,
+	"lid_pop_at": 0.4,
+	"pull_pop_at": 0.75,
+	"land_time": 0.45,
+	"finish_flash_time": 1.1,
+	"tiers": {
+		"common": { "pause": 0.0, "adds": ["glow"], "burst": 10, "shake": 0, "banner": false, "hold": 0.25 },
+		"uncommon": { "pause": 0.3, "adds": ["sparkles"], "burst": 18, "shake": 0, "banner": false, "hold": 0.35 },
+		"rare": { "pause": 0.45, "adds": ["beams"], "burst": 30, "shake": 2, "banner": false, "hold": 0.5 },
+		"epic": { "pause": 0.65, "adds": ["rotate", "dim"], "burst": 50, "shake": 5, "banner": true, "hold": 0.8 },
+		"legendary": { "pause": 0.85, "adds": ["fountain", "chest_shake"], "burst": 90, "shake": 9, "banner": true, "hold": 1.2 },
+		"mythic": { "pause": 1.15, "adds": ["shockwave", "screen_shake"], "burst": 160, "shake": 14, "banner": true, "hold": 1.8 }
+	}
+}

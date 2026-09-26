@@ -13,6 +13,7 @@ var slots := {}  # slot -> Array[Dictionary] of parts
 var finishes: Array[Dictionary] = []  # lowest to highest
 var traits: Array[Dictionary] = []
 var boxes: Array[Dictionary] = []
+var reveal := {}  # how opening a box looks, see data/reveal.json
 
 var _tier_rank := {}  # tier id -> index
 var _parts_by_id := {}  # slot -> { part id -> part }
@@ -45,6 +46,7 @@ func _init() -> void:
 	_trait_by_id = _index(traits)
 	boxes.assign(_load("boxes.json").boxes)
 	_box_by_id = _index(boxes)
+	reveal = _load("reveal.json")
 
 
 # ---- rarity ---------------------------------------------------------------
@@ -96,6 +98,16 @@ func trait_info(id: String) -> Dictionary:
 
 func box(id: String) -> Dictionary:
 	return _box_by_id.get(id, {})
+
+
+## Chance (0..1) of pulling this rarity from this box.
+func tier_chance(box_id: String, tier_id: String) -> float:
+	return Weighted.chances(box(box_id).get("tiers", {})).get(tier_id, 0.0)
+
+
+## Reveal settings for one tier (effects it adds, pause, celebration size).
+func reveal_tier(tier_id: String) -> Dictionary:
+	return reveal.tiers.get(tier_id, {})
 
 
 # ---- loading --------------------------------------------------------------
