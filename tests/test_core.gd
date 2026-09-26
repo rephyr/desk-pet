@@ -13,6 +13,7 @@ func _init() -> void:
 	_test_odds_match_box(catalog, "starter")
 	_test_odds_match_box(catalog, "lucky")
 	_test_save_round_trip(catalog)
+	_test_old_pets_still_load(catalog)
 	print("\n%s" % ("ALL PASSED" if _failures == 0 else "%d FAILED" % _failures))
 	quit(1 if _failures > 0 else 0)
 
@@ -23,6 +24,10 @@ func _test_data_is_consistent(catalog: Catalog) -> void:
 		for p in catalog.slots[slot]:
 			_check(catalog.rank(p.rarity) >= 0 and catalog.tiers.any(func(t): return t.id == p.rarity),
 				"%s/%s has a known rarity" % [slot, p.id])
+	for f in catalog.finishes:
+		_check(catalog.tiers.any(func(t): return t.id == f.rarity), "finish %s has a known rarity" % f.id)
+	for t in catalog.tiers:
+		_check(not catalog.parts_of_tier("body", t.id).is_empty(), "body has a part at tier %s" % t.id)
 	for b in catalog.boxes:
 		for tier in b.tiers:
 			_check(catalog.tiers.any(func(t): return t.id == tier), "box %s tier %s exists" % [b.id, tier])
@@ -93,6 +98,16 @@ func _test_save_round_trip(catalog: Catalog) -> void:
 	var more: Array[Pet] = [roller.roll("starter")]
 	restored.add(more)
 	_check(restored.get_pet("50") != null and more[0].uid == "51", "ids continue after loading")
+
+
+## A pet saved before a slot existed, or with a part that was since removed, still loads.
+func _test_old_pets_still_load(catalog: Catalog) -> void:
+	var old := { "uid": "7", "parts": { "body": "cat", "palette": "removed-palette" }, "finish": "gone" }
+	var pet := Pet.from_dict(old, catalog)
+	_check(pet.parts.body == "cat", "old pet keeps its known parts")
+	for slot in Catalog.SLOTS:
+		_check(not catalog.part(slot, pet.parts[slot]).is_empty(), "old pet gets a valid %s" % slot)
+	_check(pet.finish == catalog.finishes[0].id, "unknown finish falls back to normal")
 
 
 ## Allowed difference between expected and rolled odds (about 4 standard deviations).

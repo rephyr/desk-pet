@@ -5,6 +5,7 @@ extends RefCounted
 
 ## Picks a key from { key: weight }.
 static func pick(weights: Dictionary, rng: RandomNumberGenerator) -> Variant:
+	assert(not weights.is_empty(), "Weighted.pick needs at least one option")
 	var total := 0.0
 	for w in weights.values():
 		total += float(w)

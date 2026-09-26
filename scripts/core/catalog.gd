@@ -50,6 +50,7 @@ func _init() -> void:
 # ---- rarity ---------------------------------------------------------------
 
 func rank(tier_id: String) -> int:
+	assert(_tier_rank.has(tier_id), "unknown rarity tier: " + tier_id)
 	return _tier_rank.get(tier_id, 0)
 
 
@@ -65,6 +66,12 @@ func tier_color(tier_id: String) -> Color:
 
 func part(slot: String, id: String) -> Dictionary:
 	return _parts_by_id[slot].get(id, {})
+
+
+## What an old pet gets for a slot it doesn't have, or a part that no longer exists.
+func default_part(slot: String) -> String:
+	var commons := parts_of_tier(slot, tiers[0].id)
+	return commons[0].id if not commons.is_empty() else slots[slot][0].id
 
 
 func parts_of_tier(slot: String, tier_id: String) -> Array[Dictionary]:

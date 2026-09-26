@@ -37,16 +37,22 @@ func to_dict() -> Dictionary:
 	}
 
 
-static func from_dict(d: Dictionary) -> Pet:
+## Loads a saved pet. Slots, parts or finishes that have since been added or removed from
+## data/ are fixed up so old saves keep working.
+static func from_dict(d: Dictionary, catalog: Catalog = Catalog.shared()) -> Pet:
 	var p := Pet.new()
 	p.uid = str(d.get("uid", ""))
-	p.parts = d.get("parts", {})
-	p.finish = d.get("finish", "normal")
+	var saved: Dictionary = d.get("parts", {})
+	for slot in Catalog.SLOTS:
+		var id: String = saved.get(slot, "")
+		p.parts[slot] = id if not catalog.part(slot, id).is_empty() else catalog.default_part(slot)
+	p.finish = catalog.finish(d.get("finish", "")).id
 	p.traits.assign(d.get("traits", []))
 	p.stats = {}
 	for key in d.get("stats", {}):
 		p.stats[key] = int(d.stats[key])  # JSON gives floats back
-	p.rarity = d.get("rarity", "common")
+	var tier: String = d.get("rarity", "")
+	p.rarity = tier if catalog.tiers.any(func(t): return t.id == tier) else catalog.tiers[0].id
 	p.box = d.get("box", "")
 	p.pulled_at = int(d.get("pulled_at", 0))
 	return p
