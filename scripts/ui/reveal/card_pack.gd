@@ -27,6 +27,12 @@ var tear := 0.0:
 		tear = value
 		queue_redraw()
 		back.queue_redraw()
+## Which way you're ripping: 1 = left to right (the strip peels up from the left),
+## -1 = right to left.
+var direction := 1.0:
+	set(value):
+		direction = signf(value) if value != 0.0 else 1.0
+		queue_redraw()
 ## 0..1: the ripped-off strip flying away.
 var strip_gone := 0.0:
 	set(value):
@@ -75,22 +81,25 @@ func _draw() -> void:
 			Vector2(WIDTH / 2.0, y - U * 2), Vector2(WIDTH / 2.0, y - U * 4)]), SHEEN)
 	_draw_logo(Vector2(0, top + (HEIGHT - STRIP) * 0.45))
 	_crimp(-CRIMP, 1.0)  # bottom seal
-	# where it's ripped: a jagged dark gap growing from the left
+	# where it's ripped: a jagged dark gap growing from the side you started on
 	if tear > 0.0 and strip_gone < 1.0:
 		var torn := WIDTH * tear
 		for i in int(torn / U):
 			var h := U if i % 2 == 0 else U * 2
-			draw_rect(Rect2(-WIDTH / 2.0 + i * U, top - h / 2.0, U, h), INSIDE)
+			var x := -WIDTH / 2.0 + i * U if direction > 0.0 else WIDTH / 2.0 - (i + 1) * U
+			draw_rect(Rect2(x, top - h / 2.0, U, h), INSIDE)
 	_draw_strip()
 
 
-## The strip: attached at its right end, lifting as you rip, then flying away.
+## The strip: still attached at the far end, its torn end lifting up as you rip, then flying
+## off up and away in the direction you ripped.
 func _draw_strip() -> void:
 	if strip_gone >= 1.0:
 		return
-	var pivot := Vector2(WIDTH / 2.0, rim_y())
-	var angle := -tear * TILT - strip_gone * 1.4
-	var fly := Vector2(strip_gone * 160.0, -strip_gone * 200.0)
+	var pivot := Vector2(WIDTH / 2.0 * direction, rim_y())
+	# positive angles turn clockwise on screen: that lifts the left end when pivoting on the right
+	var angle := (tear * TILT + strip_gone * 1.4) * direction
+	var fly := Vector2(strip_gone * 160.0 * direction, -strip_gone * 220.0)
 	# rotate around the pivot, then move
 	draw_set_transform(pivot - pivot.rotated(angle) + fly, angle, Vector2.ONE)
 	var alpha := 1.0 - strip_gone

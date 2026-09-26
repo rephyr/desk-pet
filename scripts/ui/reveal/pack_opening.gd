@@ -313,6 +313,7 @@ func _reset() -> void:
 	_dim.color.a = 0.0
 	_set_tear(0.0)
 	_pack.strip_gone = 0.0
+	_pack.direction = 1.0
 	_set_pull(PULL_HIDDEN)
 	_blocker_offset = Vector2.ZERO
 	_mist_on = false
@@ -388,8 +389,12 @@ func _drag_to(pos: Vector2) -> void:
 	var up := _drag_from.y - pos.y
 	match _stage:
 		Stage.RIP:
-			# rip along the top in either direction (or upwards)
-			var rip := maxf(absf(pos.x - _drag_from.x), up)
+			# rip along the top in either direction (or upwards); the first sideways pull decides
+			# which end peels up
+			var sideways := pos.x - _drag_from.x
+			if _tear == 0.0 and absf(sideways) > 4.0:
+				_pack.direction = sideways
+			var rip := maxf(absf(sideways), up)
 			_set_tear(clampf(_drag_value + rip / RIP_DRAG, 0.0, 1.0))
 			if _tear >= float(_cfg.rip_pop_at):
 				_dragging = false
