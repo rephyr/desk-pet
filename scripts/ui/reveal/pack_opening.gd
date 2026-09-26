@@ -168,7 +168,7 @@ func _rip_off(run: int) -> void:
 	t.tween_property(_pack, "strip_gone", 1.0, 0.45).set_ease(Tween.EASE_IN)
 	var catalog := Catalog.shared()
 	_effects.color = catalog.tier_color(catalog.tier_at(0).id)
-	_effects.add_layers(catalog.reveal_tier(catalog.tier_at(0).id).adds)
+	_effects.add_layers(catalog.reveal_tier(catalog.tier_at(0).id).adds, float(_cfg.layer_fade) / Settings.reveal_speed)
 	_effects.burst(8)
 	_climb(run)
 
@@ -184,6 +184,9 @@ func _climb(run: int) -> void:
 		if run != _run:
 			return
 		_step_to(tier.id, r)
+		await _wait(float(_cfg.color_fade))  # let the colour settle before the next pause
+		if run != _run:
+			return
 	await _wait(0.35)
 	if run != _run:
 		return
@@ -193,11 +196,12 @@ func _climb(run: int) -> void:
 func _step_to(tier_id: String, rank: int) -> void:
 	var step := Catalog.shared().reveal_tier(tier_id)
 	var t := _tween()
-	t.tween_property(_effects, "color", Catalog.shared().tier_color(tier_id), 0.15)
-	_effects.add_layers(step.get("adds", []))
+	t.tween_property(_effects, "color", Catalog.shared().tier_color(tier_id), float(_cfg.color_fade)) \
+		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	_effects.add_layers(step.get("adds", []), float(_cfg.layer_fade) / Settings.reveal_speed)
 	_effects.burst(6 + rank * 6)
 	if _effects.has_layer("dim"):
-		_tween().tween_property(_dim, "color:a", DIM_ALPHA, 0.4)
+		_tween().tween_property(_dim, "color:a", DIM_ALPHA, float(_cfg.layer_fade))
 	if _effects.has_layer("screen_shake"):
 		_shake = maxf(_shake, 6.0)
 	# the pack jumps a little on every step

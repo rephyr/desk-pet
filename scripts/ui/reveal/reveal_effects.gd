@@ -74,7 +74,8 @@ func add_layers(layers: Array, fade := 0.3) -> void:
 		if _layers.has(layer):
 			continue
 		_layers[layer] = 0.0
-		create_tween().tween_method(func(v): _layers[layer] = v, 0.0, 1.0, fade)
+		create_tween().tween_method(func(v): _layers[layer] = v, 0.0, 1.0, fade) \
+			.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 		match layer:
 			"sparkles": _sparkles.emitting = true
 			"fountain": _fountain.emitting = true

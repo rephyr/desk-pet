@@ -5,6 +5,8 @@
 	"pull_pop_at": 0.75,
 	"land_time": 0.45,
 	"finish_flash_time": 1.1,
+	"color_fade": 0.7,
+	"layer_fade": 0.8,
 	"tiers": {
 		"common": { "pause": 0.0, "adds": ["glow"], "burst": 10, "shake": 0, "banner": false, "hold": 0.25 },
 		"uncommon": { "pause": 0.3, "adds": ["sparkles"], "burst": 18, "shake": 0, "banner": false, "hold": 0.35 },
