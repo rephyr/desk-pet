@@ -8,19 +8,23 @@ const GLOW_SIZE := 420.0
 const BEAMS := 9
 const BEAM_LENGTH := 520.0
 const SHOCK_EVERY := 0.9
+const SHAFT_HEIGHT := 300.0
 
 var color := Color("8a7f99"):
 	set(value):
 		color = value
 		for p in [_sparkles, _fountain, _burst]:
 			p.color = value
-## 0..1: how far the light is out (used while the lid is still opening).
+## 0..1: how far the light is out (used while the pack is still being ripped).
 var leak := 0.0
+## Width of the opening the light comes out of.
+var opening_width := 110.0
 
 var _layers := {}  # layer name -> strength 0..1
 var _time := 0.0
 var _glow_tex := _make_glow_texture()
 var _beam_tex := _make_beam_texture()
+var _dome_tex := _make_dome_texture()
 var _sparkles := _particles(40, 1.6)
 var _fountain := _particles(50, 1.4)
 var _burst := _particles(60, 0.9)
@@ -54,7 +58,8 @@ func _init() -> void:
 
 	_burst.one_shot = true
 	_burst.explosiveness = 1.0
-	_burst.spread = 180.0
+	_burst.direction = Vector2.UP
+	_burst.spread = 60.0  # sprays up out of the pack
 	_burst.gravity = Vector2(0, 300)
 	_burst.initial_velocity_min = 120.0
 	_burst.initial_velocity_max = 380.0
@@ -117,40 +122,57 @@ func _process(delta: float) -> void:
 
 
 func _draw() -> void:
-	var glow: float = maxf(leak * 0.6, _layers.get("glow", 0.0))
+	# all light starts at the opening (y = 0 here) and goes up and out; nothing below it
+	var glow: float = maxf(leak * 0.7, _layers.get("glow", 0.0))
 	if glow > 0.0:
-		var pulse := 1.0 + sin(_time * 3.0) * 0.06
+		var pulse := 1.0 + sin(_time * 3.0) * 0.05
+		var half := opening_width / 2.0
+		# soft ambient dome above the pack
 		var s := GLOW_SIZE * pulse * lerpf(0.5, 1.0, glow)
-		draw_texture_rect(_glow_tex, Rect2(Vector2(-s / 2.0, -s * 0.62), Vector2(s, s)), false, Color(color, 0.9 * glow))
+		draw_texture_rect(_dome_tex, Rect2(-s / 2.0, -s / 2.0, s, s / 2.0), false, Color(color, 0.5 * glow))
+		# the shaft of light rising out of the opening, widening and fading as it goes up
+		var h := SHAFT_HEIGHT * pulse * lerpf(0.4, 1.0, glow)
+		_draw_soft_quad(PackedVector2Array([Vector2(half, 0), Vector2(half * 2.4, -h), Vector2(-half * 2.4, -h), Vector2(-half, 0)]),
+			Color(color, 0.55 * glow))
+		# the bright slit itself
+		var slit := Color(color.lerp(Color.WHITE, 0.6), minf(1.0, glow * 1.2))
+		draw_texture_rect(_glow_tex, Rect2(-half * 1.15, -12, half * 2.3, 24), false, slit)
 
 	var beams: float = _layers.get("beams", 0.0)
 	if beams > 0.0:
-		var spin: float = _layers.get("rotate", 0.0)
-		# a fan pointing up, which opens into a full spinning circle with "rotate"
-		var fan := lerpf(PI * 0.55, TAU, spin)
+		var sway: float = _layers.get("rotate", 0.0)
+		# a fan out of the opening; with "rotate" it widens and the rays sweep side to side
+		var fan := lerpf(PI * 0.55, PI * 0.95, sway)
 		for i in BEAMS:
 			var t := (i + 0.5) / BEAMS
-			var angle := -PI / 2.0 + (t - 0.5) * fan + _time * 0.5 * spin
+			var angle := -PI / 2.0 + (t - 0.5) * fan + sin(_time * 0.9 + i * 0.4) * 0.35 * sway
 			# each ray breathes a little on its own so they never look ruler-straight
 			var wobble := sin(_time * (1.3 + i * 0.37) + i * 2.1)
 			var width := 26.0 + 10.0 * sin(i * 1.7) + 6.0 * wobble
 			var length := BEAM_LENGTH * (0.75 + 0.2 * sin(i * 2.3) + 0.05 * wobble)
 			var alpha := 0.3 * beams * (0.8 + 0.2 * wobble)
-			_draw_beam(angle, width * 2.6, length * 0.9, Color(color, alpha * 0.35))  # soft halo
-			_draw_beam(angle, width, length, Color(color, alpha))
+			# rays start spread along the opening, not from one point
+			var from := Vector2((t - 0.5) * opening_width * 0.8, 0)
+			_draw_beam(from, angle, width * 2.6, length * 0.9, Color(color, alpha * 0.35))  # soft halo
+			_draw_beam(from, angle, width, length, Color(color, alpha))
 
 	for age in _shock_rings:
 		var r := 30.0 + age * 380.0
-		draw_arc(Vector2(0, -20), r, 0.0, TAU, 64, Color(color, (1.0 - age / 1.2) * 0.8), 6.0 - age * 4.0)
+		draw_arc(Vector2(0, -20), r, PI, TAU, 48, Color(color, (1.0 - age / 1.2) * 0.8), 6.0 - age * 4.0)
 
 
 ## One ray: narrow at the light, wider at the far end, with soft edges that fade out
 ## towards the tip (the texture does the softness).
-func _draw_beam(angle: float, width: float, length: float, c: Color) -> void:
+func _draw_beam(from: Vector2, angle: float, width: float, length: float, c: Color) -> void:
 	var dir := Vector2.from_angle(angle)
 	var side := dir.orthogonal()
-	var tip := dir * length
-	var points := PackedVector2Array([side * width * 0.12, tip + side * width, tip - side * width, -side * width * 0.12])
+	var tip := from + dir * length
+	_draw_soft_quad(PackedVector2Array([from + side * width * 0.12, tip + side * width, tip - side * width,
+		from - side * width * 0.12]), c)
+
+
+## A quad drawn with the soft ray texture: points go base-right, tip-right, tip-left, base-left.
+func _draw_soft_quad(points: PackedVector2Array, c: Color) -> void:
 	var uvs := PackedVector2Array([Vector2(1, 0), Vector2(1, 1), Vector2(0, 1), Vector2(0, 0)])
 	draw_polygon(points, PackedColorArray([c, c, c, c]), uvs, _beam_tex)
 
@@ -176,6 +198,20 @@ static func _make_beam_texture() -> ImageTexture:
 			var across := 1.0 - absf(x / 31.0 * 2.0 - 1.0)
 			across = pow(across, 1.6)
 			img.set_pixel(x, y, Color(1, 1, 1, across * along))
+	return ImageTexture.create_from_image(img)
+
+
+## Half a glow, brightest just above its bottom middle, fading out towards its base line too
+## so it has no hard edge where it meets the pack's top.
+static func _make_dome_texture() -> ImageTexture:
+	var img := Image.create_empty(128, 64, false, Image.FORMAT_RGBA8)
+	for y in 64:
+		var up := (63.0 - y) / 63.0  # 0 at the base, 1 at the top
+		var base_fade := smoothstep(0.0, 0.35, up)
+		for x in 128:
+			var d := Vector2((x - 63.5) / 64.0, up).length()
+			var a := pow(maxf(0.0, 1.0 - d), 1.5) * base_fade
+			img.set_pixel(x, y, Color(1, 1, 1, a))
 	return ImageTexture.create_from_image(img)
 
 

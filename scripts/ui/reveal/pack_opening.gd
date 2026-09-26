@@ -72,6 +72,7 @@ func _init() -> void:
 	# draw order: back of the opening, light, pet, mist, front of the pack
 	_scene.add_child(_pack.back)
 	_effects.position = CardPack.mouth()
+	_effects.opening_width = CardPack.WIDTH - CardPack.U * 2
 	_scene.add_child(_effects)
 	_pet_clip.clip_contents = true
 	_pet_clip.mouse_filter = MOUSE_FILTER_IGNORE
