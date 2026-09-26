@@ -1,9 +1,11 @@
 shader_type canvas_item;
 // Finish ("foil") effects drawn on top of a pet. Modes match data/finishes.json:
 // 0 normal, 1 shiny, 2 holo, 3 ghost, 4 glitch, 5 prismatic.
+// Mode 6 is not a finish: a flat dark shape for undiscovered entries in the book.
 
 uniform int mode = 0;
 uniform float seed = 0.0; // so pets don't all sparkle in sync
+uniform vec3 silhouette_color = vec3(0.22, 0.15, 0.3);
 
 float hash(float n) {
 	return fract(sin(n) * 43758.5453);
@@ -49,6 +51,8 @@ void fragment() {
 		vec3 rainbow = hue(fract(uv.x + uv.y + TIME * 0.35 + seed));
 		c.rgb = mix(c.rgb, rainbow * (0.5 + lum * 0.9), 0.65 * bright);
 		c.rgb = mix(c.rgb, vec3(1.0), glint(uv, 0.45) * 0.8 * bright);
+	} else if (mode == 6) {
+		c.rgb = silhouette_color;
 	}
 	COLOR = c;
 }

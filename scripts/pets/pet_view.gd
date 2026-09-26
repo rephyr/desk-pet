@@ -4,6 +4,7 @@ extends Node2D
 ## The origin is at the pet's feet, centred.
 
 const FINISH_SHADER := preload("res://shaders/finish.gdshader")
+const SILHOUETTE_MODE := 6  # see shaders/finish.gdshader
 
 ## Pixel size on screen for one art pixel.
 @export var pixel := 4
@@ -54,10 +55,9 @@ func _process(delta: float) -> void:
 func _refresh() -> void:
 	if pet == null:
 		return
-	var mode: int = 0 if silhouette else int(Catalog.shared().finish(pet.finish).shader)
+	var mode: int = SILHOUETTE_MODE if silhouette else int(Catalog.shared().finish(pet.finish).shader)
 	_material.set_shader_parameter("mode", mode)
 	material = _material if mode != 0 else null
-	modulate = Color(0.12, 0.08, 0.16) if silhouette else Color.WHITE
 	queue_redraw()
 
 
