@@ -1,11 +1,13 @@
 class_name BoxesTab
 extends HBoxContainer
-## Box shop on the left (price, odds, open buttons), the reveal on the right.
+## Box shop on the left (price, odds, open buttons), the reveal on the right:
+## one box gets the chest ritual (ChestOpening), several get the quick grid (BoxReveal).
 
 const OPEN_MANY := 10
 const OPEN_MAX_LIMIT := 500  # "open max" stops here so one click can't hang the game
 
 var _reveal := BoxReveal.new()
+var _opening := ChestOpening.new()
 var _buttons := {}  # box id -> { "one": Button, "many": Button, "max": Button }
 
 
@@ -18,6 +20,9 @@ func _init() -> void:
 	for box in Catalog.shared().boxes:
 		shop.add_child(_offer(box))
 	add_child(_reveal)
+	add_child(_opening)
+	_opening.open_again.connect(func(box_id): open(box_id, 1))
+	_show_opening(true)
 	GameState.changed.connect(_refresh)
 	_refresh()
 
@@ -74,11 +79,21 @@ func _offer(box: Dictionary) -> PanelContainer:
 	return panel
 
 
-## Buys and opens boxes, then plays the reveal.
-func open(box_id: String, count: int) -> void:
-	var pulled := GameState.open_boxes(box_id, count)
-	if not pulled.is_empty():
+## Buys and opens boxes, then plays the reveal. `force_tier` is for testing (debug builds only).
+func open(box_id: String, count: int, force_tier := "") -> void:
+	var pulled := GameState.open_boxes(box_id, count, force_tier)
+	if pulled.is_empty():
+		return
+	_show_opening(pulled.size() == 1)
+	if pulled.size() == 1:
+		_opening.play(pulled[0], box_id)
+	else:
 		_reveal.play(pulled)
+
+
+func _show_opening(single: bool) -> void:
+	_opening.visible = single
+	_reveal.visible = not single
 
 
 func _refresh() -> void:

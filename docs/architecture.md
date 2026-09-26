@@ -35,8 +35,15 @@ knows the UI exists; state changes are announced with signals (`GameState.change
 `home.gd` holds two layers inside one window:
 
 - `CompactView` - the small idle panel (active pet, needs, feed / pat / let out).
-- `ExpandedView` - the full game, with tabs: `BoxesTab` (shop + `BoxReveal`) and
-  `CollectionTab` (pets grid + `PetDetails`, and the `BookView`).
+- `ExpandedView` - the full game, with tabs: `BoxesTab` (shop, `ChestOpening` for one box,
+  `BoxReveal` grid for many), `CollectionTab` (pets grid + `PetDetails`, and the `BookView`)
+  and `SettingsTab`.
+
+`scripts/ui/reveal/` is the single-box ritual: `ChestOpening` runs the steps (land, lid, light
+climb, peek, pull, mist, celebration, result) and owns input and timing; `Chest`,
+`RevealEffects` (stacking effect layers named in `data/reveal.json`), `RevealBlocker` (the mist)
+and `RevealResult` only draw. Every tween goes through `ChestOpening._tween()` so the reveal
+speed setting and skipping apply to all of it.
 
 A new tab is a new Control added in `ExpandedView._init`. Shared colours, the Theme and small
 widget helpers live in `UiTheme`.
@@ -60,4 +67,5 @@ has a `version`; `GameState._migrate` upgrades older files step by step, so bump
 
 - `godot --headless -s tests/test_core.gd` - data sanity, box odds over 100k rolls, save round trip.
 - `godot -s tests/look_sheet.gd -- out.png` - renders every part and finish into one picture.
-- Debug launch flags (`DevArgs`): `godot . -- --expanded --tab=collection --book --open=starter:10`.
+- Debug launch flags (`DevArgs`): `godot . -- --expanded --tab=collection --book --open=starter:10`,
+  and `--open=starter:1 --force=mythic --autoplay` to watch a reveal at any rarity hands-free.

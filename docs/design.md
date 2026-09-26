@@ -72,8 +72,22 @@ its parts and finish together.
   **Decided**
 - Different box types have different odds (starter box, part-focused boxes, boss boxes).
 - The odds are always visible in game.
-- Reveal: a card-style opening with a glow colour hinting at rarity and a longer pause before
-  rare pulls.
+- **Opening one box** (the first hours are all about this moment, so it gets a real ritual).
+  **Decided**
+  1. A closed chest lands. You drag the lid up; past a point it pops open.
+  2. Light comes out and climbs the tiers one at a time with a pause between each
+     (grey → green → blue → purple → gold → pink) and stops at the real rarity. Every step adds
+     an effect layer on top of the ones before (glow, sparkles, beams, rotating beams + dim,
+     fountain + chest shake, shockwave + screen shake), so rare pulls look nothing like common
+     ones. Pauses are short at low tiers and long at high ones. It never shows higher than the
+     real rarity.
+  3. You pull the pet out of the chest by dragging it up, as slowly or quickly as you like.
+  4. Pulls of 1% or rarer (judged by the odds of the box you opened) come out behind a blocker
+     (sparkly mist) that you drag around to peek at parts, then flick away.
+  5. Celebration scaled by rarity (Vampire Survivors chest style), then the finish as a second
+     surprise ("...and it's HOLO!"), then the card with NEW stamps on first-time parts.
+  - Space or double-click skips to the result. Settings: reveal speed, skip single reveals, skip
+    the rare ritual. All timings and per-tier effects live in `data/reveal.json`.
 - Mass open for large piles, with a summary that highlights the best pulls.
 
 ## Collection book
