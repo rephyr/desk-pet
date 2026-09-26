@@ -27,6 +27,38 @@ func mouse_position(overlay: Window) -> Vector2:
 	return Vector2(DisplayServer.mouse_get_position() - overlay.position)
 
 
+## How many real pixels one UI pixel should be on the home window's screen.
+func ui_scale(home: Window) -> float:
+	# TODO(windows): check this against real DPI settings once the Windows port starts
+	var screen := DisplayServer.window_get_current_screen(home.get_window_id())
+	return maxf(1.0, snappedf(DisplayServer.screen_get_scale(screen), 0.25))
+
+
+## Resizes the home window to `logical_size` UI pixels, growing away from the screen corner
+## it sits nearest to, so it expands towards the middle and shrinks back to the same spot.
+func set_home_size(home: Window, logical_size: Vector2i) -> void:
+	var screen := DisplayServer.window_get_current_screen(home.get_window_id())
+	var target := anchored_rect(Rect2i(home.position, home.size), DisplayServer.screen_get_usable_rect(screen),
+		Vector2i((Vector2(logical_size) * ui_scale(home)).round()))
+	home.size = target.size
+	home.position = target.position
+
+
+## `current` resized to `new_size`, keeping the corner nearest the screen corner fixed,
+## and kept inside `bounds`.
+static func anchored_rect(current: Rect2i, bounds: Rect2i, new_size: Vector2i) -> Rect2i:
+	var pos := current.position
+	var centre := current.get_center()
+	var middle := bounds.get_center()
+	if centre.x > middle.x:
+		pos.x = current.end.x - new_size.x
+	if centre.y > middle.y:
+		pos.y = current.end.y - new_size.y
+	pos.x = clampi(pos.x, bounds.position.x, maxi(bounds.position.x, bounds.end.x - new_size.x))
+	pos.y = clampi(pos.y, bounds.position.y, maxi(bounds.position.y, bounds.end.y - new_size.y))
+	return Rect2i(pos, new_size)
+
+
 ## True when the home window has moved to a different screen than the overlay covers.
 func overlay_misplaced(home: Window, overlay: Window) -> bool:
 	return DisplayServer.window_get_current_screen(home.get_window_id()) != overlay.current_screen

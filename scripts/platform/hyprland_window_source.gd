@@ -11,41 +11,78 @@ var _overlay_pending := false
 var _visible_workspaces := {}  # workspace id -> true
 var _last_poll := -1.0
 var _home: Window
-var _home_styled := false
+var _styled := {}  # window address -> true once styled
+var _zero_scaling := false  # XWayland windows get real pixels on scaled monitors
 
 
 func setup(home: Window, overlay: Window) -> void:
 	_home = home
 	_overlay = overlay
-	# The overlay opens later, so a runtime-only rule (gone after a Hyprland reload) can catch it:
-	# float above everything on every workspace, no border/shadow/blur/fade, never takes focus.
-	_eval("hl.window_rule({ name = 'desk-pets-overlay', match = { title = '%s' }, " % _title_regex(overlay.title)
-		+ "float = true, pin = true, no_focus = true, border_size = 0, rounding = 0, no_shadow = true, "
-		+ "no_blur = true, no_anim = true, opacity = '1.0 override 1.0 override' })")
+	var option = JSON.parse_string(_run(["getoption", "xwayland:force_zero_scaling", "-j"]))
+	_zero_scaling = typeof(option) == TYPE_DICTIONARY and (option.get("int", 0) == 1 or option.get("bool", false) == true)
 	_poll()
 
 
-## The home window is already open before rules could apply, so style it directly once it shows up.
-func _style_home() -> void:
-	var c = _find_own(_home)
-	if c == null:
+## Godot runs through XWayland here. With force_zero_scaling it gets real pixels, so the UI has
+## to scale itself up by the monitor's scale; without it Hyprland scales the window for us.
+func ui_scale(home: Window) -> float:
+	if not _zero_scaling:
+		return 1.0
+	_poll()
+	var h = _find_own(home)
+	var m = _monitor_of(h) if h != null else null
+	return float(m.scale) if m != null else 1.0
+
+
+func set_home_size(home: Window, logical_size: Vector2i) -> void:
+	_poll(true)
+	var h = _find_own(home)
+	var m = _monitor_of(h) if h != null else null
+	if m == null:
+		super(home, logical_size)
 		return
-	var w := "address:%s" % c.address
-	_dispatch("hl.dsp.window.float({ action = 'enable', window = '%s' })" % w)
-	_dispatch("hl.dsp.window.pin({ action = 'enable', window = '%s' })" % w)
-	for prop in [["border_size", "0"], ["rounding", "0"], ["no_shadow", "1"], ["no_blur", "1"],
-			["opacity", "1.0 override 1.0 override"]]:
-		_dispatch("hl.dsp.window.set_prop({ window = '%s', prop = '%s', value = '%s' })"
-			% [w, prop[0], prop[1]])
-	_home_styled = true
+	var target := anchored_rect(Rect2i(h.at[0], h.at[1], h.size[0], h.size[1]), _usable_rect(m), logical_size)
+	# only Hyprland moves it: Godot's own resize also sends a position, in the wrong coordinates
+	var w := "address:%s" % h.address
+	_dispatch("hl.dsp.window.resize({ x = %d, y = %d, window = '%s' })" % [target.size.x, target.size.y, w])
+	_dispatch("hl.dsp.window.move({ x = %d, y = %d, window = '%s' })" % [target.position.x, target.position.y, w])
+	_raise(w)
+
+
+## Styles our windows once each time they appear (window rules can't catch them: Godot sets
+## the title after the window opens). Float on every workspace above everything, with no
+## border, shadow, blur or fade. The overlay also never takes focus.
+func _style_new_windows() -> void:
+	for win in [_home, _overlay]:
+		var c = _find_own(win)
+		if c == null or _styled.has(c.address):
+			continue
+		_styled[c.address] = true
+		var w := "address:%s" % c.address
+		_dispatch("hl.dsp.window.float({ action = 'enable', window = '%s' })" % w)
+		_dispatch("hl.dsp.window.pin({ action = 'enable', window = '%s' })" % w)
+		# the override flags stop your "fade unfocused windows" setting from applying to us
+		var props := [["border_size", "0"], ["rounding", "0"], ["no_shadow", "1"], ["no_blur", "1"],
+			["no_anim", "1"], ["opacity", "1"], ["opacity_override", "1"], ["opacity_inactive", "1"],
+			["opacity_inactive_override", "1"]]
+		if win == _overlay:
+			props.append(["no_focus", "1"])
+		for prop in props:
+			_dispatch("hl.dsp.window.set_prop({ window = '%s', prop = '%s', value = '%s' })"
+				% [w, prop[0], prop[1]])
+		_raise(w)
+
+
+## Pinned windows can end up drawn under tiled ones; this puts ours back on top.
+func _raise(window: String) -> void:
+	_dispatch("hl.dsp.window.alter_zorder({ mode = 'top', window = '%s' })" % window)
 
 
 ## Godot and Hyprland disagree on coordinates with mixed monitor scaling,
 ## so Hyprland itself moves the overlay onto the home window's monitor.
 func place_overlay(_home_win: Window, _overlay_win: Window) -> void:
 	_overlay_pending = true
-	_last_poll = -1.0
-	_poll()
+	_poll(true)
 
 
 func overlay_misplaced(home: Window, overlay: Window) -> bool:
@@ -72,21 +109,41 @@ func _try_place_overlay() -> void:
 	# resize first: resizing a floating window keeps its centre, which would undo the move
 	_dispatch("hl.dsp.window.resize({ x = %d, y = %d, window = '%s' })" % [r.size.x, r.size.y, w])
 	_dispatch("hl.dsp.window.move({ x = %d, y = %d, window = '%s' })" % [r.position.x, r.position.y, w])
+	_raise(w)
 	_overlay_pending = false
 
 
-## The monitor under a window's centre (the client's own "monitor" field lags behind moves).
+## The monitor under a window's centre, or the nearest one if it's off-screen
+## (the client's own "monitor" field lags behind moves).
 func _monitor_of(c: Dictionary):
 	var centre := Vector2(c.at[0] + c.size[0] / 2.0, c.at[1] + c.size[1] / 2.0)
+	var nearest = null
+	var best := INF
 	for m in _monitors:
-		if _monitor_rect(m).has_point(centre):
+		var r := Rect2(_monitor_rect(m))
+		if r.has_point(centre):
 			return m
-	return null
+		var d := centre.distance_to(centre.clamp(r.position, r.end))
+		if d < best:
+			best = d
+			nearest = m
+	return nearest
+
+
+## The monitor minus bars and other reserved space.
+func _usable_rect(m: Dictionary) -> Rect2i:
+	var r := _monitor_rect(m)
+	var reserved: Array = m.get("reserved", [0, 0, 0, 0])  # left, top, right, bottom
+	return Rect2i(r.position.x + reserved[0], r.position.y + reserved[1],
+		r.size.x - reserved[0] - reserved[2], r.size.y - reserved[1] - reserved[3])
 
 
 func _monitor_rect(m: Dictionary) -> Rect2i:
-	# monitor sizes are in real pixels; window positions are in scaled (logical) units
-	return Rect2i(m.x, m.y, roundi(m.width / m.scale), roundi(m.height / m.scale))
+	# monitor sizes are in real pixels before rotation; window positions are in scaled (logical) units
+	var size: Vector2 = Vector2(m.width, m.height) / m.scale
+	if int(m.get("transform", 0)) % 2 == 1:  # rotated 90 or 270 degrees
+		size = Vector2(size.y, size.x)
+	return Rect2i(Vector2i(m.x, m.y), Vector2i(size.round()))
 
 
 func get_windows(overlay: Window) -> Array[Rect2]:
@@ -124,10 +181,10 @@ func is_fullscreen_active(win: Window) -> bool:
 	return false
 
 
-func _poll() -> void:
+func _poll(force := false) -> void:
 	# get_windows and is_fullscreen_active share one read per frame
 	var now := Time.get_ticks_msec() / 1000.0
-	if now - _last_poll < 0.05:
+	if not force and now - _last_poll < 0.05:
 		return
 	_last_poll = now
 	var clients = JSON.parse_string(_run(["clients", "-j"]))
@@ -141,8 +198,7 @@ func _poll() -> void:
 		_visible_workspaces[int(m.activeWorkspace.id)] = true
 		if m.has("specialWorkspace") and int(m.specialWorkspace.id) != 0:
 			_visible_workspaces[int(m.specialWorkspace.id)] = true
-	if not _home_styled:
-		_style_home()
+	_style_new_windows()
 	if _overlay_pending:
 		_try_place_overlay()
 
@@ -175,19 +231,5 @@ func _run(args: Array) -> String:
 	return out[0] if out.size() > 0 else ""
 
 
-func _eval(lua: String) -> void:
-	_run(["eval", lua])
-
-
 func _dispatch(lua: String) -> void:
 	_run(["dispatch", lua])
-
-
-func _title_regex(title: String) -> String:
-	# match the title literally, plus the " (DEBUG)" Godot adds to non-release builds,
-	# then escape it for the Lua string literal
-	var s := title
-	for ch in ["\\", "(", ")", "[", "]", ".", "*", "+", "?", "^", "$", "|"]:
-		s = s.replace(ch, "\\" + ch)
-	s = "^" + s + "( \\(DEBUG\\))?$"
-	return s.replace("\\", "\\\\").replace("'", "\\'")
