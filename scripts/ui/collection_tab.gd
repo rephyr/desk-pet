@@ -12,7 +12,8 @@ var _scroll := ScrollContainer.new()
 var _details := PetDetails.new()
 var _count := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
 var _page_label := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
-var _sort := OptionButton.new()
+var _sort: Button
+var _sort_index := 0
 var _pets_button: Button
 var _book_button: Button
 var _page := 0
@@ -34,12 +35,9 @@ func _init() -> void:
 	bar.add_child(_book_button)
 	bar.add_child(UiTheme.spacer())
 	bar.add_child(_count)
-	for s in SORTS:
-		_sort.add_item(s)
-	_sort.focus_mode = FOCUS_NONE
-	_sort.item_selected.connect(func(_i):
-		_page = 0
-		_rebuild())
+	# a cycling button, not an OptionButton: its dropdown would be a separate OS popup
+	# window (embed_subwindows is off), which doesn't open properly on Hyprland
+	_sort = UiTheme.button("sort: " + SORTS[0], _next_sort)
 	bar.add_child(_sort)
 	bar.add_child(UiTheme.small_button("‹", func(): _turn(-1)))
 	bar.add_child(_page_label)
@@ -87,6 +85,13 @@ func _show_book(book: bool) -> void:
 		c.visible = not book
 
 
+func _next_sort() -> void:
+	_sort_index = (_sort_index + 1) % SORTS.size()
+	_sort.text = "sort: " + SORTS[_sort_index]
+	_page = 0
+	_rebuild()
+
+
 func _turn(step: int) -> void:
 	var pages := _page_count()
 	_page = clampi(_page + step, 0, pages - 1)
@@ -132,7 +137,7 @@ func _select(pet: Pet) -> void:
 func _sorted(pets: Array[Pet]) -> Array[Pet]:
 	var catalog := Catalog.shared()
 	var out := pets.duplicate()
-	match SORTS[_sort.selected]:
+	match SORTS[_sort_index]:
 		"newest":
 			out.reverse()
 		"rarity":
