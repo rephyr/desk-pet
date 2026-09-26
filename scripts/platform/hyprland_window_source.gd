@@ -44,9 +44,7 @@ func set_home_size(home: Window, logical_size: Vector2i) -> void:
 	var target := anchored_rect(Rect2i(h.at[0], h.at[1], h.size[0], h.size[1]), _usable_rect(m), logical_size)
 	# only Hyprland moves it: Godot's own resize also sends a position, in the wrong coordinates
 	var w := "address:%s" % h.address
-	_dispatch("hl.dsp.window.resize({ x = %d, y = %d, window = '%s' })" % [target.size.x, target.size.y, w])
-	_dispatch("hl.dsp.window.move({ x = %d, y = %d, window = '%s' })" % [target.position.x, target.position.y, w])
-	_raise(w)
+	_dispatch(_place_commands(w, target))
 
 
 ## Styles our windows once each time they appear (window rules can't catch them: Godot sets
@@ -59,8 +57,10 @@ func _style_new_windows() -> void:
 			continue
 		_styled[c.address] = true
 		var w := "address:%s" % c.address
-		_dispatch("hl.dsp.window.float({ action = 'enable', window = '%s' })" % w)
-		_dispatch("hl.dsp.window.pin({ action = 'enable', window = '%s' })" % w)
+		var commands: Array[String] = [
+			"hl.dsp.window.float({ action = 'enable', window = '%s' })" % w,
+			"hl.dsp.window.pin({ action = 'enable', window = '%s' })" % w,
+		]
 		# the override flags stop your "fade unfocused windows" setting from applying to us
 		var props := [["border_size", "0"], ["rounding", "0"], ["no_shadow", "1"], ["no_blur", "1"],
 			["no_anim", "1"], ["opacity", "1"], ["opacity_override", "1"], ["opacity_inactive", "1"],
@@ -68,14 +68,25 @@ func _style_new_windows() -> void:
 		if win == _overlay:
 			props.append(["no_focus", "1"])
 		for prop in props:
-			_dispatch("hl.dsp.window.set_prop({ window = '%s', prop = '%s', value = '%s' })"
+			commands.append("hl.dsp.window.set_prop({ window = '%s', prop = '%s', value = '%s' })"
 				% [w, prop[0], prop[1]])
-		_raise(w)
+		commands.append(_raise_command(w))
+		_dispatch(commands)
 
 
 ## Pinned windows can end up drawn under tiled ones; this puts ours back on top.
-func _raise(window: String) -> void:
-	_dispatch("hl.dsp.window.alter_zorder({ mode = 'top', window = '%s' })" % window)
+func _raise_command(window: String) -> String:
+	return "hl.dsp.window.alter_zorder({ mode = 'top', window = '%s' })" % window
+
+
+## Resize, move and raise a window to exactly `rect`. Resize comes first: resizing a floating
+## window keeps its centre, which would undo the move.
+func _place_commands(window: String, rect: Rect2i) -> Array[String]:
+	return [
+		"hl.dsp.window.resize({ x = %d, y = %d, window = '%s' })" % [rect.size.x, rect.size.y, window],
+		"hl.dsp.window.move({ x = %d, y = %d, window = '%s' })" % [rect.position.x, rect.position.y, window],
+		_raise_command(window),
+	]
 
 
 ## Godot and Hyprland disagree on coordinates with mixed monitor scaling,
@@ -106,10 +117,7 @@ func _try_place_overlay() -> void:
 		return
 	var w := "address:%s" % o.address
 	var r := _monitor_rect(m)
-	# resize first: resizing a floating window keeps its centre, which would undo the move
-	_dispatch("hl.dsp.window.resize({ x = %d, y = %d, window = '%s' })" % [r.size.x, r.size.y, w])
-	_dispatch("hl.dsp.window.move({ x = %d, y = %d, window = '%s' })" % [r.position.x, r.position.y, w])
-	_raise(w)
+	_dispatch(_place_commands(w, r))
 	_overlay_pending = false
 
 
@@ -231,5 +239,9 @@ func _run(args: Array) -> String:
 	return out[0] if out.size() > 0 else ""
 
 
-func _dispatch(lua: String) -> void:
-	_run(["dispatch", lua])
+## Runs Lua dispatchers in one hyprctl call (each call is a process, and blocks the frame).
+func _dispatch(commands: Array[String]) -> void:
+	var batch := PackedStringArray()
+	for c in commands:
+		batch.append("dispatch " + c)
+	_run(["--batch", " ; ".join(batch)])
