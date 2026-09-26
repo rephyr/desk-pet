@@ -1,0 +1,15 @@
+# Godot
+.godot/
+*.translation
+/android/
+
+# builds
+*.exe
+*.x86_64
+*.pck
+out/
+build/
+
+# local assistant notes
+CLAUDE.md
+.claude
