@@ -17,6 +17,7 @@ var _expanded_at := 0.0
 var _scale := 1.0
 var _watch := 0.0
 var _tucked_away := false
+var _out_request := 0  # bumps on every let-out, so an older pending one can tell it's stale
 var _keep_open := false  # debug: --expanded keeps the big layer open for testing
 
 
@@ -149,6 +150,10 @@ func _make_overlay() -> Window:
 
 
 func _set_out(out: bool) -> void:
+	if _source == null:
+		return  # still starting up; _ready applies the saved state once it's ready
+	_out_request += 1
+	var request := _out_request
 	GameState.set_pet_out(out)
 	_compact.set_pet_out(out)
 	if not out:
@@ -171,7 +176,7 @@ func _set_out(out: bool) -> void:
 	# once the overlay has settled on the screen, pop out where the mouse is
 	# (on the button you just pressed)
 	await get_tree().create_timer(0.3).timeout
-	if _pet:
+	if _pet and request == _out_request:
 		var mouse := _source.mouse_position(_overlay)
 		_pet.drop_at(mouse.clamp(Vector2(40, 80), Vector2(_overlay.size) - Vector2(40, 0)))
 		_pet.visible = true
