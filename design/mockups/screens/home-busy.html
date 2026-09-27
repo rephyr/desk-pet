@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Home Busy</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* the pet's room: a doodled room on the page; things found on trips become furniture */
+  .room { position: relative; height: 100%; border-radius: var(--r-panel); overflow: hidden; background: var(--paper); border: 2px solid var(--line); }
+  .room svg.scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .scene .wall-line { fill: none; stroke: var(--lilac-seam); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .scene .soft { fill: none; stroke: var(--line); stroke-width: 2.5; stroke-linecap: round; }
+  .scene .floor { fill: var(--page); }
+  .scene .skyfill { fill: var(--sky); }
+  .scene .moon { fill: var(--gold); }
+  .scene .rug { fill: color-mix(in srgb, var(--pink) 16%, var(--page)); stroke: var(--pink-seam); stroke-width: 2.5; stroke-dasharray: 6 5; stroke-linecap: round; }
+  .scene .cushion { fill: var(--pink-seam); stroke: var(--pink); stroke-width: 2.5; }
+  .scene .basket { fill: color-mix(in srgb, var(--gold) 30%, var(--page)); stroke: var(--gold); stroke-width: 2.5; stroke-linejoin: round; }
+  .scene .shelf { stroke: var(--lilac-seam); stroke-width: 3; stroke-linecap: round; }
+  .scene .jar { fill: color-mix(in srgb, var(--mint) 25%, var(--page)); stroke: var(--mint); stroke-width: 2.2; }
+  .scene .blanket { fill: color-mix(in srgb, var(--lilac) 30%, var(--page)); stroke: var(--lilac); stroke-width: 2.2; }
+  .find { cursor: help; }
+
+  .pet { position: absolute; width: 96px; height: 108px; }
+  .card { position: absolute; left: 22px; bottom: 20px; width: 200px; padding: 12px 14px; transform: rotate(-1.5deg); }
+  .pet img { width: 96px; height: 108px; animation: breathe 3s ease-in-out infinite; transform-origin: bottom; cursor: pointer; }
+  @keyframes breathe { 50% { transform: scaleY(.97) scaleX(1.02); } }
+  .card .name { font: var(--display-weight) 18px/1 var(--display); color: var(--pink); margin: 0 0 10px; }
+  .needs { width: 100%; display: grid; grid-template-columns: auto 1fr; gap: 5px 8px; align-items: center; font-size: 11px; color: var(--muted); }
+  .needs .bar { height: 9px; border-radius: 5px; background: var(--deep); border: 2px solid var(--line); overflow: hidden; }
+  .needs .bar i { display: block; height: 100%; border-radius: 4px; }
+  .care { display: flex; gap: 8px; margin-top: 10px; }
+  .care small { color: var(--cyan); display: inline-flex; align-items: center; gap: 3px; }
+
+  /* sticky notes pinned to the wall: what needs you */
+  .notes { position: absolute; right: 18px; top: 16px; display: grid; grid-template-columns: 150px 150px; gap: 16px 12px; }
+  .note {
+    position: relative; display: block; padding: 14px 12px 10px; min-height: 76px; text-decoration: none; color: var(--text);
+    background: var(--raised); border: 2px solid var(--line); border-radius: 4px 4px 10px 4px; box-shadow: var(--lift);
+    transform: rotate(var(--tilt)); transition: transform .15s var(--ease-out), border-color .12s;
+  }
+  .note::before { content: ""; position: absolute; top: -8px; left: 50%; width: 40px; height: 14px; margin-left: -20px; border-radius: 2px; background: color-mix(in srgb, var(--accent) 45%, transparent); transform: rotate(-3deg); }
+  .note:hover { transform: rotate(0) translateY(-3px); border-color: var(--accent); }
+  .note b { display: block; font: var(--display-weight) 14px/1.1 var(--display); color: var(--accent); margin-bottom: 4px; font-weight: 400; }
+  .note span { display: block; font-size: 12px; line-height: 1.3; }
+  .note em { display: block; margin-top: 5px; font-style: normal; font-size: 11px; color: var(--muted); }
+  .note.quiet { opacity: .55; }
+  .note.quiet::before { opacity: .4; }
+
+  .doing { display: flex; align-items: center; gap: 6px; margin: -4px 0 10px; font-size: 11px; color: var(--mint); }
+  .doing .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--mint); animation: blink 1.2s ease-in-out infinite; }
+  @keyframes blink { 50% { opacity: .3; } }
+  .picker { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; margin-bottom: 10px; }
+  .picker .btn.on { border-color: var(--pink); color: var(--pink); background: var(--pink-pressed); }
+  .about { width: 920px; text-align: center; color: var(--muted); margin-top: 10px; }
+  body { flex-direction: column; display: flex; align-items: center; padding: 18px 0; }
+  .hover-tip { position: absolute; padding: 4px 9px; border-radius: 8px; background: var(--deep); border: 2px solid var(--line); font-size: 11px; color: var(--text); pointer-events: none; opacity: 0; transition: opacity .15s; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="picker">
+  <button class="btn" data-f="play">▶ play it</button>
+  <button class="btn" data-f="1.9">1. to the pile</button>
+  <button class="btn" data-f="2.9">2. takes one</button>
+  <button class="btn" data-f="5.6">3. shakes it</button>
+  <button class="btn" data-f="7.4">4. pop! a new pet</button>
+  <button class="btn" data-f="good">5. a good one</button>
+</div>
+<div class="app" data-tab="home" data-say="one for me… i mean for you! ♪">
+  <div class="room">
+    <svg class="scene" viewBox="0 0 790 470" preserveAspectRatio="xMinYMin slice" aria-hidden="true">
+      <!-- floor -->
+      <path class="floor" d="M0 332 Q200 326 395 330 Q590 334 790 328 L790 470 L0 470 Z"/>
+      <path class="wall-line" d="M-5 332 Q200 326 395 330 Q590 334 795 328"/>
+      <!-- window with the night outside -->
+      <path class="skyfill" d="M42 58 Q108 54 176 57 L178 196 Q110 199 44 197 Z"/>
+      <g class="stars">
+        <rect x="70" y="84" width="2" height="2" fill="var(--text)" opacity=".6"/><rect x="130" y="72" width="2" height="2" fill="var(--text)" opacity=".4"/>
+        <rect x="96" y="130" width="2" height="2" fill="var(--text)" opacity=".5"/><rect x="152" y="160" width="2" height="2" fill="var(--text)" opacity=".35"/>
+        <rect x="60" y="170" width="2" height="2" fill="var(--text)" opacity=".45"/>
+      </g>
+      <path class="moon" d="M146 92 Q132 104 140 120 Q150 132 164 126 Q146 124 144 108 Q144 98 146 92 Z"/>
+      <path class="wall-line" d="M42 58 Q108 54 176 57 L178 196 Q110 199 44 197 Z"/>
+      <path class="wall-line" d="M110 56 L111 197 M43 126 Q110 124 177 127"/>
+      <path class="soft" d="M34 202 Q110 206 186 201"/>
+      <!-- a shelf with page rewards from the collection book -->
+      <path class="shelf" d="M206 150 Q250 148 296 151"/>
+      <g class="find" data-tip="sticky paws, from a full book page">
+        <path class="jar" d="M218 122 Q216 146 220 148 L240 148 Q244 146 242 122 Z"/><path class="jar" d="M216 118 L244 118 L244 124 L216 124 Z"/>
+      </g>
+      <g class="find" data-tip="a cozy blanket, from a full book page">
+        <path class="blanket" d="M254 134 Q270 128 288 134 L288 148 L254 148 Z"/><path class="soft" d="M258 140 L284 140"/>
+      </g>
+      <!-- the rug, and the cushion found on a trip -->
+      <ellipse class="rug" cx="403" cy="388" rx="170" ry="46"/>
+      <g class="find" data-tip="the cushion, found in the garden" transform="translate(0 62)">
+        <path class="cushion" d="M343 312 Q342 298 364 296 L442 296 Q464 298 463 312 Q464 326 442 328 L364 328 Q342 326 343 312 Z"/>
+        <path d="M352 312 L454 312" stroke="var(--pink)" stroke-width="2" stroke-dasharray="4 4" stroke-linecap="round" fill="none"/>
+      </g>
+      <!-- the basket, found on a trip (errands) -->
+      <g class="find" data-tip="the basket, found in the meadow" transform="translate(64 0)">
+        <path class="soft" d="M626 372 Q650 330 676 372" style="stroke: var(--gold)"/>
+        <path class="basket" d="M612 372 L690 372 L682 410 Q651 416 620 410 Z"/>
+        <path d="M618 386 L686 386 M622 398 L682 398" stroke="var(--gold)" stroke-width="1.8" fill="none" opacity=".7"/>
+      </g>
+      <!-- the pile of bought boxes, and everything that moves -->
+      <g id="pile"></g>
+      <g id="actors"></g>
+    </svg>
+
+    <div class="pet" style="display:none"><img class="px" src="../assets/pets/lilac-blob.png" alt="lilac blob, your active pet" title="pat me!"></div>
+    <div class="card sticker">
+      <div class="name">lilac blob</div>
+      <div class="doing"><span class="dot"></span><span id="doing">opening your pile</span></div>
+      <div class="needs">
+        <span>food</span><span class="bar"><i style="width: 72%; background: var(--pink)"></i></span>
+        <span>mood</span><span class="bar"><i style="width: 88%; background: var(--lilac)"></i></span>
+      </div>
+      <div class="care">
+        <button class="btn">feed <small><span data-icon="coin" data-px="1.2"></span>3</small></button>
+        <button class="btn">pat</button>
+      </div>
+    </div>
+
+    <div class="notes">
+      <a class="note" href="trips.html" style="--tilt: -2deg; --accent: var(--mint)"><b>trips</b><span>peach cat is back!</span><em>say welcome back</em></a>
+      <a class="note" href="boxes.html" style="--tilt: 1.5deg; --accent: var(--cyan)"><b>boxes</b><span id="note-left">lilac blob is opening the pile</span><em id="note-em">34 left</em></a>
+      <a class="note" href="inventory.html" style="--tilt: 2deg; --accent: var(--lilac)"><b>parts</b><span>9 parts to sew on</span><em>try them on</em></a>
+      <a class="note" href="trips.html" style="--tilt: -1.5deg; --accent: var(--gold)"><b>map</b><span>peach cat spotted the pond</span><em>go and look</em></a>
+    </div>
+    <div class="hover-tip"></div>
+  </div>
+</div>
+<div class="about">Your pet opening your pile of bought boxes, right in its room: it walks to the pile, takes one, shakes it on its cushion, and pop! An ordinary pet hops off to join the others; a good one gets held up with sparkles until you notice. The card and the boxes note say what it's doing and how many are left.</div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script src="../shared/pack.js"></script>
+<script>
+  const content = mountFrame();
+  const room = content.querySelector(".room"), tip = content.querySelector(".hover-tip");
+  content.querySelectorAll(".find").forEach(f => {
+    f.addEventListener("mousemove", e => {
+      const r = room.getBoundingClientRect();
+      tip.textContent = f.dataset.tip; tip.style.opacity = 1;
+      tip.style.left = e.clientX - r.left + 12 + "px"; tip.style.top = e.clientY - r.top - 30 + "px";
+    });
+    f.addEventListener("mouseleave", () => tip.style.opacity = 0);
+  });
+  // ---- the pet opening the pile (all in the scene's 790x470 units) ----
+  const NS = "http://www.w3.org/2000/svg";
+  const PILE = { x: 598, floor: 402 };
+  const SEAT = { x: 355, y: 262 }, AT_PILE = { x: 466, y: 262 };
+  const LOOP = 9.2;
+  let left = 35, opened = 12, frozen = null, goodLoop = false, lastLoop = -1;
+  const pileG = content.querySelector("#pile"), actors = content.querySelector("#actors");
+  const box = BOXES[0];
+  function drawPile(n) {
+    let g = "";
+    const shown = Math.min(n, 9);
+    for (let i = 0; i < shown; i++) {
+      const col = i % 3, row = Math.floor(i / 3);
+      const x = PILE.x - 60 + col * 38 + (row % 2) * 18, y = PILE.floor - 58 - row * 30;
+      g += `<g transform="translate(${x} ${y}) rotate(${[-8, 5, -3, 7, -6, 2, -4, 6, 0][i]} 22 29)">${packSvg(box, 44)}</g>`;
+    }
+    g += `<g transform="translate(${PILE.x + 34} ${PILE.floor - 128})"><rect x="0" y="0" rx="10" width="46" height="22" fill="var(--raised)" stroke="var(--pink-seam)" stroke-width="2"/><text x="23" y="16" text-anchor="middle" style="font: 13px var(--display); fill: var(--text)">×${n}</text></g>`;
+    pileG.innerHTML = g;
+  }
+  const img = (href, w, h) => { const i = document.createElementNS(NS, "image"); i.setAttribute("href", href); i.setAttribute("width", w); i.setAttribute("height", h); i.style.imageRendering = "pixelated"; return i; };
+  const me = img("../assets/pets/lilac-blob.png", 96, 108);
+  const paws = document.createElementNS(NS, "g");
+  const newbie = img("../assets/pets/peach-cat.png", 48, 54);
+  const star = img("../assets/pets/sky-bunny.png", 48, 54);
+  const fx = document.createElementNS(NS, "g");
+  actors.append(fx, me, paws, newbie, star);
+  const lerp = (a, b, t) => a + (b - a) * Math.max(0, Math.min(1, t));
+  const ease = t => t < 0 ? 0 : t > 1 ? 1 : 1 - Math.pow(1 - t, 2);
+  const spark = (x, y, r, c, o) => `<path d="M${x} ${y - r} Q${x + r * .15} ${y - r * .15} ${x + r} ${y} Q${x + r * .15} ${y + r * .15} ${x} ${y + r} Q${x - r * .15} ${y + r * .15} ${x - r} ${y} Q${x - r * .15} ${y - r * .15} ${x} ${y - r} Z" fill="${c}" opacity="${o}"/>`;
+  const place = (el, x, y, rot = 0, sx = 1) => el.setAttribute("transform", `translate(${x} ${y}) rotate(${rot} 48 108) scale(${sx} 1)`);
+  const SAY = { walk: "one for me… i mean for you! ♪", grab: "this one looks lucky!", shake: "shake shake shake…", pop: "a new friend! hello!", good: "LOOK!! look who it is!!" };
+  function frame(t, good) {
+    const walkOut = ease((t - 1) / 1.6), grab = (t - 2.6) / 0.6, walkBack = ease((t - 3.2) / 1.6), shake = t >= 4.8 && t < 6.4, popped = t >= 6.4;
+    let x = SEAT.x, y = SEAT.y, rot = 0, hop = 0, say = SAY.walk;
+    if (t >= 1 && t < 3.2) { x = lerp(SEAT.x, AT_PILE.x, walkOut); hop = Math.abs(Math.sin(t * 9)) * 6 * (t < 2.6 ? 1 : 0); }
+    if (t >= 3.2 && t < 4.8) { x = lerp(AT_PILE.x, SEAT.x, walkBack); hop = Math.abs(Math.sin(t * 9)) * 6; }
+    if (t >= 2.6 && t < 4.8) say = SAY.grab;
+    if (shake) { rot = Math.sin(t * 38) * 6; say = SAY.shake; }
+    if (popped) say = good ? SAY.good : SAY.pop;
+    place(me, x, y - hop, rot);
+    // the pack: from the top of the pile, up into its paws, shaken, then pop
+    let pack = "";
+    if (t >= 2.6 && !popped) {
+      const px = t < 3.2 ? lerp(PILE.x - 22, x + 26, grab) : x + 26 + (shake ? Math.sin(t * 50) * 4 : 0);
+      const py = t < 3.2 ? lerp(PILE.floor - 120, y - 52, grab) : y - 52 - hop;
+      pack = `<g transform="translate(${px} ${py}) rotate(${shake ? Math.sin(t * 44) * 12 : -6} 22 29)">${packSvg(box, 44)}</g>`;
+    }
+    paws.innerHTML = pack;
+    // pop: a puff and sparkles, then the new pet
+    let f = "";
+    if (popped) {
+      const p = t - 6.4;
+      if (p < 0.6) { const r = 20 + p * 90; f += `<circle cx="${SEAT.x + 48}" cy="${SEAT.y - 26}" r="${r}" fill="none" stroke="var(--gold)" stroke-width="${4 * (1 - p / 0.6)}" opacity="${1 - p / 0.6}"/>`; }
+      if (good) {
+        f += `<circle cx="${SEAT.x + 48}" cy="${SEAT.y - 34}" r="${40 + Math.sin(t * 4) * 3}" fill="var(--tier-rare)" opacity=".22"/>`;
+        [[-50, -60, 9], [52, -48, 7], [30, -86, 6], [-34, -10, 6]].forEach(([dx, dy, r], i) => f += spark(SEAT.x + 48 + dx, SEAT.y - 34 + dy, r * (0.6 + 0.4 * Math.abs(Math.sin(t * 3 + i))), "var(--gold)", 0.9));
+        f += `<g transform="translate(${SEAT.x - 150} ${SEAT.y - 96})"><rect width="118" height="40" rx="10" fill="var(--raised)" stroke="var(--tier-rare)" stroke-width="2"/><text x="12" y="17" style="font: 13px var(--display); fill: var(--pink)">sky bunny!</text><text x="12" y="32" style="font: 11px var(--body); fill: var(--tier-rare)">rare</text></g>`;
+      }
+    }
+    fx.innerHTML = f;
+    if (popped) {
+      star.style.opacity = good ? 1 : 0;
+      newbie.style.opacity = good ? 0 : 1;
+      if (good) place(star, SEAT.x + 24, SEAT.y - 70 + Math.sin(t * 3) * 3);
+      else {
+        const h = (t - 6.4) / 2.2; // hops off toward the window, then fades
+        place(newbie, lerp(SEAT.x + 24, 210, h), SEAT.y + 40 - Math.abs(Math.sin(h * Math.PI * 3)) * 26 - (1 - Math.min(1, h * 4)) * 60);
+        newbie.style.opacity = h > 0.8 ? (1 - h) * 5 : 1;
+      }
+    } else { newbie.style.opacity = 0; star.style.opacity = 0; }
+    say && (document.querySelector(".top .bubble").textContent = say);
+  }
+  function counts(loop) {
+    const n = 35 - (loop % 30);
+    drawPile(n);
+    content.querySelector("#note-em").textContent = `${n} left`;
+    content.querySelector("#doing").textContent = `opening your pile, ${12 + (loop % 30)} opened`;
+  }
+  const start = performance.now();
+  function tick(now) {
+    let t, good;
+    if (frozen === null) {
+      const s = (now - start) / 1000, loop = Math.floor(s / LOOP);
+      t = s % LOOP; good = loop % 3 === 2;
+      if (loop !== lastLoop) { lastLoop = loop; counts(loop); }
+      // the box leaves the pile when it's picked up
+      if (t >= 2.6 && pileG.dataset.took !== String(loop)) { pileG.dataset.took = loop; drawPile(34 - (loop % 30)); content.querySelector("#note-em").textContent = `${34 - (loop % 30)} left`; }
+    } else { t = frozen.t; good = frozen.good; }
+    frame(t, good);
+    requestAnimationFrame(tick);
+  }
+  counts(0);
+  requestAnimationFrame(tick);
+  const setOn = f => document.querySelectorAll("[data-f]").forEach(b => b.classList.toggle("on", b.dataset.f === f));
+  document.querySelectorAll("[data-f]").forEach(b => b.onclick = () => {
+    const f = b.dataset.f;
+    frozen = f === "play" ? null : f === "good" ? { t: 7.6, good: true } : { t: Number(f), good: false };
+    drawPile(frozen && frozen.t >= 2.6 ? 34 : 35);
+    setOn(f);
+  });
+  const initial = new URLSearchParams(location.search).get("f");
+  if (initial) document.querySelector(`[data-f="${initial}"]`)?.click(); else setOn("play");
+  applyLook(loadLook());
+</script>
+</body>
+</html>

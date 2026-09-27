@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Buy And Open</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  body { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 18px 0; }
+  .picker { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: center; }
+  .picker .btn.on { border-color: var(--pink); color: var(--pink); background: var(--pink-pressed); }
+  .picker .gap { width: 18px; }
+  .about { width: 920px; text-align: center; color: var(--muted); min-height: 2.9em; }
+  h3 { margin: 0; font-weight: var(--display-weight); font-family: var(--display); color: var(--pink); }
+  .px { image-rendering: pixelated; display: block; }
+  .muted { color: var(--muted); }
+
+  /* ---- shared bits ---- */
+  .stepper { display: inline-flex; align-items: center; background: var(--deep); border: 2px solid var(--line); border-radius: var(--r-md); }
+  .stepper button { width: 26px; height: 26px; border: 0; background: none; color: var(--muted); cursor: pointer; font-size: 15px; }
+  .stepper button:hover { color: var(--pink); }
+  .stepper b { min-width: 30px; text-align: center; font-weight: 400; font-variant-numeric: tabular-nums; }
+  .quick { display: inline-flex; gap: 4px; }
+  .quick button { padding: 2px 8px; border-radius: 999px; font-size: 11px; background: none; border: 2px solid var(--line); color: var(--muted); cursor: pointer; }
+  .quick button:hover, .quick button.on { color: var(--pink); border-color: var(--pink-seam); }
+  .buy { flex-direction: column; gap: 0; line-height: 1.2; padding: 5px 12px; border-color: var(--pink-seam); }
+  .buy small { color: var(--cyan); font-size: 11px; }
+
+  .pile { position: relative; display: grid; justify-items: center; gap: 6px; }
+  .stack { position: relative; width: 120px; height: 130px; cursor: pointer; }
+  .stack .pack-art { position: absolute; left: 50%; bottom: 0; filter: drop-shadow(0 4px 5px rgba(0, 0, 0, .35)); transition: transform .15s var(--ease-out); }
+  .stack:hover .pack-art:last-child { transform: translate(-50%, -6px) rotate(-3deg) !important; }
+  .count { position: absolute; right: -6px; top: -4px; padding: 1px 9px; border-radius: 999px; background: var(--raised); border: 2px solid var(--pink-seam); color: var(--text); font: 14px var(--display); z-index: 5; }
+  .pile .name { font: 15px var(--display); color: var(--pink); }
+  .pile .opens { display: flex; gap: 6px; }
+  .pile .opens .btn { font-size: 12px; padding: 4px 10px; }
+  .pile.empty .stack { border: 2px dashed var(--line); border-radius: 12px; width: 90px; height: 110px; cursor: default; display: grid; place-items: center; color: var(--muted); font-size: 11px; text-align: center; padding: 6px; }
+  .saved { position: absolute; left: -10px; top: 18px; z-index: 6; padding: 2px 8px; border-radius: 999px; background: var(--deep); border: 2px dashed var(--gold); color: var(--gold); font-size: 11px; transform: rotate(-8deg); }
+
+  .switch { width: 34px; height: 20px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); position: relative; cursor: pointer; flex: none; }
+  .switch::after { content: ""; position: absolute; left: 2px; top: 2px; width: 12px; height: 12px; border-radius: 50%; background: var(--muted); transition: left .15s, background .15s; }
+  .switch.on { border-color: var(--pink-seam); }
+  .switch.on::after { left: 16px; background: var(--pink); }
+  .rule { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .rule .grow { flex: 1; }
+  .pick2 { display: inline-flex; background: var(--deep); border: 2px solid var(--line); border-radius: var(--r-md); padding: 2px; }
+  .pick2 button { border: 0; background: none; padding: 1px 8px; border-radius: var(--r-sm); cursor: pointer; color: var(--muted); font-size: 11px; }
+  .pick2 button.on { background: var(--pink-pressed); color: var(--text); }
+  .helper { padding: 10px 12px; display: grid; gap: 7px; }
+  .helper .who { display: flex; align-items: center; gap: 8px; }
+  .helper .who img { width: 32px; height: 36px; }
+  .helper .who b { font-weight: 400; color: var(--pink); display: block; }
+  .helper .who span { font-size: 11px; color: var(--muted); }
+  .helper .did { font-size: 11px; color: var(--mint); }
+
+  /* ---- A: shelf and table ---- */
+  .A { display: grid; grid-template-columns: 262px 1fr; gap: 14px; height: 100%; }
+  .A .shop { display: flex; flex-direction: column; gap: 12px; }
+  .A .offer { padding: 12px; display: grid; gap: 10px; }
+  .A .offer .top { display: grid; grid-template-columns: 58px 1fr; gap: 10px; align-items: center; }
+  .A .offer .top .pack-art { transform: rotate(-4deg); }
+  .A .offer .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .A .table { position: relative; border-radius: var(--r-panel); background: var(--paper); border: 2px dashed var(--line); padding: 16px; display: flex; flex-direction: column; }
+  .A .table h3 { font-size: 18px; }
+  .A .piles { flex: 1; display: flex; justify-content: space-around; align-items: center; }
+  .A .table .helper { margin-top: auto; }
+
+  /* ---- B: counter and stash ---- */
+  .B { display: grid; grid-template-rows: auto 1fr; gap: 12px; height: 100%; }
+  .B .counter { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .B .offer { padding: 10px 12px; display: grid; grid-template-columns: 46px 1fr auto; gap: 10px; align-items: center; }
+  .B .offer .mid { display: grid; gap: 5px; }
+  .B .offer .mid .line { display: flex; gap: 8px; align-items: center; }
+  .B .low { display: grid; grid-template-columns: 1fr 262px; gap: 12px; min-height: 0; }
+  .B .stash { position: relative; border-radius: var(--r-panel); background: var(--paper); border: 2px solid var(--line); padding: 14px 16px; display: flex; flex-direction: column; }
+  .B .shelf { margin-top: auto; display: flex; justify-content: space-around; align-items: flex-end; padding-bottom: 12px; border-bottom: 4px solid var(--pink-seam); }
+  .B .side { display: flex; flex-direction: column; gap: 12px; }
+  .B .side .pet { display: grid; justify-items: center; padding: 10px 0 0; }
+  .B .side .pet img { width: 80px; height: 90px; }
+
+  .B .helper .rule { flex-wrap: wrap; row-gap: 4px; }
+  .B .helper .rule .grow { flex-basis: 100%; }
+  .C .note .rule { flex-wrap: wrap; row-gap: 4px; }
+  .C .note .rule .grow { flex-basis: 100%; }
+  .C.helped .piles { right: 312px; gap: 18px; }
+  .C .pile .opens { gap: 4px; }
+  .C .pile .opens .btn { font-size: 11px; padding: 3px 7px; white-space: nowrap; }
+  /* ---- C: the pile is the room ---- */
+  .C { position: relative; height: 100%; border-radius: var(--r-panel); background: var(--paper); border: 2px dashed var(--line); overflow: hidden; }
+  .C .title { position: absolute; left: 18px; top: 14px; }
+  .C .title p { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+  .C .piles { position: absolute; left: 0; right: 0; top: 118px; display: flex; justify-content: center; gap: 70px; }
+  .C .sitter { position: absolute; left: 50%; top: -58px; margin-left: -40px; width: 56px; height: 63px; z-index: 7; }
+  .C .shoptab { position: absolute; right: 0; top: 60px; padding: 10px 8px; border-radius: 12px 0 0 12px; background: var(--raised); border: 2px solid var(--pink-seam); border-right: 0; writing-mode: vertical-rl; color: var(--pink); font: 15px var(--display); cursor: pointer; }
+  .C .drawer { position: absolute; right: 0; top: 0; bottom: 0; width: 268px; padding: 14px; background: var(--raised); border-left: 2px solid var(--pink-seam); box-shadow: -8px 0 18px rgba(6, 2, 12, .5); display: flex; flex-direction: column; gap: 12px; transform: translateX(105%); transition: transform .3s var(--ease-out); z-index: 9; }
+  .C.shopping .drawer { transform: none; }
+  .C .drawer .offer { display: grid; gap: 8px; padding-bottom: 12px; border-bottom: 2px dashed var(--line); }
+  .C .drawer .offer .top { display: flex; gap: 10px; align-items: center; }
+  .C .drawer .offer .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .C .note { position: absolute; right: 54px; top: 64px; width: 262px; padding: 12px 14px 12px; background: var(--raised); border: 2px solid var(--gold); border-radius: 4px; transform: rotate(-1.5deg); box-shadow: var(--lift); display: grid; gap: 7px; }
+  .C .note::before { content: ""; position: absolute; left: 50%; top: -9px; width: 46px; height: 16px; margin-left: -23px; background: color-mix(in srgb, var(--lilac) 45%, transparent); transform: rotate(3deg); }
+  .C .note h4 { margin: 0; font: 15px var(--display); font-weight: 400; color: var(--gold); }
+  .C .hint { position: absolute; right: 30px; bottom: 22px; color: var(--muted); font-size: 12px; text-align: right; }
+</style>
+</head>
+<body>
+<div class="picker">
+  <button class="btn" data-v="A">A: shop and table</button>
+  <button class="btn" data-v="B">B: counter and stash</button>
+  <button class="btn" data-v="C">C: the pile room</button>
+  <span class="gap"></span>
+  <button class="btn" data-l="1">1. you buy, you open</button>
+  <button class="btn" data-l="2">2. pet opens the pile</button>
+  <button class="btn" data-l="3">3. pet buys too</button>
+</div>
+<div class="app" data-tab="boxes" data-say=""></div>
+<div class="about" id="about"></div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script src="../shared/pack.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const content = mountFrame();
+  const say = t => { document.querySelector(".top .bubble").textContent = t; };
+  let v = params.get("v") || "A", layer = Number(params.get("l") || 1), shopping = params.get("shop") === "1";
+  const amount = { starter: 10, lucky: 1 };
+  const owned = { starter: 47, lucky: 6 };
+
+  const stackSvg = (box, n, w = 72) => {
+    const shown = Math.max(1, Math.min(n, 6));
+    let out = "";
+    for (let i = 0; i < shown; i++) {
+      const rot = [-6, 4, -2, 7, -4, 2][i], dx = [-8, 6, -3, 9, -5, 0][i];
+      out += `<span style="position:absolute;left:50%;bottom:${i * 9}px;transform:translateX(calc(-50% + ${dx}px)) rotate(${rot}deg)">${packSvg(box, w)}</span>`;
+    }
+    return out;
+  };
+  const pile = (box, opts = {}) => {
+    const n = owned[box.id];
+    if (!n) return `<div class="pile empty"><div class="stack">no ${box.name}es yet</div><span class="name">${box.name}</span></div>`;
+    const saved = layer >= 2 && box.id === "lucky";
+    return `<div class="pile">
+      <div class="stack" title="open one">${saved ? `<span class="saved">saved for you</span>` : ""}<span class="count">×${n}</span>${stackSvg(box, n, opts.w)}${opts.sitter ? `<img class="px sitter" src="../assets/pets/lilac-blob.png" alt="">` : ""}</div>
+      <span class="name">${box.name}</span>
+      <div class="opens"><button class="btn primary">open 1</button><button class="btn">open 10</button><button class="btn">open all</button></div>
+    </div>`;
+  };
+  const buyRow = box => {
+    const n = amount[box.id];
+    return `<div class="stepper"><button data-dec="${box.id}">−</button><b>${n}</b><button data-inc="${box.id}">+</button></div>
+      <button class="btn buy">buy ${n}<small>${(n * box.price).toLocaleString()} coins</small></button>`;
+  };
+  const quick = box => `<div class="quick">${[1, 10, 50].map(q => `<button data-set="${box.id}:${q}" class="${amount[box.id] === q ? "on" : ""}">${q}</button>`).join("")}</div>`;
+  const sw = (on, label) => `<div class="rule"><span class="grow">${label}</span><span class="switch${on ? " on" : ""}"></span></div>`;
+  const helperRules = () => {
+    if (layer < 2) return "";
+    let r = `<div class="rule"><span class="grow">starter boxes</span><span class="pick2"><button class="on">pet opens</button><button>save for me</button></span></div>
+      <div class="rule"><span class="grow">lucky boxes</span><span class="pick2"><button>pet opens</button><button class="on">save for me</button></span></div>`;
+    if (layer >= 3) r += sw(true, "buy more when the pile runs out") + `<div class="rule"><span class="grow">keep at least</span><span class="stepper"><button>−</button><b>500</b><button>+</button></span><span class="muted">coins</span></div>`;
+    return r;
+  };
+  const helperCard = (extra = "") => layer < 2 ? "" : `
+    <div class="helper sticker"${extra}>
+      <div class="who"><img class="px" src="../assets/pets/lilac-blob.png" alt=""><div><b>lilac blob helps</b><span>${layer >= 3 ? "buys and opens while you're busy" : "opens your pile while you're busy"}</span></div><span class="grow" style="flex:1"></span><span class="switch on"></span></div>
+      ${helperRules()}
+      <div class="did">last time: opened 12 starter boxes${layer >= 3 ? ", bought 10" : ""}</div>
+    </div>`;
+
+  const V = {
+    A: {
+      about: "A: the shop stays on the left but only buys: pick an amount (or tap 1 / 10 / 50) and the boxes land on the table on the right, piled up by type. Click a pile or \"open 1\" for the ritual, \"open 10 / all\" for a session. Once your pet can help, its card sits under the piles.",
+      html: () => `<div class="A">
+        <div class="shop">${BOXES.map(b => `<div class="offer sticker">
+          <div class="top">${packSvg(b, 56)}<div><h3>${b.name}</h3><span class="chip coins"><span data-icon="coin"></span>${b.price}</span></div></div>
+          ${quick(b)}
+          <div class="row">${buyRow(b)}</div></div>`).join("")}</div>
+        <div class="table"><h3>your pile</h3><span class="muted" style="font-size: 12px">${owned.starter + owned.lucky} boxes waiting</span>
+          <div class="piles">${BOXES.map(b => pile(b)).join("")}</div>
+          ${helperCard()}
+        </div></div>`,
+    },
+    B: {
+      about: "B: a shop counter along the top, one row per box, to buy in bulk. Below is your stash: the piles sit on a shelf, and your pet stands next to it with its job card once it can help. The most room for the piles.",
+      html: () => `<div class="B">
+        <div class="counter">${BOXES.map(b => `<div class="offer sticker">${packSvg(b, 44)}
+          <div class="mid"><div class="line"><h3 style="font-size:16px">${b.name}</h3><span class="chip coins" style="font-size:12px"><span data-icon="coin" data-px="1.4"></span>${b.price}</span></div>${quick(b)}</div>
+          <div style="display:grid;gap:5px;justify-items:end">${buyRow(b)}</div></div>`).join("")}</div>
+        <div class="low">
+          <div class="stash"><h3 style="font-size:18px">your stash</h3><span class="muted" style="font-size:12px">click a pile to open one</span>
+            <div class="shelf">${BOXES.map(b => pile(b, { w: 80 })).join("")}</div></div>
+          <div class="side">${layer >= 2 ? helperCard() : `<div class="pet"><img class="px" src="../assets/pets/lilac-blob.png" alt=""></div><p class="muted" style="font-size:12px;text-align:center">so many boxes!! open one, open one!</p>`}</div>
+        </div></div>`,
+    },
+    C: {
+      about: "C: the whole tab is your pile of boxes, with your pet sitting on top of it. The shop is a tab on the right edge that slides a drawer out (click it). Your pet's job is a note taped to the page. The most \"room\" and least \"store\".",
+      html: () => `<div class="C${shopping ? " shopping" : ""}${layer >= 2 ? " helped" : ""}">
+        <div class="title"><h3 style="font-size:20px">the pile</h3><p>${owned.starter + owned.lucky} boxes waiting</p></div>
+        <div class="piles">${BOXES.map((b, i) => pile(b, { w: 84, sitter: i === 0 })).join("")}</div>
+        ${layer >= 2 ? `<div class="note"><h4>lilac blob's job</h4>${helperRules()}<div class="did">last time: opened 12 starter boxes${layer >= 3 ? ", bought 10" : ""}</div></div>` : `<div class="hint">buy boxes in the shop<br>they pile up here ♪</div>`}
+        <button class="shoptab" data-shop>shop</button>
+        <div class="drawer"><div style="display:flex;justify-content:space-between;align-items:center"><h3 style="font-size:18px">the shop</h3><button class="btn" data-shop style="padding:3px 10px">close</button></div>
+          ${BOXES.map(b => `<div class="offer"><div class="top">${packSvg(b, 44)}<div><h3 style="font-size:16px">${b.name}</h3><span class="chip coins"><span data-icon="coin"></span>${b.price}</span></div></div>${quick(b)}<div class="row">${buyRow(b)}</div></div>`).join("")}
+        </div></div>`,
+    },
+  };
+  const LINES = { 1: "so many boxes!! can i watch you open them?", 2: "i'll open the starter ones while you're busy! the lucky ones are yours ♪", 3: "i'll buy more when we run out! i promise to leave you 500 coins. probably." };
+
+  function show() {
+    content.innerHTML = V[v].html();
+    document.getElementById("about").textContent = V[v].about;
+    say(LINES[layer]);
+    document.querySelectorAll("[data-v]").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+    document.querySelectorAll("[data-l]").forEach(b => b.classList.toggle("on", Number(b.dataset.l) === layer));
+    paintIcons(document);
+    content.querySelectorAll("[data-inc]").forEach(b => b.onclick = () => { amount[b.dataset.inc] = Math.min(999, amount[b.dataset.inc] + 1); show(); });
+    content.querySelectorAll("[data-dec]").forEach(b => b.onclick = () => { amount[b.dataset.dec] = Math.max(1, amount[b.dataset.dec] - 1); show(); });
+    content.querySelectorAll("[data-set]").forEach(b => b.onclick = () => { const [id, n] = b.dataset.set.split(":"); amount[id] = Number(n); show(); });
+    content.querySelectorAll(".buy").forEach((b, i) => b.onclick = () => { const box = BOXES[i % BOXES.length]; owned[box.id] += amount[box.id]; say(`${amount[box.id]} more ${box.name}es on the pile!`); show(); });
+    content.querySelectorAll("[data-shop]").forEach(b => b.onclick = () => { shopping = !shopping; content.querySelector(".C").classList.toggle("shopping", shopping); });
+    content.querySelectorAll(".switch").forEach(s => s.onclick = () => s.classList.toggle("on"));
+    content.querySelectorAll(".pick2 button").forEach(b => b.onclick = () => { [...b.parentElement.children].forEach(x => x.classList.toggle("on", x === b)); });
+    content.querySelectorAll(".stack, .opens .btn").forEach(s => s.onclick = () => {
+      const id = s.closest(".pile").querySelector(".name").textContent.startsWith("lucky") ? "lucky" : "starter";
+      const n = s.classList.contains("stack") || s.textContent === "open 1" ? 1 : s.textContent === "open 10" ? 10 : owned[id];
+      owned[id] = Math.max(0, owned[id] - n); say(n === 1 ? "rip it! rip it!" : `${n} at once?! okay!!`); show();
+    });
+    const q = new URLSearchParams({ v, l: layer, ...(shopping ? { shop: 1 } : {}) });
+    history.replaceState(null, "", "?" + q);
+  }
+  document.querySelectorAll("[data-v]").forEach(b => b.onclick = () => { v = b.dataset.v; show(); });
+  document.querySelectorAll("[data-l]").forEach(b => b.onclick = () => { layer = Number(b.dataset.l); show(); });
+  applyLook(loadLook());
+  show();
+</script>
+</body>
+</html>

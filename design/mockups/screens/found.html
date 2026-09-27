@@ -1,0 +1,218 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Part Found</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  body { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 18px 0; }
+  .picker { display: flex; gap: 8px; align-items: center; color: var(--muted); }
+  .picker .btn.on { border-color: var(--pink); color: var(--pink); background: var(--pink-pressed); }
+  .picker .about { width: 920px; text-align: center; min-height: 2.9em; }
+
+  .tripview { display: grid; grid-template-columns: 1fr 250px; gap: 14px; height: 100%; min-height: 0; }
+  .trail { position: relative; border-radius: var(--r-panel); overflow: hidden; background: var(--paper); border: 2px solid var(--line); }
+  .trail > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .trail .info { position: absolute; left: 18px; top: 14px; }
+  .trail .info h2 { margin: 0 0 6px; font: var(--display-weight) 20px/1 var(--display); color: var(--pink); }
+  .trail .info .line { display: flex; gap: 8px; align-items: center; }
+  .tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: 11px; background: var(--deep); border: 2px solid var(--line); color: var(--muted); }
+  .pips { display: inline-flex; gap: 4px; }
+  .pips i { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--pink-seam); }
+  .pips i.done { background: var(--pink); border-color: var(--pink); }
+  .walker { position: absolute; left: 150px; top: 250px; width: 80px; height: 90px; }
+  .trail .hint { position: absolute; left: 18px; bottom: 14px; color: var(--lilac); font-size: 13px; }
+  .trail .back { position: absolute; right: 14px; top: 12px; }
+  .away { display: flex; flex-direction: column; gap: 12px; padding: 6px 4px 8px 2px; }
+  .away h2 { margin: 0; font: var(--display-weight) 17px/1 var(--display); color: var(--pink); }
+  .trip { padding: 10px 12px 11px; }
+  .trip .head { display: flex; align-items: center; gap: 8px; }
+  .trip .head img { width: 32px; height: 36px; }
+  .trip .head b { display: block; font-weight: inherit; color: var(--pink); }
+  .trip .head span { display: block; font-size: 11px; color: var(--muted); }
+  .trip .story { font-size: 12px; line-height: 1.35; margin: 8px 0; }
+  .trip .bar { height: 8px; border-radius: 4px; background: var(--deep); border: 2px solid var(--line); overflow: hidden; }
+  .trip .bar i { display: block; height: 100%; background: var(--lilac); }
+
+  /* the found part, shared by all three */
+  .part { image-rendering: pixelated; display: block; }
+  .tier { --t: var(--tier-rare); }
+  .tierword { color: var(--t); }
+  .buttons { display: flex; gap: 8px; }
+  .buttons .btn { flex: 1; white-space: nowrap; }
+  .buttons .btn.primary { flex: 1.4; border-color: var(--t); }
+  .buttons .btn.primary:hover { color: var(--t); }
+  @keyframes pop { 0% { transform: scale(.4) rotate(-10deg); opacity: 0; } 60% { transform: scale(1.08) rotate(var(--r, -2deg)); opacity: 1; } 100% { transform: scale(1) rotate(var(--r, -2deg)); } }
+  @keyframes bob { 50% { transform: translateY(-5px); } }
+  @keyframes twinkle { 50% { opacity: .25; transform: scale(.7); } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+  .still * { animation: none !important; }
+
+  /* ---- A: sticker slap, a sticker stuck over the trail ---- */
+  .a-dim { position: absolute; inset: 0; background: color-mix(in srgb, var(--backdrop) 55%, transparent); }
+  .a-card { position: absolute; left: 50%; top: 50%; width: 270px; margin: -150px 0 0 -135px; padding: 16px 18px 14px; text-align: center; --r: -2deg; transform: rotate(-2deg); animation: pop .45s var(--ease-out) both; border-color: var(--t); }
+  .a-card h3 { margin: 0; font: var(--display-weight) 21px/1.1 var(--display); color: var(--pink); }
+  .a-card .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .a-frame { position: relative; width: 116px; height: 124px; margin: 14px auto 10px; border: 2px dashed var(--t); border-radius: var(--r-lg); background: color-mix(in srgb, var(--t) 12%, var(--deep)); display: grid; place-items: center; transform: rotate(3deg); }
+  .a-frame .part { width: 80px; height: 90px; animation: bob 1.6s ease-in-out infinite; }
+  .a-frame .new { position: absolute; right: -16px; top: -12px; padding: 2px 8px; border-radius: 999px; background: var(--gold); color: var(--deep); font: var(--display-weight) 12px/1.3 var(--display); transform: rotate(12deg); }
+  .a-name { font: var(--display-weight) 17px/1 var(--display); color: var(--text); }
+  .a-meta { font-size: 12px; margin: 4px 0 14px; color: var(--muted); }
+
+  /* ---- B: holds it up, the pet shows it off right on the trail ---- */
+  .b-held { position: absolute; left: 166px; top: 186px; width: 48px; height: 54px; animation: bob 1.2s ease-in-out infinite; }
+  .b-held::before { content: ""; position: absolute; inset: -10px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--t) 45%, transparent), transparent 70%); }
+  .b-held img { position: relative; width: 48px; height: 54px; }
+  .spark { position: absolute; color: var(--gold); font: 14px/1 var(--display); animation: twinkle 1s ease-in-out infinite; }
+  .b-card { position: absolute; left: 252px; top: 138px; width: 232px; padding: 12px 14px 12px; border-color: var(--t); --r: 1deg; transform: rotate(1deg); animation: pop .4s var(--ease-out) both; }
+  .b-card::before { content: ""; position: absolute; left: -12px; top: 62px; border: 10px solid transparent; border-right-color: var(--t); border-left: 0; }
+  .b-card h3 { margin: 0 0 6px; font: var(--display-weight) 17px/1.1 var(--display); color: var(--pink); }
+  .b-card .row { display: flex; gap: 10px; align-items: center; margin-bottom: 8px; }
+  .b-card .row b { display: block; font-weight: 400; }
+  .b-card .row span { font-size: 12px; color: var(--muted); }
+  .b-card .mini { width: 44px; height: 46px; flex: none; display: grid; place-items: center; border-radius: var(--r-md); border: 2px solid var(--t); background: var(--deep); }
+  .b-card .mini img { width: 32px; height: 36px; }
+  .b-card .quote { font-size: 12px; color: var(--lilac); margin-bottom: 10px; }
+  .b-card .btn { font-size: 12px; padding: 5px 8px; }
+
+  /* ---- C: into the bag, a pocket slides up from the ground ---- */
+  .c-dim { position: absolute; inset: 0; background: linear-gradient(90deg, transparent 40%, color-mix(in srgb, var(--backdrop) 70%, transparent)); }
+  .c-sheet { position: absolute; right: 12px; bottom: 12px; width: 262px; padding: 16px 16px 14px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; border-color: var(--t); animation: up .4s var(--ease-out) both; }
+  @keyframes up { from { transform: translateY(110%); } }
+  .c-on .hint { display: none; }
+  .c-sheet::before { content: ""; position: absolute; left: 10px; right: 10px; top: 6px; border-top: 2px dashed var(--lilac-seam); }
+  .c-left { display: grid; justify-items: center; padding-top: 4px; }
+  .c-found { width: 96px; height: 96px; display: grid; place-items: center; border-radius: var(--r-lg); background: color-mix(in srgb, var(--t) 12%, var(--deep)); border: 2px solid var(--t); position: relative; }
+  .c-found .part { width: 64px; height: 72px; }
+  .c-found .ray { position: absolute; inset: 8px; border-radius: 50%; background: conic-gradient(from 0deg, transparent, color-mix(in srgb, var(--t) 30%, transparent), transparent 30%, color-mix(in srgb, var(--t) 30%, transparent) 50%, transparent 60%); animation: spin 6s linear infinite; }
+  @keyframes spin { to { transform: rotate(1turn); } }
+  .c-right h3 { margin: 0 0 2px; text-align: center; font: var(--display-weight) 19px/1.1 var(--display); color: var(--pink); }
+  .c-right .meta { font-size: 12px; color: var(--muted); margin-bottom: 10px; text-align: center; }
+  .c-try { display: flex; justify-content: center; gap: 10px; align-items: center; margin-bottom: 10px; font-size: 12px; color: var(--muted); }
+  .c-try img { width: 40px; height: 45px; }
+  .c-try .arrow { color: var(--t); font: 16px var(--display); }
+  .c-bag { display: flex; justify-content: center; align-items: center; gap: 4px; margin-bottom: 12px; font-size: 11px; color: var(--muted); }
+  .c-bag i { width: 12px; height: 12px; border-radius: 3px; border-radius: 4px; background: var(--deep); border: 2px solid var(--line); }
+  .c-bag i.full { background: var(--lilac-seam); border-color: var(--lilac-seam); }
+  .c-bag i.next { border: 2px dashed var(--t); }
+  .c-bag span { margin-left: 6px; white-space: nowrap; }
+</style>
+</head>
+<body>
+<div class="picker">
+  <button class="btn" data-v="a">A: sticker slap</button>
+  <button class="btn" data-v="b">B: holds it up</button>
+  <button class="btn" data-v="c">C: into the bag</button>
+  <button class="btn" data-v="none">(trail without it)</button>
+</div>
+<div class="app" data-tab="trips" data-say="">
+  <div class="tripview">
+    <div class="trail tier" id="trail"></div>
+    <div class="away">
+      <h2>away</h2>
+      <div class="trip sticker">
+        <div class="head"><img class="px" src="../assets/pets/mint-bear.png" alt=""><div><b>the duck pond</b><span>mint bear</span></div></div>
+        <div class="story">mint bear is counting ducks. again.</div>
+        <div class="bar"><i style="width: 64%"></i></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="picker"><div class="about" id="about"></div></div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  const content = mountFrame();
+  const say = t => { document.querySelector(".top .bubble").textContent = t; };
+  const PART = { slot: "eyes", id: "sparkle", name: "sparkle eyes", tier: "rare", img: "../assets/book/eyes-sparkle.png" };
+
+  function scene() {
+    const ground = 340;
+    let s = "";
+    for (let i = 0; i < 6; i++) s += `<path d="M${40 + i * 100} ${ground - 20} L${70 + i * 100} ${ground - 70 - (i % 3) * 18} L${100 + i * 100} ${ground - 20} Z" fill="var(--lilac)" opacity=".14"/>`;
+    for (let i = 0; i < 9; i++) { const x = 20 + i * 62; s += i % 2 ? `<path fill="none" stroke="var(--mint)" stroke-width="2" stroke-linecap="round" d="M${x} ${ground} L${x + 4} ${ground - 12} L${x + 8} ${ground}" opacity=".7"/>` : `<circle cx="${x}" cy="${ground - 8}" r="4" fill="var(--pink)" opacity=".5"/>`; }
+    s += `<path d="M0 ${ground + 4} Q130 ${ground} 265 ${ground + 5} Q400 ${ground + 9} 530 ${ground + 3}" stroke="var(--pink-seam)" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+    return `<svg viewBox="0 0 530 516" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${s}</svg>
+      <div class="info"><h2>the meadow</h2><div class="line"><span class="pips"><i class="done"></i><i class="done"></i><i></i><i></i></span>
+        <span class="tag" style="color: var(--cyan)"><span data-icon="coin" data-px="1.1"></span>21 in the bag</span></div></div>
+      <img class="px walker" src="../assets/pets/peach-cat.png" alt="peach cat">
+      <button class="btn back">‹ map</button>
+      <div class="hint">click to hurry! grab things on the path</div>`;
+  }
+
+  const V = {
+    none: {
+      about: "The trail as it is now, for comparison.",
+      say: "go, peach cat, go!! grab the sparkly ones!",
+      html: "",
+    },
+    a: {
+      about: "A: the trail pauses and a sticker slaps down in the middle. The part sits in a dashed frame in its rarity colour, with a gold \"new!\" tag if you've never had it. Big, clear, a proper little moment.",
+      say: "ooh!! peach cat found something!",
+      html: `<div class="a-dim"></div>
+        <div class="a-card sticker">
+          <h3>new body part found!</h3>
+          <div class="sub">peach cat dug it out of the flowers</div>
+          <div class="a-frame"><img class="part" src="${PART.img}" alt=""><span class="new">new!</span></div>
+          <div class="a-name">${PART.name}</div>
+          <div class="a-meta">eyes<br><span class="tierword">rare</span></div>
+          <div class="buttons"><button class="btn">leave it</button><button class="btn primary"><span data-icon="inventory" data-px="1.2"></span>add to bag</button></div>
+        </div>`,
+    },
+    b: {
+      about: "B: nothing covers the trail. The pet stops and holds the part up over its head, glowing in its rarity colour, and a small card points at it. Feels like the pet found it, not the game. The trail keeps its colour.",
+      say: "look look look!!",
+      html: `<div class="b-held"><img class="part" src="${PART.img}" alt=""></div>
+        <span class="spark" style="left: 150px; top: 180px">✦</span><span class="spark" style="left: 222px; top: 196px; animation-delay: .4s">✦</span><span class="spark" style="left: 204px; top: 170px; animation-delay: .7s; font-size: 10px">✦</span>
+        <div class="b-card sticker">
+          <h3>new body part found!</h3>
+          <div class="row"><div class="mini"><img class="part" src="${PART.img}" alt=""></div><div><b>${PART.name}</b><span>eyes</span><span class="tierword">rare</span></div></div>
+          <div class="quote">"it was just lying there. staring at me."</div>
+          <div class="buttons"><button class="btn">leave it</button><button class="btn primary"><span data-icon="inventory" data-px="1.1"></span>add to bag</button></div>
+        </div>`,
+    },
+    c: {
+      about: "C: a pocket slides up beside the pet. Shows what the part would look like on one of your pets, and how full the bag is, so \"leave it\" is a real choice when the bag is nearly full.",
+      say: "is there room in the bag..?",
+      html: `<div class="c-dim"></div>
+        <div class="c-sheet sticker">
+          <div class="c-left"><div class="c-found"><div class="ray"></div><img class="part" src="${PART.img}" alt=""></div></div>
+          <div class="c-right">
+            <h3>new body part found!</h3>
+            <div class="meta">${PART.name}<br><span class="tierword">rare</span><br>you don't have these yet</div>
+            <div class="c-try"><img class="px" src="../assets/pets/lilac-blob.png" alt=""><span class="arrow">→</span><img class="px" src="../assets/pets/lilac-blob-sparkle.png" alt=""><span>on lilac blob</span></div>
+            <div class="c-bag">${"<i class='full'></i>".repeat(9)}<i class="next"></i>${"<i></i>".repeat(2)}<span>9 / 12</span></div>
+            <div class="buttons"><button class="btn">leave it</button><button class="btn primary"><span data-icon="inventory" data-px="1.2"></span>add to bag</button></div>
+          </div>
+        </div>`,
+    },
+  };
+
+  function show(v) {
+    const trail = content.querySelector("#trail");
+    trail.innerHTML = scene() + V[v].html;
+    trail.classList.toggle("c-on", v === "c");
+    if (v === "b") trail.querySelector(".walker").src = "../assets/pets/peach-cat.png";
+    document.getElementById("about").textContent = V[v].about;
+    say(V[v].say);
+    document.querySelectorAll(".picker [data-v]").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+    trail.querySelectorAll(".buttons .btn").forEach(b => b.addEventListener("click", () => {
+      const took = b.classList.contains("primary");
+      say(took ? "into the bag it goes ♪" : "bye, sparkly eyes…");
+      trail.innerHTML = scene();
+      paintIcons(trail);
+    }));
+    paintIcons(document);
+    history.replaceState(null, "", `?v=${v}${document.body.classList.contains("still") ? "&still=1" : ""}`);
+  }
+  document.querySelectorAll(".picker [data-v]").forEach(b => b.addEventListener("click", () => show(b.dataset.v)));
+  if (new URLSearchParams(location.search).get("still")) document.body.classList.add("still");
+  applyLook(loadLook());
+  show(new URLSearchParams(location.search).get("v") || "a");
+</script>
+</body>
+</html>

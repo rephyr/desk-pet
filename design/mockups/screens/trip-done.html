@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trip Done</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  body { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 18px 0; }
+  .picker { display: flex; gap: 8px; align-items: center; color: var(--muted); flex-wrap: wrap; justify-content: center; }
+  .picker .btn.on { border-color: var(--pink); color: var(--pink); background: var(--pink-pressed); }
+  .picker .gap { width: 18px; }
+  .about { width: 920px; text-align: center; color: var(--muted); min-height: 2.9em; }
+
+  .tripview { display: grid; grid-template-columns: 1fr 250px; gap: 14px; height: 100%; min-height: 0; }
+  .stage { position: relative; border-radius: var(--r-panel); overflow: hidden; background: var(--paper); border: 2px solid var(--line); }
+  .away { display: flex; flex-direction: column; gap: 12px; padding: 6px 4px 8px 2px; }
+  .away h2 { margin: 0; font: var(--display-weight) 17px/1 var(--display); color: var(--pink); }
+  .trip { padding: 10px 12px 11px; }
+  .trip .head { display: flex; align-items: center; gap: 8px; }
+  .trip .head img { width: 32px; height: 36px; }
+  .trip .head b { display: block; font-weight: inherit; color: var(--pink); }
+  .trip .head span { display: block; font-size: 11px; color: var(--muted); }
+  .trip .story { font-size: 12px; line-height: 1.35; margin: 8px 0; }
+  .trip .bar { height: 8px; border-radius: 4px; background: var(--deep); border: 2px solid var(--line); overflow: hidden; }
+  .trip .bar i { display: block; height: 100%; background: var(--lilac); }
+
+  .tag { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 12px; background: var(--deep); border: 2px solid var(--line); color: var(--muted); }
+  .px { image-rendering: pixelated; }
+  h3 { margin: 0; font-weight: var(--display-weight); font-family: var(--display); color: var(--pink); }
+  .welcome { border-color: var(--pink-seam); padding: 8px 18px; font-size: 14px; }
+  @keyframes pop { from { transform: scale(.3) rotate(var(--r, 0deg)); opacity: 0; } to { transform: scale(1) rotate(var(--r, 0deg)); opacity: 1; } }
+  @keyframes rise { from { transform: translateY(24px) rotate(var(--r, 0deg)); opacity: 0; } }
+  .still * { animation: none !important; }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+
+  /* a part as a little sticker: the blob wearing it, in its rarity colour */
+  .part { --t: var(--tier-common); display: grid; justify-items: center; gap: 1px; padding: 6px 8px 5px; border-radius: var(--r-lg); background: var(--raised); border: 2px solid var(--t); box-shadow: var(--lift); font-size: 11px; line-height: 1.2; text-align: center; }
+  .part img { width: 32px; height: 36px; }
+  .part b { font-weight: 400; color: var(--text); }
+  .part span { color: var(--t); }
+
+  /* ---- A: postcard ---- */
+  .pc { position: absolute; inset: 22px 18px 70px; display: grid; grid-template-columns: 1fr 2px 1fr; gap: 16px; padding: 18px 18px 16px; background: var(--raised); border: 2px solid var(--lilac-seam); border-radius: var(--r-xl); box-shadow: var(--lift); --r: -1.5deg; transform: rotate(-1.5deg); animation: rise .5s var(--ease-out) both; }
+  .pc .seam { background: repeating-linear-gradient(var(--lilac-seam) 0 6px, transparent 6px 11px); }
+  .pc h3 { font-size: 22px; line-height: 1.05; }
+  .pc h3 small { display: block; font: 13px var(--body); color: var(--muted); margin-bottom: 2px; }
+  .photo { position: relative; margin: 12px 0 10px; padding: 8px 8px 22px; background: var(--text); border-radius: 4px; transform: rotate(2.5deg); box-shadow: var(--lift); width: 200px; }
+  .photo .shot { height: 96px; border-radius: 2px; background: linear-gradient(var(--deep) 62%, color-mix(in srgb, var(--mint) 30%, var(--deep)) 62%); display: flex; align-items: flex-end; justify-content: center; gap: 10px; padding-bottom: 12px; }
+  .photo .shot img { width: 40px; height: 45px; }
+  .photo .shot .empty { width: 40px; height: 45px; }
+  .photo figcaption { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; color: var(--deep); font: 12px var(--display); }
+  .pc .notes { font-size: 12px; line-height: 1.45; display: grid; gap: 4px; }
+  .pc .notes p { margin: 0; }
+  .pc .notes .stayed { color: var(--lilac); }
+  .pc .right { position: relative; display: flex; flex-direction: column; gap: 10px; }
+  .stamp { position: absolute; right: 0; top: 0; width: 58px; height: 66px; padding: 4px; background: var(--deep); border: 3px dotted var(--pink-seam); transform: rotate(4deg); display: grid; place-items: center; }
+  .stamp svg { width: 44px; height: 44px; }
+  .postmark { position: absolute; right: 44px; top: 24px; width: 64px; height: 64px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--lilac) 45%, transparent); color: color-mix(in srgb, var(--lilac) 60%, transparent); font-size: 10px; display: grid; place-items: center; text-align: center; transform: rotate(-12deg); line-height: 1.2; }
+  .pc .right .label { color: var(--muted); font-size: 12px; margin-top: 64px; }
+  .pc .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pc .parts { display: flex; gap: 10px; }
+  .pc .parts .part:nth-child(1) { transform: rotate(-4deg); }
+  .pc .parts .part:nth-child(2) { transform: rotate(3deg); }
+  .pc .spotted { display: flex; gap: 8px; align-items: center; padding: 8px 10px; border: 2px dashed var(--gold); border-radius: var(--r-lg); color: var(--gold); font-size: 12px; margin-top: auto; }
+  .pc .spotted b { display: block; font: 15px var(--display); font-weight: 400; }
+  .a-foot { position: absolute; left: 18px; right: 18px; bottom: 16px; display: flex; align-items: center; justify-content: space-between; }
+  .a-foot .from { color: var(--muted); font-size: 12px; }
+
+  /* ---- B: unpacking the bag ---- */
+  .b-head { position: absolute; left: 18px; top: 14px; }
+  .b-head h3 { font-size: 22px; }
+  .b-head p { margin: 2px 0 0; color: var(--muted); font-size: 12px; }
+  .b-floor { position: absolute; left: 0; right: 0; bottom: 64px; border-top: 3px solid var(--pink-seam); opacity: .6; }
+  .b-pets { position: absolute; left: 30px; bottom: 67px; display: flex; gap: 10px; align-items: flex-end; }
+  .b-pets img { width: 64px; height: 72px; }
+  .b-pets .gone { width: 64px; height: 72px; position: relative; }
+  .b-pets .gone i { position: absolute; bottom: 2px; width: 6px; height: 4px; border-radius: 3px; background: var(--lilac); opacity: .35; }
+  .b-bag { position: absolute; left: 50%; bottom: 67px; margin-left: 10px; width: 92px; height: 86px; }
+  .b-items { position: absolute; inset: 70px 18px 170px; }
+  .b-items > * { position: absolute; animation: pop .45s var(--ease-out) both; }
+  .coinpile { display: grid; justify-items: center; gap: 2px; padding: 8px 12px; border-radius: var(--r-lg); background: var(--raised); border: 2px solid var(--cyan); box-shadow: var(--lift); color: var(--cyan); font: 20px var(--display); }
+  .coinpile small { font: 11px var(--body); color: var(--muted); }
+  .coinpile.xp { border-color: var(--gold); color: var(--gold); }
+  .mini-pack { display: grid; justify-items: center; gap: 2px; font-size: 11px; color: var(--muted); }
+  .ribbon { position: absolute; right: 14px; top: 16px; padding: 8px 12px; background: var(--raised); border: 2px dashed var(--gold); border-radius: var(--r-lg); color: var(--gold); font-size: 12px; --r: 3deg; transform: rotate(3deg); animation: pop .45s .9s var(--ease-out) both; }
+  .ribbon b { display: block; font: 15px var(--display); font-weight: 400; }
+  .b-foot { position: absolute; left: 18px; right: 18px; bottom: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .b-foot .said { color: var(--lilac); font-size: 12px; }
+
+  /* ---- C: trip journal ---- */
+  .c-head { position: absolute; left: 18px; top: 14px; right: 18px; display: flex; justify-content: space-between; align-items: baseline; }
+  .c-head h3 { font-size: 22px; }
+  .c-head span { color: var(--muted); font-size: 12px; }
+  .c-road { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
+  .stop { position: absolute; width: 150px; padding: 8px 10px; font-size: 12px; line-height: 1.35; animation: pop .4s var(--ease-out) both; }
+  .stop b { display: block; font: 14px/1.15 var(--display); font-weight: 400; color: var(--gold); margin-bottom: 2px; }
+  .stop .did { color: var(--muted); }
+  .stop .got { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+  .stop .got .tag { font-size: 11px; padding: 1px 8px; }
+  .stop.sad { border-color: var(--lilac); }
+  .stop.sad b { color: var(--lilac); }
+  .c-total { position: absolute; left: 12px; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+  .c-total .all { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1; }
+  .c-total .part { padding: 3px 6px; flex-direction: row; box-shadow: none; }
+  .c-total .part img { width: 18px; height: 20px; }
+  .c-total .part { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; }
+</style>
+</head>
+<body>
+<div class="picker">
+  <button class="btn" data-v="a">A: postcard</button>
+  <button class="btn" data-v="b">B: unpacking the bag</button>
+  <button class="btn" data-v="c">C: trip journal</button>
+  <span class="gap"></span>
+  <button class="btn" data-s="0">everyone came home</button>
+  <button class="btn" data-s="1">someone stayed</button>
+</div>
+<div class="app" data-tab="trips" data-say="">
+  <div class="tripview">
+    <div class="stage" id="stage"></div>
+    <div class="away">
+      <h2>away</h2>
+      <div class="trip sticker">
+        <div class="head"><img class="px" src="../assets/pets/mint-bear.png" alt=""><div><b>the duck pond</b><span>mint bear</span></div></div>
+        <div class="story">mint bear is counting ducks. again.</div>
+        <div class="bar"><i style="width: 64%"></i></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="about" id="about"></div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script src="../shared/pack.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  if (params.get("still")) document.body.classList.add("still");
+  const content = mountFrame();
+  const say = t => { document.querySelector(".top .bubble").textContent = t; };
+  let v = params.get("v") || "a", stayed = params.get("stayed") === "1";
+
+  // one trip to the meadow: three pets, three things happened, stuff grabbed on the trail
+  const PARTY = [
+    { id: "peach-cat", name: "peach cat" },
+    { id: "sky-bunny", name: "sky bunny" },
+    { id: "mint-blob", name: "mint blob" },  // the one who stays, in "someone stayed"
+  ];
+  const PARTS = [
+    { img: "eyes-sparkle", name: "sparkle eyes", slot: "eyes", tier: "rare" },
+    { img: "accessory-leaf", name: "leaf", slot: "accessory", tier: "uncommon" },
+  ];
+  const stops = () => [
+    { title: "a patch of clover", did: "picked the lucky ones", got: [["coin", "12", "cyan"], ["part", "sparkle eyes", "tier-rare"]] },
+    stayed
+      ? { title: "a big mole hill", did: "mint blob went in to say hello. it's so cosy down there, it's staying!", got: [], sad: true }
+      : { title: "a big mole hill", did: "said hello to the mole, very politely", got: [["coin", "9", "cyan"]] },
+    { title: "the tall grass", did: "looked around. there's a shed over there!", got: [["part", "leaf", "tier-uncommon"], ["box", "starter box", "lilac"]] },
+  ];
+  const home = () => stayed ? PARTY.slice(0, 2) : PARTY;
+  const partTile = p => `<div class="part" style="--t: var(--tier-${p.tier})"><img class="px" src="../assets/book/${p.img}.png" alt=""><b>${p.name}</b><span>${p.tier}</span></div>`;
+  const coinTag = (n, extra = "") => `<span class="tag" style="color: var(--cyan)"><span data-icon="coin" data-px="1.2"></span>${n}${extra}</span>`;
+  const xpTag = (n, extra = "") => `<span class="tag" style="color: var(--gold)"><span data-icon="xp" data-px="1.2"></span>${n}${extra}</span>`;
+  const welcome = `<button class="btn primary welcome">welcome back <span data-icon="heart" data-px="1.4"></span></button>`;
+  const meadowDoodle = `<svg viewBox="-30 -26 60 50" aria-hidden="true"><path fill="none" stroke="var(--mint)" stroke-width="3" stroke-linecap="round" d="M-22 14 L-17 -2 L-12 14 M-8 14 L-3 -6 L2 14 M6 14 L11 0 L16 14"/><circle cx="-12" cy="-8" r="4" fill="var(--pink)"/><circle cx="10" cy="-11" r="4" fill="var(--gold)"/></svg>`;
+  const shedDoodle = `<svg width="34" height="34" viewBox="-24 -24 48 44" aria-hidden="true"><path fill="none" stroke="var(--gold)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M-20 0 L0 -20 L20 0 M-16 -3 L-16 16 L16 16 L16 -3 M-6 16 L-6 4 L6 4 L6 16"/></svg>`;
+
+  const V = {
+    a: {
+      about: "A: a postcard from the place. Left: a photo of who came home and a few notes on what happened. Right: what they brought back, stuck on like stickers, and any new place they spotted. If someone stayed, there's just a gap in the photo.",
+      say: () => stayed ? "only 2 came back! mint blob must have found somewhere nicer!" : "everyone's home! they sent a postcard ♪",
+      html: () => `
+        <div class="pc">
+          <div class="left">
+            <h3><small>greetings from</small>the meadow!</h3>
+            <figure class="photo" style="margin-left: 4px"><div class="shot">${PARTY.map(p => stayed && p.id === "mint-blob" ? `<span class="empty"></span>` : `<img class="px" src="../assets/pets/${p.id}.png" alt="${p.name}">`).join("")}</div><figcaption>${home().map(p => p.name).join(" and ").replace(" and ", stayed ? " and " : ", ")}</figcaption></figure>
+            <div class="notes">${stops().map(s => `<p class="${s.sad ? "stayed" : ""}">${s.did}.</p>`).join("")}</div>
+          </div>
+          <div class="seam"></div>
+          <div class="right">
+            <div class="postmark">the<br>meadow<br>♪</div>
+            <div class="stamp">${meadowDoodle}</div>
+            <div class="label">we brought back</div>
+            <div class="tags">${coinTag(stayed ? 38 : 47)}${xpTag(23)}<span class="tag" style="color: var(--lilac)">a starter box</span></div>
+            <div class="parts">${PARTS.map(partTile).join("")}</div>
+            <div class="spotted">${shedDoodle}<div>spotted a new place!<b>the old shed</b></div></div>
+          </div>
+        </div>
+        <div class="a-foot"><span class="from">love, ${home().map(p => p.name).join(" and ")}</span>${welcome}</div>`,
+    },
+    b: {
+      about: "B: the pets stand by the bag and everything pops out one by one: coins and xp as piles, parts as stickers, a box, and a note for a new place. The pet's line sits next to the button. If someone stayed, only little footprints are left in their spot.",
+      say: () => stayed ? "mint blob's having a sleepover at the mole's! look what the others brought!" : "back from the meadow! let's see what's in the bag…",
+      html: () => `
+        <div class="b-head"><h3>back from the meadow!</h3><p>${home().length} of 3 home</p></div>
+        <div class="ribbon">spotted a new place!<b>the old shed</b></div>
+        <div class="b-items">
+          <div class="coinpile" style="left: 6%; top: 40%; --r: -4deg; animation-delay: .1s"><span><span data-icon="coin" data-px="1.8"></span> ${stayed ? 38 : 47}</span><small>coins</small></div>
+          <div class="coinpile xp" style="left: 28%; top: 6%; --r: 3deg; animation-delay: .25s"><span><span data-icon="xp" data-px="1.8"></span> 23</span><small>xp</small></div>
+          <div style="left: 50%; top: 36%; --r: -3deg; animation-delay: .4s">${partTile(PARTS[0])}</div>
+          <div style="left: 70%; top: 50%; --r: 5deg; animation-delay: .55s">${partTile(PARTS[1])}</div>
+          <div class="mini-pack" style="left: 80%; top: 16%; --r: 8deg; animation-delay: .7s">${packSvg(BOXES[0], 46)}<span>starter box</span></div>
+        </div>
+        <div class="b-floor"></div>
+        <div class="b-pets">${PARTY.map(p => stayed && p.id === "mint-blob" ? `<span class="gone"><i style="left: 20px"></i><i style="left: 34px; bottom: 8px"></i><i style="left: 50px"></i></span>` : `<img class="px" src="../assets/pets/${p.id}.png" alt="${p.name}">`).join("")}</div>
+        <svg class="b-bag" viewBox="0 0 92 86" aria-hidden="true"><path d="M28 26 Q28 6 46 6 Q64 6 64 26" fill="none" stroke="var(--lilac)" stroke-width="3" stroke-linecap="round"/><path d="M10 28 Q46 22 82 28 L78 82 Q46 86 14 82 Z" fill="var(--raised)" stroke="var(--lilac)" stroke-width="3" stroke-linejoin="round"/><path d="M34 50 Q46 56 58 50" fill="none" stroke="var(--lilac)" stroke-width="3" stroke-linecap="round"/></svg>
+        <div class="b-foot"><span class="said">${stayed ? "\"it's so cosy down there!\"" : "\"we found so much!!\""}</span>${welcome}</div>`,
+    },
+    c: {
+      about: "C: the trip as a page in a journal. The path runs from home through each thing that happened, and each stop says what they did and what it gave. Everything adds up in the strip at the bottom, next to the button.",
+      say: () => stayed ? "mint blob stayed at the mole hill! it looked so cosy!" : "look, they wrote it all down!",
+      html: () => {
+        const s = stops();
+        const pos = [[20, 44], [196, 112], [30, 208]];
+        const road = `<svg class="c-road" viewBox="0 0 540 516" preserveAspectRatio="none" aria-hidden="true">
+          <path d="M95 110 Q250 100 272 180 Q280 250 105 270 Q300 330 452 292" fill="none" stroke="var(--gold)" stroke-width="2.5" stroke-dasharray="7 7" stroke-linecap="round" opacity=".6"/>
+          <path d="M350 160 Q380 140 392 128" fill="none" stroke="var(--gold)" stroke-width="2" stroke-dasharray="3 5" stroke-linecap="round" opacity=".6"/>
+          <g transform="translate(455 285)"><path fill="none" stroke="var(--pink)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M-20 2 L0 -18 L21 1 M-15 -2 L-14 18 L15 17 L15 -3 M-5 17 L-4 7 L5 7 L6 17"/><text y="36" text-anchor="middle" style="font: 13px var(--display); fill: var(--pink)">home!</text></g>
+          <g transform="translate(440 110)"><path fill="none" stroke="var(--gold)" stroke-width="2.5" stroke-dasharray="4 4" d="M-34 -28 Q0 -44 34 -28 Q48 0 34 28 Q0 44 -34 28 Q-48 0 -34 -28"/>
+            <path fill="none" stroke="var(--gold)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" d="M-14 4 L0 -10 L14 4 M-11 2 L-11 15 L11 15 L11 2"/><text y="-16" text-anchor="middle" style="font: 11px var(--body); fill: var(--gold)">new!</text><text y="56" text-anchor="middle" style="font: 12px var(--display); fill: var(--gold)">the old shed</text></g>
+        </svg>`;
+        const tagFor = ([k, t, c]) => k === "coin" ? coinTag(t) : k === "part" ? `<span class="tag" style="color: var(--${c})">${t}</span>` : `<span class="tag" style="color: var(--lilac)">${t}</span>`;
+        return `
+          <div class="c-head"><h3>the meadow</h3><span>${home().length} of 3 came home</span></div>
+          ${road}
+          ${s.map((st, i) => `<div class="stop sticker${st.sad ? " sad" : ""}" style="left: ${pos[i][0]}px; top: ${pos[i][1] + 20}px; --r: ${[-2, 1.5, -1][i]}deg; transform: rotate(${[-2, 1.5, -1][i]}deg); animation-delay: ${i * .15}s"><b>${st.title}</b><span class="did">${st.did}</span>${st.got.length ? `<div class="got">${st.got.map(tagFor).join("")}</div>` : ""}</div>`).join("")}
+          <div class="c-total sticker">
+            <div class="all">${coinTag(stayed ? 38 : 47)}${xpTag(23)}${PARTS.map(p => `<div class="part" style="--t: var(--tier-${p.tier})"><img class="px" src="../assets/book/${p.img}.png" alt=""><span>${p.name}</span></div>`).join("")}<span class="tag" style="color: var(--lilac)">a starter box</span></div>
+            ${welcome}
+          </div>`;
+      },
+    },
+  };
+
+  function show() {
+    const stage = content.querySelector("#stage");
+    stage.innerHTML = V[v].html();
+    document.getElementById("about").textContent = V[v].about;
+    say(V[v].say());
+    document.querySelectorAll("[data-v]").forEach(b => b.classList.toggle("on", b.dataset.v === v));
+    document.querySelectorAll("[data-s]").forEach(b => b.classList.toggle("on", (b.dataset.s === "1") === stayed));
+    paintIcons(document);
+    stage.querySelector(".welcome").addEventListener("click", () => { stage.innerHTML = ""; say("all put away ♪ where next?"); });
+    const q = new URLSearchParams({ v, ...(stayed ? { stayed: 1 } : {}), ...(params.get("still") ? { still: 1 } : {}) });
+    history.replaceState(null, "", "?" + q);
+  }
+  document.querySelectorAll("[data-v]").forEach(b => b.addEventListener("click", () => { v = b.dataset.v; show(); }));
+  document.querySelectorAll("[data-s]").forEach(b => b.addEventListener("click", () => { stayed = b.dataset.s === "1"; show(); }));
+  applyLook(loadLook());
+  show();
+</script>
+</body>
+</html>
