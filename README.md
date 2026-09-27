@@ -8,7 +8,8 @@ packs that hatch new pets and rare variants.
 
 1. **Care** - hunger, happiness and health drop over time; feed, pet and check up on your
    pet. Neglect can lead to complications you have to treat.
-2. **Earn** - coins trickle in while the game runs.
+2. **Earn** - coins trickle in while the game runs; pets go on adventures (risky, rewarding)
+   and errands (safe idle jobs) for coins, parts and boxes.
 3. **Open packs** - coins buy packs that hatch random pets from part combinations, with
    rarities.
 4. **Collect** - a collection book of every pet and variant found.

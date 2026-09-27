@@ -50,7 +50,8 @@ The game has three layers, each a real OS window:
 - **Home panel**: a small pinned corner panel (300x318) with the pet, food/mood and a
   few buttons. Always on top, hides while something is fullscreen.
 - **Expanded view**: the full game (920x600, drawn at 1.5x on the 4K screen) with tabs: home (the pet's room), boxes,
-  collection, adventures, inventory, settings, and more unlocked through play.
+  collection, adventures, errands, inventory, settings, and more unlocked through play. The
+  layout is 920x600 and scales up to the chosen resolution; nothing may spill past the window.
 
 Sessions: glanced at all day while working; opened for short focused sessions (opening packs,
 trips on the trail, grafting).

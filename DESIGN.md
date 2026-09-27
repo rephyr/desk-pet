@@ -294,8 +294,15 @@ colour (common and uncommon slightly darkened). Rare pulls glow in their tier co
 Two sets, a player setting: **doodle** (default: hand-drawn outlines on a 24px grid, 2px
 strokes with round ends, slightly wobbly, drawn in the text colour; coins, xp and the heart are
 filled with their fixed colours) and **pixel** (9x9 row-string pixel art, like the game's
-padlock). Both sets have the same names: home, boxes, pets, trips, gear, inventory, lock,
-settings, coin, xp, heart.
+padlock). Both sets have the same names: home, boxes, pets, trips, errands, gear, inventory,
+lock, settings, coin, xp, heart.
+
+### Errands: the corkboard
+Jobs are sticky notes taped to a cork-speckled board, each tinted by its job colour, with a
+meter, what it brings, and the crew pinned on as polaroids (a light frame, a pin on top). Past 6
+pets a note shows a stacked pile of 3 polaroids, the count in the display font and a bobbing
+crowd of tiny pets. Resting pets wait in a shoebox sticker on the right. A meter that fills
+faster than you can see becomes a flowing stripe with "N coins a minute".
 
 ### Settings: the look (signature)
 Colour themes show as tiny windows drawn in their own theme; fonts show "Aa" and a pet name
@@ -325,3 +332,7 @@ lilac for mood and trip progress.
 - **Don't** show odds, percentages or anything that hints the game is dark in pet speech.
 - **Don't** set paragraphs or button rows in the display size.
 - **Don't** use a dot or bullet (·, •) as a separator between pieces of text.
+- **Don't** let anything spill past the window: one-line labels shrink with "…" or wrap, and
+  layouts drop columns instead of growing wider.
+- **Don't** use dropdowns (popups open behind the always-on-top window on Linux); use a row of
+  choices.

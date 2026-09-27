@@ -149,11 +149,21 @@ economy: currency, body parts, and rewards for mechanics not designed yet. Rewar
   game was closed is caught up in one calculation.
 - **Involvement scales with the party:**
   - 1 pet: the player makes every choice.
-  - Small parties (up to 10): events pop up as choices, with a default if ignored.
+  - Small parties: events pop up as choices, with a default if ignored (after a minute).
   - Swarms: standing policies ("always fight", "leave the wounded behind") and the trip resolves
     on its own. Swarms and policies come with a later **automation** unlock.
-- **Discovery:** exploration trips bring back rumours that unlock new locations; the player
-  chooses whether to go. No NPCs or towns.
+- **Party size grows through finds** (**Decided**, for the first ~2 hours of play): one pet at
+  first; the cart (woods) allows 3, the wheelbarrow (orchard) 5, the hay wagon (meadow, only
+  after the wheelbarrow) 10. Each find gets an unlock popup. Why bring more pets is said in plain
+  words on the place card: more friends bring home more and tricky bits get easier, but more
+  friends can get hurt. (Coins grow with each pet, finds with the square root of the party.)
+- **The trail** (**Decided**): one pet or a small party can be watched walking the path. Things to
+  grab turn up (coins, xp, a healing leaf, now and then a part). No click-spamming: "toss a
+  treat" makes the pets zoom (3x speed for 8 s), then it takes 30 s to be ready again.
+- **Discovery:** pets spot neighbouring places on the way home; exploration trips (the far
+  fields) bring back rumours, word of places further off (the orchard, the well and below). A
+  rumour shows on the map; tapping it and saying yes opens the place. The pet explains this the
+  first time. No NPCs or towns.
 - **Narration:** the only voice in the game is the active pet. When the adventures tab opens it
   comments on rumours and recent results in short cheerful lines, sincerely innocent. Its parts
   shape its personality (nervous, overconfident, dim), so the same rumour sounds different
@@ -163,6 +173,26 @@ economy: currency, body parts, and rewards for mechanics not designed yet. Rewar
   extremely good pets built up over a long time.
 - Scale: 1 pet → a few with gear → 10 → hundreds → 100k+.
 - **Open:** raids (all pets as one force against a boss) as a later type.
+
+## Errands (idle side, safe)
+
+**Decided.** The safe, steady floor under adventures: resting pets are put on jobs in the
+errands tab (a corkboard of sticky notes), opened by the little basket found in the meadow.
+Nobody is ever lost on an errand, and errands never bring rare parts or new places.
+
+- **One rule for every job** (`data/errands.json`, `scripts/idle/jobs.gd`): a meter fills once
+  every `seconds` with one pet, crew^0.8 times as fast with a bigger crew (each extra pet helps a
+  bit less, so spreading beats stacking), and pays each time it's full. A pet's stat for the job
+  and its traits nudge its speed (about ±25%; rarer pets have higher stats).
+- **First jobs:** coin hunt (coins; one pet ≈ 2.8 coins a minute, about 30% of a sensible
+  adventure per pet) and the scrapyard (common parts; an uncommon now and then with 5+ pets).
+- **The player assigns pets** (tap a resting pet then a job, or + / −). "Your pet shares out new
+  pets" is an opt-in switch, off by default. Going on an adventure takes a pet off its job.
+- **Scales from a couple of pets to thousands:** up to 6 on a job each get a polaroid; past that
+  a pile, the count and a little crowd, and + / − move 1, 10, 100 or all.
+- **Offline:** full speed for 8 h, then half, up to the 12 h cap; the tab notes what came in.
+- **Later jobs** (ideas, **Open**): savings jar, recycling, kitchen, digging, show-off, training,
+  scouting, mapmaking, stargazing, a lab; the dark twist shows only in what jobs describe.
 
 ## Risk and crafting
 
@@ -197,13 +227,16 @@ All opt-in, with odds shown before confirming:
 ## Platform
 
 - Developed on Linux/Hyprland first, then Windows. Steam release (GodotSteam later).
+- Settings has a video page: resolution (the full game is laid out at 920x600 and scaled up to
+  1150x750 ... 1840x1200, shrunk to fit the screen if needed), a frame rate cap and vsync.
 - Window detection sits behind `scripts/platform/window_source.gd`, one backend per platform.
 
 ## Build order
 
 1. **Core: boxes and collection** - rolling pets from parts, opening boxes, the collection book,
    placeholder colours instead of art. (current)
-2. Adventures: foraging first; pet narration; exploration and rumours; automation and policies.
+2. Adventures: foraging first; pet narration; exploration and rumours; errands (safe idle jobs);
+   party sizes; automation and policies.
 3. Care: the desktop pet uses your chosen pet; buffs and check-in rewards.
 4. Risk and crafting.
 5. Activities: junkyard, NPC trading.
