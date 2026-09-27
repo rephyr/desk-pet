@@ -178,11 +178,9 @@ static func graft_line(pet: Pet, kind: String, fail_chance: float, rng: RandomNu
 
 
 ## What your pet did while you were busy (GameState.idle_log), told in one breath:
-## "while you were busy: 14 errands, ◆150, 3 packs opened, and one was a holo fox! i worked so hard!"
+## "while you were busy: ◆150, 2 parts, 3 packs opened, and one was a holo fox! i worked so hard!"
 static func work_summary(pet: Pet, log: Dictionary, rng: RandomNumberGenerator, catalog: Catalog) -> String:
 	var bits: Array[String] = []
-	if int(log.get("errands", 0)) > 0:
-		bits.append("%d errand%s" % [log.errands, "s" if int(log.errands) > 1 else ""])
 	if int(log.get("coins", 0)) > 0:
 		bits.append("◆%d" % log.coins)
 	if int(log.get("parts", 0)) > 0:

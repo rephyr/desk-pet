@@ -18,22 +18,29 @@ func _init() -> void:
 	col.add_theme_constant_override("separation", 4)
 	add_child(col)
 	col.add_child(_portrait)
+	# everything about the pet scrolls, so a pet with lots of traits never pushes the button (or
+	# the window) past the bottom edge
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	col.add_child(scroll)
+	var about := VBoxContainer.new()
+	about.size_flags_horizontal = SIZE_EXPAND_FILL
+	about.add_theme_constant_override("separation", 4)
+	scroll.add_child(about)
 	_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(_name)
+	about.add_child(_name)
 	_tags.alignment = BoxContainer.ALIGNMENT_CENTER
 	_tags.add_theme_constant_override("separation", 6)
-	col.add_child(_tags)
+	about.add_child(_tags)
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(0, 6)
-	col.add_child(gap)
+	about.add_child(gap)
 	_info.columns = 2
 	_info.add_theme_constant_override("h_separation", 12)
 	_info.add_theme_constant_override("v_separation", 2)
-	col.add_child(_info)
-	var fill := Control.new()
-	fill.size_flags_vertical = SIZE_EXPAND_FILL
-	col.add_child(fill)
+	about.add_child(_info)
 	_active_button = UiTheme.button("make active", func():
 		if _pet:
 			GameState.collection.set_active(_pet.uid))

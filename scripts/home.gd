@@ -6,6 +6,7 @@ extends Control
 const COMPACT_SIZE := Vector2i(300, 318)
 const EXPANDED_SIZE := Vector2i(920, 600)
 const WATCH_INTERVAL := 0.25
+const FIT_MARGIN := 24  # UI pixels kept free around the full game when it's shrunk to fit a screen
 
 var _source: WindowSource
 var _overlay: Window
@@ -14,6 +15,7 @@ var _compact: CompactView
 var _expanded: ExpandedView
 var _expanded_mode := false
 var _scale := 1.0
+var _room := Vector2i.ZERO  # the screen's free room when the size was last set
 var _watch := 0.0
 var _tucked_away := false
 var _out_request := 0  # bumps on every let-out, so an older pending one can tell it's stale
@@ -28,6 +30,7 @@ func _ready() -> void:
 
 	_build_views()
 	Settings.look_changed.connect(_rebuild_look)
+	Settings.video_changed.connect(_apply_size)
 	GameState.collection.active_changed.connect(func(p): if _pet: _pet.set_pet(p))
 	GameState.new_game.connect(func(): _set_expanded(true))
 
@@ -51,8 +54,8 @@ func _process(delta: float) -> void:
 		return
 	_watch = WATCH_INTERVAL
 	_tuck_away(_source.is_fullscreen_active(get_window()))
-	# dragged to a monitor with a different scale: resize to match
-	if not is_equal_approx(_source.ui_scale(get_window()), _scale):
+	# dragged to a monitor with a different scale or size: resize to match
+	if not is_equal_approx(_source.ui_scale(get_window()), _scale) or _source.room(get_window()) != _room:
 		_apply_size()
 	# dragged to another monitor: the pet comes along
 	if _pet and _source.overlay_misplaced(get_window(), _overlay):
@@ -127,8 +130,15 @@ func _apply_size() -> void:
 	if _source == null:
 		return
 	_scale = _source.ui_scale(get_window())
-	get_window().content_scale_factor = _scale
-	_source.set_home_size(get_window(), EXPANDED_SIZE if _expanded_mode else COMPACT_SIZE)
+	# the full game is laid out at EXPANDED_SIZE and scaled up to the chosen resolution, but never
+	# past what fits on this screen (a big size on a small monitor would hang off the edge)
+	_room = _source.room(get_window())
+	var zoom := 1.0
+	if _expanded_mode:
+		var fits := minf(float(_room.x - FIT_MARGIN) / EXPANDED_SIZE.x, float(_room.y - FIT_MARGIN) / EXPANDED_SIZE.y)
+		zoom = maxf(1.0, minf(Settings.zoom(), fits))
+	get_window().content_scale_factor = _scale * zoom
+	_source.set_home_size(get_window(), Vector2i((Vector2(EXPANDED_SIZE) * zoom).round()) if _expanded_mode else COMPACT_SIZE)
 
 
 ## Hides everything (and lets clicks through) while a game or video is fullscreen on this screen.

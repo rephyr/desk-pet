@@ -1,0 +1,24 @@
+# The basket opens the errands tab. Nobody goes to work by themselves: you tap + to send pets.
+from rich
+view full
+pets 4
+find basket
+wait popup
+expect text "new: errands!"
+shot popup
+click "show me"
+expect tab errands
+wait 1
+expect text "tap a pet, then a job"
+shot nobody_working
+click "+ a pet"
+click "+ a pet"
+wait 1
+expect fits
+shot two_working
+click "−"
+wait 1
+shot one_resting
+view corner
+wait 1
+shot corner

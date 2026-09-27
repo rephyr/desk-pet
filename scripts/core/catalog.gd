@@ -25,6 +25,8 @@ var grafting := {}  # sewing parts onto your active pet, see data/grafting.json
 var unlock_list: Array[Dictionary] = []  # what adventures open up, see data/unlocks.json
 var finds := {}  # find id -> special item
 var pages: Array[Dictionary] = []  # map pages, in order
+var errands := {}  # the errands tab's rules, see data/errands.json
+var jobs: Array[Dictionary] = []  # errands pets can be put on, in order
 var tier_overrides := {}  # tier id -> Color, set by the player's colour theme (see UiTheme.apply)
 
 var _tier_rank := {}  # tier id -> index
@@ -35,6 +37,7 @@ var _box_by_id := {}
 var _type_by_id := {}
 var _location_by_id := {}
 var _rumour_by_id := {}
+var _job_by_id := {}
 
 
 static func shared() -> Catalog:
@@ -77,6 +80,9 @@ func _init() -> void:
 	unlock_list.assign(unlock_data.unlocks)
 	finds = _index(unlock_data.finds)
 	pages.assign(unlock_data.pages)
+	errands = _load("errands.json")
+	jobs.assign(errands.jobs)
+	_job_by_id = _index(jobs)
 
 
 # ---- rarity ---------------------------------------------------------------
@@ -137,6 +143,10 @@ func location(id: String) -> Dictionary:
 
 func adventure_type(id: String) -> Dictionary:
 	return _type_by_id.get(id, {})
+
+
+func job(id: String) -> Dictionary:
+	return _job_by_id.get(id, {})
 
 
 func rumour(id: String) -> Dictionary:

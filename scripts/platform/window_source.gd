@@ -34,6 +34,13 @@ func ui_scale(home: Window) -> float:
 	return maxf(1.0, snappedf(DisplayServer.screen_get_scale(screen), 0.25))
 
 
+## How much room the home window's screen has (minus panels and bars), in the same UI pixels
+## set_home_size takes.
+func room(home: Window) -> Vector2i:
+	var screen := DisplayServer.window_get_current_screen(home.get_window_id())
+	return Vector2i((Vector2(DisplayServer.screen_get_usable_rect(screen).size) / ui_scale(home)).floor())
+
+
 ## Resizes the home window to `logical_size` UI pixels, growing away from the screen corner
 ## it sits nearest to, so it expands towards the middle and shrinks back to the same spot.
 func set_home_size(home: Window, logical_size: Vector2i) -> void:

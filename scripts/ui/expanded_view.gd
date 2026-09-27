@@ -2,7 +2,7 @@ class_name ExpandedView
 extends HBoxContainer
 ## The full game: an open book. The starry spine on the left (your pet on its moon, the tabs),
 ## the dotted page on the right: your pet's speech bubble, coins, xp and the window buttons along
-## the top, then the tab. Tabs: home (your pet's room), boxes, pets, trips, bag, settings.
+## the top, then the tab. Tabs: home (your pet's room), boxes, pets, trips, errands, bag, settings.
 
 signal collapse_requested
 signal quit_requested
@@ -10,6 +10,7 @@ signal quit_requested
 var boxes := BoxesTab.new()
 var collection := CollectionTab.new()
 var adventures := AdventuresTab.new()
+var errands := ErrandsTab.new()
 var home := HomeTab.new()
 var spine := Spine.new()
 var bubble := PetBubble.new()
@@ -25,6 +26,7 @@ const TABS := [
 	["boxes", "boxes", "boxes"],
 	["collection", "pets", "pets"],
 	["adventures", "adventures", "trips"],
+	["errands", "errands", "errands"],
 	["inventory", "bag", "bag"],
 ]
 
@@ -85,7 +87,7 @@ func _init() -> void:
 	home.open_box.connect(func(box_id):
 		show_tab("boxes")
 		boxes.open(box_id, 1))
-	_tabs = { "home": home, "boxes": boxes, "collection": collection, "adventures": adventures, "inventory": inventory, "settings": SettingsTab.new() }
+	_tabs = { "home": home, "boxes": boxes, "collection": collection, "adventures": adventures, "errands": errands, "inventory": inventory, "settings": SettingsTab.new() }
 	for tab_id in _tabs:
 		body.add_child(_tabs[tab_id])
 	for t in TABS:
@@ -128,7 +130,7 @@ func _refresh_tabs() -> void:
 		match tab_id:
 			"boxes": news = GameState.bag.values().any(func(n): return int(n) > 0)
 			"adventures": news = back
-		spine.set_tab_state(tab_id, tab_id in shown, not GameState.tab_open(tab_id), news)
+		spine.set_tab_state(tab_id, tab_id in shown and not GameState.tab_hidden(tab_id), not GameState.tab_open(tab_id), news)
 		spine.tab_button(tab_id).tooltip_text = GameState.tab_hint(tab_id)
 	# jump to where the tutorial wants you
 	match GameState.tutorial:

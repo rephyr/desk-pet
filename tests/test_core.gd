@@ -27,7 +27,7 @@ func _init() -> void:
 	_test_garden(catalog)
 	_test_intel(catalog)
 	_test_grafting(catalog)
-	_test_errands(catalog)
+	_test_jobs(catalog)
 	_test_unlocks(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
@@ -304,8 +304,8 @@ func _test_voice(catalog: Catalog) -> void:
 	var news := { "place": "the woods", "home": 0, "sent": 5, "parts": 0 }
 	var worker := Pet.new()
 	worker.parts = { "eyes": "round", "accessory": "none" }
-	var summary := PetVoice.work_summary(worker, { "errands": 3, "coins": 40, "packs": 2, "good": ["holo fox"] }, rng, catalog)
-	_check(summary.contains("3 errands") and summary.contains("holo fox") and not "{" in summary, "your pet tells you what it did: %s" % summary)
+	var summary := PetVoice.work_summary(worker, { "coins": 40, "parts": 3, "packs": 2, "good": ["holo fox"] }, rng, catalog)
+	_check(summary.contains("3 parts") and summary.contains("holo fox") and not "{" in summary, "your pet tells you what it did: %s" % summary)
 	_check(PetVoice.work_summary(worker, {}, rng, catalog) == "", "nothing done, nothing to tell")
 	var none: Array[RunState] = []
 	var quiet: Array[String] = []
@@ -534,36 +534,60 @@ func _test_grafting(catalog: Catalog) -> void:
 	_check(bands.overconfident <= bands.cheerful and bands.cheerful <= bands.nervous, "overconfident pets sound braver about sewing (%s)" % [bands])
 
 
-## Errands: never lose a pet, only bring commons, keep going while you're away (and give the same
-## total however often you check), and never send more pets than there are slots.
-func _test_errands(catalog: Catalog) -> void:
-	var places: Array[Dictionary] = []
-	places.assign(catalog.locations.filter(func(l): return l.has("errand")))
-	_check(not places.is_empty(), "some places have errands")
-	var pets := ["1", "2", "3", "4"]
-	var next_pet := func(busy: Dictionary) -> String:
-		for uid in pets:
-			if not busy.has(uid):
-				return uid
-		return ""
+## Errands: one formula for every job, bigger crews go faster (but each pet helps less), time away
+## pays the same however it's split up, and errands only ever bring commons and uncommons.
+func _test_jobs(catalog: Catalog) -> void:
+	_check(not catalog.jobs.is_empty(), "there are errands to do")
+	var power := float(catalog.errands.crew_power)
+	for job in catalog.jobs:
+		_check(job.has("name") and float(job.seconds) > 0.0 and job.has("pay"), "errand %s has a name, a time and a pay" % job.id)
+	var coin: Dictionary = catalog.job("coin_hunt")
+	var one := Jobs.rate(coin, 1, 1.0, power)
+	var three := Jobs.rate(coin, 3, 1.0, power)
+	var thousand := Jobs.rate(coin, 1000, 1.0, power)
+	_check(three > one * 2.0 and three < one * 3.0, "3 pets work faster than 1, but not 3x (%.2fx)" % (three / one))
+	_check(thousand / 1000.0 < three / 3.0, "each extra pet helps a little less")
 	var rng := RandomNumberGenerator.new()
-	rng.seed = 5
-	var errands: Array = []
-	Errands.fill(errands, 0.0, places, next_pet, rng)
-	_check(errands.size() == Errands.SLOTS, "your pet fills its errand slots")
-	var result := Errands.run(errands, 8.0 * 3600.0, places, next_pet, rng, catalog)
-	_check(result.done > 50 and Rewards.total(result.loot, "coins") > 0, "a day at work brings back lots of little hauls (%d errands)" % result.done)
-	_check(errands.size() == Errands.SLOTS, "errands keep going")
-	for key in result.loot:
-		if key.begins_with("part:"):
-			var bits: PackedStringArray = key.split(":")
-			_check(catalog.part(bits[1], bits[2]).rarity == "common", "errands only bring common parts (%s)" % key)
-	var coins_per_min := float(Rewards.total(result.loot, "coins")) / (8.0 * 60.0)
-	_check(coins_per_min > 2.0 and coins_per_min < 8.0, "errands pay a gentle trickle (%.1f coins a minute)" % coins_per_min)
-	var none: Array = []
-	var nobody := func(_busy: Dictionary) -> String: return ""
-	Errands.fill(none, 0.0, places, nobody, rng)
-	_check(none.is_empty(), "no spare pets, no errands")
+	rng.seed = 9
+	# an hour in one go or in 3600 little ticks pays about the same
+	var a := { "fill": 0.0 }
+	var b := { "fill": 0.0 }
+	var once: Dictionary = Jobs.work(coin, a, 3, three, 3600.0, rng, catalog)
+	var ticks := 0
+	for i in 3600:
+		ticks += Jobs.work(coin, b, 3, three, 1.0, rng, catalog).fills
+	_check(once.fills == ticks, "time away counts the same however it's split (%d and %d fills)" % [once.fills, ticks])
+	var per_min := float(Rewards.total(once.loot, "coins")) / 60.0
+	_check(per_min > 3.0 and per_min < 12.0, "3 pets on the coin hunt earn a gentle trickle (%.1f coins a minute)" % per_min)
+	# thousands of pets for a whole day stays quick and sane
+	var start := Time.get_ticks_msec()
+	var scrap: Dictionary = catalog.job("scrapyard")
+	var big: Dictionary = Jobs.work(scrap, { "fill": 0.0 }, 5000, Jobs.rate(scrap, 5000, 1.0, power), 36000.0, rng, catalog)
+	_check(Time.get_ticks_msec() - start < 1000, "a huge crew's day away is worked out quickly")
+	_check(Rewards.total(big.loot, "part") > big.fills * 0.9, "every scrapyard fill brings a part (%d fills)" % big.fills)
+	var uncommon := 0
+	for key: String in big.loot:
+		var bits := key.split(":")
+		var tier: String = catalog.part(bits[1], bits[2]).rarity
+		_check(tier in ["common", "uncommon"], "errands never bring rare parts (%s)" % key)
+		if tier == "uncommon":
+			uncommon += int(big.loot[key])
+	_check(uncommon > 0, "a big scrapyard crew finds an uncommon now and then")
+	var small: Dictionary = Jobs.work(scrap, { "fill": 0.0 }, 2, 1.0, 400.0, rng, catalog)
+	_check(small.loot.keys().all(func(k): return catalog.part(k.split(":")[1], k.split(":")[2]).rarity == "common"), "a small scrapyard crew only finds commons")
+	# faster pets: rarer ones and fitting traits
+	var slow := Pet.new()
+	slow.stats = { "speed": 5 }
+	var quick := Pet.new()
+	quick.stats = { "speed": 40 }
+	var greedy := Pet.new()
+	greedy.stats = { "speed": 5 }
+	greedy.traits.assign(["greedy"])
+	_check(Jobs.pet_speed(quick, coin) > Jobs.pet_speed(slow, coin), "pets with a better stat work faster")
+	_check(Jobs.pet_speed(greedy, coin) > Jobs.pet_speed(slow, coin), "greedy pets hunt coins faster")
+	_check(Jobs.pet_speed(quick, coin) <= 1.25 and Jobs.pet_speed(slow, coin) >= 0.75, "stats only nudge (about 25%% either way)")
+	var off := Jobs.offline_seconds(20.0 * 3600.0, 8.0, 0.5, 12.0 * 3600.0)
+	_check(is_equal_approx(off, 10.0 * 3600.0), "a day away counts 8 h at full speed, then half, up to the cap (%.1f h)" % (off / 3600.0))
 
 
 ## Whether some place already reached has an event that gives this find.
@@ -580,13 +604,13 @@ func _found_in(catalog: Catalog, reached: Dictionary, find: String) -> bool:
 ## Unlocks: every one can be earned, every find has an event that gives it, and once found that
 ## event stops turning up.
 func _test_unlocks(catalog: Catalog) -> void:
-	var tabs := ["home", "boxes", "collection", "adventures", "inventory", "settings"]
+	var tabs := ["home", "boxes", "collection", "adventures", "errands", "inventory", "settings"]
 	var page_ids := catalog.pages.map(func(p): return p.id)
 	for entry in catalog.unlock_list:
 		_check(entry.show in ["locked", "hidden"], "unlock %s is shown locked or hidden" % entry.id)
 		for o in entry.opens:
 			var bits := str(o).split(":")
-			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties"]) or (bits[0] == "page" and bits[1] in page_ids)
+			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10"]) or (bits[0] == "page" and bits[1] in page_ids)
 			_check(ok, "unlock %s opens something real (%s)" % [entry.id, o])
 		if entry.earn.has("find"):
 			_check(catalog.finds.has(entry.earn.find), "unlock %s waits for a real find" % entry.id)

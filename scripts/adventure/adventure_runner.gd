@@ -42,8 +42,12 @@ static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: i
 ## repeats), so trips to the same place go differently.
 static func pick_events(location: Dictionary, rng_seed: int, found := {}, catalog: Catalog = null) -> Array[String]:
 	var out: Array[String] = []
+	# a find's event stops once it's found, and one with "after" waits until that find is home
 	var still := func(id) -> bool:
-		return catalog == null or not found.has(str(catalog.events.get(id, {}).get("find", "")))
+		if catalog == null:
+			return true
+		var e: Dictionary = catalog.events.get(id, {})
+		return not found.has(str(e.get("find", ""))) and (not e.has("after") or found.has(str(e.after)))
 	if not location.has("pool"):
 		out.assign(location.get("events", []).filter(still))
 		return out

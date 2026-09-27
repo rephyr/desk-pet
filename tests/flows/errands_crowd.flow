@@ -1,0 +1,23 @@
+# Thousands of pets on errands: piles, counts and crowds instead of a photo each.
+from rich
+view full
+pets 1500
+find basket
+wait popup
+click "show me"
+expect tab errands
+wait 1
+click "all"
+click "+ all"
+wait 1
+expect fits
+shot crowd
+click "100"
+click "− 100"
+wait 1
+shot some_resting
+click "share them out"
+wait 1
+expect no-text "share them out"
+expect fits
+shot shared

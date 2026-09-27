@@ -1,0 +1,11 @@
+# The longest pet there can be (a finish, a long name, three traits with long descriptions):
+# its details scroll, and "make active" and the window stay put.
+from long_pet
+view full
+tab collection
+click PetCard#1
+click PetCard#2
+wait 1
+expect fits
+expect text "make active"
+shot long_pet

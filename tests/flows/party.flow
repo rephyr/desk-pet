@@ -1,0 +1,23 @@
+# A small party on the trail: the pets walk in a line, a treat makes them zoom (then it needs
+# time), and while they wait at an event the map keeps them where they stopped.
+from pile_full
+view full
+pets 4
+find cart
+wait popup
+expect text "new: small parties!"
+click "lovely"
+send meadow 3
+wait 1
+expect text "toss a treat"
+shot trail
+click "toss a treat"
+expect text "zoom!"
+shot zoom
+wait text "next treat in*"
+wait event
+shot event_trail
+click "‹ map"
+wait 1
+expect fits
+shot event_map

@@ -8,11 +8,15 @@ extends Node
 ##   tab <id>              show a tab straight away (home, boxes, collection, adventures, ...)
 ##   click <target>        clicks it (see _find, _click): "text", tab:<id>, Class#n, guide
 ##   key <name>            a key press: space, escape, enter
-##   wait <seconds>        or: wait ritual | wait popup | wait text "..." | wait tutorial <step>
+##   wait <seconds>        or: wait ritual | wait popup | wait text "..." | wait tutorial <step> | wait event
 ##   expect <what>         tutorial <step> | tab <id> | text "..." | no-text "..." | pile <box> <n>
+##                         | fits (the full game fits its window)
 ##   shot <name>           a screenshot of the game, from inside it (works while it's off-screen)
 ##   say "<text>"          your pet says it (for testing the bubble)
 ##   answer                every adventure waiting at an event takes its first choice
+##   pets <n>              n more pets from starter boxes (for testing crowds)
+##   find <id>             a pet brings home this find (data/unlocks.json), opening what it opens
+##   send <place> <n>      the first n spare pets go on an adventure there (and you watch it)
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -115,6 +119,19 @@ func _step(w: PackedStringArray) -> String:
 				if run.status == RunState.Status.WAITING:
 					var catalog := Catalog.shared()
 					GameState.answer_event(run, AdventureRunner.allowed_options(run.current_event(catalog), run.party, catalog.location(run.location_id))[0])
+		"pets":
+			GameState.debug_give_pets(int(w[1]))
+		"find":
+			GameState.grant({ "find:" + w[1]: 1 })
+		"send":  # send <place> <n>: the first n spare pets go there (the place opens if it wasn't)
+			GameState.unlocks["location:" + w[1]] = true
+			var going: Array[Pet] = []
+			going.assign(GameState.sendable_pets().slice(0, int(w[2])))
+			var run := GameState.send_on_adventure(w[1], going)
+			if run == null:
+				return "couldn't send %d to %s" % [int(w[2]), w[1]]
+			home.full_game().show_tab("adventures")
+			home.full_game().adventures._show_trail(run)  # go along with it
 		"quit":
 			_finish()
 		_:
@@ -127,6 +144,7 @@ func _wait(w: PackedStringArray) -> String:
 		await get_tree().create_timer(float(w[1])).timeout
 		return ""
 	var until: Callable
+	var limit := WAIT_LIMIT
 	match w[1]:
 		"ritual":  # no pack being opened any more (the result card may be up)
 			until = func(): return not _all(PackOpening).any(func(p): return p.is_visible_in_tree() and p.is_busy())
@@ -136,14 +154,17 @@ func _wait(w: PackedStringArray) -> String:
 			until = func(): return _find('"%s"' % w[2]) != null
 		"tutorial":
 			until = func(): return GameState.tutorial == w[2]
+		"event":  # an adventure stopped at an event (trips are slow: this waits longer)
+			until = func(): return GameState.runs.any(func(r): return r.status == RunState.Status.WAITING)
+			limit = 180.0
 		_:
 			return "unknown wait %s" % w[1]
 	var waited := 0.0
 	while not until.call():
 		await get_tree().create_timer(0.1).timeout
 		waited += 0.1
-		if waited > WAIT_LIMIT:
-			return "waited %ds" % int(WAIT_LIMIT)
+		if waited > limit:
+			return "waited %ds" % int(limit)
 	return ""
 
 
@@ -161,12 +182,18 @@ func _expect(w: PackedStringArray) -> String:
 		"pile":
 			var have := GameState.in_bag(w[2])
 			return "" if have == int(w[3]) else "%d on the pile" % have
+		"fits":
+			# nothing on screen needs more room than the window has (it would spill past the edge)
+			var game: Control = get_parent().full_game()
+			var room := game.get_viewport_rect().size
+			var need := game.get_combined_minimum_size()
+			return "" if need.x <= room.x + 0.5 and need.y <= room.y + 0.5 else "needs %s, the window is %s" % [need, room]
 	return "unknown expect %s" % w[1]
 
 
 ## Finds what to click, among things on screen:
 ##   guide      whatever the tutorial is pointing at
-##   "open 1"   a button or label showing that text (the topmost one)
+##   "open 1"   a button or label showing that text (the topmost one); "next treat*" starts with it
 ##   tab:pets   a tab on the spine, by its id
 ##   PetCard#2  the 2nd of a kind of control, top-left first
 func _find(what: String) -> Control:
@@ -189,9 +216,12 @@ func _find(what: String) -> Control:
 		var i := int(bits[1]) - 1
 		return kind[i] if i >= 0 and i < kind.size() else null
 	var text := what.trim_prefix('"').trim_suffix('"').to_lower()
+	var starts := text.ends_with("*")  # "next treat in*": text that starts with this
+	text = text.trim_suffix("*")
 	var found: Control = null
 	for c in shown:
-		if (c is Button or c is Label) and str(c.text).strip_edges().to_lower() == text:
+		var t := str(c.text).strip_edges().to_lower() if (c is Button or c is Label) else ""
+		if (c is Button or c is Label) and (t.begins_with(text) if starts else t == text):
 			found = c  # later in the tree is drawn on top
 	return found
 

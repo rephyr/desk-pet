@@ -43,7 +43,26 @@ func _init() -> void:
 			var minutes := float(location.minutes)
 			print("%-10s %-9s %8.1f %8.1f %8.2f %8.2f %7.0f%%" % [location.id, style, coins / TRIPS,
 				coins / TRIPS / minutes, parts / TRIPS, boxes / TRIPS, 100.0 * lost / TRIPS])
+	_errands(catalog, rng)
 	quit()
+
+
+## Errands (data/errands.json) for crews of common pets: coins or parts a minute, in all and per
+## pet. Errands are the floor: per pet they should pay well under a sensible adventure.
+func _errands(catalog: Catalog, rng: RandomNumberGenerator) -> void:
+	var power := float(catalog.errands.crew_power)
+	print("\nerrands, common pets (speed about 0.95). one hour each.")
+	print("%-10s %6s %10s %10s %8s" % ["job", "crew", "per min", "per pet", "uncommon"])
+	for job in catalog.jobs:
+		for crew in [1, 3, 5, 10, 100, 1000]:
+			var got: Dictionary = Jobs.work(job, { "fill": 0.0 }, crew, Jobs.rate(job, crew, 0.95, power), 3600.0, rng, catalog)
+			var kind := "coins" if job.pay.has("coins") else "part"
+			var per_min := Rewards.total(got.loot, kind) / 60.0
+			var uncommon := 0
+			for key: String in got.loot:
+				if key.begins_with("part:") and catalog.part(key.split(":")[1], key.split(":")[2]).rarity == "uncommon":
+					uncommon += int(got.loot[key])
+			print("%-10s %6d %10.2f %10.3f %8d" % [job.id, crew, per_min, per_min / crew, uncommon])
 
 
 func _pick(style: String, run: RunState, location: Dictionary, catalog: Catalog) -> int:

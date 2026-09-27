@@ -6,13 +6,14 @@ signal changed  # coins, care stats, the bag, adventures or unlocks changed
 signal run_ended(run: RunState)  # an adventure is back and waiting to be collected
 signal new_game  # everything was reset to a fresh start
 signal tutorial_changed  # the tutorial moved on a step (or finished)
-signal errands_hauled(loot: Dictionary)  # errands came home with this
+signal job_paid(job_id: String, loot: Dictionary)  # an errand's meter filled up and paid this
+signal jobs_changed  # pets were put on or taken off errands
 signal unlocked(entry: Dictionary)  # something new opened up (see data/unlocks.json)
 signal opened_in_background(pet: Pet)  # your pet opened a pack out of sight (the spine's moon shows it)
 signal adventures_changed  # a trip was sent, moved on, answered or collected, or something unlocked
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
-const SAVE_VERSION := 12
+const SAVE_VERSION := 14
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
 const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
@@ -49,17 +50,23 @@ var packs_by_hand := 0  # packs you opened yourself (some unlocks wait for enoug
 var parts_ever := false  # a pet has brought a part home at least once
 var announcements: Array[String] = []  # news for your pet to tell you: finds, things that opened up
 
-# ---- your pet at work (idle): errands and opening packs, see Errands
-var errands: Array = []  # errands going on now, see Errands.start()
-var errands_on := true  # your pet sends spare pets on errands
+# ---- your pet at work (idle): opening packs
 var packs_on := true  # your pet opens packs while the game sits small in the corner
 
+# ---- errands: resting pets on safe jobs, see Jobs and data/errands.json
+var jobs := {}  # job id -> { crew: Array of uids, fill: 0..1 }
+var jobs_auto := false  # your pet shares out new pets, and pets back from adventures (you do it until you turn this on)
+var jobs_away := {}  # what errands brought while the game was closed, for the tab's note (not saved)
+var _job_of := {}  # uid -> job id, for every pet on an errand
+var _job_speed := {}  # job id -> how fast its crew works on average (see Jobs.pet_speed)
+var _jobs_at := 0.0  # unix time errands have worked up to
+var _was_active := ""  # the active pet before it changed (it goes back to work)
 
-## Turns one of your pet's jobs ("packs" or "errands") on or off, from settings or the corner panel.
+
+## Turns one of your pet's jobs ("packs" or "buying") on or off, from settings or the corner panel.
 func set_job(job: String, on: bool) -> void:
 	match job:
 		"packs": packs_on = on
-		"errands": errands_on = on
 		"buying": buying_on = on
 	save_game()
 	changed.emit()
@@ -70,7 +77,7 @@ var saved_boxes := {}  # box id -> true: "save for me", your pet leaves these on
 var buying_on := true  # your pet buys more when the pile runs out (once it has the piggy bank)
 var pinned: Array[String] = []  # good pulls your pet opened, waiting for you to see them
 ## What your pet did while you weren't looking, for the home screen to tell you:
-## { errands, coins, parts, boxes, packs, good: [pet names] }
+## { coins, parts, boxes, packs, good: [pet names] }
 var idle_log := {}
 var runs: Array[RunState] = []
 ## The last trip you welcomed back, for the active pet to talk about: { place, home, sent, parts }.
@@ -87,6 +94,7 @@ var _save_timer := 0.0
 var _run_timer := 0.0
 var _pack_timer := 0.0  # your pet opening the pile out of sight, see _open_in_background()
 var _pack_seen := 0.0  # seconds since a view last showed your pet opening packs
+var _treats := {}  # RunState -> { zoom_until, ready_at }: treats tossed on the trail (not saved)
 
 
 # Loaded in _init, not _ready: the main scene is built before autoloads get _ready,
@@ -99,6 +107,19 @@ func _init() -> void:
 		_give_first_pet()
 	collection.active_changed.connect(func(_p): _check_tutorial())
 	collection.pets_added.connect(func(_p): _check_tutorial())
+	# your active pet never works an errand; lost pets leave theirs; new pets get one
+	collection.active_changed.connect(func(p: Pet):
+		if p and _job_of.has(p.uid):
+			_take_off([p.uid])
+		if jobs_auto and _was_active != "" and (p == null or p.uid != _was_active):
+			_auto_place([_was_active])  # your old active pet goes back to work
+		_was_active = p.uid if p else "")
+	_was_active = collection.active_uid
+	collection.pet_changed.connect(func(_p): _job_speed.clear())
+	collection.pets_removed.connect(func(uids): _take_off(uids))
+	collection.pets_added.connect(func(pets: Array[Pet]):
+		if jobs_auto:
+			_auto_place(pets.map(func(p): return p.uid)))
 
 
 func _process(delta: float) -> void:
@@ -113,12 +134,13 @@ func _process(delta: float) -> void:
 		changed.emit()
 
 	_open_in_background(delta)
+	_zoom_runs(delta)
 
 	_run_timer -= delta
 	if _run_timer <= 0.0:
 		_run_timer = 1.0
 		_advance_runs()
-		_advance_errands(Time.get_unix_time_from_system())
+		_work_jobs(Time.get_unix_time_from_system())
 
 	_save_timer += delta
 	if _save_timer >= 30.0:
@@ -184,6 +206,18 @@ func in_bag(box_id: String) -> int:
 	return int(bag.get(box_id, 0))
 
 
+## Debug: `count` more pets from starter boxes, straight into the collection.
+func debug_give_pets(count: int) -> void:
+	if not OS.is_debug_build():
+		return
+	var pulled: Array[Pet] = []
+	for i in count:
+		pulled.append(_roller.roll(FIRST_PET_BOX))
+	collection.add(pulled)
+	changed.emit()
+	save_game()
+
+
 func add_debug_coins() -> void:
 	coins += DEBUG_COINS
 	changed.emit()
@@ -197,7 +231,7 @@ func _give_first_pet() -> void:
 # ---- unlocks ---------------------------------------------------------------
 
 const AUTOMATION := "automation"  # lets you send swarms that follow your rules
-const PARTIES := "parties"  # feature: send small parties (up to Chooser.SMALL_PARTY)
+const PARTIES := "parties"  # feature: send small parties (see PARTY_SIZES)
 
 
 func is_unlocked(id: String) -> bool:
@@ -244,6 +278,14 @@ func tab_hint(tab_name: String) -> String:
 		if ("tab:" + tab_name) in entry.opens and not is_unlocked("tab:" + tab_name):
 			return str(entry.get("hint", "not yet"))
 	return ""
+
+
+## Whether a locked tab stays out of sight until it opens ("show": "hidden" in data/unlocks.json).
+func tab_hidden(tab_name: String) -> bool:
+	for entry in catalog.unlock_list:
+		if ("tab:" + tab_name) in entry.opens and not is_unlocked("tab:" + tab_name):
+			return entry.show == "hidden"
+	return false
 
 
 ## Opens whatever you've earned on your adventures (data/unlocks.json).
@@ -329,18 +371,25 @@ func follow_rumour(rumour_id: String) -> void:
 ## Pets came back with word of somewhere: hear up to `count` new rumours.
 func _hear_rumours(count: int) -> void:
 	var can := Rumours.hearable(catalog, heard, is_open)
+	if heard.is_empty() and count > 0 and not can.is_empty():
+		announcements.append("a rumour is word of somewhere new! it's on the map now. tap it and say yes, and we can go there!")
 	for i in mini(count, can.size()):
 		var rumour: Dictionary = can.pop_at(_rng.randi_range(0, can.size() - 1))
 		heard[rumour.id] = true
 		rumours.append(rumour.id)
 
 
-## The biggest party you may send here: small parties until automation, and a location's own cap.
+## Party sizes the finds open: the cart, the wheelbarrow, the hay wagon (data/unlocks.json).
+const PARTY_SIZES := [["parties", 3], ["parties_5", 5], ["parties_10", 10]]
+
+
+## The biggest party you may send here: one pet, then bigger parties as things are found, swarms
+## with automation, and a location's own cap.
 func max_party(location_id: String) -> int:
-	# one pet at a time early on; small parties and then swarms come with later unlocks
 	var most := 1
-	if feature_on(PARTIES):
-		most = Chooser.SMALL_PARTY
+	for step in PARTY_SIZES:
+		if feature_on(step[0]):
+			most = maxi(most, step[1])
 	if is_unlocked(AUTOMATION):
 		most = 1 << 30
 	var cap := int(catalog.location(location_id).get("max_party", 0))
@@ -392,7 +441,10 @@ func debug_new_game() -> void:
 	packs_by_hand = 0
 	parts_ever = false
 	announcements.clear()
-	errands.clear()
+	jobs.clear()
+	jobs_auto = false
+	jobs_away = {}
+	_crews_changed()
 	pinned.clear()
 	visited.clear()
 	saved_boxes.clear()
@@ -411,25 +463,194 @@ func debug_new_game() -> void:
 
 # ---- your pet at work ----------------------------------------------------------
 
-## Hands in finished errands and sends spare pets on new ones (see Errands), up to `until`.
-func _advance_errands(until: float) -> void:
-	if tutorial_active() or not feature_on("errands"):
+## Errands work up to `until` (called every second).
+func _work_jobs(until: float) -> void:
+	if until > _jobs_at and _jobs_at > 0.0:
+		var gap := until - _jobs_at
+		if gap > 5.0:  # the computer slept: time away counts like time with the game closed
+			var e: Dictionary = catalog.errands
+			gap = Jobs.offline_seconds(gap, float(e.offline_full_hours), float(e.offline_after), OFFLINE_CAP)
+		_work_for(gap)
+	_jobs_at = maxf(_jobs_at, until)
+
+
+## Every errand works for `seconds`: full meters pay (into your wallet and bag). Returns the loot.
+func _work_for(seconds: float) -> Dictionary:
+	var total := {}
+	if not feature_on("errands") or tutorial_active():
+		return total
+	for job in catalog.jobs:
+		var crew := job_crew(job.id)
+		if crew.is_empty():
+			continue
+		var got := Jobs.work(job, jobs[job.id], crew.size(), job_rate(job.id), seconds, _rng, catalog)
+		if got.fills > 0:
+			Rewards.add(total, got.loot)
+			job_paid.emit(job.id, got.loot)
+	if not total.is_empty():
+		grant(total)
+		_log_idle({ "coins": Rewards.total(total, "coins"), "parts": Rewards.total(total, "part") })
+	return total
+
+
+## Pets resting: not your active pet, not away on an adventure, not on an errand.
+func resting_pets() -> Array[Pet]:
+	var out: Array[Pet] = []
+	for pet in sendable_pets():
+		if not _job_of.has(pet.uid):
+			out.append(pet)
+	return out
+
+
+## The uids of the pets on an errand.
+func job_crew(job_id: String) -> Array:
+	return jobs.get(job_id, {}).get("crew", [])
+
+
+## Which errand a pet is on, or "".
+func job_of(uid: String) -> String:
+	return str(_job_of.get(uid, ""))
+
+
+## How full an errand's meter is, 0 to 1.
+func job_fill(job_id: String) -> float:
+	return float(jobs.get(job_id, {}).get("fill", 0.0))
+
+
+## How full an errand's meter is right now, between the once-a-second ticks (for drawing it).
+func job_fill_now(job_id: String) -> float:
+	var since := maxf(0.0, Time.get_unix_time_from_system() - _jobs_at) if _jobs_at > 0.0 else 0.0
+	return fposmod(job_fill(job_id) + job_rate(job_id) * since, 1.0)
+
+
+## How many times a second an errand's meter fills with its crew now.
+func job_rate(job_id: String) -> float:
+	var crew := job_crew(job_id)
+	if crew.is_empty():
+		return 0.0
+	if not _job_speed.has(job_id):
+		var job := catalog.job(job_id)
+		var sum := 0.0
+		for uid in crew:
+			sum += _speed_of(uid, job)
+		_job_speed[job_id] = sum / crew.size()
+	return Jobs.rate(catalog.job(job_id), crew.size(), _job_speed[job_id], float(catalog.errands.crew_power))
+
+
+## Puts resting pets on an errand: these uids, or the `count` best at it (-1: everyone resting).
+func put_on_job(job_id: String, count := 1, uids: Array = []) -> void:
+	if catalog.job(job_id).is_empty() or not feature_on("errands"):
 		return
-	var places := Errands.places(open_locations())
-	var spare := sendable_pets().map(func(p): return p.uid)
-	var next_pet := func(busy: Dictionary) -> String:
-		if not errands_on:
-			return ""
-		var free: Array = spare.filter(func(uid): return not busy.has(uid))
-		return str(free[_rng.randi_range(0, free.size() - 1)]) if not free.is_empty() else ""
-	var result := Errands.run(errands, until, places, next_pet, _rng, catalog)
-	Errands.fill(errands, until, places, next_pet, _rng)
-	if result.done > 0:
-		grant(result.loot)
-		errands_hauled.emit(result.loot)
-		_log_idle({ "errands": result.done, "coins": Rewards.total(result.loot, "coins"),
-			"parts": Rewards.total(result.loot, "part"), "boxes": Rewards.total(result.loot, "box") })
-		adventures_changed.emit()
+	var resting := resting_pets()
+	var going: Array = []
+	if not uids.is_empty():
+		var ok := {}
+		for pet in resting:
+			ok[pet.uid] = true
+		going = uids.filter(func(uid): return ok.has(uid))
+	elif count == 1:
+		var job := catalog.job(job_id)
+		var best: Pet = null
+		for pet in resting:
+			if best == null or Jobs.pet_speed(pet, job) > Jobs.pet_speed(best, job):
+				best = pet
+		if best:
+			going.append(best.uid)
+	else:
+		var job := catalog.job(job_id)
+		var speed := {}
+		for pet in resting:
+			speed[pet.uid] = Jobs.pet_speed(pet, job)
+		var uids_by_speed: Array = speed.keys()
+		uids_by_speed.sort_custom(func(a, b): return speed[a] > speed[b])
+		going = uids_by_speed.slice(0, uids_by_speed.size() if count < 0 else count)
+	if going.is_empty():
+		return
+	var state: Dictionary = jobs.get(job_id, { "crew": [], "fill": 0.0 })
+	state.crew.append_array(going)
+	jobs[job_id] = state
+	_crews_changed()
+
+
+## Sends pets on an errand home to rest: these uids, or the `count` slowest at it (-1: all).
+## Returns the uids that went home.
+func take_off_job(job_id: String, count := 1, uids: Array = []) -> Array:
+	var crew := job_crew(job_id)
+	if crew.is_empty():
+		return []
+	if uids.is_empty():
+		var job := catalog.job(job_id)
+		var speed := {}
+		for uid in crew:
+			speed[uid] = _speed_of(uid, job)
+		var sorted := crew.duplicate()
+		sorted.sort_custom(func(a, b): return speed[a] < speed[b])
+		uids = sorted.slice(0, crew.size() if count < 0 else count)
+	return _take_off(uids)
+
+
+## Spreads every resting pet over the errands: each goes where the crew is smallest.
+func share_out() -> void:
+	_auto_place(resting_pets().map(func(p): return p.uid))
+
+
+## Your pet shares out new pets and pets back from adventures (if you let it, see jobs_auto).
+func set_jobs_auto(on: bool) -> void:
+	jobs_auto = on
+	save_game()
+	changed.emit()
+
+
+## Puts these pets (the resting ones) on the errands with the smallest crews.
+func _auto_place(uids: Array) -> void:
+	if not feature_on("errands") or tutorial_active() or catalog.jobs.is_empty():
+		return
+	var resting := {}
+	for pet in resting_pets():
+		resting[pet.uid] = true
+	var placed := false
+	for uid in uids:
+		if not resting.has(uid):
+			continue
+		var smallest: Dictionary = catalog.jobs[0]
+		for job in catalog.jobs:
+			if job_crew(job.id).size() < job_crew(smallest.id).size():
+				smallest = job
+		var state: Dictionary = jobs.get(smallest.id, { "crew": [], "fill": 0.0 })
+		state.crew.append(uid)
+		jobs[smallest.id] = state
+		placed = true
+	if placed:
+		_crews_changed()
+
+
+func _take_off(uids: Array) -> Array:
+	var gone := {}
+	for uid in uids:
+		if _job_of.has(uid):
+			gone[uid] = true
+	if gone.is_empty():
+		return []
+	for job_id in jobs:
+		jobs[job_id].crew = jobs[job_id].crew.filter(func(uid): return not gone.has(uid))
+	_crews_changed()
+	return gone.keys()
+
+
+func _speed_of(uid: String, job: Dictionary) -> float:
+	var pet := collection.get_pet(uid)
+	return Jobs.pet_speed(pet, job) if pet else 1.0
+
+
+## A crew changed: the lookups are worked out again, and the tab redraws.
+func _crews_changed() -> void:
+	_job_of.clear()
+	for job_id in jobs:
+		for uid in jobs[job_id].crew:
+			_job_of[uid] = job_id
+	_job_speed.clear()
+	jobs_changed.emit()
+	changed.emit()
 
 
 ## Whether your pet may open this kind of box (you didn't save it for yourself).
@@ -620,19 +841,17 @@ func debug_lock_all() -> void:
 
 # ---- adventures -------------------------------------------------------------
 
-## uid -> true for every pet that's out: on a trip (including trips back but not welcomed yet)
-## or on an errand.
+## uid -> true for every pet that's out on a trip (including trips back but not welcomed yet).
 func away() -> Dictionary:
 	var out := {}
 	for run in runs:
 		for uid in run.party.uids:
 			out[uid] = true
-	for errand in errands:
-		out[errand.pet] = true
 	return out
 
 
-## Pets that can be sent: not your active pet, and not already away.
+## Pets that can be sent: not your active pet, and not already away. Pets on errands can: going
+## on an adventure takes them off their errand.
 func sendable_pets() -> Array[Pet]:
 	var gone := away()
 	var out: Array[Pet] = []
@@ -653,6 +872,7 @@ func send_on_adventure(location_id: String, pets: Array[Pet]) -> RunState:
 		return null
 	var run := AdventureRunner.start(location_id, going, Time.get_unix_time_from_system(), _rng.randi(), catalog, finds)
 	runs.append(run)
+	_take_off(going.map(func(p): return p.uid))
 	visited[location_id] = true
 	_check_tutorial()
 	adventures_changed.emit()
@@ -697,6 +917,8 @@ func collect_run(run: RunState) -> Dictionary:
 			announcements.append("%s found %s!" % [run.party.who(), find_name])
 	grant(run.loot)
 	collection.remove(run.party.lost)
+	if jobs_auto:  # the pets that came home go back to work
+		_auto_place(photo.filter(func(p): return p.home).map(func(p): return p.pet.uid))
 	var found := _spot_places(run)
 	# experience: from the trip itself, and a lot for discovering things
 	var gained := run.xp + XP_SPOTTED * found.size() + XP_FIND * new_finds.size()
@@ -725,17 +947,47 @@ func collect_run(run: RunState) -> Dictionary:
 
 const XP_SPOTTED := 10  # xp for a pet spotting a new place
 const XP_FIND := 25  # xp for bringing home a special find
-const HOP := 2.5  # seconds a click takes off the walk to the next event
+const TREAT_ZOOM := 8.0  # seconds pets zoom along after you toss them a treat
+const TREAT_SPEED := 3.0  # how many times as fast they walk while they zoom
+const TREAT_EVERY := 30.0  # seconds before you can toss the next treat
 const TRAIL_COINS := [0.2, 0.5]  # a coin pickup is worth this times the place's loot (garden: about 1)
 
 
-## You clicked to hurry a pet along: the next event (or home) comes a bit sooner.
-func hurry(run: RunState) -> void:
-	if not run in runs or run.status != RunState.Status.WALKING:
+## You tossed a treat on the trail: the pets chase it and walk TREAT_SPEED times as fast for
+## TREAT_ZOOM seconds. Then the next treat takes TREAT_EVERY seconds. Returns whether it worked.
+func toss_treat(run: RunState) -> bool:
+	if not run in runs or run.status == RunState.Status.DONE or treat_ready_in(run) > 0.0:
+		return false
+	var now := Time.get_unix_time_from_system()
+	_treats[run] = { "zoom_until": now + TREAT_ZOOM, "ready_at": now + TREAT_EVERY }
+	return true
+
+
+## Seconds until you can toss this trip another treat (0: now).
+func treat_ready_in(run: RunState) -> float:
+	return maxf(0.0, float(_treats.get(run, {}).get("ready_at", 0.0)) - Time.get_unix_time_from_system())
+
+
+## Whether this trip's pets are zooming after a treat.
+func zooming(run: RunState) -> bool:
+	return float(_treats.get(run, {}).get("zoom_until", 0.0)) > Time.get_unix_time_from_system()
+
+
+## Zooming pets eat up the walk faster (while they're walking, not while they wait at an event).
+func _zoom_runs(delta: float) -> void:
+	if _treats.is_empty():
 		return
 	var now := Time.get_unix_time_from_system()
-	run.next_at = maxf(now, run.next_at - HOP)
-	if run.next_at <= now and _advance(run):
+	var moved := false
+	for run: RunState in _treats.keys():
+		if not run in runs:
+			_treats.erase(run)
+			continue
+		if zooming(run) and run.status == RunState.Status.WALKING:
+			run.next_at = maxf(now, run.next_at - delta * (TREAT_SPEED - 1.0))
+			if run.next_at <= now:
+				moved = _advance(run) or moved
+	if moved:
 		adventures_changed.emit()
 		changed.emit()
 
@@ -881,8 +1133,8 @@ func save_game() -> void:
 		"packs_by_hand": packs_by_hand,
 		"parts_ever": parts_ever,
 		"announcements": announcements,
-		"errands": errands,
-		"errands_on": errands_on,
+		"jobs": jobs,
+		"jobs_auto": jobs_auto,
 		"packs_on": packs_on,
 		"coin_reserve": coin_reserve,
 		"saved_boxes": saved_boxes.keys(),
@@ -962,11 +1214,22 @@ func load_game() -> bool:
 		if run != null:
 			runs.append(run)
 
-	errands.clear()
-	for e in data.get("errands", []):
-		if e is Dictionary and collection.get_pet(str(e.get("pet", ""))) != null and not catalog.location(str(e.get("place", ""))).is_empty():
-			errands.append({ "pet": str(e.pet), "place": str(e.place), "started": float(e.started), "ends": float(e.ends), "doing": str(e.get("doing", "")) })
-	errands_on = bool(data.get("errands_on", true))
+	jobs.clear()
+	var on_trips := away()
+	var placed := {}
+	var saved_jobs: Dictionary = data.get("jobs", {})
+	for job_id in saved_jobs:
+		if catalog.job(job_id).is_empty() or not saved_jobs[job_id] is Dictionary:
+			continue
+		var crew: Array = []
+		for raw_uid in saved_jobs[job_id].get("crew", []):
+			var uid := str(raw_uid)
+			if collection.get_pet(uid) != null and uid != collection.active_uid and not on_trips.has(uid) and not placed.has(uid):
+				crew.append(uid)
+				placed[uid] = true
+		jobs[job_id] = { "crew": crew, "fill": clampf(float(saved_jobs[job_id].get("fill", 0.0)), 0.0, 1.0) }
+	jobs_auto = bool(data.get("jobs_auto", false))
+	_crews_changed()
 	packs_on = bool(data.get("packs_on", true))
 	coin_reserve = int(data.get("coin_reserve", 50))
 	visited.clear()
@@ -983,9 +1246,13 @@ func load_game() -> bool:
 	buying_on = bool(data.get("buying_on", true))
 	pinned.assign(data.get("pinned", []).filter(func(uid): return collection.get_pet(str(uid)) != null).map(func(uid): return str(uid)))
 	idle_log = data.get("idle_log", {})
-	# errands kept going while the game was closed (up to the same cap as coins)
-	var saved_at := float(data.get("saved_at", 0.0))
-	_advance_errands(minf(Time.get_unix_time_from_system(), saved_at + OFFLINE_CAP))
+	# errands kept going while the game was closed: full speed for a while, then slower
+	var e: Dictionary = catalog.errands
+	var closed := Jobs.offline_seconds(Time.get_unix_time_from_system() - float(data.get("saved_at", 0.0)),
+		float(e.offline_full_hours), float(e.offline_after), OFFLINE_CAP)
+	var brought := _work_for(closed)
+	jobs_away = { "coins": Rewards.total(brought, "coins"), "parts": Rewards.total(brought, "part") }
+	_jobs_at = Time.get_unix_time_from_system()
 
 	# catch up on time spent closed: coins at the slowest rate, stats to the floor at worst
 	var away := Time.get_unix_time_from_system() - float(data.get("saved_at", 0.0))
@@ -1017,7 +1284,7 @@ func _migrate(data: Dictionary) -> Dictionary:
 		# (the inventory, errands, parties if they had them, and the second map page if they'd
 		# got there); pack opening by your pet is a later-game find now.
 		var had: Array = data.get("unlocks", [])
-		var keep: Array = ["tab:inventory", "feature:errands"]
+		var keep: Array = ["tab:inventory", "feature:errands", "tab:errands"]
 		if "parties" in had or AUTOMATION in had:
 			keep.append_array(["feature:parties", "page:beyond"])
 		for id in ["fields", "orchard", "well", "cellar", "below"]:
@@ -1038,6 +1305,15 @@ func _migrate(data: Dictionary) -> Dictionary:
 			if trips >= step[0]:
 				keep.append("location:" + step[1])
 		data.unlocks = had + keep
+	if version < 13:
+		# v13: errands are a tab of jobs now; old errands just stop (their pets are home)
+		data.erase("errands")
+		data.erase("errands_on")
+		var had: Array = data.get("unlocks", [])
+		if "feature:errands" in had and not "tab:errands" in had:
+			data.unlocks = had + ["tab:errands"]
+	if version < 14:
+		data.jobs_auto = false  # v14: you put pets on errands yourself until you turn sharing on
 	if version < 7:
 		# v7: dungeon places open one rumour at a time; saves that had the dungeons keep them all
 		var had: Array = data.get("unlocks", [])

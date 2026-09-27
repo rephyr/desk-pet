@@ -1,9 +1,6 @@
 {
 	"announcements": [],
-	"bag": {
-		"starter": 30,
-		"lucky": 3
-	},
+	"bag": {},
 	"buying_on": true,
 	"coin_reserve": 50,
 	"coins": 2000,
@@ -14,16 +11,16 @@
 		"pets": [
 			{
 				"box": "tutorial",
-				"finish": "normal",
+				"finish": "prismatic",
 				"parts": {
 					"accessory": "bow",
-					"body": "cat",
-					"eyes": "round",
-					"palette": "lilac",
-					"pattern": "plain"
+					"body": "dragon",
+					"eyes": "sparkle",
+					"palette": "bubblegum",
+					"pattern": "stripes"
 				},
 				"pulled_at": 1790508280,
-				"rarity": "common",
+				"rarity": "legendary",
 				"sewn": [],
 				"stats": {
 					"luck": 10,
@@ -31,7 +28,9 @@
 					"speed": 9
 				},
 				"traits": [
-					"zoomy"
+					"lazy",
+					"hungry",
+					"cuddly"
 				],
 				"uid": "1"
 			},
@@ -71,9 +70,7 @@
 			"part:pattern:plain": 2
 		}
 	},
-	"finds": [
-		"cushion"
-	],
+	"finds": [],
 	"happiness": 79.9300134506174,
 	"heard": [],
 	"hunger": 79.8950201759258,
@@ -93,9 +90,7 @@
 	"spotted": {},
 	"trips_done": 0,
 	"tutorial": "done",
-	"unlocks": [
-		"feature:packs"
-	],
+	"unlocks": [],
 	"version": 12,
 	"visited": [
 		"garden"

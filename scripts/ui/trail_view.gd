@@ -1,11 +1,11 @@
 class_name TrailView
 extends Control
-## A hands-on trip up close: your pet walking the path of the place, as a crayon strip. Click
-## anywhere to hurry it along (each hop takes a few seconds off the walk). Things turn up on the
-## path as it goes (coins, xp sparkles, a leaf that heals a sore paw, now and then a sparkle with
+## A hands-on trip up close: your pet (and its party, in a little line) walking the path of the
+## place, as a crayon strip. "toss a treat" makes them zoom along for a few seconds, then it takes
+## a while to be ready again (GameState.toss_treat). Things turn up on the path as it goes (coins, xp sparkles, a leaf that heals a sore paw, now and then a sparkle with
 ## a part): click them before they pass. Grabbing several in a row builds a streak that makes them
 ## worth more. A part stops the pet: it holds the part up and a card asks to keep it or leave it. At an event the pet stops and the choices wait on its trip card. Walking on its
-## own still gets there; clicking is the fast, rewarding way.
+## own still gets there; treats and grabbing things make it faster and more rewarding.
 
 signal back_to_map
 signal welcome_back(run: RunState)  # autoplay only: the trip is home, collect it
@@ -16,11 +16,14 @@ const PICKUP_GAP := [150.0, 260.0]  # px of path between things to grab
 const PICKUP_WEIGHTS := { "coins": 60, "xp": 28, "heal": 8, "part": 4 }
 const HIT := 26.0
 const STREAK_MAX := 1.5  # most a streak multiplies what you grab
+const FOLLOWERS := 4  # party pets drawn walking behind the first one (more show as "+N")
 var COLORS := { "coins": UiTheme.CYAN, "xp": UiTheme.GOLD, "heal": UiTheme.MINT, "part": UiTheme.PINK }
 
 var run: RunState
 var view := PetView.new()
 var _back := UiTheme.button("‹ map")
+var _treat := UiTheme.button("toss a treat")
+var _followers: Array[PetView] = []
 var _title_font: Font = UiTheme.DISPLAY_FONT
 var _coin_icon := UiTheme.icon("coin", 14)
 var _xp_icon := UiTheme.icon("xp", 14)
@@ -59,6 +62,16 @@ func _init() -> void:
 	_back.add_theme_font_size_override("font_size", UiTheme.SMALL)
 	_back.pressed.connect(func(): back_to_map.emit())
 	add_child(_back)
+	_treat.tooltip_text = "your pets chase it and zoom along for a bit"
+	_treat.pressed.connect(_toss_treat)
+	add_child(_treat)
+	for i in FOLLOWERS:
+		var f := PetView.new()
+		f.pixel = 4
+		f.visible = false
+		add_child(f)
+		move_child(f, 0)  # behind the first pet
+		_followers.append(f)
 
 
 ## Starts showing a trip (a fresh path of things to grab).
@@ -74,6 +87,15 @@ func show_run(r: RunState) -> void:
 	_xp_grabbed = 0
 	_floaters.clear()
 	view.pet = GameState.collection.get_pet(r.party.uids[0]) if r and not r.party.uids.is_empty() else null
+	_refresh_followers()
+
+
+## The rest of the party walks behind the first pet.
+func _refresh_followers() -> void:
+	for i in FOLLOWERS:
+		var uid: String = run.party.uids[i + 1] if run and run.party.uids.size() > i + 1 else ""
+		_followers[i].pet = GameState.collection.get_pet(uid) if uid != "" else null
+		_followers[i].visible = _followers[i].pet != null
 
 
 func _world_x() -> float:
@@ -107,6 +129,16 @@ func _process(delta: float) -> void:
 	view.walking = walking
 	view.visible = run.party.size() > 0  # nobody left on the path
 	view.facing = 1
+	if run.party.uids.size() - 1 != _followers.filter(func(f): return f.visible).size() and run.party.uids.size() <= FOLLOWERS + 1:
+		_refresh_followers()  # someone didn't come back
+	for i in FOLLOWERS:
+		var f := _followers[i]
+		f.walking = walking
+		var gap := PetView.size_for(f.pixel).x + 6.0
+		f.position = Vector2(roundf(_pet_x() - PetView.size_for(view.pixel).x / 2.0 - gap / 2.0 - i * gap), _ground() - roundf(absf(sin(_hop * PI + i)) * 6.0 * _hop))
+	var zoom := GameState.zooming(run)
+	if zoom and walking:
+		_dust = 1.0
 	# new things to grab ahead, while walking
 	while walking and _next_pickup < _shown_x + size.x:
 		_pickups.append({ "x": _next_pickup, "kind": forced_pickup if forced_pickup != "" else Weighted.pick(PICKUP_WEIGHTS, _rng), "gone": false })
@@ -126,6 +158,12 @@ func _process(delta: float) -> void:
 		_autoplay(delta, walking)
 	view.position = Vector2(roundf(_pet_x()), _ground() - roundf(sin(_hop * PI) * 18.0))
 	_back.position = Vector2(size.x - _back.size.x - 12.0, 12.0)
+	var wait := GameState.treat_ready_in(run)
+	_treat.disabled = wait > 0.0 or run.status == RunState.Status.DONE
+	_treat.text = "zoom!" if zoom else ("toss a treat" if wait <= 0.0 else "next treat in %ds" % ceili(wait))
+	_treat.visible = run.status != RunState.Status.DONE
+	_treat.size = _treat.get_combined_minimum_size()
+	_treat.position = Vector2(size.x - _treat.size.x - 12.0, size.y - _treat.size.y - 10.0)
 	if _found:
 		_place_found()
 	queue_redraw()
@@ -152,11 +190,14 @@ func _gui_input(event: InputEvent) -> void:
 		if not p.gone and _pickup_at(p).distance_to(event.position) <= HIT:
 			_grab(p)
 			return
-	if run.status == RunState.Status.WALKING:
-		GameState.hurry(run)
+
+
+func _toss_treat() -> void:
+	if GameState.toss_treat(run):
 		_hop = 1.0
 		_dust = 1.0
 		view.squash = 0.35
+		_floaters.append({ "text": "a treat!", "at": Vector2(_pet_x() + 60.0, _ground()), "age": 0.0, "color": UiTheme.GOLD })
 
 
 func _autoplay(delta: float, walking: bool) -> void:
@@ -178,11 +219,8 @@ func _autoplay(delta: float, walking: bool) -> void:
 		if not p.gone and _screen_x(p.x) < _pet_x() + 60.0:
 			_grab(p)
 			return
-	if walking:
-		GameState.hurry(run)
-		_hop = 1.0
-		_dust = 1.0
-		view.squash = 0.35
+	if walking and GameState.treat_ready_in(run) <= 0.0:
+		_toss_treat()
 
 
 func _grab(p: Dictionary) -> void:
@@ -274,6 +312,13 @@ func _draw() -> void:
 			_draw_pickup(p.kind, _pickup_at(p))
 	if _found:
 		_draw_held_glow()
+	if GameState.zooming(run) and run.status == RunState.Status.WALKING:
+		# the treat bounces along just ahead, and the pets chase it
+		var t := Time.get_ticks_msec() * 0.012
+		var treat := Vector2(_pet_x() + 46.0, ground - 10.0 - absf(sin(t)) * 14.0)
+		draw_circle(treat, 6.0, UiTheme.GOLD)
+		draw_circle(treat + Vector2(-2, -2), 1.5, UiTheme.PAPER)
+		draw_circle(treat + Vector2(2, 1), 1.2, UiTheme.PAPER)
 	if _dust > 0.0:
 		for i in 4:
 			draw_circle(Vector2(_pet_x() - 14.0 - i * 7.0, ground + 2.0), 3.0 * _dust, Color(UiTheme.LILAC, 0.5 * _dust))
@@ -296,7 +341,7 @@ func _draw() -> void:
 	var hint := ""
 	match run.status:
 		RunState.Status.WALKING:
-			hint = "click to hurry!  grab things on the path"
+			hint = "grab things on the path!"
 		RunState.Status.WAITING:
 			hint = "something's up! pick what to do on the adventure card"
 		RunState.Status.DONE:

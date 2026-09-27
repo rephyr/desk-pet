@@ -7,13 +7,7 @@ signal let_out_toggled
 signal quit_requested
 
 var _work := PetAtWork.new()  # your pet, opening packs while you work
-var _errand_line := UiTheme.label("", UiTheme.TEXT, UiTheme.SMALL)
-var _errand_time := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
-var _errand_icon: TextureRect
-var _haul := UiTheme.label("", UiTheme.CYAN, UiTheme.SMALL)
 var _packs_toggle: Button
-var _errands_toggle: Button
-var _line_tick := 0.0
 var _status := UiTheme.label("out exploring your desktop…", UiTheme.LILAC)
 var _coins: PanelContainer
 var _hunger := UiTheme.bar(UiTheme.PINK)
@@ -67,14 +61,8 @@ func _init() -> void:
 	jobs.grow_horizontal = GROW_DIRECTION_BEGIN
 	jobs.position = Vector2(-8, 7)
 	_packs_toggle = _job_toggle("opening packs", func(on): GameState.set_job("packs", on), GameState.packs_on)
-	_errands_toggle = _job_toggle("errands", func(on): GameState.set_job("errands", on), GameState.errands_on)
 	jobs.add_child(_packs_toggle)
-	jobs.add_child(_errands_toggle)
 	stage.add_child(jobs)
-	_haul.set_anchors_preset(PRESET_BOTTOM_LEFT)
-	_haul.position = Vector2(10, -40)
-	_haul.modulate.a = 0.0
-	stage.add_child(_haul)
 	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_status.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	_status.set_anchors_preset(PRESET_FULL_RECT)
@@ -91,23 +79,6 @@ func _init() -> void:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 8)
 	body.add_child(col)
-
-	# what the errand pets are up to
-	var status := HBoxContainer.new()
-	status.add_theme_constant_override("separation", 8)
-	status.custom_minimum_size = Vector2(0, 32)
-	_errand_icon = UiTheme.icon_rect("bag", 16, UiTheme.GOLD)
-	_errand_icon.size_flags_vertical = SIZE_SHRINK_BEGIN
-	status.add_child(_errand_icon)
-	_errand_line.size_flags_horizontal = SIZE_EXPAND_FILL
-	_errand_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_errand_line.add_theme_color_override("font_color", UiTheme.TEXT)
-	_errand_line.add_theme_font_size_override("font_size", UiTheme.SMALL + 1)
-	status.add_child(_errand_line)
-	_errand_time.size_flags_vertical = SIZE_SHRINK_BEGIN
-	status.add_child(_errand_time)
-	col.add_child(status)
-	GameState.errands_hauled.connect(_show_haul)
 
 	col.add_child(_bar_row("food", _hunger))
 	col.add_child(_bar_row("mood", _happy))
@@ -143,43 +114,9 @@ func _init() -> void:
 	_refresh_pet()
 
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	_hunger.value = GameState.hunger
 	_happy.value = GameState.happiness
-	_haul.modulate.a = move_toward(_haul.modulate.a, 0.0, delta * 0.6)
-	_haul.position.y = -10.0 * (1.0 - _haul.modulate.a)
-	_line_tick -= delta
-	if _line_tick <= 0.0:
-		_line_tick = 1.0
-		_refresh_errand_line()
-
-
-## "bean is picking flowers in the garden", and "back in 2:10"; taking turns if there are several.
-func _refresh_errand_line() -> void:
-	var errands: Array = GameState.errands
-	if errands.is_empty():
-		_errand_line.text = "no errands right now" if GameState.errands_on else ""
-		_errand_time.text = ""
-		return
-	var errand: Dictionary = errands[int(Time.get_ticks_msec() / 4000) % errands.size()]
-	var pet := GameState.collection.get_pet(errand.pet)
-	var left := maxi(0, ceili(float(errand.ends) - Time.get_unix_time_from_system()))
-	var catalog := Catalog.shared()
-	var who := "%s %s" % [catalog.part("palette", pet.parts.palette).name, catalog.part("body", pet.parts.body).name] if pet else "someone"
-	_errand_line.text = "%s is %s" % [who, errand.doing]
-	_errand_time.text = "back in %d:%02d" % [left / 60, left % 60]
-	_errand_line.tooltip_text = _errand_line.text
-
-
-func _show_haul(loot: Dictionary) -> void:
-	var coins := Rewards.total(loot, "coins")
-	var extra := ""
-	if Rewards.total(loot, "part") > 0:
-		extra += " + a part"
-	if Rewards.total(loot, "box") > 0:
-		extra += " + a box"
-	_haul.text = "+%d coins%s" % [coins, extra]
-	_haul.modulate.a = 1.0
 
 
 func _job_toggle(text: String, on_toggled: Callable, on: bool) -> Button:
@@ -201,11 +138,6 @@ func _refresh() -> void:
 	# jobs your pet hasn't learned yet stay out of sight
 	_packs_toggle.visible = GameState.feature_on("packs")
 	_packs_toggle.set_pressed_no_signal(GameState.packs_on)
-	_errands_toggle.set_pressed_no_signal(GameState.errands_on)
-	_errands_toggle.visible = GameState.feature_on("errands")
-	_errand_line.visible = GameState.feature_on("errands")
-	_errand_time.visible = _errand_line.visible
-	_errand_icon.visible = _errand_line.visible
 
 
 func _refresh_pet() -> void:

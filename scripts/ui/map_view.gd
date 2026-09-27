@@ -324,7 +324,8 @@ func _draw_trips() -> void:
 		var spot := home
 		match run.status:
 			RunState.Status.WAITING:
-				spot = place + Vector2(-26, 10)
+				# stopped where the walk reached this event (not at the place itself)
+				spot = home.lerp(place, clampf((run.step + 1.0) / maxf(1.0, run.events.size()), 0.0, 1.0))
 			RunState.Status.DONE:
 				spot = home + Vector2(-38 - i * 16, 14)
 			_:

@@ -1,0 +1,15 @@
+{
+	"_note": "Errands: safe idle jobs you put resting pets on (the errands tab, opened by the little basket). Nobody is ever lost on an errand. Every job works the same way: a meter fills once every 'seconds' with one pet, faster with more (crew size ^ 'crew_power', so each extra pet helps a little less and spreading pets out beats stacking them), and pays 'pay' each time it's full. A pet's 'stat' nudges how fast it works (rarer pets have higher stats, see Jobs.pet_speed), and 'traits' multiply it. 'part': a common part each fill; 'uncommon' gives a chance of an uncommon part once the crew is big enough. Errands never bring rare parts or new places: those only come from adventures. Offline they run at full speed for 'offline_full_hours', then at 'offline_after' speed. 'color' is a UiTheme role, 'doodle' a UiTheme doodle. 'coming' is the locked note for the next job.",
+	"crew_power": 0.8,
+	"offline_full_hours": 8,
+	"offline_after": 0.5,
+	"jobs": [
+		{ "id": "coin_hunt", "name": "coin hunt", "brings": "coins", "does": "sniffing under cushions and flipping pebbles",
+			"doodle": "job_coins", "color": "cyan", "seconds": 120, "pay": { "coins": [5, 7] },
+			"stat": "speed", "traits": { "greedy": 1.2, "lazy": 0.9 } },
+		{ "id": "scrapyard", "name": "scrapyard", "brings": "parts", "does": "digging through the odd bits hill",
+			"doodle": "job_scrap", "color": "lilac", "seconds": 600, "pay": { "part": 1 }, "uncommon": { "crew": 5, "chance": 0.1 },
+			"stat": "luck", "traits": { "curious": 1.2, "lazy": 0.9 } }
+	],
+	"coming": { "name": "something behind the shed…", "hint": "keep finding things on adventures" }
+}

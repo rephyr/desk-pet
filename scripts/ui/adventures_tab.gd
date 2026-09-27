@@ -18,6 +18,8 @@ var _place_title := UiTheme.title("", 18)
 var _place_note := UiTheme.label("", UiTheme.GOLD, UiTheme.SMALL + 1)
 var _facts := HFlowContainer.new()
 var _odds := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
+## Why you'd send more than one pet, in plain words (shown once parties are open)
+var _why := UiTheme.label("more friends bring home more, and tricky bits get easier. but more friends can get hurt.", UiTheme.LILAC, UiTheme.SMALL)
 var _send: Button
 var _picked := {}  # uid -> true
 var _picked_label := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
@@ -84,7 +86,7 @@ func _init() -> void:
 			speak()
 			# a hands-on trip is out: go along with it
 			for run in GameState.runs:
-				if run.chooser == "player" and run.status != RunState.Status.DONE:
+				if _watchable(run) and run.status != RunState.Status.DONE:
 					_show_trail(run)
 					break)
 
@@ -155,6 +157,8 @@ func _build_picker() -> void:
 	col.add_child(_facts)
 	_odds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(_odds)
+	_why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(_why)
 
 	var who := HBoxContainer.new()
 	who.add_child(UiTheme.label("who's going?", UiTheme.MUTED, UiTheme.SMALL))
@@ -338,12 +342,17 @@ func _turn(step: int) -> void:
 	_rebuild_picker()
 
 
+## Trips you can watch on the trail: one pet or a small party (big swarms follow their rules).
+static func _watchable(run: RunState) -> bool:
+	return run.chooser in ["player", "timeout"]
+
+
 func _send_picked() -> void:
 	var run := GameState.send_on_adventure(_location_id, _picked_pets())
 	if run != null:
 		_picked.clear()
-		# you choose for a single pet: go along with it; bigger parties get on by themselves
-		if run.chooser == "player":
+		# small parties go along with you on the trail; big swarms get on by themselves
+		if _watchable(run):
 			_show_trail(run)
 		else:
 			_show_map(true)
@@ -393,6 +402,7 @@ func _refresh_send() -> void:
 	_place_note.visible = _place_note.text != ""
 	var pets := _picked_pets()
 	var most := _max_party()
+	_why.visible = most > 1
 	UiTheme.clear(_facts)
 	_facts.add_child(UiTheme.tag(_about(d.minutes)))
 	_facts.add_child(UiTheme.tag("1 pet" if most == 1 else ("as many as you like" if most > 999 else "up to %d pets" % most)))
@@ -455,7 +465,7 @@ func _rebuild_runs() -> void:
 		var who := run.party.who() if run.party.setting_out() == 1 else "%d pets" % run.party.setting_out()
 		names.add_child(UiTheme.label(who, UiTheme.MUTED, UiTheme.SMALL))
 		top.add_child(names)
-		if run.chooser == "player" and run.status != RunState.Status.DONE:
+		if _watchable(run) and run.status != RunState.Status.DONE:
 			var watch := UiTheme.small_button("watch ›", _show_trail.bind(run))
 			watch.add_theme_font_size_override("font_size", UiTheme.SMALL + 1)
 			top.add_child(watch)

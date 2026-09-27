@@ -1,15 +1,27 @@
 class_name SettingsTab
 extends ScrollContainer
-## Player preferences (see the Settings autoload): the look (colours, font, icons), opening boxes,
-## and what your pet does while you work. Picking a look applies it straight away.
+## Player preferences (see the Settings autoload), on two pages. general: the look (colours, font,
+## icons), opening boxes, and what your pet does while you work. video: resolution, frame rate,
+## vsync. Everything applies straight away.
 
 
 func _init() -> void:
 	horizontal_scroll_mode = SCROLL_MODE_DISABLED
+	var root := VBoxContainer.new()
+	root.size_flags_horizontal = SIZE_EXPAND_FILL
+	root.add_theme_constant_override("separation", 12)
+	add_child(root)
 	var col := VBoxContainer.new()
-	col.size_flags_horizontal = SIZE_EXPAND_FILL
 	col.add_theme_constant_override("separation", 12)
-	add_child(col)
+	var video := _video()
+	video.visible = false
+	var pages := UiTheme.segmented(["general", "video"], 0, func(i):
+		col.visible = i == 0
+		video.visible = i == 1)
+	pages.size_flags_horizontal = SIZE_SHRINK_BEGIN
+	root.add_child(pages)
+	root.add_child(col)
+	root.add_child(video)
 	col.add_child(_look())
 
 	var two := HBoxContainer.new()
@@ -36,8 +48,9 @@ func _init() -> void:
 				GameState.coin_reserve = int(v)
 				GameState.save_game())
 		kept.add_theme_color_override("font_color", UiTheme.CYAN)
-	work.body.add_child(_stitch_line())
-	work.body.add_child(_switch("spare pets run errands", GameState.errands_on, func(on): GameState.set_job("errands", on)))
+	if GameState.feature_on("errands"):
+		work.body.add_child(_stitch_line())
+		work.body.add_child(_switch("%s shares out new pets on errands" % who, GameState.jobs_auto, func(on): GameState.set_jobs_auto(on)))
 
 	if OS.is_debug_build():
 		var dev := _section("dev")
@@ -63,6 +76,34 @@ func speak() -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_VISIBILITY_CHANGED and is_visible_in_tree():
 		speak()
+
+
+# ---- video --------------------------------------------------------------------
+
+func _video() -> Control:
+	var s := _section("video")
+	s.body.add_child(_choice("resolution", Settings.RESOLUTIONS.map(func(r): return "%d × %d" % [r.x, r.y]),
+		Settings.resolution, func(i): Settings.set_value("resolution", i)))
+	var note := UiTheme.label("the size of the full game window. the game scales up to fill it. if it's too big for your screen, it shrinks to the biggest size that fits.", UiTheme.MUTED, UiTheme.SMALL)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	s.body.add_child(note)
+	s.body.add_child(_stitch_line())
+	s.body.add_child(_choice("frame rate", Settings.FPS_CAPS.map(func(f): return "no cap" if f == 0 else "%d fps" % f),
+		maxi(0, Settings.FPS_CAPS.find(Settings.max_fps)), func(i): Settings.set_value("max_fps", Settings.FPS_CAPS[i])))
+	s.body.add_child(_switch("vsync", Settings.vsync, func(on): Settings.set_value("vsync", on)))
+	return s.panel
+
+
+## A label and a row of choices (no dropdown: popups open as their own window, which our
+## always-on-top window hides on Linux). on_pick(index) runs when one is picked.
+func _choice(text: String, options: Array, current: int, on_pick: Callable) -> Control:
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 10)
+	var name_label := UiTheme.label(text)
+	name_label.size_flags_horizontal = SIZE_EXPAND_FILL
+	row.add_child(name_label)
+	row.add_child(UiTheme.segmented(options, current, on_pick))
+	return row
 
 
 # ---- the look ----------------------------------------------------------------
@@ -253,6 +294,8 @@ func _slider_row(parent: Control, text: String, lo: float, hi: float, step: floa
 func _switch(text: String, on: bool, on_toggle: Callable) -> CheckButton:
 	var b := CheckButton.new()
 	b.text = text
+	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART  # a long pet name wraps instead of widening the page
+	b.custom_minimum_size = Vector2(120, 0)
 	b.focus_mode = FOCUS_NONE
 	b.button_pressed = on
 	b.toggled.connect(on_toggle)

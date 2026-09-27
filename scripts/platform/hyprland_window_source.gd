@@ -38,6 +38,13 @@ func ui_scale(home: Window) -> float:
 	return float(m.scale) if m != null else 1.0
 
 
+func room(home: Window) -> Vector2i:
+	_poll()
+	var h = _find_own(home)
+	var m = _monitor_of(h) if h != null else null
+	return _usable_rect(m).size if m != null else super(home)
+
+
 func set_home_size(home: Window, logical_size: Vector2i) -> void:
 	_poll(true)
 	var h = _find_own(home)

@@ -1,0 +1,7 @@
+# Settings has a video page: resolution, frame rate, vsync.
+from rich
+view full
+tab settings
+click "video"
+wait 1
+shot video
