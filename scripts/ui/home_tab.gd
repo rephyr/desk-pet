@@ -144,6 +144,8 @@ func _step_work(delta: float) -> void:
 	_held.visible = _work.held != null
 	var pet_h := PetView.size_for(_pet.view.pixel).y
 	if _work.job == PackJob.Job.SHOW:
+		_held.facing = 1
+		_held.modulate.a = 1.0  # a hop before it faded out
 		_held.position = Vector2(_work.x, feet.y - pet_h - 4.0 + sin(_work.time * 4.0) * 3.0)
 	elif _work.job == PackJob.Job.HOP:
 		var t := _work.hop_progress()
