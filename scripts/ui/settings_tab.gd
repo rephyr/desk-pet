@@ -28,13 +28,15 @@ func _init() -> void:
 	two.add_child(work.panel)
 	var pet := GameState.collection.active()
 	var who := pet.display_name(Catalog.shared()) if pet else "your pet"
-	var kept := _slider_row(work.body, "coins %s always keeps" % who, 0, 200, 10, GameState.coin_reserve,
-		func(v): return "%d" % int(v), func(v):
-			GameState.coin_reserve = int(v)
-			GameState.save_game())
-	kept.add_theme_color_override("font_color", UiTheme.CYAN)
-	work.body.add_child(_stitch_line())
 	work.body.add_child(_switch("open boxes in the corner", GameState.packs_on, func(on): GameState.set_job("packs", on)))
+	if GameState.feature_on("shopping"):  # once it has the piggy bank, it buys boxes too
+		work.body.add_child(_switch("buy boxes when the pile runs out", GameState.buying_on, func(on): GameState.set_job("buying", on)))
+		var kept := _slider_row(work.body, "coins %s always keeps" % who, 0, 2000, 50, GameState.coin_reserve,
+			func(v): return "%d" % int(v), func(v):
+				GameState.coin_reserve = int(v)
+				GameState.save_game())
+		kept.add_theme_color_override("font_color", UiTheme.CYAN)
+	work.body.add_child(_stitch_line())
 	work.body.add_child(_switch("spare pets run errands", GameState.errands_on, func(on): GameState.set_job("errands", on)))
 
 	if OS.is_debug_build():

@@ -20,6 +20,9 @@ var color := Color("8a7f99"):
 var leak := 0.0
 ## Width of the opening the light comes out of.
 var opening_width := 110.0
+## How far up there's room above the opening (px); the light fits itself into it, fading out before
+## the edge instead of being cut off by it.
+var reach := 10000.0
 
 var _layers := {}  # layer name -> strength 0..1
 var _time := 0.0
@@ -134,10 +137,10 @@ func _draw() -> void:
 	if glow > 0.0:
 		var pulse := 1.0 + sin(_time * 3.0) * 0.05
 		# soft ambient dome above the pack
-		var s := GLOW_SIZE * pulse * lerpf(0.5, 1.0, glow)
+		var s := minf(GLOW_SIZE * pulse * lerpf(0.5, 1.0, glow), reach * 2.0)
 		draw_texture_rect(_dome_tex, Rect2(-s / 2.0, -s / 2.0, s, s / 2.0), false, Color(color, 0.5 * glow))
 		# the shaft: everything the opening lets through, widening as it rises
-		var h := SHAFT_HEIGHT * pulse * lerpf(0.4, 1.0, glow)
+		var h := minf(SHAFT_HEIGHT * pulse * lerpf(0.4, 1.0, glow), reach)
 		var top_half := (h + SOURCE_DEPTH) * tan(spread) * 0.85
 		_draw_ray(source, Vector2(0, -h), top_half, Color(color, 0.5 * glow))
 		# the bright slit itself
@@ -155,7 +158,7 @@ func _draw() -> void:
 			# each ray breathes a little on its own so they never look ruler-straight
 			var wobble := sin(_time * (1.3 + i * 0.37) + i * 2.1)
 			var width := 22.0 + 8.0 * sin(i * 1.7) + 5.0 * wobble
-			var length := BEAM_LENGTH * (0.75 + 0.2 * sin(i * 2.3) + 0.05 * wobble) + SOURCE_DEPTH
+			var length := minf(BEAM_LENGTH * (0.75 + 0.2 * sin(i * 2.3) + 0.05 * wobble), reach) + SOURCE_DEPTH
 			var alpha := 0.3 * beams * (0.8 + 0.2 * wobble)
 			_draw_beam(source, angle, width * 2.6, length * 0.9, Color(color, alpha * 0.35))  # soft halo
 			_draw_beam(source, angle, width, length, Color(color, alpha))

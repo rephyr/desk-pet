@@ -18,6 +18,7 @@ var _counts := HBoxContainer.new()
 var _actions := HBoxContainer.new()
 var _count := 0
 var _again: Button
+var _can := 0  # boxes left on the pile, for "open N more"
 var _stage: Control
 var _tween: Tween
 var _skip := false
@@ -165,6 +166,7 @@ func _announce(pets: Array[Pet]) -> void:
 	UiTheme.clear(_actions)
 	_again = UiTheme.button("open %d more" % _count, func(): again.emit(_count))
 	_actions.add_child(_again)
+	set_can_open(_can)
 	_actions.add_child(UiTheme.button("lovely!", func(): done.emit()))
 	var says: Array = Catalog.shared().reveal.get("pet_says", {}).get("many", [])
 	if not says.is_empty():
@@ -172,13 +174,15 @@ func _announce(pets: Array[Pet]) -> void:
 		PetBubble.say(self, line.replace("{count}", str(pets.size())).replace("{name}", best.display_name(catalog)))
 
 
-## How many more boxes you could open now: "open N more" shrinks to fit, or greys out.
+## How many more boxes are on the pile: "open N more" shrinks to fit, or greys out.
 func set_can_open(can: int) -> void:
+	_can = can
 	if _again == null or not is_instance_valid(_again):
 		return
 	var n := mini(_count, can)
 	_again.disabled = n < 1
-	_again.text = "open %d more" % n if n > 1 else ("open 1 more" if n == 1 else "no more to open")
+	_again.text = "open %d more" % n if n > 1 else ("open 1 more" if n == 1 else "the pile is empty")
+	_again.tooltip_text = "buy more at the counter" if n < 1 else ""
 
 
 ## Rarest first, then by finish.

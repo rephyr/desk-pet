@@ -149,6 +149,8 @@ func _apply_dev_args() -> void:
 	if open != "":
 		var bits := open.split(":")
 		GameState.add_debug_coins()
+		for i in int(bits[1]) if bits.size() > 1 else 1:
+			GameState.debug_give_box(bits[0])
 		_expanded.boxes.open(bits[0], int(bits[1]) if bits.size() > 1 else 1, DevArgs.value("force"))
 	var pick := DevArgs.value("pick")  # e.g. pond: opens that place's card on the map
 	if pick != "":

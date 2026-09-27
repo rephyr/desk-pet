@@ -49,6 +49,7 @@
 			"id": "orchard", "type": "foraging", "page": "beyond", "name": "the orchard", "errand": { "minutes": 8, "coins": [16, 26], "part_chance": 0.14, "box_chance": 0.04, "doing": ["picking apples", "collecting windfalls", "napping under a tree", "stacking baskets"] }, "minutes": 12, "go_home": true,
 			"difficulty": 1.2, "danger": 1.0, "loot": 4.5, "box": "starter", "finish_rewards": [{ "kind": "coins", "amount": [3, 5] }, { "kind": "part", "chance": 0.3 }, { "kind": "box", "chance": 0.05 }], "draws": 4,
 			"pool": [
+				{ "event": "orchard_piggy", "weight": 2 },
 				{ "event": "garden_apples", "weight": 4 }, { "event": "garden_bees", "weight": 2 },
 				{ "event": "garden_fork", "weight": 1 }, { "event": "meadow_hay", "weight": 1 }, { "event": "garden_chest", "weight": 1 }
 			],
@@ -125,6 +126,15 @@
 					"failure": { "text": "the mud won this time!", "hurt": [1, 1] } },
 				{ "label": "leave it for now", "tag": "careful",
 					"success": { "text": "it'll still be there." } }
+			]
+		},
+		{
+			"id": "orchard_piggy", "title": "a piggy bank", "text": "tucked in the roots of the oldest apple tree: a little piggy bank. it jingles!", "find": "piggy", "default": 0,
+			"options": [
+				{ "label": "bring it home ♡", "tag": "careful",
+					"success": { "text": "{who} is carrying the piggy bank home. jingle jingle!", "rewards": [{ "kind": "find", "id": "piggy" }] } },
+				{ "label": "leave it", "tag": "careful",
+					"success": { "text": "it's saving up for something, probably." } }
 			]
 		},
 		{

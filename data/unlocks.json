@@ -1,5 +1,5 @@
 {
-	"_note": "Everything past the basics is opened through adventures. Each unlock has 'earn': every condition must be met ('find': a special item a pet brought home from a trip, see 'finds' and the events that give them; 'first': the first of something, e.g. 'part'; 'packs_opened': packs you opened yourself). 'show' is how it looks until then: 'locked' (a tab with a padlock and the 'hint') or 'hidden' (not there at all; automation is always hidden). 'opens' is what it turns on: 'tab:<name>', 'feature:<id>' (errands, packs = your pet opening packs, parties) or 'page:<id>' (a map page). 'announce' is what your active pet says when it opens.",
+	"_note": "Everything past the basics is opened through adventures. Each unlock has 'earn': every condition must be met ('find': a special item a pet brought home from a trip, see 'finds' and the events that give them; 'first': the first of something, e.g. 'part'; 'packs_opened': packs you opened yourself). 'show' is how it looks until then: 'locked' (a tab with a padlock and the 'hint') or 'hidden' (not there at all; automation is always hidden). 'opens' is what it turns on: 'tab:<name>', 'feature:<id>' (errands, packs = your pet opening your pile of boxes, shopping = it buys more when the pile runs out, parties) or 'page:<id>' (a map page). 'announce' is what your active pet says when it opens.",
 	"unlocks": [
 		{ "id": "inventory", "opens": ["tab:inventory"], "show": "locked", "hint": "pets bring things home from their trips",
 			"earn": { "first": "part" }, "announce": "a pet brought something home! it's in your inventory now!" },
@@ -8,12 +8,15 @@
 		{ "id": "cart", "opens": ["feature:parties", "page:beyond"], "show": "hidden",
 			"earn": { "find": "cart" }, "announce": "a cart! more friends can go on trips together now! and look, there's a gate in the fence!!" },
 		{ "id": "packs", "opens": ["feature:packs"], "show": "hidden",
-			"earn": { "find": "cushion", "packs_opened": 200 }, "announce": "a comfy cushion! i can sit here and open packs for you!" }
+			"earn": { "find": "cushion", "packs_opened": 200 }, "announce": "a comfy cushion! i can sit here and open packs for you!" },
+		{ "id": "shopping", "opens": ["feature:shopping"], "show": "hidden",
+			"earn": { "find": "piggy", "packs_opened": 500 }, "announce": "a piggy bank! now i can buy boxes when the pile runs out! i'll always keep some coins for you ♪" }
 	],
 	"finds": [
 		{ "id": "basket", "name": "a little basket" },
 		{ "id": "cart", "name": "a little cart" },
-		{ "id": "cushion", "name": "a comfy cushion" }
+		{ "id": "cushion", "name": "a comfy cushion" },
+		{ "id": "piggy", "name": "a piggy bank" }
 	],
 	"pages": [
 		{ "id": "backyard", "name": "the backyard", "start": true },

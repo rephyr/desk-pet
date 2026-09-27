@@ -8,6 +8,7 @@ signal new_game  # everything was reset to a fresh start
 signal tutorial_changed  # the tutorial moved on a step (or finished)
 signal errands_hauled(loot: Dictionary)  # errands came home with this
 signal unlocked(entry: Dictionary)  # something new opened up (see data/unlocks.json)
+signal opened_in_background(pet: Pet)  # your pet opened a pack out of sight (the spine's moon shows it)
 signal adventures_changed  # a trip was sent, moved on, answered or collected, or something unlocked
 
 const SAVE_PATH := "user://save.json"
@@ -20,6 +21,8 @@ const OFFLINE_CAP := 12.0 * 3600.0
 const FEED_COST := 3
 const FIRST_PET_BOX := "starter"
 const DEBUG_COINS := 1000
+const BACKGROUND_PACK_EVERY := 8.0  # seconds per pack your pet opens out of sight (its animation takes about this)
+const BACKGROUND_AFTER := 1.0  # out of sight this long before it switches to opening in the background
 const TUTORIAL_BOX := "tutorial"  # hidden box the tutorial's pets come from, see data/boxes.json
 
 var catalog := Catalog.shared()
@@ -55,11 +58,14 @@ func set_job(job: String, on: bool) -> void:
 	match job:
 		"packs": packs_on = on
 		"errands": errands_on = on
+		"buying": buying_on = on
 	save_game()
 	changed.emit()
 
 
-var coin_reserve := 50  # coins your pet never spends on packs
+var coin_reserve := 50  # coins your pet never spends on boxes (once it may buy them)
+var saved_boxes := {}  # box id -> true: "save for me", your pet leaves these on the pile
+var buying_on := true  # your pet buys more when the pile runs out (once it has the piggy bank)
 var pinned: Array[String] = []  # good pulls your pet opened, waiting for you to see them
 ## What your pet did while you weren't looking, for the home screen to tell you:
 ## { errands, coins, parts, boxes, packs, good: [pet names] }
@@ -77,6 +83,8 @@ var _can_save := true  # false if the save came from a newer version of the game
 var _coin_timer := 0.0
 var _save_timer := 0.0
 var _run_timer := 0.0
+var _pack_timer := 0.0  # your pet opening the pile out of sight, see _open_in_background()
+var _pack_seen := 0.0  # seconds since a view last showed your pet opening packs
 
 
 # Loaded in _init, not _ready: the main scene is built before autoloads get _ready,
@@ -102,6 +110,8 @@ func _process(delta: float) -> void:
 		coins += 1
 		changed.emit()
 
+	_open_in_background(delta)
+
 	_run_timer -= delta
 	if _run_timer <= 0.0:
 		_run_timer = 1.0
@@ -120,22 +130,42 @@ func box_price(box_id: String, count := 1) -> int:
 	return int(catalog.box(box_id).price) * count
 
 
-## Opens boxes, using ones from the bag first and paying for the rest. Returns the new pets
-## (empty if you can't afford them). `force_tier` only works in debug builds, for testing reveals.
+## Buys boxes: they go on your pile (the bag) to open later, by you or your pet. Returns
+## whether you could afford them.
+func buy_boxes(box_id: String, count := 1) -> bool:
+	var price := box_price(box_id, count)
+	if count <= 0 or coins < price or catalog.box(box_id).is_empty():
+		return false
+	coins -= price
+	bag[box_id] = in_bag(box_id) + count
+	changed.emit()
+	save_game()
+	return true
+
+
+## Debug: puts one box on your pile for free (the dev buttons open it straight away).
+func debug_give_box(box_id: String) -> void:
+	if OS.is_debug_build():
+		bag[box_id] = in_bag(box_id) + 1
+
+
+## How many more coins you'd need to buy `count` of a box, 0 if you can.
+func coins_short(box_id: String, count := 1) -> int:
+	return maxi(0, box_price(box_id, count) - coins)
+
+
+## Opens boxes from your pile. Returns the new pets (empty if there aren't that many on the pile).
+## `force_tier` only works in debug builds, for testing reveals.
 ## `by_pet`: your pet opened it (doesn't count toward packs you opened yourself).
 func open_boxes(box_id: String, count := 1, force_tier := "", by_pet := false) -> Array[Pet]:
 	var pulled: Array[Pet] = []
-	var from_bag := mini(count, in_bag(box_id))
-	var price := box_price(box_id, count - from_bag)
-	if count <= 0 or coins < price:
+	if count <= 0 or in_bag(box_id) < count:
 		return pulled
-	coins -= price
+	bag[box_id] = in_bag(box_id) - count
+	if bag[box_id] <= 0:
+		bag.erase(box_id)
 	# the tutorial's boxes are plain commons: your first pets shouldn't be a mythic by luck
 	var roll_from := TUTORIAL_BOX if tutorial_active() else box_id
-	if from_bag > 0:
-		bag[box_id] = in_bag(box_id) - from_bag
-		if bag[box_id] <= 0:
-			bag.erase(box_id)
 	var forced := force_tier if OS.is_debug_build() and not tutorial_active() else ""
 	for i in count:
 		pulled.append(_roller.roll(roll_from, forced))
@@ -146,12 +176,6 @@ func open_boxes(box_id: String, count := 1, force_tier := "", by_pet := false) -
 	changed.emit()
 	save_game()
 	return pulled
-
-
-## Most boxes of this type you can open right now (from the bag, then with coins).
-func affordable(box_id: String) -> int:
-	var price := box_price(box_id)
-	return in_bag(box_id) + (coins / price if price > 0 else 0)
 
 
 func in_bag(box_id: String) -> int:
@@ -368,6 +392,8 @@ func debug_new_game() -> void:
 	announcements.clear()
 	errands.clear()
 	pinned.clear()
+	saved_boxes.clear()
+	buying_on = true
 	idle_log = {}
 	runs.clear()
 	news = {}
@@ -403,22 +429,79 @@ func _advance_errands(until: float) -> void:
 		adventures_changed.emit()
 
 
-## Coins your pet needs before it opens a pack: one pack, plus the reserve it never spends.
-func auto_open_needs() -> int:
-	return box_price(catalog.boxes[0].id) + coin_reserve
+## Whether your pet may open this kind of box (you didn't save it for yourself).
+func pet_opens(box_id: String) -> bool:
+	return not saved_boxes.has(box_id)
 
 
-## Whether your pet may open a pack now: it's allowed to, and it keeps the coin reserve.
+## "Save for me" on or off for a kind of box.
+func save_for_me(box_id: String, on: bool) -> void:
+	if on:
+		saved_boxes[box_id] = true
+	else:
+		saved_boxes.erase(box_id)
+	save_game()
+	changed.emit()
+
+
+## The box your pet would open next: one on the pile it's allowed to open, or, once it has the
+## piggy bank, the cheapest one it may open that it can buy and still keep the reserve. "" if none.
+func next_pet_box() -> String:
+	for box in catalog.boxes:
+		if not box.get("hidden", false) and pet_opens(box.id) and in_bag(box.id) > 0:
+			return box.id
+	if not (feature_on("shopping") and buying_on):
+		return ""
+	for box in catalog.boxes:
+		if not box.get("hidden", false) and pet_opens(box.id) and coins - box_price(box.id) >= coin_reserve:
+			return box.id
+	return ""
+
+
+## Whether your pet may open a pack now: it's allowed to, and there's one for it.
 func can_auto_open() -> bool:
-	return feature_on("packs") and packs_on and not tutorial_active() and coins >= box_price(catalog.boxes[0].id) + coin_reserve
+	return feature_on("packs") and packs_on and not tutorial_active() and next_pet_box() != ""
 
 
-## Your pet opens one starter box (the corner panel calls this when its little animation pops).
-## Returns the new pet, or null. Good pulls get pinned for you to see.
+## A view is showing your pet at work (the home room or the corner panel), so it opens packs
+## there, one by one, with its little animation. Called every frame it's on screen.
+func pack_job_seen() -> void:
+	_pack_seen = 0.0
+
+
+## When nothing shows your pet at work (you're on another tab), it keeps opening packs anyway, at
+## about the pace of its animation. What it opened goes in the idle log and good pulls get pinned,
+## so the home screen tells you about them when you're back.
+func _open_in_background(delta: float) -> void:
+	_pack_seen += delta
+	if _pack_seen < BACKGROUND_AFTER:
+		_pack_timer = 0.0
+		return
+	_pack_timer += delta
+	if _pack_timer >= BACKGROUND_PACK_EVERY:
+		_pack_timer = 0.0
+		var pet := auto_open_pack()
+		if pet:
+			opened_in_background.emit(pet)
+
+
+## How far along the pack your pet is opening out of sight is, 0 to 1, or -1 if it isn't.
+func background_packing() -> float:
+	if _pack_seen < BACKGROUND_AFTER or not can_auto_open():
+		return -1.0
+	return _pack_timer / BACKGROUND_PACK_EVERY
+
+
+## Your pet opens a box from the pile, buying one first if it has to and may (the corner panel
+## calls this when its little animation pops). Returns the new pet, or null. Good pulls get
+## pinned for you to see.
 func auto_open_pack() -> Pet:
 	if not can_auto_open():
 		return null
-	var pulled := open_boxes(catalog.boxes[0].id, 1, "", true)
+	var box_id := next_pet_box()
+	if in_bag(box_id) == 0 and not buy_boxes(box_id, 1):
+		return null
+	var pulled := open_boxes(box_id, 1, "", true)
 	if pulled.is_empty():
 		return null
 	var pet := pulled[0]
@@ -488,7 +571,8 @@ func tutorial_info() -> Dictionary:
 
 
 func _start_tutorial() -> void:
-	coins = 100  # exactly two starter boxes
+	coins = 0
+	bag = { FIRST_PET_BOX: 2 }  # two starter boxes on the pile, a gift to open
 	tutorial = catalog.tutorial.steps[0].id
 	collection.auto_active = false
 
@@ -797,6 +881,8 @@ func save_game() -> void:
 		"errands_on": errands_on,
 		"packs_on": packs_on,
 		"coin_reserve": coin_reserve,
+		"saved_boxes": saved_boxes.keys(),
+		"buying_on": buying_on,
 		"pinned": pinned,
 		"idle_log": idle_log,
 		"runs": runs.map(func(r): return r.to_dict()),
@@ -878,6 +964,10 @@ func load_game() -> bool:
 	errands_on = bool(data.get("errands_on", true))
 	packs_on = bool(data.get("packs_on", true))
 	coin_reserve = int(data.get("coin_reserve", 50))
+	saved_boxes.clear()
+	for id in data.get("saved_boxes", []):
+		saved_boxes[str(id)] = true
+	buying_on = bool(data.get("buying_on", true))
 	pinned.assign(data.get("pinned", []).filter(func(uid): return collection.get_pet(str(uid)) != null).map(func(uid): return str(uid)))
 	idle_log = data.get("idle_log", {})
 	# errands kept going while the game was closed (up to the same cap as coins)

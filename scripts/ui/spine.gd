@@ -11,6 +11,7 @@ const WIDTH := 80.0
 var _sky := NightSky.new()
 var _column := VBoxContainer.new()
 var _pet := PetView.new()
+var _work := MoonWork.new()  # a tiny pack in its paws while it opens your pile out of sight
 var _tabs := {}  # id -> Button
 var _news := {}  # id -> the gold dot
 var _current := ""
@@ -42,7 +43,11 @@ func _init() -> void:
 			moon.draw_style_box(UiTheme.stitched(UiTheme.LINE, Color(0, 0, 0, 0), 12, 0), Rect2(c + Vector2(-20, -50), Vector2(40, 44))))
 	_pet.pixel = 3
 	moon.add_child(_pet)
-	moon.resized.connect(func(): _pet.position = Vector2(moon.size.x / 2.0, moon.size.y - 8.0))  # PetView draws from its bottom centre
+	_work.pet_view = _pet
+	moon.add_child(_work)
+	moon.resized.connect(func():
+		_pet.position = Vector2(moon.size.x / 2.0, moon.size.y - 8.0)  # PetView draws from its bottom centre
+		_work.position = _pet.position)
 	moon.gui_input.connect(func(e: InputEvent):
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
 			_pet.squash = 0.6
@@ -148,3 +153,67 @@ func set_news(id: String, news: bool) -> void:
 
 func tab_button(id: String) -> Button:
 	return _tabs.get(id)
+
+
+## Over your pet on the moon, while it opens your pile out of sight (you're on another tab): a
+## tiny pack at its side that shakes harder as it gets close, then pop! and a tiny new pet hops
+## off the moon. A good pull gets a moment of gold sparkles. Draws from your pet's feet.
+class MoonWork extends Node2D:
+	const HOP_TIME := 1.2
+	const SHAKE_FROM := 0.55  # the pack shows up this far into each one
+
+	var pet_view: PetView
+	var _hopper := PetView.new()
+	var _puff := 0.0
+	var _hop := 0.0
+	var _sparkle := 0.0
+	var _time := 0.0
+
+	func _init() -> void:
+		_hopper.pixel = 1
+		_hopper.visible = false
+		add_child(_hopper)
+		GameState.opened_in_background.connect(_popped)
+
+	func _popped(pet: Pet) -> void:
+		_puff = 1.0
+		_hop = HOP_TIME
+		_hopper.pet = pet
+		_hopper.visible = true
+		_sparkle = 1.6 if GameState.is_good_pull(pet) else 0.0
+		if pet_view:
+			pet_view.squash = 0.5
+
+	func _process(delta: float) -> void:
+		_time += delta
+		_puff = move_toward(_puff, 0.0, delta * 2.0)
+		_sparkle = move_toward(_sparkle, 0.0, delta)
+		if _hop > 0.0:
+			_hop = maxf(0.0, _hop - delta)
+			var t := 1.0 - _hop / HOP_TIME
+			_hopper.position = Vector2(lerpf(-14.0, -34.0, t), -absf(sin(t * PI * 2.0)) * 10.0)
+			_hopper.modulate.a = 1.0 if t < 0.7 else (1.0 - t) / 0.3
+			_hopper.visible = _hop > 0.0
+		queue_redraw()
+
+	func _draw() -> void:
+		var p := GameState.background_packing()
+		if p >= SHAKE_FROM:
+			var box := GameState.next_pet_box()
+			if box != "":
+				var k := (p - SHAKE_FROM) / (1.0 - SHAKE_FROM)  # 0..1, shaking harder
+				var tex := PackArt.texture(Catalog.shared().box(box).get("art", {}), 14)
+				var s := Vector2(14, 14 * 1.3)
+				draw_set_transform(Vector2(20.0 + sin(_time * 45.0) * 1.5 * k, -16.0), sin(_time * 38.0) * 0.3 * k)
+				draw_texture_rect(tex, Rect2(-s / 2.0, s), false)
+				draw_set_transform(Vector2.ZERO)
+		if _puff > 0.0:
+			draw_arc(Vector2(16, -20), 6.0 + (1.0 - _puff) * 16.0, 0.0, TAU, 20, Color(UiTheme.GOLD, _puff), 2.0 * _puff + 0.5, true)
+		if _sparkle > 0.0:
+			for i in 4:
+				var a := TAU * i / 4.0 + _time * 2.0
+				var at := Vector2(0, -26) + Vector2(cos(a) * 26.0, sin(a) * 18.0)
+				var r := 2.0 + 2.0 * absf(sin(_time * 6.0 + i))
+				var c := Color(UiTheme.GOLD, minf(1.0, _sparkle))
+				draw_line(at - Vector2(r, 0), at + Vector2(r, 0), c, 1.5)
+				draw_line(at - Vector2(0, r), at + Vector2(0, r), c, 1.5)

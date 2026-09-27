@@ -41,7 +41,6 @@ var _pet_view := PetView.new()
 var _blocker := RevealBlocker.new()
 var _banner := UiTheme.title("", 34)
 var _hint := UiTheme.label("", UiTheme.PINK)
-var _ladder := RarityLadder.new()
 var _speech := UiTheme.label("", UiTheme.PINK)  # the pet inside talking (tutorial only)
 ## Lines the pet inside says while you open it: on landing, while you rip, once it's out.
 ## Empty outside the tutorial: then boxes just rip.
@@ -105,8 +104,6 @@ func _init() -> void:
 	_result.set_anchors_and_offsets_preset(PRESET_CENTER)
 	_result.grow_horizontal = GROW_DIRECTION_BOTH
 	_result.grow_vertical = GROW_DIRECTION_BOTH
-	_ladder.visible = false
-	add_child(_ladder)
 	_result.open_again.connect(func(): open_again.emit(_box_id))
 	_result.done.connect(_close)
 	add_child(_result)
@@ -148,7 +145,6 @@ func skip() -> void:
 	for r in rank + 1:
 		_effects.add_layers(catalog.reveal_tier(catalog.tier_at(r).id).adds, 0.01)
 	_effects.color = catalog.tier_color(_pet.rarity)
-	_ladder.light(rank)
 	_dim.color.a = DIM_ALPHA if _effects.has_layer("dim") else 0.0
 	_mist_on = false
 	_set_pull(1.0)
@@ -161,8 +157,6 @@ func _land(run: int) -> void:
 	_stage = Stage.LANDING
 	_say("")
 	queue_redraw()
-	_ladder.light(-1)
-	_ladder.visible = true
 	_pack.position = Vector2(0, -DROP_HEIGHT)
 	var t := _tween()
 	t.tween_property(_pack, "position:y", 0.0, float(_cfg.land_time)).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
@@ -209,7 +203,6 @@ func _rip_off(run: int, velocity: Vector2) -> void:
 	var catalog := Catalog.shared()
 	_effects.color = catalog.tier_color(catalog.tier_at(0).id)
 	_effects.add_layers(catalog.reveal_tier(catalog.tier_at(0).id).adds, float(_cfg.layer_fade) / Settings.reveal_speed)
-	_ladder.light(0)
 	_pet_says("climb")
 	_effects.burst(8)
 	_climb(run)
@@ -237,7 +230,6 @@ func _climb(run: int) -> void:
 
 func _step_to(tier_id: String, rank: int) -> void:
 	var step := Catalog.shared().reveal_tier(tier_id)
-	_ladder.light(rank)
 	var t := _tween()
 	t.tween_property(_effects, "color", Catalog.shared().tier_color(tier_id), float(_cfg.color_fade)) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
@@ -350,7 +342,6 @@ func _show_result() -> void:
 	_pack.visible = false
 	_pack.back.visible = false
 	_pet_clip.visible = false
-	_ladder.visible = false
 	_pet_says("result")
 	_result.visible = true
 	_result.show_pet(_pet, _box_id)
@@ -383,7 +374,6 @@ func _reset() -> void:
 	_scene.visible = false
 	_pet_view.modulate = Color.WHITE
 	_say("pick a box and rip it open")
-	_ladder.visible = false
 	_pack.visible = true
 	_pack.back.visible = true
 	_pet_clip.visible = true
@@ -523,7 +513,7 @@ func _pack_local(pos: Vector2) -> Vector2:
 
 func _layout() -> void:
 	_scene.position = _base_position()
-	_ladder.position = Vector2(size.x - 110.0, size.y / 2.0 - 70.0)
+	_effects.reach = maxf(40.0, _base_position().y + CardPack.mouth().y - 8.0)
 
 
 func _base_position() -> Vector2:
@@ -582,30 +572,3 @@ func _kill_tweens() -> void:
 			t.kill()
 	_tweens.clear()
 
-
-## The rarity ladder beside the pack: one pip per tier, lit one at a time as the light climbs.
-class RarityLadder extends Control:
-	var _lit := -1
-
-	func _init() -> void:
-		custom_minimum_size = Vector2(100, 140)
-		size = custom_minimum_size
-		mouse_filter = MOUSE_FILTER_IGNORE
-
-	func light(rank: int) -> void:
-		_lit = rank
-		queue_redraw()
-
-	func _draw() -> void:
-		var catalog := Catalog.shared()
-		var font := UiTheme.BODY_FONT
-		for r in catalog.tiers.size():
-			var tier := catalog.tier_at(r)
-			var y := size.y - 10.0 - r * 22.0
-			var color := catalog.tier_color(tier.id)
-			var on := r <= _lit
-			if r == _lit:
-				draw_circle(Vector2(8, y), 10.0, Color(color, 0.25))
-			draw_circle(Vector2(8, y), 6.0, color if on else UiTheme.DEEP)
-			draw_arc(Vector2(8, y), 6.0, 0.0, TAU, 20, color if on else UiTheme.LINE, 2.0, true)
-			draw_string(font, Vector2(22, y + 4), tier.name, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.SMALL, color if on else UiTheme.LOCKED)

@@ -5,11 +5,16 @@ extends Control
 ## home from trips become furniture (the cushion it sits on, the basket, the little cart). What
 ## needs you is pinned to the wall as sticky notes (trips, boxes, parts, the map), each a shortcut.
 ## A card on the floor has its name, food and mood, feed and pat. It talks in the shared bubble.
+## Boxes you bought sit in a pile by the wall; once your pet has its cushion it opens them right
+## here while you watch (PackJob, the same routine as the corner panel): fetch one, shake it on the
+## cushion, pop! Good pulls are held up for a few seconds.
 
 signal go(tab_name: String)  # a note was tapped: show that tab
 signal open_box(box_id: String)
 
 const FLOOR := 0.64  # where the floor starts, as a share of the height
+const PILE_SHOWN := 9  # packs drawn on the pile at most (the badge counts the rest)
+const PACK_W := 40
 
 var _pet := PetPortrait.new(6, true)
 var _name := UiTheme.title("", 18)
@@ -21,6 +26,12 @@ var _note_parts := {}  # name -> { panel, line, hint, accent }
 var _finds := {}  # find id -> an invisible control over its drawing, for the tooltip
 var _rng := RandomNumberGenerator.new()
 var _dirty := true
+var _doing := UiTheme.label("", UiTheme.MINT, UiTheme.SMALL)  # on the card: what your pet is up to
+var _work := PackJob.new()
+var _held := PetView.new()  # the pet that just came out of a pack
+var _front := Node2D.new()  # over your pet: the pack in its paws, the pop, sparkles
+var _paw_box := ""  # which kind of box it's carrying
+var _said := ""
 
 
 func _init() -> void:
@@ -37,11 +48,19 @@ func _init() -> void:
 		_finds[id] = spot
 
 	_pet.clicked.connect(func():
+		if _work.tap():
+			return  # seen it! the good pull goes to the collection
 		GameState.pat()
 		_pet.view.squash = 0.6
 		PetBubble.say_line(self, "pat"))
 	_pet.tooltip_text = "pat me!"
 	add_child(_pet)
+	_work.speed = 90.0
+	_held.pixel = 4
+	_held.visible = false
+	add_child(_held)
+	_front.draw.connect(_draw_front)
+	add_child(_front)
 
 	# the card on the floor: name, food and mood, feed and pat
 	_card.add_theme_stylebox_override("panel", UiTheme.sticker(UiTheme.LILAC_SEAM, 12, UiTheme.RAISED, 12))
@@ -50,6 +69,7 @@ func _init() -> void:
 	col.add_theme_constant_override("separation", 6)
 	_card.add_child(col)
 	col.add_child(_name)
+	col.add_child(_doing)
 	for row in [["food", _food], ["mood", _mood]]:
 		var line := HBoxContainer.new()
 		var label := UiTheme.label(row[0], UiTheme.MUTED, UiTheme.SMALL)
@@ -91,13 +111,115 @@ func _init() -> void:
 			speak())
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not is_visible_in_tree():
 		return
 	_food.value = GameState.hunger
 	_mood.value = GameState.happiness
 	if _dirty:
 		_refresh()
+	_step_work(delta)
+
+
+# ---- your pet opening the pile ------------------------------------------------------
+
+func _step_work(delta: float) -> void:
+	if _pet.view.pet == null or size.x <= 0.0:
+		return
+	var feet := _feet()
+	_work.step(delta, feet.x, _pile_spot().x - 70.0)
+	_pet.view.walking = _work.walking
+	_pet.view.facing = _work.facing
+	if _work.squash > 0.0:
+		_pet.view.squash = _work.squash
+		_work.squash = 0.0
+	_pet.position.x = _work.x - _pet.size.x / 2.0
+	if _work.pack_in_paws and _paw_box == "":
+		_paw_box = GameState.next_pet_box()
+	elif not _work.pack_in_paws:
+		_paw_box = ""
+	# the new pet: hopping off toward the window, or held up high
+	if _held.pet != _work.held:
+		_held.pet = _work.held
+	_held.visible = _work.held != null
+	var pet_h := PetView.size_for(_pet.view.pixel).y
+	if _work.job == PackJob.Job.SHOW:
+		_held.position = Vector2(_work.x, feet.y - pet_h - 4.0 + sin(_work.time * 4.0) * 3.0)
+	elif _work.job == PackJob.Job.HOP:
+		var t := _work.hop_progress()
+		_held.facing = -1
+		_held.position = Vector2(lerpf(_work.x - 50.0, 200.0, t), feet.y - absf(sin(t * PI * 3.0)) * 24.0)
+		_held.modulate.a = 1.0 if t < 0.8 else (1.0 - t) * 5.0
+	if _work.said != _said:
+		_said = _work.said
+		if _said != "":
+			PetBubble.say(self, _said)
+	_doing.visible = _work.job != PackJob.Job.SIT or GameState.can_auto_open()
+	_doing.text = "opening your pile" if _doing.visible else ""
+	queue_redraw()
+	_front.queue_redraw()
+
+
+## Where the pile of boxes stands: by the wall, right of the rug.
+func _pile_spot() -> Vector2:
+	var floor_y := size.y * FLOOR
+	return Vector2(size.x * 0.8, floor_y + 30.0)
+
+
+## The boxes on your pile, a few of each kind drawn, and a badge with how many.
+func _draw_pile() -> void:
+	var kinds: Array[Dictionary] = []
+	var total := 0
+	for box in Catalog.shared().boxes:
+		var n := GameState.in_bag(box.id)
+		if n > 0:
+			kinds.append(box)
+			total += n
+	if total == 0:
+		return
+	var at := _pile_spot()
+	var pack := Vector2(PACK_W, PACK_W * 1.3)
+	var shown := mini(total, PILE_SHOWN)
+	for i in shown:
+		var box: Dictionary = kinds[i % kinds.size()]
+		var col := i % 3
+		var row := i / 3
+		var p := at + Vector2((col - 1) * 30.0 + (row % 2) * 12.0, -pack.y / 2.0 - row * 24.0)
+		draw_set_transform(p, [-0.14, 0.09, -0.05, 0.12, -0.1, 0.03, -0.07, 0.1, 0.0][i])
+		draw_texture_rect(PackArt.texture(box.get("art", {}), PACK_W), Rect2(-pack / 2.0, pack), false)
+	draw_set_transform(Vector2.ZERO)
+	var badge := "×%d" % total
+	var w := UiTheme.DISPLAY_FONT.get_string_size(badge, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 18.0
+	var r := Rect2(at + Vector2(36, -pack.y - (ceili(shown / 3.0) - 1) * 24.0 - 12.0), Vector2(w, 22))
+	draw_style_box(UiTheme.box(UiTheme.RAISED, UiTheme.PINK_SEAM, 11, 2, 0), r)
+	draw_string(UiTheme.DISPLAY_FONT, r.position + Vector2(9, 16), badge, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UiTheme.TEXT)
+
+
+## Over your pet: the pack in its paws (shaking), the puff when it pops, sparkles round a good pull.
+func _draw_front() -> void:
+	var feet := _feet()
+	var pet_h := PetView.size_for(_pet.view.pixel).y
+	if _work.pack_in_paws and _paw_box != "":
+		var shake := _work.job == PackJob.Job.SHAKE
+		var tex := PackArt.texture(Catalog.shared().box(_paw_box).get("art", {}), 34)
+		var size_ := Vector2(34, 34 * 1.3)
+		_front.draw_set_transform(Vector2(_work.x + (sin(_work.time * 50.0) * 3.0 if shake else 0.0), feet.y - pet_h - 12.0),
+			sin(_work.time * 40.0) * 0.2 if shake else -0.1)
+		_front.draw_texture_rect(tex, Rect2(-size_ / 2.0, size_), false)
+		_front.draw_set_transform(Vector2.ZERO)
+	if _work.puff > 0.0:
+		var center := Vector2(_work.x, feet.y - pet_h * 0.6)
+		_front.draw_arc(center, 20.0 + (1.0 - _work.puff) * 70.0, 0.0, TAU, 32, Color(UiTheme.GOLD, _work.puff), 4.0 * _work.puff, true)
+	if _work.job == PackJob.Job.SHOW and _work.held:
+		var center := _held.position - Vector2(0, PetView.size_for(_held.pixel).y / 2.0)
+		var color := Catalog.shared().tier_color(_work.held.rarity)
+		_front.draw_circle(center, 44.0 + sin(_work.time * 4.0) * 3.0, Color(color, 0.18))
+		for i in 5:
+			var a := TAU * i / 5.0 + _work.time * 1.5
+			var at := center + Vector2(cos(a) * 52.0, sin(a) * 40.0)
+			var twinkle := 3.0 + 3.0 * absf(sin(_work.time * 5.0 + i))
+			_front.draw_line(at - Vector2(twinkle, 0), at + Vector2(twinkle, 0), UiTheme.GOLD, 2.0)
+			_front.draw_line(at - Vector2(0, twinkle), at + Vector2(0, twinkle), UiTheme.GOLD, 2.0)
 
 
 # ---- the room -----------------------------------------------------------------
@@ -154,6 +276,7 @@ func _draw() -> void:
 		while x < c.end.x - 12:
 			draw_line(Vector2(x, c.get_center().y), Vector2(x + 4, c.get_center().y), UiTheme.PINK, 2.0)
 			x += 8
+	_draw_pile()
 	var basket := Vector2(size.x * 0.8, floor_y + (size.y - floor_y) * 0.62)
 	if GameState.finds.has("basket"):
 		_draw_basket(basket)
@@ -279,7 +402,10 @@ func _refresh() -> void:
 	var boxes := 0
 	for box_id in GameState.bag:
 		boxes += GameState.in_bag(box_id)
-	_set_note("boxes", "%d boxes in your bag" % boxes if boxes > 0 else "none in your bag", "open them" if boxes > 0 else "get more", boxes > 0)
+	if GameState.can_auto_open() and boxes > 0:
+		_set_note("boxes", "%s is opening the pile" % _name.text, "%d left" % boxes, true)
+	else:
+		_set_note("boxes", "%d boxes on your pile" % boxes if boxes > 0 else "your pile is empty", "open them" if boxes > 0 else "buy some", boxes > 0)
 
 	var parts := 0
 	for key in GameState.parts:

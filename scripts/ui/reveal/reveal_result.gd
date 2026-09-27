@@ -123,9 +123,10 @@ static func new_parts(pet: Pet) -> Array[String]:
 func _refresh_buttons() -> void:
 	if _pet == null:
 		return
-	var from_bag := GameState.in_bag(_box_id) > 0
-	_again.disabled = GameState.affordable(_box_id) < 1
-	_again_price.text = "from your bag" if from_bag else "%d coins" % GameState.box_price(_box_id)
-	_again_price.add_theme_color_override("font_color", UiTheme.MINT if from_bag else UiTheme.CYAN)
+	var left := GameState.in_bag(_box_id)
+	_again.disabled = left < 1
+	_again.tooltip_text = "buy more at the counter" if left < 1 else ""
+	_again_price.text = "%d left on the pile" % left if left > 0 else "the pile is empty"
+	_again_price.add_theme_color_override("font_color", UiTheme.MINT if left > 0 else UiTheme.LILAC)
 	var is_active := GameState.collection.active_uid == _pet.uid
 	_active.visible = not is_active
