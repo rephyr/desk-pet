@@ -403,6 +403,9 @@ func _test_garden(catalog: Catalog) -> void:
 		t += 1.0e5
 	_check(full.history.any(func(e): return e.event == "finish") and full.party.size() == 1, "going all the way ends with a treat bag")
 	_check(Rewards.depth_boost(3) > Rewards.depth_boost(0), "later events pay more")
+	_check(full.xp >= AdventureRunner.XP_EVENT * 3 + AdventureRunner.XP_FINISH, "a whole trip earns xp (%d)" % full.xp)
+	_check(early.xp == AdventureRunner.XP_EVENT, "going home straight away earns a little xp (%d)" % early.xp)
+	_check(RunState.from_dict(JSON.parse_string(JSON.stringify(full.to_dict())), catalog).xp == full.xp, "trip xp survives a save")
 
 	# hints: every option gets words, never a number or a {placeholder}; bias tilts them
 	var risky := {}

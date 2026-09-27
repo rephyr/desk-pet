@@ -19,6 +19,7 @@ var answer := -1  # the option the player picked for the waiting event, -1 if no
 var history: Array[Dictionary] = []  # { event, title, option, success, text, lost, injured, loot }
 var loot := {}  # everything found so far, see Rewards
 var went_home := false  # ended early by choice (no treat bag for finishing)
+var xp := 0  # experience from this trip; unlike the bag, it isn't lost with the pet
 
 
 ## The event the party is standing at, or {} while walking between them.
@@ -32,7 +33,7 @@ func to_dict() -> Dictionary:
 	return {
 		"location": location_id, "chooser": chooser, "party": party.to_dict(), "seed": rng_seed, "events": events, "step": step,
 		"started": started, "next_at": next_at, "status": status, "waiting_since": waiting_since,
-		"answer": answer, "log": history, "loot": loot, "went_home": went_home,
+		"answer": answer, "log": history, "loot": loot, "went_home": went_home, "xp": xp,
 	}
 
 
@@ -56,6 +57,7 @@ static func from_dict(d: Dictionary, catalog: Catalog) -> RunState:
 	s.waiting_since = float(d.get("waiting_since", 0.0))
 	s.answer = int(d.get("answer", -1))
 	s.went_home = bool(d.get("went_home", false))
+	s.xp = int(d.get("xp", 0))
 	s.history.assign(d.get("log", []))
 	for key in d.get("loot", {}):
 		s.loot[key] = int(d.loot[key])

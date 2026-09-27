@@ -139,7 +139,7 @@ func _show(tab_name: String) -> void:
 
 
 func _refresh() -> void:
-	_coins.text = "◆ %d" % GameState.coins
+	_coins.text = "◆ %d   xp %d" % [GameState.coins, GameState.xp]
 
 
 func _say_hint(text: String) -> void:

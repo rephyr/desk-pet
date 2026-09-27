@@ -11,7 +11,7 @@ signal unlocked(entry: Dictionary)  # something new opened up (see data/unlocks.
 signal adventures_changed  # a trip was sent, moved on, answered or collected, or something unlocked
 
 const SAVE_PATH := "user://save.json"
-const SAVE_VERSION := 11
+const SAVE_VERSION := 12
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
 const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
@@ -24,7 +24,8 @@ const TUTORIAL_BOX := "tutorial"  # hidden box the tutorial's pets come from, se
 
 var catalog := Catalog.shared()
 var collection := Collection.new()
-var coins := 100
+var coins := 100  # money: what gets spent on stuff (boxes, food, ...)
+var xp := 0  # experience from adventures: buys upgrades to adventuring itself
 var hunger := 80.0  # 100 = full
 var happiness := 80.0
 var pet_out := false
@@ -350,6 +351,7 @@ func debug_new_game() -> void:
 	var backup := "user://save-before-new-game-%d.json" % int(Time.get_unix_time_from_system())
 	DirAccess.copy_absolute(ProjectSettings.globalize_path(SAVE_PATH), ProjectSettings.globalize_path(backup))
 	coins = 100
+	xp = 0
 	hunger = 80.0
 	happiness = 80.0
 	bag.clear()
@@ -592,12 +594,16 @@ func collect_run(run: RunState) -> String:
 		return ""
 	runs.erase(run)
 	trips_done += 1
+	var new_finds := 0
 	for key: String in run.loot:
 		if key.begins_with("find:") and not finds.has(key.substr(5)):
+			new_finds += 1
 			announcements.append("%s found %s!" % [run.party.who(), catalog.finds.get(key.substr(5), {}).get("name", "something")])
 	grant(run.loot)
 	collection.remove(run.party.lost)
 	var found := _spot_places(run)
+	# experience: from the trip itself, and a lot for discovering things
+	xp += run.xp + XP_SPOTTED * found.size() + XP_FIND * new_finds
 	news = { "place": catalog.location(run.location_id).name, "home": run.party.size(),
 		"sent": run.party.setting_out(), "parts": Rewards.total(run.loot, "part"),
 		"spotted": found.map(func(id): return catalog.location(id).name), "who": run.party.who() }
@@ -605,6 +611,52 @@ func collect_run(run: RunState) -> String:
 	changed.emit()
 	save_game()
 	return AdventureRunner.summary(run)
+
+
+# ---- the trail (clicking along a trip yourself) -----------------------------------
+
+const XP_SPOTTED := 10  # xp for a pet spotting a new place
+const XP_FIND := 25  # xp for bringing home a special find
+const HOP := 2.5  # seconds a click takes off the walk to the next event
+const TRAIL_COINS := [0.2, 0.5]  # a coin pickup is worth this times the place's loot (garden: about 1)
+
+
+## You clicked to hurry a pet along: the next event (or home) comes a bit sooner.
+func hurry(run: RunState) -> void:
+	if not run in runs or run.status != RunState.Status.WALKING:
+		return
+	var now := Time.get_unix_time_from_system()
+	run.next_at = maxf(now, run.next_at - HOP)
+	if run.next_at <= now and _advance(run):
+		adventures_changed.emit()
+		changed.emit()
+
+
+## You grabbed something on the trail. Coins and parts go in the trip's bag (lost with the pet),
+## xp is yours straight away, a leaf heals a sore paw. `bonus` grows with a streak of grabs.
+## Returns what it was worth, e.g. { "coins": 3 }, for the little "+3" that pops up.
+func trail_pickup(run: RunState, kind: String, bonus := 1.0) -> Dictionary:
+	if not run in runs or run.status == RunState.Status.DONE:
+		return {}
+	var location := catalog.location(run.location_id)
+	match kind:
+		"coins":
+			var amount := maxi(1, roundi(_rng.randf_range(TRAIL_COINS[0], TRAIL_COINS[1]) * float(location.loot) * bonus))
+			Rewards.add(run.loot, { "coins": amount })
+			return { "coins": amount }
+		"xp":
+			var amount := maxi(1, roundi(bonus))
+			xp += amount
+			changed.emit()
+			return { "xp": amount }
+		"heal":
+			return { "heal": run.party.heal(1, _rng) }
+		"part":
+			var part := Rewards.roll_part(str(location.box), _rng, catalog, location.get("part_slots", []))
+			var key := "part:%s:%s" % part
+			Rewards.add(run.loot, { key: 1 })
+			return { "part": key }
+	return {}
 
 
 ## Hands out loot (see Rewards): coins to the wallet, boxes and parts to the bag, anything else
@@ -693,6 +745,7 @@ func save_game() -> void:
 	var data := {
 		"version": SAVE_VERSION,
 		"coins": coins,
+		"xp": xp,
 		"hunger": hunger,
 		"happiness": happiness,
 		"pet_out": pet_out,
@@ -734,6 +787,7 @@ func load_game() -> bool:
 		_can_save = false
 	data = _migrate(data)
 	coins = int(data.get("coins", coins))
+	xp = int(data.get("xp", 0))
 	hunger = data.get("hunger", hunger)
 	happiness = data.get("happiness", happiness)
 	pet_out = data.get("pet_out", false)

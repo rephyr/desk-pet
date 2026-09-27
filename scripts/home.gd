@@ -120,6 +120,12 @@ func _apply_dev_args() -> void:
 		var bits := open.split(":")
 		GameState.add_debug_coins()
 		_expanded.boxes.open(bits[0], int(bits[1]) if bits.size() > 1 else 1, DevArgs.value("force"))
+	var trip := DevArgs.value("trip")  # e.g. garden: sends one pet and goes along on the trail
+	if trip != "" and not GameState.sendable_pets().is_empty():
+		var going: Array[Pet] = [GameState.sendable_pets()[0]]
+		if GameState.send_on_adventure(trip, going) != null:
+			_set_expanded(true)
+			_expanded.show_tab("adventures")
 
 
 func _quit() -> void:

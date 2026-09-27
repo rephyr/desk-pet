@@ -11,6 +11,7 @@ const QUICK_PICK := 10
 
 var _location_id := ""
 var _map := MapView.new()
+var _trail := TrailView.new()  # a hands-on trip up close, see TrailView
 var _picker: VBoxContainer
 var _place_label := UiTheme.label("", UiTheme.PINK)
 var _odds := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
@@ -47,6 +48,9 @@ func _init() -> void:
 	_picker = _picker_column()
 	_picker.visible = false
 	_columns.add_child(_picker)
+	_trail.visible = false
+	_trail.back_to_map.connect(func(): _show_map(true))
+	_columns.add_child(_trail)
 	_columns.add_child(_runs_column())
 	_map.place_picked.connect(_choose_place)
 	_map.lead_picked.connect(func(id): GameState.follow_lead(id))
@@ -59,7 +63,12 @@ func _init() -> void:
 	visibility_changed.connect(func():
 		_rebuild_if_dirty()
 		if is_visible_in_tree():
-			_speak())
+			_speak()
+			# a hands-on trip is out: go along with it
+			for run in GameState.runs:
+				if run.chooser == "player" and run.status != RunState.Status.DONE:
+					_show_trail(run)
+					break)
 
 
 ## Your active pet and a speech bubble.
@@ -114,8 +123,17 @@ func _choose_place(location_id: String) -> void:
 func _show_map(on: bool) -> void:
 	_map.visible = on
 	_picker.visible = not on
+	_trail.visible = false
 	if on:
 		_map.refresh()
+
+
+## Up close on a hands-on trip: the trail, where you click it along.
+func _show_trail(run: RunState) -> void:
+	_trail.show_run(run)
+	_map.visible = false
+	_picker.visible = false
+	_trail.visible = true
 
 
 func _picker_column() -> VBoxContainer:
@@ -278,10 +296,15 @@ func _turn(step: int) -> void:
 
 
 func _send_picked() -> void:
-	if GameState.send_on_adventure(_location_id, _picked_pets()) != null:
+	var run := GameState.send_on_adventure(_location_id, _picked_pets())
+	if run != null:
 		_picked.clear()
 		_result.visible = false
-		_show_map(true)
+		# you choose for a single pet: go along with it; bigger parties get on by themselves
+		if run.chooser == "player":
+			_show_trail(run)
+		else:
+			_show_map(true)
 		_rebuild()
 
 
@@ -370,6 +393,10 @@ func _rebuild_runs() -> void:
 		top.add_child(UiTheme.spacer())
 		var who := run.party.who() if run.party.setting_out() == 1 else "%d pets" % run.party.setting_out()
 		top.add_child(UiTheme.label(who, UiTheme.MUTED, UiTheme.SMALL))
+		if run.chooser == "player" and run.status != RunState.Status.DONE:
+			var watch := UiTheme.small_button("watch ›", _show_trail.bind(run))
+			watch.add_theme_font_size_override("font_size", UiTheme.SMALL)
+			top.add_child(watch)
 		col.add_child(top)
 
 		# a single pet's trip reads like a little story, told by your active pet: how it's feeling,
@@ -441,6 +468,8 @@ func _collect(run: RunState) -> void:
 		return
 	_result.text = text
 	_result.visible = true
+	if _trail.visible and _trail.run == run:
+		_show_map(true)
 	_rebuild()
 	_speak()
 

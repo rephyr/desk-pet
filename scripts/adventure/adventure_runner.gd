@@ -13,6 +13,9 @@ const SIZE_SCALING := 0.85  # difficulty grows a bit slower than the party: big 
 const STAT_TILT := 0.15  # most a pet's stat moves an option's own chance, either way
 const HURT_PENALTY := 0.2  # a hurt pet does this much worse at anything risky
 const FINISH_TEXT := "{who} made it all the way! a treat bag for the trip home!"
+const XP_EVENT := 2  # xp for getting through an event
+const XP_BRAVE := 2  # extra when a risky option works out
+const XP_FINISH := 5  # extra for going all the way
 ## Places with "go_home" offer this at every event: end the trip and keep the bag.
 const HOME_OPTION := {
 	"label": "go home", "tag": "retreat", "stat": "", "home": true,
@@ -116,6 +119,7 @@ static func _finish_treat(state: RunState, location: Dictionary, catalog: Catalo
 	for reward in treat:
 		Rewards.add(loot, Rewards.roll(reward, state.party, location, rng, catalog, Rewards.depth_boost(state.history.size())))
 	Rewards.add(state.loot, loot)
+	state.xp += roundi(XP_FINISH * float(location.get("xp", 1.0)))
 	state.history.append({ "event": "finish", "title": "", "option": "", "success": true, "lost": 0, "injured": 0,
 		"loot": loot, "text": FINISH_TEXT.replace("{who}", state.party.who()) })
 
@@ -210,6 +214,10 @@ static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog
 			state.step += 2
 		_:
 			state.step += 1
+	# experience: for getting through it, more for a risk that paid off
+	var risky: bool = option.get("failure", {}).has("hurt") or option.get("failure", {}).has("lost")
+	entry.xp = roundi((XP_EVENT + (XP_BRAVE if ok and risky else 0)) * float(location.get("xp", 1.0)))
+	state.xp += entry.xp
 	state.history.append(entry)
 	return entry
 
@@ -217,6 +225,8 @@ static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog
 ## "Expedition complete: 12 of 100 returned. New part found!"
 static func summary(state: RunState) -> String:
 	var text := "Expedition complete: %d of %d returned." % [state.party.size(), state.party.setting_out()]
+	if state.xp > 0:
+		text += " +%d xp!" % state.xp
 	var parts := Rewards.total(state.loot, "part")
 	var boxes := Rewards.total(state.loot, "box")
 	if parts == 1:
