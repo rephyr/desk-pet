@@ -170,7 +170,7 @@ func _part_tile(key: String, count: int, i: int) -> Control:
 	panel.add_child(col)
 	var portrait := PetPortrait.new(2, false)
 	portrait.mouse_filter = MOUSE_FILTER_IGNORE
-	portrait.set_pet(_preview(bits[0], bits[1]))
+	portrait.set_pet(part_preview(bits[0], bits[1]))
 	col.add_child(portrait)
 	for line in [[part.get("name", bits[1]), UiTheme.TEXT], [bits[0], UiTheme.MUTED]]:
 		var l := UiTheme.label(line[0], line[1], UiTheme.SMALL)
@@ -245,12 +245,21 @@ func _show_sewing() -> void:
 	var fill := Control.new()
 	fill.size_flags_vertical = SIZE_EXPAND_FILL
 	_sew_body.add_child(fill)
-	var sew := UiTheme.button("sew it on" if can else "can't sew this one on", _sew.bind(bits[0], bits[1]))
+	var sew := UiTheme.button("sew it on" if can else _why_not_sew(pet, bits[0], bits[1]), _sew.bind(bits[0], bits[1]))
 	sew.disabled = not can
 	_sew_body.add_child(sew)
 	var fine := _muted("if the stitch holds, the old %s goes back in your bag" % bits[0])
 	fine.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_sew_body.add_child(fine)
+
+
+## Why a part can't be sewn on right now, as the greyed-out button's text.
+static func _why_not_sew(pet: Pet, slot: String, id: String) -> String:
+	if pet == null:
+		return "pick an active pet first"
+	if pet.parts.get(slot, "") == id:
+		return "already wearing this one"
+	return "none left in your bag"
 
 
 func _framed(pet: Pet, caption: String, frame: StyleBox) -> Control:
@@ -317,8 +326,8 @@ func _muted(text: String) -> Label:
 	return l
 
 
-## A plain pet wearing just this part.
-static func _preview(slot: String, id: String) -> Pet:
+## A plain pet wearing just this part (how a part is shown on its own: tiles, the trail card).
+static func part_preview(slot: String, id: String) -> Pet:
 	var pet := Pet.new()
 	for s in Catalog.SLOTS:
 		pet.parts[s] = Catalog.shared().default_part(s)

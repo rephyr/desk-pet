@@ -28,7 +28,7 @@ var _pager := HBoxContainer.new()
 var _page_label := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
 var _runs := VBoxContainer.new()
 var _run_rows: Array[Dictionary] = []  # { run, bar, time } or { run, countdown }
-var _result := UiTheme.label("", UiTheme.LILAC, UiTheme.SMALL)
+var _postcard := Postcard.new()  # what a trip brought home, after "welcome back"
 var _dirty := true
 var _estimate_key := ""  # which picks the cached estimate is for
 var _estimate := 1.0
@@ -52,6 +52,12 @@ func _init() -> void:
 		area.add_child(c)
 	_trail.visible = false
 	_trail.back_to_map.connect(func(): _show_map(true))
+	_trail.welcome_back.connect(_collect)
+	_postcard.set_anchors_preset(PRESET_FULL_RECT)
+	_postcard.visible = false
+	_postcard.closed.connect(func():
+		_postcard.visible = false
+		_show_map(true))
 	_build_picker()
 	_picker.visible = false
 	# the card sticks onto the map's top right, a little crooked
@@ -61,6 +67,7 @@ func _init() -> void:
 	stuck.offset_right = -14
 	stuck.offset_top = 40
 	area.add_child(stuck)
+	area.add_child(_postcard)  # over the map and the place card
 	add_child(_runs_column())
 
 	_map.place_picked.connect(_choose_place)
@@ -127,6 +134,7 @@ func _show_map(on: bool) -> void:
 ## Up close on a hands-on trip: the trail, where you click it along.
 func _show_trail(run: RunState) -> void:
 	_trail.show_run(run)
+	_postcard.visible = false
 	_map.visible = false
 	_picker.visible = false
 	_trail.visible = true
@@ -231,9 +239,6 @@ func _runs_column() -> VBoxContainer:
 	col.custom_minimum_size = Vector2(252, 0)
 	col.add_theme_constant_override("separation", 8)
 	col.add_child(UiTheme.title("away", 17))
-	_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_result.visible = false
-	col.add_child(_result)
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -337,7 +342,6 @@ func _send_picked() -> void:
 	var run := GameState.send_on_adventure(_location_id, _picked_pets())
 	if run != null:
 		_picked.clear()
-		_result.visible = false
 		# you choose for a single pet: go along with it; bigger parties get on by themselves
 		if run.chooser == "player":
 			_show_trail(run)
@@ -399,6 +403,7 @@ func _refresh_send() -> void:
 	else:
 		_picked_label.text = "%d picked" % pets.size()
 	_send.disabled = pets.is_empty()
+	_send.tooltip_text = "pick who's going first" if pets.is_empty() else ""
 	_send.text = "send %s" % pets[0].display_name(catalog) if pets.size() == 1 else "send them"
 	if pets.is_empty():
 		_odds.text = "tap a pet to pick it"
@@ -504,8 +509,9 @@ func _rebuild_runs() -> void:
 				when.add_child(time)
 				col.add_child(when)
 				_run_rows.append({ "run": run, "bar": bar, "time": time, "where": where })
-		for e in run.history:
-			col.add_child(_wrapped(str(e.text), UiTheme.MUTED))
+		# what happened so far, newest on top
+		for i in range(run.history.size() - 1, -1, -1):
+			col.add_child(_wrapped(str(run.history[i].text), UiTheme.MUTED))
 		_runs.add_child(panel)
 	if GameState.runs.is_empty():
 		_runs.add_child(UiTheme.label("nobody's away", UiTheme.MUTED, UiTheme.SMALL))
@@ -531,13 +537,14 @@ func _refresh_runs() -> void:
 
 
 func _collect(run: RunState) -> void:
-	var text := GameState.collect_run(run)
-	if text == "":
+	var trip := GameState.collect_run(run)
+	if trip.is_empty():
 		return
-	_result.text = text
-	_result.visible = true
 	if _trail.visible and _trail.run == run:
 		_show_map(true)
+	_picker.visible = false
+	_postcard.show_trip(trip)
+	_postcard.visible = true
 	_rebuild()
 	speak()
 

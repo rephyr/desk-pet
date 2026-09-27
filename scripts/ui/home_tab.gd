@@ -287,7 +287,7 @@ func _refresh() -> void:
 	_set_note("parts", "%d parts to sew on" % parts if parts > 0 else "no parts yet", "try them on" if parts > 0 else "pets find them on trips", parts > 0)
 	_note_parts.parts.panel.get_parent().visible = GameState.tab_open("inventory")
 
-	var ready := GameState.spotted.keys().filter(func(id): return GameState.lead_wait(id) <= 0.0).size() + GameState.rumours.size()
+	var ready := GameState.spotted.size() + GameState.rumours.size()
 	_set_note("map", "somewhere new to go!" if ready > 0 else "the map", "go and look" if ready > 0 else "plan a trip", ready > 0)
 
 	for id in _finds:

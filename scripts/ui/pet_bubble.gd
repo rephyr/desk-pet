@@ -31,13 +31,18 @@ static func say(from: Node, text: String) -> void:
 
 ## Says one of the pet's lines for `key` (data/voice.json "ui"), with {count} and the like filled in.
 static func say_line(from: Node, key: String, fill := {}) -> void:
+	say(from, line(key, fill))
+
+
+## One of the pet's lines for `key` (data/voice.json "ui") filled in, or "" if there are none.
+static func line(key: String, fill := {}) -> String:
 	var lines: Array = Catalog.shared().voice.get("ui", {}).get(key, [])
 	if lines.is_empty():
-		return
-	var line: String = lines[randi() % lines.size()]
+		return ""
+	var text: String = lines[randi() % lines.size()]
 	for k in fill:
-		line = line.replace("{%s}" % k, str(fill[k]))
-	say(from, line)
+		text = text.replace("{%s}" % k, str(fill[k]))
+	return text
 
 
 func show_line(text: String) -> void:

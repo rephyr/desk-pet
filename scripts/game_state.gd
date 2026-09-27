@@ -36,7 +36,7 @@ var unlocks := {}  # unlock id -> true, e.g. "automation", "parties", "location:
 var trips_done := 0  # adventures welcomed back, ever (some types open after a few)
 var heard := {}  # rumour id -> true, for every rumour ever heard
 var rumours: Array[String] = []  # heard, and waiting for you to decide whether to go
-## Places a pet spotted on a trip, waiting for you: location id -> { ready_at, by, from }
+## Places a pet spotted on a trip, waiting for you: location id -> { by, from }
 var spotted := {}
 var spot_tries := {}  # location id -> trips that could have spotted it but didn't (the safety net)
 var finds := {}  # special items pets have brought home, see data/unlocks.json
@@ -256,16 +256,9 @@ func is_open(id: String) -> bool:
 	return is_unlocked(id)
 
 
-## Seconds until a spotted place can be gone to (its time lock), 0 if it can now.
-func lead_wait(location_id: String) -> float:
-	if not spotted.has(location_id):
-		return 0.0
-	return maxf(0.0, float(spotted[location_id].ready_at) - Time.get_unix_time_from_system())
-
-
-## You say yes to a place a pet spotted: it opens, once its time lock (if any) is over.
+## You say yes to a place a pet spotted: it opens right away.
 func follow_lead(location_id: String) -> void:
-	if not spotted.has(location_id) or lead_wait(location_id) > 0.0:
+	if not spotted.has(location_id):
 		return
 	spotted.erase(location_id)
 	unlocks["location:" + location_id] = true
@@ -281,13 +274,8 @@ func _spot_places(run: RunState) -> Array[String]:
 	var location := catalog.location(run.location_id)
 	var known := func(id): return location_open(catalog.location(id)) or spotted.has(id)
 	var found := Intel.roll(location, known, spot_tries, _rng)
-	var now := Time.get_unix_time_from_system()
 	for id in found:
-		var wait := 0.0
-		for lead in location.get("leads_to", []):
-			if lead.to == id:
-				wait = float(lead.get("wait_minutes", 0.0)) * 60.0
-		spotted[id] = { "ready_at": now + wait, "by": run.party.who(), "from": run.location_id }
+		spotted[id] = { "by": run.party.who(), "from": run.location_id }
 	return found
 
 
@@ -599,29 +587,50 @@ func answer_event(run: RunState, option_index: int) -> void:
 
 
 ## Collects a run that's back: what it found is handed out, the pets that didn't come back leave
-## the collection. Returns the summary line, or "" if it isn't back yet.
-func collect_run(run: RunState) -> String:
+## the collection. Returns what goes on the trip's postcard (see Postcard), or {} if it isn't back yet:
+## { place, doodle, photo: [{ pet, home }] in the order they set out, notes: [{ text, stayed }], loot,
+## xp gained, spotted: [{ name, doodle }], finds: [names] }.
+func collect_run(run: RunState) -> Dictionary:
 	if not run in runs or run.status != RunState.Status.DONE:
-		return ""
+		return {}
 	runs.erase(run)
 	trips_done += 1
-	var new_finds := 0
+	var location := catalog.location(run.location_id)
+	var photo: Array[Dictionary] = []
+	for uid: String in run.party.stats:  # everyone who set out, in order
+		var pet := collection.get_pet(uid)
+		if pet:
+			photo.append({ "pet": pet, "home": not uid in run.party.lost })
+	var new_finds: Array[String] = []
 	for key: String in run.loot:
 		if key.begins_with("find:") and not finds.has(key.substr(5)):
-			new_finds += 1
-			announcements.append("%s found %s!" % [run.party.who(), catalog.finds.get(key.substr(5), {}).get("name", "something")])
+			var find_name := str(catalog.finds.get(key.substr(5), {}).get("name", "something"))
+			new_finds.append(find_name)
+			announcements.append("%s found %s!" % [run.party.who(), find_name])
 	grant(run.loot)
 	collection.remove(run.party.lost)
 	var found := _spot_places(run)
 	# experience: from the trip itself, and a lot for discovering things
-	xp += run.xp + XP_SPOTTED * found.size() + XP_FIND * new_finds
-	news = { "place": catalog.location(run.location_id).name, "home": run.party.size(),
+	var gained := run.xp + XP_SPOTTED * found.size() + XP_FIND * new_finds.size()
+	xp += gained
+	var spotted_names: Array[String] = []
+	var spotted_places: Array[Dictionary] = []
+	for id in found:
+		var place := catalog.location(id)
+		spotted_names.append(str(place.name))
+		spotted_places.append({ "name": place.name, "doodle": str(place.get("map", {}).get("doodle", "")) })
+	news = { "place": location.name, "home": run.party.size(),
 		"sent": run.party.setting_out(), "parts": Rewards.total(run.loot, "part"),
-		"spotted": found.map(func(id): return catalog.location(id).name), "who": run.party.who() }
+		"spotted": spotted_names, "who": run.party.who() }
 	adventures_changed.emit()
 	changed.emit()
 	save_game()
-	return AdventureRunner.summary(run)
+	var notes: Array[Dictionary] = []
+	for entry in run.history:
+		if str(entry.get("text", "")) != "":
+			notes.append({ "text": str(entry.text), "stayed": int(entry.get("lost", 0)) > 0 })
+	return { "place": location.name, "doodle": str(location.get("map", {}).get("doodle", "")), "photo": photo,
+		"notes": notes, "loot": run.loot.duplicate(), "xp": gained, "spotted": spotted_places, "finds": new_finds }
 
 
 # ---- the trail (clicking along a trip yourself) -----------------------------------
@@ -643,8 +652,8 @@ func hurry(run: RunState) -> void:
 		changed.emit()
 
 
-## You grabbed something on the trail. Coins and parts go in the trip's bag (lost with the pet),
-## xp is yours straight away, a leaf heals a sore paw. `bonus` grows with a streak of grabs.
+## You grabbed something on the trail. Coins go in the trip's bag (lost with the pet), a part waits
+## for you to keep it (keep_trail_part), xp is yours straight away, a leaf heals a sore paw. `bonus` grows with a streak of grabs.
 ## Returns what it was worth, e.g. { "coins": 3 }, for the little "+3" that pops up.
 func trail_pickup(run: RunState, kind: String, bonus := 1.0) -> Dictionary:
 	if not run in runs or run.status == RunState.Status.DONE:
@@ -663,11 +672,20 @@ func trail_pickup(run: RunState, kind: String, bonus := 1.0) -> Dictionary:
 		"heal":
 			return { "heal": run.party.heal(1, _rng) }
 		"part":
+			# not in the bag yet: you pick "add to bag" or "leave it" first (keep_trail_part)
 			var part := Rewards.roll_part(str(location.box), _rng, catalog, location.get("part_slots", []))
-			var key := "part:%s:%s" % part
-			Rewards.add(run.loot, { key: 1 })
-			return { "part": key }
+			return { "part": "part:%s:%s" % part }
 	return {}
+
+
+## You kept a part the pet picked up on the trail: into the trip's bag, or straight into yours
+## if the trip was already welcomed back while you were deciding.
+func keep_trail_part(run: RunState, key: String) -> void:
+	if run in runs:
+		Rewards.add(run.loot, { key: 1 })
+		changed.emit()
+	else:
+		grant({ key: 1 })
 
 
 ## Hands out loot (see Rewards): coins to the wallet, boxes and parts to the bag, anything else
@@ -831,8 +849,7 @@ func load_game() -> bool:
 	var saved_spots: Dictionary = data.get("spotted", {})
 	for id in saved_spots:
 		if not catalog.location(id).is_empty():
-			spotted[id] = { "ready_at": float(saved_spots[id].get("ready_at", 0.0)), "by": str(saved_spots[id].get("by", "")),
-				"from": str(saved_spots[id].get("from", "")) }
+			spotted[id] = { "by": str(saved_spots[id].get("by", "")), "from": str(saved_spots[id].get("from", "")) }
 	finds.clear()
 	for id in data.get("finds", []):
 		if catalog.finds.has(str(id)):

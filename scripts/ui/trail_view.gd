@@ -4,10 +4,11 @@ extends Control
 ## anywhere to hurry it along (each hop takes a few seconds off the walk). Things turn up on the
 ## path as it goes (coins, xp sparkles, a leaf that heals a sore paw, now and then a sparkle with
 ## a part): click them before they pass. Grabbing several in a row builds a streak that makes them
-## worth more. At an event the pet stops and the choices wait on its trip card. Walking on its
+## worth more. A part stops the pet: it holds the part up and a card asks to keep it or leave it. At an event the pet stops and the choices wait on its trip card. Walking on its
 ## own still gets there; clicking is the fast, rewarding way.
 
 signal back_to_map
+signal welcome_back(run: RunState)  # autoplay only: the trip is home, collect it
 
 const PX_PER_SECOND := 36.0  # scenery moved per second of walking
 const PET_X := 0.28  # where the pet walks, as a share of the width
@@ -33,8 +34,13 @@ var _floaters: Array[Dictionary] = []  # { text, at, age, color }
 var _hop := 0.0
 var _dust := 0.0
 var _rng := RandomNumberGenerator.new()
+var _found: PartFoundCard = null  # the card for a part the pet just picked up, while you decide
+var _held := PetView.new()  # that part, held up over the pet's head
+var _held_color := UiTheme.PINK
 ## Debug: clicks along by itself (for testing and screenshots), see DevArgs --autoplay.
 var autoplay := DevArgs.has("autoplay")
+## Debug: every thing on the path is this kind, e.g. --pickup=part (see DevArgs).
+var forced_pickup := DevArgs.value("pickup")
 var _auto_wait := 0.0
 
 
@@ -46,6 +52,10 @@ func _init() -> void:
 	_rng.randomize()
 	view.pixel = 5
 	add_child(view)
+	_held.pixel = 3
+	_held.animated = false
+	_held.visible = false
+	add_child(_held)
 	_back.add_theme_font_size_override("font_size", UiTheme.SMALL)
 	_back.pressed.connect(func(): back_to_map.emit())
 	add_child(_back)
@@ -55,6 +65,8 @@ func _init() -> void:
 func show_run(r: RunState) -> void:
 	if r == run:
 		return
+	if _found:
+		_close_found(true)  # switching trips never loses a part: it's kept
 	run = r
 	_pickups.clear()
 	_shown_x = -1.0
@@ -88,13 +100,15 @@ func _process(delta: float) -> void:
 	if _shown_x < 0.0:
 		_shown_x = target
 		_next_pickup = target + 120.0
-	var walking := run.status == RunState.Status.WALKING
-	_shown_x = lerpf(_shown_x, target, clampf(delta * 8.0, 0.0, 1.0))
+	# while a part's card is open the pet stands still with it (the trip itself keeps going)
+	var walking := run.status == RunState.Status.WALKING and _found == null
+	if _found == null:
+		_shown_x = lerpf(_shown_x, target, clampf(delta * 8.0, 0.0, 1.0))
 	view.walking = walking
 	view.facing = 1
 	# new things to grab ahead, while walking
 	while walking and _next_pickup < _shown_x + size.x:
-		_pickups.append({ "x": _next_pickup, "kind": Weighted.pick(PICKUP_WEIGHTS, _rng), "gone": false })
+		_pickups.append({ "x": _next_pickup, "kind": forced_pickup if forced_pickup != "" else Weighted.pick(PICKUP_WEIGHTS, _rng), "gone": false })
 		_next_pickup += _rng.randf_range(PICKUP_GAP[0], PICKUP_GAP[1])
 	# things that slipped past the pet are missed (and break the streak)
 	for p in _pickups:
@@ -111,6 +125,8 @@ func _process(delta: float) -> void:
 		_autoplay(delta, walking)
 	view.position = Vector2(roundf(_pet_x()), _ground() - roundf(sin(_hop * PI) * 18.0))
 	_back.position = Vector2(size.x - _back.size.x - 12.0, 12.0)
+	if _found:
+		_place_found()
 	queue_redraw()
 
 
@@ -128,6 +144,8 @@ func _gui_input(event: InputEvent) -> void:
 	if run == null or not (event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT):
 		return
 	accept_event()
+	if _found:
+		return  # decide on the part first
 	# grab something if it was clicked
 	for p in _pickups:
 		if not p.gone and _pickup_at(p).distance_to(event.position) <= HIT:
@@ -145,6 +163,12 @@ func _autoplay(delta: float, walking: bool) -> void:
 	if _auto_wait > 0.0:
 		return
 	_auto_wait = 0.4
+	if run.status == RunState.Status.DONE:
+		welcome_back.emit(run)
+		return
+	if _found:
+		_close_found(true)
+		return
 	if run.status == RunState.Status.WAITING:
 		GameState.answer_event(run, AdventureRunner.allowed_options(run.current_event(Catalog.shared()), run.party, Catalog.shared().location(run.location_id))[0])
 		_auto_wait = 1.5
@@ -174,9 +198,58 @@ func _grab(p: Dictionary) -> void:
 	elif got.has("heal"):
 		text = "feels better!" if int(got.heal) > 0 else "a nice leaf!"
 	elif got.has("part"):
-		text = "a part!!"
+		_show_found(got.part)
+		return
 	_floaters.append({ "text": text, "at": at, "age": 0.0, "color": COLORS.get(p.kind, UiTheme.TEXT) })
 	view.squash = 0.4
+
+
+# ---- a part found ---------------------------------------------------------------
+
+func _show_found(key: String) -> void:
+	var bits := key.split(":")  # part, slot, id
+	var catalog := Catalog.shared()
+	_held.pet = InventoryTab.part_preview(bits[1], bits[2])
+	_held.visible = true
+	_held_color = catalog.tier_color(catalog.part(bits[1], bits[2]).rarity)
+	var trip := view.pet.display_name(catalog) if view.pet else "your pet"
+	PetBubble.say_line(self, "trail_part", { "trip": trip })
+	_found = PartFoundCard.new(key, PetBubble.line("trail_part_quote", { "trip": trip }))
+	_found.picked.connect(_close_found)
+	add_child(_found)
+	_place_found()
+	view.squash = 0.4
+	if autoplay:
+		_auto_wait = 2.5  # long enough to see it
+
+
+func _close_found(keep: bool) -> void:
+	if keep:
+		GameState.keep_trail_part(run, _found.key)
+	PetBubble.say_line(self, "trail_part_kept" if keep else "trail_part_left")
+	_found.queue_free()
+	_found = null
+	_held.visible = false
+	# the pet catches up on the walk: what it passed while standing still is gone, but that's
+	# not a miss, so the streak stays
+	var target := _world_x()
+	for p in _pickups:
+		if not p.gone and _pet_x() + (p.x - target) < _pet_x() - 40.0:
+			p.gone = true
+
+
+## The part over the pet's head, bobbing, and its card beside it pointing at it.
+func _place_found() -> void:
+	var bob := sin(Time.get_ticks_msec() * 0.006) * 3.0
+	_held.position = view.position + Vector2(0.0, -PetView.size_for(view.pixel).y - 6.0 + bob)
+	var card := _found.get_combined_minimum_size()
+	_found.size = card
+	var at := _held_centre() + Vector2(48.0, -PartFoundCard.TAIL_Y)
+	_found.position = Vector2(minf(at.x, size.x - card.x - 12.0), clampf(at.y, 12.0, size.y - card.y - 12.0))
+
+
+func _held_centre() -> Vector2:
+	return _held.position - Vector2(0.0, PetView.size_for(_held.pixel).y / 2.0)
 
 
 # ---- drawing --------------------------------------------------------------------
@@ -198,6 +271,8 @@ func _draw() -> void:
 	for p in _pickups:
 		if not p.gone:
 			_draw_pickup(p.kind, _pickup_at(p))
+	if _found:
+		_draw_held_glow()
 	if _dust > 0.0:
 		for i in 4:
 			draw_circle(Vector2(_pet_x() - 14.0 - i * 7.0, ground + 2.0), 3.0 * _dust, Color(UiTheme.LILAC, 0.5 * _dust))
@@ -271,6 +346,20 @@ func _draw_scenery(doodle: String) -> void:
 			_:
 				draw_line(Vector2(x, ground), Vector2(x - 3, ground - 16), near, 2.0)
 				draw_line(Vector2(x + 4, ground), Vector2(x + 6, ground - 12), near, 2.0)
+
+
+## A soft glow in the part's rarity colour behind the part the pet holds up, and a few twinkles.
+func _draw_held_glow() -> void:
+	var at := _held_centre()
+	var t := Time.get_ticks_msec() * 0.001
+	for i in 4:
+		draw_circle(at, 34.0 - i * 7.0 + sin(t * 3.0) * 2.0, Color(_held_color, 0.08 + i * 0.03))
+	for s in [[Vector2(-30, -8), 0.0, 5.0], [Vector2(32, 4), 1.3, 5.0], [Vector2(18, -28), 2.4, 3.5]]:
+		var twinkle := 0.35 + 0.65 * absf(sin(t * 2.5 + s[1]))
+		var c := Color(UiTheme.GOLD, twinkle)
+		var p: Vector2 = at + s[0]
+		var r: float = s[2] * twinkle
+		draw_colored_polygon(PackedVector2Array([p + Vector2(0, -r * 2.0), p + Vector2(r * 0.4, -r * 0.4), p + Vector2(r * 2.0, 0), p + Vector2(r * 0.4, r * 0.4), p + Vector2(0, r * 2.0), p + Vector2(-r * 0.4, r * 0.4), p + Vector2(-r * 2.0, 0), p + Vector2(-r * 0.4, -r * 0.4)]), c)
 
 
 func _draw_pickup(kind: String, at: Vector2) -> void:

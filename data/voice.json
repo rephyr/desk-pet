@@ -577,13 +577,17 @@
 		"horns": " hehe"
 	},
 	"ui": {
-		"_note": "Short things your active pet says in its bubble when you open a screen (PetBubble.say_line). {count} is filled in where it makes sense.",
+		"_note": "Short things your active pet says in its bubble when you open a screen (PetBubble.say_line). {count} is filled in where it makes sense. On the trail: trail_part when the pet picks up a part, trail_part_quote on the part's card (from the pet that found it), trail_part_kept / trail_part_left after add to bag / leave it; {trip} is the pet on the trip.",
 		"settings": ["ooh, redecorating? pink looks best on me. obviously ♪", "new colours? i'll try them all on!"],
 		"pets": ["look at everyone! {count} friends!", "{count} friends! i know all their names. mostly."],
 		"pets_alone": ["it's just us so far. that's okay ♪"],
 		"book": ["look, our sticker book! the empty spots are for friends we haven't met yet ♪"],
 		"bag": ["ooh, so many bits and bobs! try one on me?", "sewing time? i'll sit very still. probably."],
 		"bag_empty": ["nothing to sew yet. trips find parts sometimes!"],
-		"pat": ["hehe. again!", "that tickles!", "more pats please ♪"]
+		"pat": ["hehe. again!", "that tickles!", "more pats please ♪"],
+		"trail_part": ["look look look!!", "{trip} found something!!", "ooh, what's that? what's that!"],
+		"trail_part_quote": ["it was just lying there. staring at me.", "finders keepers!", "it was in the flowers. it wanted to come with me.", "still warm!"],
+		"trail_part_kept": ["into the bag it goes ♪", "mine now. i mean ours!", "we'll find a use for it. we always do."],
+		"trail_part_left": ["bye bye, little part…", "someone else will find it. probably.", "okay! walking on!"]
 	}
 }

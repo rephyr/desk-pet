@@ -2,7 +2,7 @@ class_name MapView
 extends Control
 ## The adventure map: your active pet's crayon drawing of the world, on dark paper. Places you
 ## can go are doodled in with the pet's little notes; places a pet spotted are faded in, waiting
-## for you to say yes (some only later, see "wait_minutes"); unexplored directions are ? clouds.
+## for you to say yes; unexplored directions are ? clouds.
 ## Pets out on trips walk along as tiny doodles. Everything comes from data/adventures.json
 ## ("map" on each location), and the drawing zooms to fit whatever has been found so far.
 
@@ -23,10 +23,6 @@ var PEACH := UiTheme.GOLD.lerp(UiTheme.PINK, 0.35)
 var SKY := UiTheme.CYAN
 var YELLOW := UiTheme.GOLD
 var DIM := UiTheme.MUTED
-var DOODLE_COLORS := {
-	"house": PINK, "grass": MINT, "trees": MINT, "hill": MINT, "apple": PINK,
-	"pond": SKY, "stream": SKY, "hut": SKY, "well": LILAC, "door": LILAC, "stairs": LILAC,
-}
 
 ## The place picked for the next trip, circled on the map.
 var selected := ""
@@ -267,7 +263,7 @@ func _draw_node(node: Dictionary) -> void:
 		return
 	var location: Dictionary = node.location
 	var doodle := str(location.map.get("doodle", "house"))
-	var color: Color = DOODLE_COLORS.get(doodle, PINK)
+	var color := Crayon.doodle_color(doodle)
 	if node.kind == "spotted":
 		color.a = 0.45
 	if node.id == selected or node.id == _hover:
@@ -282,11 +278,9 @@ func _draw_node(node: Dictionary) -> void:
 			_heart(at + Vector2(30, -28) * k + Vector2(_note_font.get_string_size(note, HORIZONTAL_ALIGNMENT_LEFT, -1, int(14 * k)).x + 10, 0), 6.0 * k, PINK)
 	else:
 		var by := str(GameState.spotted[node.id].get("by", ""))
-		var wait := GameState.lead_wait(node.id)
 		var line := "%s saw this!" % by if by != "" else "someone saw this!"
 		_label(at + Vector2(0, 62) * k, line, DIM, _note_font, int(13 * k))
-		var when := "tap to go!" if wait <= 0.0 else "not yet · %s" % _clock(wait)
-		_label(at + Vector2(0, 79) * k, when, PINK if wait <= 0.0 else DIM, _note_font, int(13 * k))
+		_label(at + Vector2(0, 79) * k, "tap to go!", PINK, _note_font, int(13 * k))
 
 
 ## Pets out on trips, walking out, standing at an event, or back at home waiting for you.
@@ -333,15 +327,8 @@ func _draw_trips() -> void:
 
 # ---- crayon ---------------------------------------------------------------------
 
-## A wobbly crayon stroke: a couple of slightly offset passes, the same wobble every redraw.
 func _crayon(points: Array, color: Color, width: float, seed: int) -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed
-	for pass_ in 2:
-		var line := PackedVector2Array()
-		for p in points:
-			line.append(p + Vector2(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0)) * 1.3)
-		draw_polyline(line, Color(color, color.a * (0.9 if pass_ == 0 else 0.45)), width * (1.0 if pass_ == 0 else 0.7), true)
+	Crayon.line(self, points, color, width, seed)
 
 
 func _dotted(from: Vector2, to: Vector2, color: Color, seed: int) -> void:
@@ -359,13 +346,7 @@ func _dotted(from: Vector2, to: Vector2, color: Color, seed: int) -> void:
 
 
 func _circle(center: Vector2, radius: float, squash: Vector2, color: Color, width: float, seed: int) -> void:
-	var rng := RandomNumberGenerator.new()
-	rng.seed = seed
-	var points := []
-	for i in 27:
-		var a := TAU * i / 26.0
-		points.append(center + Vector2(cos(a) * squash.x, sin(a) * squash.y) * radius * rng.randf_range(0.95, 1.05))
-	_crayon(points, color, width, seed)
+	Crayon.circle(self, center, radius, squash, color, width, seed)
 
 
 func _cloud(at: Vector2, k: float, color: Color, seed: int) -> void:
@@ -389,75 +370,5 @@ func _little_pet(at: Vector2, color: Color, seed: int) -> void:
 	_crayon([at + Vector2(6, -4), at + Vector2(5, -11), at + Vector2(1, -6)], color, 2.0, seed + 2)
 
 
-## The little drawing for each kind of place.
 func _doodle(kind: String, at: Vector2, k: float, color: Color, seed: int) -> void:
-	var s := 24.0 * k
-	match kind:
-		"house":
-			_crayon([at + Vector2(-s, s * 0.8), at + Vector2(-s, -s * 0.1), at + Vector2(0, -s), at + Vector2(s, -s * 0.1),
-				at + Vector2(s, s * 0.8), at + Vector2(-s, s * 0.8)], color, 3.0, seed)
-			_crayon([at + Vector2(-s * 0.25, s * 0.8), at + Vector2(-s * 0.25, s * 0.25), at + Vector2(s * 0.25, s * 0.25),
-				at + Vector2(s * 0.25, s * 0.8)], color, 2.0, seed + 1)
-		"grass":
-			for i in 6:
-				var x := -s + i * s * 0.4
-				_crayon([at + Vector2(x, s * 0.6), at + Vector2(x + s * 0.12, 0), at + Vector2(x + s * 0.24, s * 0.6)], color, 2.0, seed + i)
-			_circle(at + Vector2(-s * 0.4, -s * 0.2), s * 0.2, Vector2.ONE, PINK, 2.0, seed + 9)
-			_circle(at + Vector2(s * 0.4, -s * 0.3), s * 0.18, Vector2.ONE, YELLOW, 2.0, seed + 10)
-		"trees":
-			for i in 3:
-				var x := (i - 1) * s * 0.8
-				_crayon([at + Vector2(x - s * 0.45, s * 0.5), at + Vector2(x, -s * 0.8), at + Vector2(x + s * 0.45, s * 0.5),
-					at + Vector2(x - s * 0.45, s * 0.5)], color, 2.5, seed + i)
-				_crayon([at + Vector2(x, s * 0.5), at + Vector2(x, s * 0.85)], PEACH, 2.0, seed + 5 + i)
-		"hill":
-			var points := []
-			for i in 13:
-				var a := PI * i / 12.0
-				points.append(at + Vector2(-cos(a) * s * 1.2, s * 0.6 - sin(a) * s * 1.1))
-			_crayon(points, color, 3.0, seed)
-			_crayon([at + Vector2(0, -s * 0.5), at + Vector2(0, -s * 1.2), at + Vector2(s * 0.5, -s * 1.0), at + Vector2(0, -s * 0.85)], PINK, 2.0, seed + 1)
-		"apple":
-			_circle(at, s * 0.7, Vector2(1.0, 0.9), color, 3.0, seed)
-			_crayon([at + Vector2(0, -s * 0.6), at + Vector2(s * 0.1, -s * 1.0)], PEACH, 2.0, seed + 1)
-			_crayon([at + Vector2(s * 0.1, -s * 0.9), at + Vector2(s * 0.5, -s * 1.0), at + Vector2(s * 0.2, -s * 0.75)], MINT, 2.0, seed + 2)
-		"pond":
-			_circle(at + Vector2(0, s * 0.2), s * 1.1, Vector2(1.0, 0.45), color, 3.0, seed)
-			_crayon([at + Vector2(-s * 0.6, s * 0.25), at + Vector2(-s * 0.1, s * 0.15)], color, 1.5, seed + 1)
-			_circle(at + Vector2(s * 0.3, -s * 0.05), s * 0.22, Vector2.ONE, YELLOW, 2.0, seed + 2)
-		"stream":
-			for row in 3:
-				var points := []
-				for i in 9:
-					points.append(at + Vector2(-s * 1.1 + i * s * 0.28, (row - 1) * s * 0.4 + sin(i * 1.3 + row) * s * 0.12))
-				_crayon(points, color, 2.0, seed + row)
-		"hut":
-			_crayon([at + Vector2(-s * 0.9, s * 0.8), at + Vector2(-s * 0.9, 0), at + Vector2(0, -s * 0.8), at + Vector2(s * 0.9, 0),
-				at + Vector2(s * 0.9, s * 0.8), at + Vector2(-s * 0.9, s * 0.8)], color, 3.0, seed)
-			_crayon([at + Vector2(-s * 0.3, s * 0.1), at + Vector2(s * 0.3, s * 0.1), at + Vector2(s * 0.3, s * 0.5),
-				at + Vector2(-s * 0.3, s * 0.5), at + Vector2(-s * 0.3, s * 0.1)], color, 2.0, seed + 1)
-		"well":
-			_circle(at + Vector2(0, s * 0.45), s * 0.8, Vector2(1.0, 0.35), color, 3.0, seed)
-			_crayon([at + Vector2(-s * 0.7, s * 0.4), at + Vector2(-s * 0.7, -s * 0.6), at + Vector2(0, -s), at + Vector2(s * 0.7, -s * 0.6),
-				at + Vector2(s * 0.7, s * 0.4)], color, 2.5, seed + 1)
-		"door":
-			var points := [at + Vector2(-s * 0.6, s * 0.8)]
-			for i in 9:
-				var a := PI + PI * i / 8.0
-				points.append(at + Vector2(cos(a) * s * 0.6, -s * 0.1 + sin(a) * s * 0.6))
-			points.append(at + Vector2(s * 0.6, s * 0.8))
-			_crayon(points, color, 3.0, seed)
-			_circle(at + Vector2(s * 0.3, s * 0.3), s * 0.08, Vector2.ONE, YELLOW, 2.0, seed + 1)
-		"stairs":
-			var points := []
-			for i in 4:
-				points.append(at + Vector2(-s + i * s * 0.55, -s * 0.6 + i * s * 0.45))
-				points.append(at + Vector2(-s + (i + 1) * s * 0.55, -s * 0.6 + i * s * 0.45))
-			_crayon(points, color, 3.0, seed)
-		_:
-			_circle(at, s * 0.7, Vector2.ONE, color, 3.0, seed)
-
-
-func _clock(seconds: float) -> String:
-	var s := maxi(0, ceili(seconds))
-	return "%d:%02d:%02d" % [s / 3600, (s / 60) % 60, s % 60] if s >= 3600 else "%d:%02d" % [s / 60, s % 60]
+	Crayon.doodle(self, kind, at, k, color, seed)
