@@ -70,8 +70,10 @@ func hotspot(location_id: String) -> Control:
 func _process(delta: float) -> void:
 	_tick -= delta
 	if _tick <= 0.0 and is_visible_in_tree():
-		_tick = 0.5  # walking pets and time locks move on
+		_tick = 0.5  # walking pets move on
 		queue_redraw()
+	if is_visible_in_tree() and _nodes.any(_is_new):
+		queue_redraw()  # new places glow and their arrows bob
 
 
 ## One little tab per open page, top right, when there's more than one.
@@ -266,6 +268,8 @@ func _draw_node(node: Dictionary) -> void:
 	var color := Crayon.doodle_color(doodle)
 	if node.kind == "spotted":
 		color.a = 0.45
+	if _is_new(node):
+		_draw_new_glow(at, k)
 	if node.id == selected or node.id == _hover:
 		_circle(at, 34.0 * k, Vector2.ONE, PINK if node.id == selected else Color(PINK, 0.5), 2.0, seed + 1)
 	_doodle(doodle, at, k, color, seed)
@@ -281,6 +285,22 @@ func _draw_node(node: Dictionary) -> void:
 		var line := "%s saw this!" % by if by != "" else "someone saw this!"
 		_label(at + Vector2(0, 62) * k, line, DIM, _note_font, int(13 * k))
 		_label(at + Vector2(0, 79) * k, "tap to go!", PINK, _note_font, int(13 * k))
+
+
+## A place that wants a tap: spotted by a pet and waiting for your yes, or open but never been to.
+func _is_new(node: Dictionary) -> bool:
+	return node.kind == "spotted" or (node.kind == "open" and not GameState.visited.has(node.id))
+
+
+## A soft golden glow that breathes round a new place, and a crayon arrow bobbing over it.
+func _draw_new_glow(at: Vector2, k: float) -> void:
+	var t := Time.get_ticks_msec() / 1000.0
+	var breathe := 0.5 + 0.5 * sin(t * 3.0)
+	for i in 3:
+		draw_circle(at, (46.0 - i * 10.0 + breathe * 5.0) * k, Color(YELLOW, 0.05 + i * 0.04 + breathe * 0.04))
+	var tip := at + Vector2(0, -44.0 - absf(sin(t * 4.0)) * 8.0) * k
+	_crayon([tip + Vector2(0, -26) * k, tip], YELLOW, 3.0, 11)
+	_crayon([tip + Vector2(-9, -10) * k, tip, tip + Vector2(9, -10) * k], YELLOW, 3.0, 12)
 
 
 ## Pets out on trips, walking out, standing at an event, or back at home waiting for you.

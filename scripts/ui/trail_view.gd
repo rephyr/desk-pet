@@ -105,6 +105,7 @@ func _process(delta: float) -> void:
 	if _found == null:
 		_shown_x = lerpf(_shown_x, target, clampf(delta * 8.0, 0.0, 1.0))
 	view.walking = walking
+	view.visible = run.party.size() > 0  # nobody left on the path
 	view.facing = 1
 	# new things to grab ahead, while walking
 	while walking and _next_pickup < _shown_x + size.x:
@@ -297,9 +298,9 @@ func _draw() -> void:
 		RunState.Status.WALKING:
 			hint = "click to hurry!  grab things on the path"
 		RunState.Status.WAITING:
-			hint = "something's up! pick what to do on the trip card"
+			hint = "something's up! pick what to do on the adventure card"
 		RunState.Status.DONE:
-			hint = "back home! say welcome back"
+			hint = "back home! say welcome back" if run.party.size() > 0 else "the adventure is over. say welcome back"
 	draw_string(_note_font, Vector2(16, size.y - 18.0), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UiTheme.LILAC)
 	if run.status == RunState.Status.WAITING:
 		draw_string(_title_font, Vector2(_pet_x() + 22.0, ground - 90.0), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, UiTheme.PINK)

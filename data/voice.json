@@ -116,7 +116,7 @@
 				],
 				"someone_back": [
 					"everyone from {place} is home!",
-					"the trip to {place} is done! hooray!"
+					"the adventure at {place} is done! hooray!"
 				],
 				"back_all": [
 					"all {sent} home! perfect day!",
@@ -583,7 +583,7 @@
 		"pets_alone": ["it's just us so far. that's okay ♪"],
 		"book": ["look, our sticker book! the empty spots are for friends we haven't met yet ♪"],
 		"bag": ["ooh, so many bits and bobs! try one on me?", "sewing time? i'll sit very still. probably."],
-		"bag_empty": ["nothing to sew yet. trips find parts sometimes!"],
+		"bag_empty": ["nothing to sew yet. adventures find parts sometimes!"],
 		"pat": ["hehe. again!", "that tickles!", "more pats please ♪"],
 		"trail_part": ["look look look!!", "{trip} found something!!", "ooh, what's that? what's that!"],
 		"trail_part_quote": ["it was just lying there. staring at me.", "finders keepers!", "it was in the flowers. it wanted to come with me.", "still warm!"],

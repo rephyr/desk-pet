@@ -31,7 +31,9 @@ func _process(delta: float) -> void:
 	queue_redraw()
 	if not showing:
 		return
-	_line.text = _fill(str(info.say))
+	# pointing at a tab to get somewhere first: "tap here…", then the step's own line once there
+	var on_tab := _target.is_in_group(Spine.TAB_GROUP) and info.has("go")
+	_line.text = _fill(str(info.go if on_tab else info.say))
 	_line.add_theme_color_override("font_color", UiTheme.PINK if info.speaker == "box" else UiTheme.TEXT)
 	# under the target if there's room, otherwise above it; always inside the window
 	var rect := _target_rect()

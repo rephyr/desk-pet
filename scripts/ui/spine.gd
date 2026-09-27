@@ -8,6 +8,8 @@ signal tab_pressed(tab_id: String)
 
 const WIDTH := 80.0
 
+const TAB_GROUP := "spine_tab"
+
 var _sky := NightSky.new()
 var _column := VBoxContainer.new()
 var _pet := PetView.new()
@@ -78,6 +80,7 @@ func add_tab(id: String, text: String, icon_name: String, at_bottom := false) ->
 		gap.mouse_filter = MOUSE_FILTER_IGNORE
 		_column.add_child(gap)
 	var b := Button.new()
+	b.add_to_group(TAB_GROUP)  # the tutorial says "tap here" while it points at one of these
 	b.text = text
 	b.icon = UiTheme.icon(icon_name, 18, UiTheme.MUTED)
 	b.set_meta("icon_name", icon_name)
@@ -86,7 +89,8 @@ func add_tab(id: String, text: String, icon_name: String, at_bottom := false) ->
 	b.vertical_icon_alignment = VERTICAL_ALIGNMENT_TOP
 	b.expand_icon = false
 	b.add_theme_constant_override("icon_max_width", 18)
-	b.add_theme_font_size_override("font_size", UiTheme.SMALL)
+	# a long name ("adventures") a size smaller, so it fits the spine
+	b.add_theme_font_size_override("font_size", UiTheme.SMALL if text.length() <= 8 else UiTheme.SMALL - 2)
 	b.add_theme_constant_override("h_separation", 3)
 	b.custom_minimum_size = Vector2(62, 50)
 	b.size_flags_horizontal = SIZE_SHRINK_CENTER
@@ -121,7 +125,7 @@ func set_current(id: String) -> void:
 		var on: bool = tab_id == id
 		if b.get_meta("locked", false):
 			continue
-		var patch := UiTheme.stitched(UiTheme.PINK, UiTheme.RAISED, 10, 4)
+		var patch := UiTheme.stitched(UiTheme.PINK, UiTheme.RAISED, 10, 2)
 		b.add_theme_stylebox_override("normal", patch if on else StyleBoxEmpty.new())
 		b.add_theme_stylebox_override("hover", patch if on else StyleBoxEmpty.new())
 		b.add_theme_color_override("font_color", UiTheme.PINK if on else UiTheme.MUTED)

@@ -12,7 +12,8 @@ const CHANCE_SLOPE := 0.35  # how much doubling the party's stat over the diffic
 const SIZE_SCALING := 0.85  # difficulty grows a bit slower than the party: big parties do better
 const STAT_TILT := 0.15  # most a pet's stat moves an option's own chance, either way
 const HURT_PENALTY := 0.2  # a hurt pet does this much worse at anything risky
-const FINISH_TEXT := "{who} made it all the way! a treat bag for the trip home!"
+const FINISH_TEXT := "{who} made it all the way! a treat bag for the way home!"
+const SAFE_MISS_TEXT := "oops! {who} didn't manage it. nothing this time, but no harm done!"  # a safe place's failure
 const XP_EVENT := 2  # xp for getting through an event
 const XP_BRAVE := 2  # extra when a risky option works out
 const XP_FINISH := 5  # extra for going all the way
@@ -105,6 +106,8 @@ static func resolve(state: RunState, chooser: Chooser, now: float, catalog: Cata
 		state.answer = -1
 		state.status = RunState.Status.WALKING
 		state.next_at = decided + gap(location, state.party, state.events.size())
+		if state.party.size() == 0:
+			state.next_at = decided  # nobody left to walk on: it ends right here
 	return added
 
 
@@ -187,6 +190,11 @@ static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog
 		"lost": 0, "injured": 0, "loot": {},
 	}
 	var danger := float(location.danger)
+	# a "safe" place (the garden, where you learn how adventures go): a failure costs nothing
+	# but the reward, nobody gets hurt or lost there
+	if location.get("safe", false) and not ok:
+		outcome = { "text": SAFE_MISS_TEXT }
+		entry.text = SAFE_MISS_TEXT.replace("{who}", party.who())
 	if outcome.has("heal"):
 		party.heal(Rewards.count(_between(outcome.heal, rng) * party.injured_count(), rng), rng)
 	if outcome.get("leave_injured", false):

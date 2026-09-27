@@ -359,32 +359,12 @@ func _test_garden(catalog: Catalog) -> void:
 	party.hurt(1, 2, rng)
 	_check(party.size() == 0, "hurt badly: doesn't come back at once")
 
-	# always taking the riskiest option: some pets don't come back, and then the bag is empty
-	var lost_some := false
-	var kept_some := false
-	for t in 60:
-		var run := AdventureRunner.start("garden", bean, 0.0, t, catalog)
-		var now := 0.0
-		for i in 20:
-			if run.status == RunState.Status.DONE:
-				break
-			if run.status == RunState.Status.WAITING:
-				var event := run.current_event(catalog)
-				var options := AdventureRunner.options_of(event, garden)
-				var riskiest := 0
-				for j in options.size() - 1:  # not "go home", the last one
-					if float(options[j].get("chance", 1.0)) < float(options[riskiest].get("chance", 1.0)):
-						riskiest = j
-				run.answer = riskiest
-			AdventureRunner.resolve(run, PlayerChooser.new(), now, catalog)
-			now += 1.0e5
-		_check(run.status == RunState.Status.DONE, "a garden trip always ends")
-		if run.party.size() == 0:
-			lost_some = true
-			_check(run.loot.is_empty(), "a pet that doesn't come back brings nothing home")
-		elif not run.loot.is_empty():
-			kept_some = true
-	_check(lost_some and kept_some, "risky trips sometimes go wrong and sometimes pay off")
+	# always taking the riskiest option: the garden is safe (nobody's ever lost there, a failure
+	# just brings nothing); in the meadow some pets don't come back, and then the bag is empty
+	var garden_risky := _risky_runs("garden", bean, catalog)
+	_check(garden_risky.lost == 0, "nobody gets lost in the safe garden (%d were)" % garden_risky.lost)
+	var meadow_risky := _risky_runs("meadow", bean, catalog)
+	_check(meadow_risky.lost > 0 and meadow_risky.kept > 0, "risky adventures sometimes go wrong and sometimes pay off")
 
 	# going home straight away ends the trip with the pet and whatever it had
 	var early := AdventureRunner.start("garden", bean, 0.0, 3, catalog)
@@ -446,6 +426,38 @@ func _test_garden(catalog: Catalog) -> void:
 				bands[id] = i
 	_check(bands.get("overconfident", 9) <= bands.get("cheerful", -1) and bands.get("cheerful", 9) <= bands.get("nervous", -1),
 		"overconfident pets sound surer and nervous ones more scared (%s)" % [bands])
+
+
+## Runs 60 adventures to `place_id` always taking the riskiest option. Returns how many came back
+## with something ({ kept }) and how many lost the pet ({ lost }), checking a lost party ends the
+## adventure right there, with an empty bag.
+func _risky_runs(place_id: String, pets: Array[Pet], catalog: Catalog) -> Dictionary:
+	var place := catalog.location(place_id)
+	var out := { "lost": 0, "kept": 0 }
+	for t in 60:
+		var run := AdventureRunner.start(place_id, pets, 0.0, t, catalog)
+		var now := 0.0
+		for i in 20:
+			if run.status == RunState.Status.DONE:
+				break
+			if run.status == RunState.Status.WAITING:
+				var options := AdventureRunner.options_of(run.current_event(catalog), place)
+				var riskiest := 0
+				for j in options.size() - 1:  # not "go home", the last one
+					if float(options[j].get("chance", 1.0)) < float(options[riskiest].get("chance", 1.0)):
+						riskiest = j
+				run.answer = riskiest
+			AdventureRunner.resolve(run, PlayerChooser.new(), now, catalog)
+			if run.party.size() == 0:
+				_check(run.status == RunState.Status.DONE, "%s: nobody left, the adventure ends right away" % place_id)
+			now += 1.0e5
+		_check(run.status == RunState.Status.DONE, "a %s adventure always ends" % place_id)
+		if run.party.size() == 0:
+			out.lost += 1
+			_check(run.loot.is_empty(), "a pet that doesn't come back brings nothing home")
+		elif not run.loot.is_empty():
+			out.kept += 1
+	return out
 
 
 ## Spotting places on trips: only unknown places, and the safety net means nobody waits long.

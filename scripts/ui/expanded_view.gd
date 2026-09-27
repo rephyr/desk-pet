@@ -24,7 +24,7 @@ const TABS := [
 	["home", "home", "home"],
 	["boxes", "boxes", "boxes"],
 	["collection", "pets", "pets"],
-	["adventures", "trips", "trips"],
+	["adventures", "adventures", "trips"],
 	["inventory", "bag", "bag"],
 ]
 
@@ -150,6 +150,8 @@ func tutorial_target() -> Control:
 		"open_first", "open_second":
 			return null if boxes.is_revealing() else (boxes.tutorial_target() if boxes.visible else spine.tab_button("boxes"))
 		"make_active":
+			if boxes.is_revealing():
+				return null  # the second pet isn't out of its box yet
 			return collection.tutorial_target() if collection.visible else spine.tab_button("collection")
 		"send":
 			return adventures.tutorial_target() if adventures.visible else spine.tab_button("adventures")

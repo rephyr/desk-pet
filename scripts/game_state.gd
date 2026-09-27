@@ -39,6 +39,8 @@ var unlocks := {}  # unlock id -> true, e.g. "automation", "parties", "location:
 var trips_done := 0  # adventures welcomed back, ever (some types open after a few)
 var heard := {}  # rumour id -> true, for every rumour ever heard
 var rumours: Array[String] = []  # heard, and waiting for you to decide whether to go
+## Places you've sent someone to at least once (new ones glow on the map until then): id -> true
+var visited := {}
 ## Places a pet spotted on a trip, waiting for you: location id -> { by, from }
 var spotted := {}
 var spot_tries := {}  # location id -> trips that could have spotted it but didn't (the safety net)
@@ -392,6 +394,7 @@ func debug_new_game() -> void:
 	announcements.clear()
 	errands.clear()
 	pinned.clear()
+	visited.clear()
 	saved_boxes.clear()
 	buying_on = true
 	idle_log = {}
@@ -650,6 +653,7 @@ func send_on_adventure(location_id: String, pets: Array[Pet]) -> RunState:
 		return null
 	var run := AdventureRunner.start(location_id, going, Time.get_unix_time_from_system(), _rng.randi(), catalog, finds)
 	runs.append(run)
+	visited[location_id] = true
 	_check_tutorial()
 	adventures_changed.emit()
 	changed.emit()
@@ -882,6 +886,7 @@ func save_game() -> void:
 		"packs_on": packs_on,
 		"coin_reserve": coin_reserve,
 		"saved_boxes": saved_boxes.keys(),
+		"visited": visited.keys(),
 		"buying_on": buying_on,
 		"pinned": pinned,
 		"idle_log": idle_log,
@@ -964,6 +969,14 @@ func load_game() -> bool:
 	errands_on = bool(data.get("errands_on", true))
 	packs_on = bool(data.get("packs_on", true))
 	coin_reserve = int(data.get("coin_reserve", 50))
+	visited.clear()
+	for id in data.get("visited", []):
+		visited[str(id)] = true
+	if not data.has("visited"):
+		# from before places glowed: everywhere already open counts as visited
+		for location in catalog.locations:
+			if location_open(location):
+				visited[location.id] = true
 	saved_boxes.clear()
 	for id in data.get("saved_boxes", []):
 		saved_boxes[str(id)] = true

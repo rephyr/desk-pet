@@ -129,7 +129,7 @@ func _rebuild() -> void:
 		open.size_flags_vertical = SIZE_SHRINK_CENTER
 		_boxes_row.add_child(open)
 	if not any_box:
-		var none := UiTheme.label("no boxes yet. pets find some on trips", UiTheme.MUTED, UiTheme.SMALL + 1)
+		var none := UiTheme.label("no boxes yet. pets find some on adventures", UiTheme.MUTED, UiTheme.SMALL + 1)
 		none.size_flags_vertical = SIZE_SHRINK_CENTER
 		_boxes_row.add_child(none)
 	# anything else trips bring back that nothing uses yet
@@ -147,7 +147,7 @@ func _rebuild() -> void:
 	for i in keys.size():
 		_parts.add_child(_part_tile(keys[i], int(GameState.parts[keys[i]]), i))
 	if keys.is_empty():
-		var none := UiTheme.label("no parts yet. pets sometimes find them on trips", UiTheme.MUTED, UiTheme.SMALL + 1)
+		var none := UiTheme.label("no parts yet. pets sometimes find them on adventures", UiTheme.MUTED, UiTheme.SMALL + 1)
 		_parts.add_child(none)
 	if not _showing_result:
 		_show_sewing()

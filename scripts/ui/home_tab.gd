@@ -97,8 +97,8 @@ func _init() -> void:
 	_notes.add_theme_constant_override("h_separation", 12)
 	_notes.add_theme_constant_override("v_separation", 16)
 	add_child(_notes)
-	var tilts := { "trips": -2.0, "boxes": 1.5, "parts": 2.0, "map": -1.5 }
-	for n in ["trips", "boxes", "parts", "map"]:
+	var tilts := { "adventures": -2.0, "boxes": 1.5, "parts": 2.0, "map": -1.5 }
+	for n in ["adventures", "boxes", "parts", "map"]:
 		_notes.add_child(Tilted.new(_note(n), tilts[n]))
 
 	resized.connect(_layout)
@@ -332,7 +332,7 @@ func _draw_cart(at: Vector2) -> void:
 # ---- sticky notes -----------------------------------------------------------------
 
 func _note(note_name: String) -> PanelContainer:
-	var accent: Color = { "trips": UiTheme.MINT, "boxes": UiTheme.CYAN, "parts": UiTheme.LILAC, "map": UiTheme.GOLD }[note_name]
+	var accent: Color = { "adventures": UiTheme.MINT, "boxes": UiTheme.CYAN, "parts": UiTheme.LILAC, "map": UiTheme.GOLD }[note_name]
 	var panel := PanelContainer.new()
 	panel.mouse_filter = MOUSE_FILTER_STOP
 	panel.mouse_default_cursor_shape = CURSOR_POINTING_HAND
@@ -369,7 +369,7 @@ func _note(note_name: String) -> PanelContainer:
 
 func _tapped(note_name: String) -> void:
 	match note_name:
-		"trips", "map":
+		"adventures", "map":
 			go.emit("adventures")
 		"parts":
 			go.emit("inventory")
@@ -393,13 +393,13 @@ func _refresh() -> void:
 	var waiting := GameState.runs.filter(func(r): return r.status == RunState.Status.WAITING).size()
 	var away := GameState.runs.size()
 	if back > 0:
-		_set_note("trips", "%d back home!" % back if back > 1 else "someone's back home!", "say welcome back", true)
+		_set_note("adventures", "%d back home!" % back if back > 1 else "someone's back home!", "say welcome back", true)
 	elif waiting > 0:
-		_set_note("trips", "%d waiting for you" % waiting, "pick what to do", true)
+		_set_note("adventures", "%d waiting for you" % waiting, "pick what to do", true)
 	elif away > 0:
-		_set_note("trips", "%d out and about" % away, "watch them go", false)
+		_set_note("adventures", "%d out and about" % away, "watch them go", false)
 	else:
-		_set_note("trips", "nobody's away", "send someone", false)
+		_set_note("adventures", "nobody's away", "send someone", false)
 
 	var boxes := 0
 	for box_id in GameState.bag:
@@ -412,15 +412,15 @@ func _refresh() -> void:
 	var parts := 0
 	for key in GameState.parts:
 		parts += int(GameState.parts[key])
-	_set_note("parts", "%d parts to sew on" % parts if parts > 0 else "no parts yet", "try them on" if parts > 0 else "pets find them on trips", parts > 0)
+	_set_note("parts", "%d parts to sew on" % parts if parts > 0 else "no parts yet", "try them on" if parts > 0 else "pets find them on adventures", parts > 0)
 	_note_parts.parts.panel.get_parent().visible = GameState.tab_open("inventory")
 
 	var ready := GameState.spotted.size() + GameState.rumours.size()
-	_set_note("map", "somewhere new to go!" if ready > 0 else "the map", "go and look" if ready > 0 else "plan a trip", ready > 0)
+	_set_note("map", "somewhere new to go!" if ready > 0 else "the map", "go and look" if ready > 0 else "plan an adventure", ready > 0)
 
 	for id in _finds:
 		_finds[id].visible = GameState.finds.has(id)
-		_finds[id].tooltip_text = "%s, found on a trip" % catalog.finds.get(id, {}).get("name", id)
+		_finds[id].tooltip_text = "%s, found on an adventure" % catalog.finds.get(id, {}).get("name", id)
 	_layout()
 
 

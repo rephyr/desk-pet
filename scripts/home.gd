@@ -87,6 +87,10 @@ func _build_views() -> void:
 	guide.target_for = func() -> Control:
 		return _expanded.tutorial_target() if _expanded_mode else _compact.expand_button
 	_panel.add_child(guide)
+	var popup := UnlockPopup.new()  # something new opened up: a card over the full game
+	popup.can_show = func() -> bool: return _expanded_mode
+	popup.go.connect(func(tab_id): _expanded.show_tab(tab_id))
+	_panel.add_child(popup)
 	_compact.expand_requested.connect(_set_expanded.bind(true))
 	_compact.let_out_toggled.connect(func(): _set_out(not GameState.pet_out))
 	_compact.quit_requested.connect(_quit)

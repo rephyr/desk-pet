@@ -84,7 +84,7 @@ func _refresh_active() -> void:
 	var is_active := GameState.collection.active_uid == _pet.uid
 	var away := GameState.away().has(_pet.uid)
 	_active_button.disabled = is_active or away
-	_active_button.text = "your active pet" if is_active else ("away on a trip…" if away else "make active")
+	_active_button.text = "your active pet" if is_active else ("away on an adventure…" if away else "make active")
 	_active_button.icon = UiTheme.icon("heart", 14) if is_active or not away else null
 	_active_button.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_active_button.add_theme_constant_override("icon_max_width", 14)
