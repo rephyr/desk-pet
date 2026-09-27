@@ -35,9 +35,9 @@ const TABS = [
   { id: "boxes", label: "boxes", icon: "boxes", news: true },
   { id: "pets", label: "pets", icon: "collection" },
   { id: "trips", label: "trips", icon: "adventures" },
+  { id: "errands", label: "errands", icon: "errands" },
   { id: "gear", label: "gear", icon: "upgrades" },
   { id: "inventory", label: "bag", icon: "inventory" },
-  { id: "locked", label: "???", icon: "lock", locked: true },
 ];
 
 // One tiny dim star per pet that never came back, tinted from that pet. Never explained, never counted.

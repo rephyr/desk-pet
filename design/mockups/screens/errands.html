@@ -1,0 +1,431 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Errands</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* shared bits */
+  .pet { width: 32px; height: 36px; }
+  .pet.big { width: 48px; height: 54px; }
+  .meter { position: relative; height: 12px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); overflow: hidden; }
+  .meter i { position: absolute; inset: 0 auto 0 0; width: calc(var(--f) * 100%); background: var(--c); border-radius: 999px; }
+  .pay { position: absolute; pointer-events: none; font: var(--display-weight) 14px/1 var(--display); color: var(--c); animation: rise 1.1s var(--ease-out) forwards; white-space: nowrap; }
+  @keyframes rise { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, -34px); opacity: 0; } }
+  .plus { display: flex; gap: 6px; align-items: center; }
+  .plus .btn { padding: 1px 10px; min-width: 30px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 11px; }
+  .picked-pet { outline: 2px dashed var(--pink); outline-offset: 3px; border-radius: 8px; }
+  .h { font: var(--display-weight) 20px/1 var(--display); color: var(--pink); margin: 0; }
+  .h small { font: var(--body-weight) 12px/1 var(--body); color: var(--muted); margin-left: 8px; }
+  .jobwrap { position: relative; }
+  .hint { position: absolute; left: 50%; bottom: -2px; transform: translateX(-50%); font-size: 11px; color: var(--pink); white-space: nowrap; }
+
+  /* ---------- A: corkboard ---------- */
+  .cork { display: grid; grid-template-columns: 1fr 196px; gap: 14px; height: 100%; min-height: 0; }
+  .board { position: relative; border-radius: var(--r-panel); border: 2px solid var(--line); padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; min-height: 0;
+    background-color: color-mix(in srgb, var(--gold) 5%, var(--paper));
+    background-image: radial-gradient(circle, color-mix(in srgb, var(--gold) 12%, transparent) 1px, transparent 1.6px), radial-gradient(circle, color-mix(in srgb, var(--pink) 8%, transparent) 1px, transparent 1.6px);
+    background-size: 13px 13px, 19px 19px; background-position: 3px 5px, 9px 1px; }
+  .notes3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; flex: 1; min-height: 0; }
+  .jnote { position: relative; padding: 16px 12px 12px; background: var(--raised); border: 2px solid color-mix(in srgb, var(--c) 45%, var(--line)); border-radius: 6px 6px 18px 6px; box-shadow: var(--lift); transform: rotate(var(--tilt)); display: flex; flex-direction: column; gap: 8px; cursor: pointer; transition: transform .15s var(--ease-out); }
+  .jnote:hover { transform: rotate(0) translateY(-2px); }
+  .jnote::before { content: ""; position: absolute; top: -9px; left: 50%; width: 46px; height: 15px; margin-left: -23px; border-radius: 2px; background: color-mix(in srgb, var(--c) 45%, transparent); transform: rotate(-4deg); }
+  .jnote .head { display: flex; gap: 8px; align-items: center; color: var(--c); }
+  .jnote .head b { font: var(--display-weight) 17px/1.05 var(--display); font-weight: 400; }
+  .jnote .head span { display: block; font-size: 11px; color: var(--muted); }
+  .jnote .row { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+  .jnote .row b { color: var(--c); font-weight: 400; }
+  .polas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 6px; margin-top: 2px; }
+  .pola { width: 46px; height: 54px; padding: 4px 4px 10px; justify-self: center; background: color-mix(in srgb, var(--text) 80%, var(--page)); border-radius: 2px; box-shadow: 0 3px 6px rgba(6, 2, 12, .5); transform: rotate(var(--t, 0deg)); cursor: pointer; position: relative; }
+  .pola div { background: var(--deep); height: 100%; display: grid; place-items: center; }
+  .pola img { width: 32px; height: 36px; }
+  .pola::after { content: ""; position: absolute; top: -4px; left: 50%; width: 7px; height: 7px; margin-left: -3px; border-radius: 50%; background: var(--c, var(--pink)); box-shadow: 0 1px 2px rgba(0,0,0,.5); }
+  .pola:hover { transform: rotate(0) scale(1.06); }
+  .pola.empty { background: none; border: 2px dashed color-mix(in srgb, var(--c) 35%, var(--line)); box-shadow: none; display: grid; place-items: center; color: var(--muted); font-size: 16px; }
+  .pola.empty::after { display: none; }
+  .jnote .plus { margin-top: auto; justify-content: center; }
+  .jnote.sealed { border: 2px dashed var(--line); background: color-mix(in srgb, var(--deep) 60%, transparent); box-shadow: none; color: var(--locked); cursor: default; align-items: center; justify-content: center; text-align: center; }
+  .jnote.sealed::before { background: color-mix(in srgb, var(--muted) 25%, transparent); }
+  .shoebox { display: flex; flex-direction: column; gap: 10px; padding: 12px; min-height: 0; }
+  .shoebox h3, .quiltside h3 { margin: 0; font: var(--display-weight) 16px/1 var(--display); color: var(--lilac); font-weight: 400; }
+  .shoebox .polas { grid-template-columns: repeat(3, 1fr); }
+  .away .pola { opacity: .45; cursor: default; }
+  .since { padding: 8px 10px; font-size: 11px; line-height: 1.35; border-radius: 6px; background: color-mix(in srgb, var(--mint) 10%, var(--raised)); border: 2px solid color-mix(in srgb, var(--mint) 40%, var(--line)); transform: rotate(-1.5deg); }
+  .since b { color: var(--mint); font-weight: 400; display: block; font-family: var(--display); font-size: 13px; }
+
+  .boardtop { display: flex; align-items: center; gap: 10px; }
+  .boardtop .h { flex: 1; }
+  .steps { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+  .steps .seg button { padding: 1px 9px; font-size: 11px; }
+  .crewbig { display: flex; align-items: center; gap: 12px; }
+  .crewbig b { display: block; font: var(--display-weight) 22px/1 var(--display); color: var(--c, var(--pink)); font-weight: 400; }
+  .crewbig span { font-size: 11px; color: var(--muted); }
+  .pile { position: relative; width: 66px; height: 62px; flex: none; }
+  .pile .pola { position: absolute; }
+  .pile .pola:not(:last-child)::after { display: none; }
+  .crowd { position: relative; height: 44px; margin: 0 4px 0 0; }
+  .crowd img { position: absolute; width: 16px; height: 18px; animation: bob 1.1s ease-in-out infinite; animation-delay: calc(var(--i) * -.23s); }
+  .meter.stream i { width: 100%; background: repeating-linear-gradient(-45deg, var(--c) 0 6px, color-mix(in srgb, var(--c) 55%, transparent) 6px 12px); background-size: 17px 17px; animation: flow .6s linear infinite; }
+  @keyframes flow { to { background-position: 17px 0; } }
+  .shoebox h3 small { font: 11px var(--body); color: var(--muted); margin-left: 4px; }
+  .shoebox .btn[data-share] { width: 100%; }
+  .auto { display: flex; gap: 6px; align-items: flex-start; font-size: 11px; color: var(--muted); cursor: pointer; line-height: 1.3; }
+  .auto input { accent-color: var(--pink); margin: 1px 0 0; }
+  .shoebox .away .pile .pola { opacity: .45; }
+
+  /* ---------- B: little town ---------- */
+  .town { display: grid; grid-template-columns: 1fr 0; gap: 0; height: 100%; min-height: 0; transition: grid-template-columns .25s var(--ease-out), gap .25s; }
+  .town.open { grid-template-columns: 1fr 236px; gap: 14px; }
+  .tmap { position: relative; border-radius: var(--r-panel); background: var(--paper); border: 2px solid var(--line); overflow: hidden; min-height: 0; }
+  .tmap > svg { position: absolute; inset: 0; }
+  .tmap .h { position: absolute; left: 18px; top: 12px; }
+  .crayon { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .street { fill: none; stroke: var(--gold); stroke-width: 2.5; stroke-dasharray: 7 7; stroke-linecap: round; opacity: .5; }
+  .bld { position: absolute; transform: translate(-50%, -50%); display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+  .bld svg { overflow: visible; }
+  .bld .sign { margin-top: 2px; padding: 1px 9px; border-radius: 6px; background: var(--raised); border: 2px solid color-mix(in srgb, var(--c) 50%, var(--line)); color: var(--c); font: var(--display-weight) 14px/1.3 var(--display); transform: rotate(var(--tilt)); }
+  .bld.on .sign { border-color: var(--pink); box-shadow: 0 0 0 3px var(--paper), 0 0 0 5px var(--pink-seam); }
+  .bld .meter { width: 104px; height: 9px; margin-top: 5px; }
+  .bld .crew { display: flex; margin-top: 4px; min-height: 27px; }
+  .bld .crew img { width: 24px; height: 27px; margin: 0 -2px; animation: bob 1.2s ease-in-out infinite; animation-delay: calc(var(--i) * -.3s); }
+  @keyframes bob { 50% { transform: translateY(-3px); } }
+  .bld.sealed { cursor: default; color: var(--muted); font-size: 11px; }
+  .bench { position: absolute; left: 14px; right: 14px; bottom: 12px; display: flex; align-items: flex-end; gap: 10px; padding: 8px 12px 6px; border-radius: 12px; background: color-mix(in srgb, var(--deep) 70%, transparent); border: 2px solid var(--line); }
+  .bench .lbl { font: var(--display-weight) 14px/1.1 var(--display); color: var(--lilac); margin-right: 4px; align-self: center; }
+  .bench .lbl small { display: block; font: 11px var(--body); color: var(--muted); white-space: nowrap; }
+  .bench .since2 { font-size: 11px; color: var(--muted); text-align: right; align-self: center; white-space: nowrap; }
+  .bench .p { display: flex; flex-direction: column; align-items: center; font-size: 10px; color: var(--muted); cursor: pointer; padding: 2px 3px; }
+  .bench .p.away { opacity: .4; cursor: default; }
+  .bench .sep { width: 2px; align-self: stretch; background: var(--line); margin: 0 4px; }
+  .jobcard { padding: 14px; display: flex; flex-direction: column; gap: 9px; min-width: 0; overflow: hidden; position: relative; }
+  .jobcard::before { content: ""; position: absolute; inset: 5px; border: 2px dashed var(--line); border-radius: 8px; pointer-events: none; }
+  .jobcard h3 { margin: 0; font: var(--display-weight) 20px/1.1 var(--display); color: var(--c); font-weight: 400; }
+  .jobcard .does { font-size: 12px; color: var(--muted); }
+  .jobcard dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0; font-size: 12px; }
+  .jobcard dt { color: var(--muted); }
+  .jobcard dd { margin: 0; }
+  .jobcard .crewlist { display: flex; flex-wrap: wrap; gap: 4px; }
+  .jobcard .crewlist img, .jobcard .crewlist .slot { width: 32px; height: 36px; cursor: pointer; }
+  .jobcard .crewlist .slot { border: 2px dashed var(--line); border-radius: 6px; }
+  .jobcard .close { position: absolute; right: 10px; top: 8px; border: 0; background: none; color: var(--muted); cursor: pointer; z-index: 1; }
+
+  /* ---------- C: quilt ---------- */
+  .quilt { display: grid; grid-template-columns: 1fr 180px; gap: 14px; height: 100%; min-height: 0; }
+  .qbed { position: relative; border-radius: var(--r-panel); padding: 12px; display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: auto 1fr 1fr; gap: 10px; min-height: 0; background: var(--paper); border: 2px solid var(--line); }
+  .qbed .h { grid-column: 1 / -1; margin: 2px 4px 0; }
+  .patch { position: relative; padding: 14px 16px; border-radius: 10px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto 1fr auto; gap: 4px 12px; cursor: pointer;
+    background-color: color-mix(in srgb, var(--c) 9%, var(--raised));
+    background-image: repeating-linear-gradient(45deg, color-mix(in srgb, var(--c) 7%, transparent) 0 6px, transparent 6px 14px);
+    transform: rotate(var(--tilt)); box-shadow: var(--lift); }
+  .patch > svg.thread { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+  .patch .seam { fill: none; stroke: color-mix(in srgb, var(--c) 30%, var(--line)); stroke-width: 2; stroke-dasharray: 5 5; }
+  .patch .sewn { fill: none; stroke: var(--c); stroke-width: 3; stroke-linecap: round; }
+  .patch rect { x: 6px; y: 6px; width: calc(100% - 12px); height: calc(100% - 12px); rx: 6px; }
+  .patch .art { grid-row: 1 / 3; color: var(--c); align-self: start; }
+  .patch b { font: var(--display-weight) 19px/1.05 var(--display); color: var(--c); font-weight: 400; }
+  .patch .sub { font-size: 11px; color: var(--muted); line-height: 1.35; }
+  .patch .sitters { grid-column: 1 / -1; display: flex; gap: 2px; align-items: flex-end; min-height: 40px; }
+  .patch .sitters img { cursor: pointer; }
+  .patch .foot { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--muted); }
+  .patch .foot b { font: inherit; color: var(--c); }
+  .patch.sealed { cursor: default; background: none; box-shadow: none; border: 2px dashed var(--line); color: var(--locked); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 4px; }
+  .patch.sealed .loose { position: absolute; right: 18px; bottom: -4px; }
+  .quiltside { display: flex; flex-direction: column; gap: 10px; padding: 12px; min-height: 0; }
+  .basket { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding: 8px 6px; border-radius: 10px 10px 18px 18px; background: color-mix(in srgb, var(--gold) 8%, var(--deep)); border: 2px solid color-mix(in srgb, var(--gold) 30%, var(--line)); }
+  .basket .p { display: grid; place-items: center; cursor: pointer; padding: 2px; }
+  .basket.away .p { opacity: .4; cursor: default; }
+
+  /* look picker (mockup only) */
+  .picker { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
+  .picker a { padding: 3px 12px; border-radius: 999px; color: var(--muted); border: 2px solid var(--line); text-decoration: none; font-size: 12px; }
+  .picker a.on { color: var(--pink); border-color: var(--pink); }
+</style>
+</head>
+<body>
+<nav class="picker" id="picker"></nav>
+<div class="app" data-tab="errands" data-say="we're on errands! nobody wanders off on errands."></div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const LOOK = params.get("look") || "cork";
+  const SPEED = Number(params.get("speed") || 6);   // mockup time runs fast so the meters move
+  const content = mountFrame();
+  const say = t => { document.querySelector(".top .bubble").textContent = t; };
+  const LOTS = params.get("pets") || "few";   // few | lots | heaps
+  document.getElementById("picker").innerHTML = [["cork&pets=few", "A: a few pets"], ["cork&pets=lots", "A: lots of pets"], ["cork&pets=heaps", "A: thousands"], ["town", "B"], ["quilt", "C"]]
+    .map(([k, l]) => `<a href="?look=${k}" class="${`look=${LOOK}&pets=${LOOK === "cork" ? LOTS : ""}`.startsWith(`look=${k}`) || (LOOK !== "cork" && k === LOOK) ? "on" : ""}">${l}</a>`).join("");
+
+  const NAMES = { "mint-bear": "mint bear", "peach-cat": "peach cat", "sky-bunny": "sky bunny", "toxic-cat": "toxic cat", "bubblegum-fox": "bubblegum fox", "mint-blob": "mint blob", "lilac-cat": "lilac cat", "midnight-bear": "midnight bear", "peach-bear": "peach bear" };
+  const base = id => id.split("#")[0];
+  const img = (id, cls = "pet") => `<img class="px ${cls}" src="../assets/pets/${base(id)}.png" alt="${NAMES[base(id)]}" title="${NAMES[base(id)]}" data-pet="${id}">`;
+  const POOL = Object.keys(NAMES);
+  const herd = (n, from) => Array.from({ length: n }, (_, i) => `${POOL[(i * 7 + from) % POOL.length]}#${from}-${i}`);
+  const num = n => n.toLocaleString("en");
+
+  // job doodles (40x40 crayon)
+  const ART = {
+    coin: `<path d="M6 26 Q6 16 20 16 Q34 16 34 26 Q34 32 20 32 Q6 32 6 26 Z"/><path d="M11 20 Q20 23 29 20" opacity=".6"/><path d="M26 7 L31 12 L26 17 L21 12 Z" stroke="var(--cyan)"/><path d="M11 10 L13 7 M8 12 L5 11" opacity=".7"/>`,
+    scrap: `<path d="M4 33 Q12 13 20 17 Q28 9 36 33 Z"/><circle cx="15" cy="25" r="3"/><path d="M22 22 Q25 18 28 22 Q25 26 22 22 Z"/><path d="M19 11 Q21 6 24 9 Q27 12 24 14" opacity=".8"/><path d="M29 28 L32 25" opacity=".7"/>`,
+    sealed: `<path d="M10 20 Q10 9 20 9 Q30 9 30 20 Q30 31 20 31 Q10 31 10 20 Z" stroke-dasharray="3 4"/><path d="M16.5 16 Q17 12.5 20.5 12.8 Q24 13.4 23.2 16.8 Q22.4 19 20 20.2 L20 22.5"/><circle cx="20" cy="27" r=".9" fill="currentColor"/>`,
+  };
+  const art = (k, size = 40) => `<svg width="${size}" height="${size}" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ART[k]}</svg>`;
+
+  // one formula for every job: a fill takes base / crew^0.8 seconds
+  const POLAS = 6;            // up to this many, each pet on a job gets its own polaroid
+  const MAX_CREW = 1e9;
+  const JOBS = [
+    { id: "coin", name: "coin hunt", brings: "coins", c: "var(--cyan)", does: "sniffing under cushions and flipping pebbles", base: 60, pay: n => `+${18}`, payWord: "18 coins", crew: ["mint-bear", "peach-cat", "sky-bunny"], f: .35, tilt: -1.5 },
+    { id: "scrap", name: "scrapyard", brings: "parts", c: "var(--lilac)", does: "digging through the odd bits hill", base: 150, pay: () => ["a teacup", "a spring", "a button eye", "a bent bow"][Math.floor(Math.random() * 4)], payWord: "a common part", crew: ["toxic-cat"], f: .7, tilt: 1.2 },
+  ];
+  const SEALED = { name: "something behind the shed…", hint: "keep finding things on adventures" };
+  let resting = ["bubblegum-fox", "mint-blob", "lilac-cat"];
+  let away = ["midnight-bear", "peach-bear"];
+  if (LOTS === "lots") { JOBS[0].crew = herd(38, 1); JOBS[1].crew = herd(14, 2); resting = herd(23, 3); away = herd(9, 4); }
+  if (LOTS === "heaps") { JOBS[0].crew = herd(1240, 1); JOBS[1].crew = herd(386, 2); resting = herd(412, 3); away = herd(57, 4); }
+  let step = LOTS === "few" ? 1 : 10;     // how many pets + and − move
+  let autoShare = true;                   // the active pet shares out new pets
+  let picked = null;          // a resting pet waiting to be placed
+  let openJob = LOOK === "town" ? "coin" : null;
+  let coins = 10421;
+
+  const speed = n => n ? Math.pow(n, 0.8) : 0;
+  const secs = j => j.base / speed(j.crew.length);
+  const every = j => { const n = j.crew.length; if (!n) return "nobody on it"; const s = Math.round(secs(j)); return s >= 60 ? `every ${Math.floor(s / 60)}m ${s % 60}s` : `every ${Math.max(1, s)}s`; };
+  // once a meter fills faster than every few seconds it reads as a steady stream: say it per minute
+  const perMin = j => { const f = 60 / secs(j); return j.id === "coin" ? `${num(Math.round(f * 18))} coins a minute` : `${num(Math.round(f))} parts a minute`; };
+  const streams = j => j.crew.length && secs(j) < 4;
+  const fast = j => j.crew.length ? `${speed(j.crew.length).toFixed(1)}x` : "stopped";
+  const byId = id => JOBS.find(j => j.id === id);
+
+  const howMany = have => step === "all" ? have : Math.min(step, have);
+  function addTo(j, pet) {
+    if (!pet && !picked && step !== 1) {
+      const n = howMany(resting.length);
+      if (!n) { say("everyone's busy! even me. i'm supervising."); return; }
+      j.crew.push(...resting.splice(0, n));
+      say({ coin: "more noses for the cushions!", scrap: "more paws for the digging!" }[j.id]);
+      return render();
+    }
+    pet = pet || picked || resting[0];
+    if (!pet) { say("everyone's busy! even me. i'm supervising."); return; }
+    resting = resting.filter(p => p !== pet); j.crew.push(pet); picked = null;
+    say({ coin: `${NAMES[base(pet)]} is checking the cushions!`, scrap: `${NAMES[base(pet)]} went digging. look at those paws go!` }[j.id]);
+    render();
+  }
+  function takeOff(j, pet) {
+    if (!pet && step !== 1) {
+      const n = howMany(j.crew.length);
+      resting.push(...j.crew.splice(j.crew.length - n, n));
+      say("a few of them are having a little nap.");
+      return render();
+    }
+    pet = pet || j.crew[j.crew.length - 1];
+    if (!pet) return;
+    j.crew = j.crew.filter(p => p !== pet); resting.push(pet);
+    say(`${NAMES[base(pet)]} is having a little nap.`);
+    render();
+  }
+  function shareOut() {
+    let i = 0;
+    while (resting.length) JOBS[i++ % JOBS.length].crew.push(resting.shift());
+    say("everybody gets a job! i'm very good at sharing.");
+    render();
+  }
+
+  // ---------- A ----------
+  // a pile of polaroids: the top few, stacked, pinned once
+  const pile = (ids, c, extra = "") => `<div class="pile" style="--c:${c}">${ids.slice(0, 3).map((p, i) => `<div class="pola" ${extra ? `${extra}="${p}"` : ""} style="--t:${[-7, 5, -2][i]}deg; left:${i * 9}px; top:${[4, 0, 6][i]}px"><div>${img(p)}</div></div>`).join("")}</div>`;
+  // the crowd: tiny pets at 1x, more of them the bigger the crew (never more than fit)
+  function crowd(j) {
+    const shown = Math.min(j.crew.length, Math.round(8 + Math.log10(j.crew.length) * 14), 44);
+    return `<div class="crowd">${j.crew.slice(0, shown).map((p, i) => `<img class="px" src="../assets/pets/${base(p)}.png" alt="" style="--i:${i}; left:${(i * 37) % 100}%; top:${Math.floor(i / 11) * 9 + ((i * 13) % 5)}px">`).join("")}</div>`;
+  }
+  function corkJob(j) {
+    const many = j.crew.length > POLAS;
+    const slots = Array.from({ length: Math.min(POLAS, j.crew.length + 1) }, (_, i) => j.crew[i]
+      ? `<div class="pola" data-off="${j.crew[i]}" style="--t:${[-4, 3, -2, 5, -3, 2][i]}deg; --c:${j.c}"><div>${img(j.crew[i])}</div></div>`
+      : `<div class="pola empty" style="--c:${j.c}">+</div>`).join("");
+    const lbl = step === "all" ? "all" : step;
+    if (many) return `<div class="jnote" data-job="${j.id}" style="--c:${j.c}; --tilt:${j.tilt}deg">
+      <div class="head">${art(j.id)}<div><b>${j.name}</b><span>brings ${j.brings}</span></div></div>
+      <div class="small muted">${j.does}</div>
+      <div class="meter jobwrap${streams(j) ? " stream" : ""}" style="--c:${j.c}; --f:${j.f}"><i></i></div>
+      <div class="row">${streams(j) ? `<b>${perMin(j)}</b>` : `<span>${j.payWord}</span><span>${every(j)}</span>`}</div>
+      <div class="crewbig">${pile(j.crew, j.c)}<div><b>${num(j.crew.length)}</b><span>pets on it</span></div></div>
+      ${crowd(j)}
+      <div class="plus"><button class="btn" data-minus>− ${lbl}</button><button class="btn primary" data-plus>+ ${lbl}</button></div>
+    </div>`;
+    return `<div class="jnote" data-job="${j.id}" style="--c:${j.c}; --tilt:${j.tilt}deg">
+      <div class="head">${art(j.id)}<div><b>${j.name}</b><span>brings ${j.brings}</span></div></div>
+      <div class="small muted">${j.does}</div>
+      <div class="meter jobwrap" style="--c:${j.c}; --f:${j.f}"><i></i></div>
+      <div class="row"><span>${j.payWord}</span><span>${every(j)}</span></div>
+      <div class="row"><span>crew of ${j.crew.length}</span><b>${fast(j)}</b></div>
+      <div class="polas">${slots}</div>
+      <div class="plus"><button class="btn" data-minus>${step === 1 ? "−" : `− ${step === "all" ? "all" : step}`}</button><button class="btn primary" data-plus>${step === 1 ? "+ a pet" : `+ ${step === "all" ? "all" : step}`}</button></div>
+    </div>`;
+  }
+  function renderCork() {
+    content.innerHTML = `<div class="cork">
+      <div class="board">
+        <div class="boardtop"><h2 class="h">errands ${total() > 12 ? "" : `<small>pets work here while they rest. nobody wanders off.</small>`}</h2>
+          ${total() > 12 ? `<div class="steps"><span>move</span><div class="seg">${[1, 10, 100, "all"].map(n => `<button data-step="${n}" class="${n === step ? "on" : ""}">${n}</button>`).join("")}</div></div>` : ""}</div>
+        <div class="notes3">${JOBS.map(corkJob).join("")}
+          <div class="jnote sealed" style="--tilt:2deg">${art("sealed", 44)}<div>${SEALED.name}</div><div class="small">${SEALED.hint}</div></div>
+        </div>
+      </div>
+      <div class="shoebox sticker">
+        <div class="since"><b>while you were away</b>1,204 coins and 6 parts</div>
+        <h3>resting${resting.length > POLAS ? ` <small>${num(resting.length)}</small>` : ""}</h3>
+        ${resting.length > 9 ? `
+          <div class="crewbig">${pile(resting, "var(--pink)", "data-pick")}<div><b>${num(resting.length)}</b><span>having a nap</span></div></div>
+          <button class="btn primary" data-share>share them out</button>
+          <div class="small muted">or tap a job's + to send ${step === "all" ? "them all" : step}</div>`
+        : `<div class="small muted">${picked ? "now tap a job" : "tap a pet, then a job"}</div>
+          <div class="polas">${resting.map((p, i) => `<div class="pola${p === picked ? " picked-pet" : ""}" data-pick="${p}" style="--t:${[3, -3, 2, -4][i % 4]}deg"><div>${img(p)}</div></div>`).join("") || `<span class="small muted">everyone's busy!</span>`}</div>`}
+        ${total() > 12 ? `<label class="auto"><input type="checkbox" data-auto ${autoShare ? "checked" : ""}> lilac blob shares out new pets</label>` : ""}
+        <h3 style="margin-top: 4px">on adventures${away.length > 2 ? ` <small>${num(away.length)}</small>` : ""}</h3>
+        ${away.length > 2 ? `<div class="away">${pile(away, "var(--muted)")}</div>`
+          : `<div class="polas away">${away.map((p, i) => `<div class="pola" style="--t:${[-2, 4][i]}deg; --c: var(--muted)"><div>${img(p)}</div></div>`).join("")}</div>`}
+      </div>
+    </div>`;
+  }
+
+  // ---------- B ----------
+  const SPOTS = { coin: [150, 170], scrap: [400, 160], sealed: [470, 330] };
+  const HOUSE = {
+    coin: `<path class="crayon" stroke="var(--cyan)" d="M-34 4 L0 -30 L34 4 M-28 0 L-28 30 L28 30 L28 0 M-8 30 L-8 14 Q0 8 8 14 L8 30"/><path class="crayon" stroke="var(--pink)" d="M-22 10 Q-14 4 -8 10 M8 10 Q14 4 22 10" opacity=".8"/><path class="crayon" stroke="var(--cyan)" d="M0 -24 L6 -17 L0 -10 L-6 -17 Z"/>`,
+    scrap: `<path class="crayon" stroke="var(--lilac)" d="M-46 30 Q-30 -6 -10 2 Q4 -24 20 -6 Q34 -2 46 30 Z"/><circle class="crayon" stroke="var(--gold)" cx="-18" cy="16" r="5"/><path class="crayon" stroke="var(--cyan)" d="M6 10 Q10 4 14 10 Q10 16 6 10 Z"/><path class="crayon" stroke="var(--pink)" d="M-2 -8 Q2 -18 8 -12 Q12 -6 6 -4"/><path class="crayon" stroke="var(--mint)" d="M24 18 L30 12 M28 20 L34 16"/>`,
+  };
+  function renderTown() {
+    const streets = `<path class="street" d="M${SPOTS.coin[0]} ${SPOTS.coin[1] + 70} Q270 330 ${SPOTS.scrap[0]} ${SPOTS.scrap[1] + 70}"/><path class="street" d="M${SPOTS.scrap[0] + 20} ${SPOTS.scrap[1] + 70} Q500 290 ${SPOTS.sealed[0]} ${SPOTS.sealed[1] - 30}"/>`;
+    const trees = `<path class="crayon" stroke="var(--mint)" opacity=".5" d="M330 110 L338 86 L346 110 Z M352 118 L360 90 L368 118 Z M80 300 L88 276 L96 300 Z M720 110 L728 90 L736 110 Z"/><path class="crayon" stroke="var(--gold)" opacity=".35" d="M60 70 Q70 60 80 70 M600 60 Q612 48 624 60"/>`;
+    const blds = JOBS.map(j => `<div class="bld${openJob === j.id ? " on" : ""}" data-job="${j.id}" style="left:${SPOTS[j.id][0]}px; top:${SPOTS[j.id][1]}px; --c:${j.c}; --tilt:${j.tilt}deg">
+        <svg width="100" height="70" viewBox="-50 -35 100 70">${HOUSE[j.id]}</svg>
+        <div class="sign">${j.name}</div>
+        <div class="meter jobwrap" style="--c:${j.c}; --f:${j.f}"><i></i></div>
+        <div class="crew">${j.crew.map((p, i) => img(p).replace('class="px pet"', `class="px" style="--i:${i}"`)).join("")}</div>
+      </div>`).join("");
+    const sealed = `<div class="bld sealed" style="left:${SPOTS.sealed[0]}px; top:${SPOTS.sealed[1]}px"><svg width="80" height="60" viewBox="-40 -30 80 60"><path class="crayon" stroke="var(--muted)" stroke-dasharray="3 5" d="M-34 10 Q-36 -10 -16 -12 Q-12 -28 6 -24 Q22 -30 28 -12 Q40 -6 34 10 Q30 20 0 18 Q-30 20 -34 10 Z"/><text x="0" y="6" text-anchor="middle" fill="var(--muted)" font-size="18" font-family="var(--display)">?</text></svg>${SEALED.name}</div>`;
+    const j = openJob && byId(openJob);
+    content.innerHTML = `<div class="town${j ? " open" : ""}">
+      <div class="tmap">
+        <svg width="100%" height="100%">${streets}${trees}</svg>
+        <h2 class="h">errands <small>pets work here while they rest. nobody wanders off.</small></h2>
+        <div class="since" style="position:absolute; left:22px; bottom:108px; width:170px"><b>while you were away</b>1,204 coins and 6 parts</div>
+        ${blds}${sealed}
+        <div class="bench">
+          <div class="lbl">the bench<small>${picked ? "now tap a building" : "tap a pet, then a building"}</small></div>
+          ${resting.map(p => `<div class="p${p === picked ? " picked-pet" : ""}" data-pick="${p}">${img(p)}${NAMES[p]}</div>`).join("") || `<span class="small muted">everyone's busy!</span>`}
+          <div class="sep"></div>
+          ${away.map(p => `<div class="p away">${img(p)}adventuring</div>`).join("")}
+        </div>
+      </div>
+      <div class="jobcard sticker" style="--c:${j ? j.c : "var(--pink)"}">${j ? `
+        <button class="close" data-close>✕</button>
+        <h3>${j.name}</h3>
+        <div class="does">${j.does}</div>
+        <div class="meter jobwrap" style="--c:${j.c}; --f:${j.f}"><i></i></div>
+        <dl><dt>brings</dt><dd>${j.payWord}</dd><dt>how often</dt><dd>${every(j)}</dd><dt>speed</dt><dd style="color:${j.c}">${fast(j)}</dd></dl>
+        <div class="small muted">the crew (tap to send home)</div>
+        <div class="crewlist">${Array.from({ length: MAX_CREW }, (_, i) => j.crew[i] ? img(j.crew[i]).replace("<img", `<img data-off="${j.crew[i]}"`) : `<span class="slot"></span>`).join("")}</div>
+        <div class="plus" style="margin-top:auto"><button class="btn" data-minus>−</button><button class="btn primary" data-plus style="flex:1">+ a pet</button></div>` : ""}
+      </div>
+    </div>`;
+  }
+
+  // ---------- C ----------
+  function patch(j) {
+    return `<div class="patch" data-job="${j.id}" style="--c:${j.c}; --tilt:${j.tilt * .5}deg">
+      <svg class="thread" preserveAspectRatio="none"><rect class="seam"/><rect class="sewn" pathLength="100" stroke-dasharray="${(j.f * 100).toFixed(1)} 100"/></svg>
+      <div class="art">${art(j.id, 44)}</div>
+      <div><b>${j.name}</b><div class="sub">${j.does}</div></div>
+      <div class="sub">brings <span style="color:${j.c}">${j.payWord}</span> ${every(j)}</div>
+      <div class="sitters jobwrap">${j.crew.map(p => img(p).replace("<img", `<img data-off="${p}"`)).join("")}</div>
+      <div class="foot"><span>crew of ${j.crew.length} <b>${fast(j)}</b></span><span class="plus"><button class="btn" data-minus>−</button><button class="btn primary" data-plus>+</button></span></div>
+    </div>`;
+  }
+  function renderQuilt() {
+    content.innerHTML = `<div class="quilt">
+      <div class="qbed">
+        <h2 class="h">errands <small>pets work here while they rest. nobody wanders off.</small></h2>
+        ${JOBS.map(patch).join("")}
+        <div class="patch sealed" style="--tilt:-1deg">${art("sealed", 40)}<div>${SEALED.name}</div><div class="small">${SEALED.hint}</div></div>
+        <div class="patch sealed" style="--tilt:1deg; opacity:.6">${art("sealed", 40)}<div>not sewn on yet</div></div>
+      </div>
+      <div class="quiltside sticker">
+        <h3>the sewing basket</h3>
+        <div class="small muted">${picked ? "now tap a patch" : "resting pets. tap one, then a patch"}</div>
+        <div class="basket">${resting.map(p => `<div class="p${p === picked ? " picked-pet" : ""}" data-pick="${p}">${img(p)}</div>`).join("") || `<span class="small muted" style="grid-column: 1 / -1">everyone's busy!</span>`}</div>
+        <h3 style="margin-top: 6px">on adventures</h3>
+        <div class="basket away">${away.map(p => `<div class="p">${img(p)}</div>`).join("")}</div>
+        <div class="since" style="margin-top:auto"><b>while you were away</b>1,204 coins and 6 parts</div>
+      </div>
+    </div>`;
+  }
+
+  function render() {
+    ({ cork: renderCork, town: renderTown, quilt: renderQuilt })[LOOK]();
+    paintIcons(content);
+    content.querySelectorAll("[data-pick]").forEach(el => el.addEventListener("click", e => { e.stopPropagation(); picked = picked === el.dataset.pick ? null : el.dataset.pick; if (picked) say(`where should ${NAMES[picked]} go?`); render(); }));
+    content.querySelectorAll("[data-job]").forEach(el => el.addEventListener("click", () => {
+      const j = byId(el.dataset.job);
+      if (picked) return addTo(j, picked);
+      if (LOOK === "town") { openJob = j.id; render(); }
+    }));
+    content.querySelectorAll("[data-step]").forEach(el => el.addEventListener("click", () => { step = el.dataset.step === "all" ? "all" : Number(el.dataset.step); render(); }));
+    content.querySelector("[data-share]")?.addEventListener("click", shareOut);
+    content.querySelector("[data-auto]")?.addEventListener("change", e => { autoShare = e.target.checked; say(autoShare ? "i'll find everyone a job! leave it to me." : "okay! you pick. i'll just watch. closely."); });
+    content.querySelectorAll("[data-off]").forEach(el => el.addEventListener("click", e => { e.stopPropagation(); const j = JOBS.find(j => j.crew.includes(el.dataset.off)); takeOff(j, el.dataset.off); }));
+    content.querySelectorAll("[data-plus]").forEach(el => el.addEventListener("click", e => { e.stopPropagation(); addTo(jobOf(el)); }));
+    content.querySelectorAll("[data-minus]").forEach(el => el.addEventListener("click", e => { e.stopPropagation(); takeOff(jobOf(el)); }));
+    const close = content.querySelector("[data-close]");
+    if (close) close.addEventListener("click", () => { openJob = null; render(); });
+  }
+  const total = () => resting.length + away.length + JOBS.reduce((n, j) => n + j.crew.length, 0);
+  const jobOf = el => byId(el.closest("[data-job]")?.dataset.job || openJob);
+
+  // meters fill; each full meter pays
+  let last = performance.now();
+  function tick(now) {
+    const dt = (now - last) / 1000 * SPEED; last = now;
+    for (const j of JOBS) {
+      if (!j.crew.length) continue;
+      j.f += dt * speed(j.crew.length) / j.base;
+      if (j.f >= 1) {
+        const fills = Math.floor(j.f);
+        j.f -= fills; j.owed = (j.owed || 0) + fills;
+        if (now - (j.shown || 0) < 450) { continue; }
+        j.shown = now;
+        const n = j.owed; j.owed = 0;
+        const got = j.id === "coin" ? `+${num(n * 18)}` : n > 1 ? `+${num(n)} parts` : j.pay();
+        if (j.id === "coin") { coins += 18 * n; document.querySelector(".chip.coins").lastChild.textContent = num(coins); }
+        else if (n === 1 && Math.random() < .5) say(`${NAMES[base(j.crew[0])]} found ${got}! it's a bit rusty. i love it.`);
+        document.querySelectorAll(`[data-job="${j.id}"] .jobwrap, .jobcard .jobwrap`).forEach(m => {
+          if (m.closest(".jobcard") && openJob !== j.id) return;
+          const p = document.createElement("span"); p.className = "pay"; p.style.setProperty("--c", j.c); p.textContent = got;
+          p.style.left = "50%"; p.style.top = "-6px"; m.style.overflow = "visible"; m.appendChild(p); setTimeout(() => p.remove(), 1200);
+        });
+      }
+      document.querySelectorAll(`[data-job="${j.id}"]`).forEach(el => el.style.setProperty("--f", j.f.toFixed(3)));
+      document.querySelectorAll(`[data-job="${j.id}"] .meter`).forEach(el => el.style.setProperty("--f", j.f.toFixed(3)));
+      document.querySelectorAll(`[data-job="${j.id}"] .sewn`).forEach(el => el.setAttribute("stroke-dasharray", `${(j.f * 100).toFixed(1)} 100`));
+      if (openJob === j.id) document.querySelectorAll(".jobcard .meter").forEach(el => el.style.setProperty("--f", j.f.toFixed(3)));
+    }
+    requestAnimationFrame(tick);
+  }
+
+  if (params.get("pick")) picked = params.get("pick");
+  render();
+  applyLook(loadLook());
+  requestAnimationFrame(tick);
+</script>
+</body>
+</html>
