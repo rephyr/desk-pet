@@ -49,7 +49,21 @@ func _init() -> void:
 	tail_gap.custom_minimum_size = Vector2(4, 0)
 	tail_gap.mouse_filter = MOUSE_FILTER_PASS
 	top.add_child(tail_gap)
-	top.add_child(bubble)
+	# the bubble floats in a slot one line tall: a longer line grows it down over the page instead
+	# of pushing the whole window down
+	var slot := Control.new()
+	slot.size_flags_horizontal = SIZE_EXPAND_FILL
+	slot.size_flags_vertical = SIZE_SHRINK_CENTER
+	slot.mouse_filter = MOUSE_FILTER_PASS
+	slot.custom_minimum_size.y = PetBubble.one_line_height()
+	bubble.z_index = 5
+	slot.add_child(bubble)
+	var fit := func():
+		bubble.position = Vector2.ZERO
+		bubble.size = Vector2(slot.size.x, bubble.get_combined_minimum_size().y)
+	slot.resized.connect(fit)
+	bubble.minimum_size_changed.connect(fit)
+	top.add_child(slot)
 	top.add_child(_coins)
 	top.add_child(_xp)
 	if OS.is_debug_build():

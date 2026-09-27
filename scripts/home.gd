@@ -157,6 +157,9 @@ func _apply_dev_args() -> void:
 		_set_expanded(true)
 		_expanded.show_tab("adventures")
 		_expanded.adventures.pick_place(pick)
+	var line := DevArgs.value("say")  # e.g. a long line, to see the bubble grow over the page
+	if line != "":
+		get_tree().create_timer(1.5).timeout.connect(func(): PetBubble.say(self, line))
 	var trip := DevArgs.value("trip")  # e.g. garden: sends one pet and goes along on the trail
 	if trip != "" and not GameState.sendable_pets().is_empty():
 		var going: Array[Pet] = [GameState.sendable_pets()[0]]

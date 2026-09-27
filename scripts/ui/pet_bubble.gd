@@ -4,6 +4,12 @@ extends PanelContainer
 ## talk with PetBubble.say(self, "..."); the tail points back at the pet on its moon.
 
 const GROUP := "pet_bubble"
+const MARGIN_Y := 7
+
+
+## How tall the bubble is with one line in it (the top bar keeps this much room for it).
+static func one_line_height() -> float:
+	return UiTheme.BODY_FONT.get_height(UiTheme.FONT_SIZE) + MARGIN_Y * 2
 
 var _text := UiTheme.label("")
 
@@ -13,8 +19,8 @@ func _init() -> void:
 	var sb := UiTheme.sticker(UiTheme.PINK_SEAM, 14, UiTheme.RAISED, 0)
 	sb.content_margin_left = 16
 	sb.content_margin_right = 14
-	sb.content_margin_top = 7
-	sb.content_margin_bottom = 7
+	sb.content_margin_top = MARGIN_Y
+	sb.content_margin_bottom = MARGIN_Y
 	add_theme_stylebox_override("panel", sb)
 	size_flags_horizontal = SIZE_EXPAND_FILL
 	size_flags_vertical = SIZE_SHRINK_CENTER
