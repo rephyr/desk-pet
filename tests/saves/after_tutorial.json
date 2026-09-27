@@ -1,0 +1,138 @@
+{
+	"announcements": [],
+	"bag": {},
+	"buying_on": true,
+	"coin_reserve": 50,
+	"coins": 1,
+	"collection": {
+		"active": "2",
+		"fallen": [],
+		"next_id": 3,
+		"pets": [
+			{
+				"box": "tutorial",
+				"finish": "normal",
+				"parts": {
+					"accessory": "bow",
+					"body": "cat",
+					"eyes": "round",
+					"palette": "lilac",
+					"pattern": "plain"
+				},
+				"pulled_at": 1790508280,
+				"rarity": "common",
+				"sewn": [],
+				"stats": {
+					"luck": 10,
+					"power": 8,
+					"speed": 9
+				},
+				"traits": [
+					"zoomy"
+				],
+				"uid": "1"
+			},
+			{
+				"box": "tutorial",
+				"finish": "normal",
+				"parts": {
+					"accessory": "none",
+					"body": "cat",
+					"eyes": "round",
+					"palette": "mint",
+					"pattern": "plain"
+				},
+				"pulled_at": 1790508289,
+				"rarity": "common",
+				"sewn": [],
+				"stats": {
+					"luck": 7,
+					"power": 7,
+					"speed": 7
+				},
+				"traits": [
+					"zoomy",
+					"greedy"
+				],
+				"uid": "2"
+			}
+		],
+		"seen": {
+			"finish:cat:normal": 2,
+			"part:accessory:bow": 1,
+			"part:accessory:none": 1,
+			"part:body:cat": 2,
+			"part:eyes:round": 2,
+			"part:palette:lilac": 1,
+			"part:palette:mint": 1,
+			"part:pattern:plain": 2
+		}
+	},
+	"errands": [],
+	"errands_on": true,
+	"finds": [],
+	"happiness": 79.9300134506174,
+	"heard": [],
+	"hunger": 79.8950201759258,
+	"idle_log": {},
+	"items": {},
+	"packs_by_hand": 2,
+	"packs_on": true,
+	"parts": {},
+	"parts_ever": false,
+	"pet_out": false,
+	"pinned": [],
+	"rumours": [],
+	"runs": [
+		{
+			"answer": -1,
+			"chooser": "player",
+			"events": [
+				"garden_pond",
+				"garden_ball",
+				"garden_apples",
+				"garden_chest"
+			],
+			"location": "garden",
+			"log": [],
+			"loot": {},
+			"next_at": 1790508362.97307,
+			"party": {
+				"injured": [],
+				"lost": [],
+				"names": {
+					"1": "lilac cat"
+				},
+				"stats": {
+					"1": {
+						"luck": 10.0,
+						"power": 8.0,
+						"speed": 11.25
+					}
+				},
+				"uids": [
+					"1"
+				]
+			},
+			"seed": 1333929855,
+			"started": 1790508315.57307,
+			"status": 0,
+			"step": 0,
+			"waiting_since": 0.0,
+			"went_home": false,
+			"xp": 0
+		}
+	],
+	"saved_at": 1790508335.78404,
+	"saved_boxes": [],
+	"spot_tries": {},
+	"spotted": {},
+	"trips_done": 0,
+	"tutorial": "done",
+	"unlocks": [],
+	"version": 12,
+	"visited": [
+		"garden"
+	],
+	"xp": 0
+}

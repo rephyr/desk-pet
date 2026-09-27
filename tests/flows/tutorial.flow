@@ -1,0 +1,35 @@
+# A new player's first minutes: open the two gift boxes, pick an active pet, send the other one
+# down the garden path. Run with: python3 tools/play.py tutorial
+from new
+
+expect tutorial open_first
+shot start
+click guide                 # "open 1" on the starter pile
+key space                   # skip the ritual to the result
+wait ritual
+shot first_pet
+click "lovely!"
+expect tutorial open_second
+click guide
+key space
+wait ritual
+click "lovely!"
+
+expect tutorial make_active
+expect text "tap here to see your pets!"
+shot pets_tab
+click guide                 # the pets tab
+wait text "pick me! no, pick me! (tap a pet, then make it your active pet ♡)"
+shot pick_me
+click PetCard#1
+click "make active"
+
+expect tutorial send
+click guide                 # the adventures tab
+shot adventures
+click guide                 # the garden on the map
+click guide                 # a pet
+click guide                 # send
+wait 1
+expect tutorial done
+shot done

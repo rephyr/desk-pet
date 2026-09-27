@@ -1,0 +1,8 @@
+# Your pet opens the pile in its room: the pile shows, and it goes down while you watch.
+from pile_full
+view full
+tab home
+expect text "opening your pile"
+shot pile
+wait 12
+shot opening

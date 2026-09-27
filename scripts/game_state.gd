@@ -11,7 +11,7 @@ signal unlocked(entry: Dictionary)  # something new opened up (see data/unlocks.
 signal opened_in_background(pet: Pet)  # your pet opened a pack out of sight (the spine's moon shows it)
 signal adventures_changed  # a trip was sent, moved on, answered or collected, or something unlocked
 
-const SAVE_PATH := "user://save.json"
+var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
 const SAVE_VERSION := 12
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
@@ -373,8 +373,8 @@ func debug_unlock_all() -> void:
 ## user://save-before-new-game-<time>.json first, so it can be put back by hand.
 func debug_new_game() -> void:
 	save_game()
-	var backup := "user://save-before-new-game-%d.json" % int(Time.get_unix_time_from_system())
-	DirAccess.copy_absolute(ProjectSettings.globalize_path(SAVE_PATH), ProjectSettings.globalize_path(backup))
+	var backup := DevProfile.path("save-before-new-game-%d.json" % int(Time.get_unix_time_from_system()))
+	DirAccess.copy_absolute(ProjectSettings.globalize_path(save_path), ProjectSettings.globalize_path(backup))
 	coins = 100
 	xp = 0
 	hunger = 80.0
@@ -893,12 +893,12 @@ func save_game() -> void:
 		"runs": runs.map(func(r): return r.to_dict()),
 		"saved_at": Time.get_unix_time_from_system(),
 	}
-	SaveFile.write(SAVE_PATH, data)
+	SaveFile.write(save_path, data)
 
 
 ## Loads the save. Returns false if there's none yet (a brand new player).
 func load_game() -> bool:
-	var data := SaveFile.read(SAVE_PATH)
+	var data := SaveFile.read(save_path)
 	if data.is_empty():
 		return false
 	if int(data.get("version", 1)) > SAVE_VERSION:

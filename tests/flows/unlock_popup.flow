@@ -1,0 +1,12 @@
+# Something new opening up pops up a card; "show me" goes to its tab.
+from no_bag_tab
+view full
+tab boxes
+click "buy 1"
+click "open 1"
+key space
+wait popup
+expect text "new: the bag!"
+shot popup
+click "show me"
+expect tab inventory

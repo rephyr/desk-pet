@@ -81,6 +81,7 @@ func add_tab(id: String, text: String, icon_name: String, at_bottom := false) ->
 		_column.add_child(gap)
 	var b := Button.new()
 	b.add_to_group(TAB_GROUP)  # the tutorial says "tap here" while it points at one of these
+	b.set_meta("tab_id", id)
 	b.text = text
 	b.icon = UiTheme.icon(icon_name, 18, UiTheme.MUTED)
 	b.set_meta("icon_name", icon_name)

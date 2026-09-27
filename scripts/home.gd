@@ -39,7 +39,7 @@ func _ready() -> void:
 	_source = WindowSource.create()
 	_source.setup(win, _overlay)
 	_apply_size()
-	_set_out(GameState.pet_out)
+	_set_out(GameState.pet_out and not DevProfile.active())  # a test run keeps the pet off your desktop
 	if GameState.tutorial_active():
 		_set_expanded(true)  # a new player starts in the full game, at the boxes
 	_apply_dev_args()
@@ -141,8 +141,20 @@ func _tuck_away(hide_it: bool) -> void:
 	get_window().mouse_passthrough_polygon = nowhere if hide_it else PackedVector2Array()
 
 
+## The full game (true) or the small corner panel (false), for the dev driver's "view" step.
+func show_full_game(on: bool) -> void:
+	_set_expanded(on)
+
+
+## The full game's view, for the dev driver.
+func full_game() -> ExpandedView:
+	return _expanded
+
+
 ## Debug-build shortcuts for testing, see DevArgs.
 func _apply_dev_args() -> void:
+	if DevArgs.value("play") != "":
+		add_child(DevDriver.new(DevArgs.value("play")))  # plays a test flow, see DevDriver
 	if DevArgs.has("expanded"):
 		_set_expanded(true)
 	if DevArgs.value("tab") != "":

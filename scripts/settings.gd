@@ -5,7 +5,7 @@ extends Node
 signal changed
 signal look_changed  ## colours, font or icons changed: windows rebuild in the new look
 
-const PATH := "user://settings.json"
+var file_path := DevProfile.path("settings.json")  # or a test profile's (debug builds)
 const MIN_SPEED := 0.5
 const MAX_SPEED := 3.0
 
@@ -18,7 +18,7 @@ var icon_style := ""
 
 
 func _init() -> void:
-	var data := SaveFile.read(PATH)
+	var data := SaveFile.read(file_path)
 	reveal_speed = clampf(float(data.get("reveal_speed", reveal_speed)), MIN_SPEED, MAX_SPEED)
 	skip_single_reveal = bool(data.get("skip_single_reveal", skip_single_reveal))
 	skip_ritual = bool(data.get("skip_ritual", skip_ritual))
@@ -30,7 +30,7 @@ func _init() -> void:
 func set_value(key: String, value: Variant) -> void:
 	set(key, value)
 	reveal_speed = clampf(reveal_speed, MIN_SPEED, MAX_SPEED)
-	SaveFile.write(PATH, {
+	SaveFile.write(file_path, {
 		"reveal_speed": reveal_speed,
 		"skip_single_reveal": skip_single_reveal,
 		"skip_ritual": skip_ritual,

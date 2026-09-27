@@ -1,0 +1,19 @@
+# An adventure all the way home, then the postcard after "welcome back".
+from after_tutorial
+view full
+tab adventures
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+wait text "welcome back"
+click "welcome back"
+expect text "greetings from"
+shot postcard
+click "lovely"
+expect no-text "greetings from"

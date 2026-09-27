@@ -13,6 +13,10 @@ var _last_poll := -1.0
 var _home: Window
 var _styled := {}  # window address -> true once styled
 var _zero_scaling := false  # XWayland windows get real pixels on scaled monitors
+## A test run (DevProfile) keeps its window parked here, off every monitor, and never pinned,
+## so testing never covers what you're doing.
+var _parked := DevProfile.active()
+const PARKED_AT := Vector2i(-4000, 3000)
 
 
 func setup(home: Window, overlay: Window) -> void:
@@ -42,6 +46,8 @@ func set_home_size(home: Window, logical_size: Vector2i) -> void:
 		super(home, logical_size)
 		return
 	var target := anchored_rect(Rect2i(h.at[0], h.at[1], h.size[0], h.size[1]), _usable_rect(m), logical_size)
+	if _parked:
+		target = Rect2i(PARKED_AT, logical_size)
 	# only Hyprland moves it: Godot's own resize also sends a position, in the wrong coordinates
 	var w := "address:%s" % h.address
 	_dispatch(_place_commands(w, target))
@@ -57,10 +63,11 @@ func _style_new_windows() -> void:
 			continue
 		_styled[c.address] = true
 		var w := "address:%s" % c.address
-		var commands: Array[String] = [
-			"hl.dsp.window.float({ action = 'enable', window = '%s' })" % w,
-			"hl.dsp.window.pin({ action = 'enable', window = '%s' })" % w,
-		]
+		var commands: Array[String] = ["hl.dsp.window.float({ action = 'enable', window = '%s' })" % w]
+		if _parked:
+			commands.append_array(_place_commands(w, Rect2i(PARKED_AT, Vector2i(c.size[0], c.size[1]))))
+		else:
+			commands.append("hl.dsp.window.pin({ action = 'enable', window = '%s' })" % w)
 		# the override flags stop your "fade unfocused windows" setting from applying to us
 		var props := [["border_size", "0"], ["rounding", "0"], ["no_shadow", "1"], ["no_blur", "1"],
 			["no_anim", "1"], ["opacity", "1"], ["opacity_override", "1"], ["opacity_inactive", "1"],

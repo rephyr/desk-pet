@@ -46,6 +46,11 @@ func _process(delta: float) -> void:
 	_bubble.size = bubble_size
 
 
+## What it's pointing at right now (or null), for the dev driver's "click guide".
+func current_target() -> Control:
+	return _target if _target != null and _target.is_visible_in_tree() else null
+
+
 func _draw() -> void:
 	if _target == null or not _target.is_visible_in_tree():
 		return

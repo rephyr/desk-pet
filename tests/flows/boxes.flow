@@ -1,0 +1,18 @@
+# Buying boxes puts them on the pile; opening takes them off, one with the ritual, the rest at once.
+from rich
+view full
+tab boxes
+click "10"                  # the amount chip on the starter row (the first "10" on screen)
+click "buy 10"
+expect pile starter 10
+shot bought
+click "open 1"
+key space
+wait ritual
+click "lovely!"
+expect pile starter 9
+click "open all"
+wait 4
+shot opened_all
+click "lovely!"
+expect pile starter 0
