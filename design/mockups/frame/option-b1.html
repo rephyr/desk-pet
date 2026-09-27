@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frame B1: Stitched Spine</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/base.css">
+<style>
+  /* B1: the spine is a plush binding sewn to the page. Tabs are sewn-on patches; the pet talks from the top */
+  .app { display: grid; grid-template-columns: 84px 1fr; grid-template-rows: 64px 1fr; background: var(--deep); }
+  .spine {
+    grid-row: 1 / 3; position: relative;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    padding: 10px 0 10px;
+    background: #1f1330;
+  }
+  /* the seam: a row of stitches down the spine's edge */
+  .spine::after {
+    content: ""; position: absolute; top: 8px; bottom: 8px; right: 5px; width: 2px;
+    background: repeating-linear-gradient(to bottom, var(--pink-seam) 0 6px, transparent 6px 11px);
+  }
+  .me { position: relative; width: 56px; height: 60px; display: grid; place-items: end center; margin-bottom: 10px; }
+  .me img { width: 48px; height: 54px; }
+  .patch {
+    width: 62px; padding: 7px 0 5px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    background: none; border: 2px solid transparent; border-radius: var(--r-lg);
+    color: var(--muted); font-size: 11px; cursor: pointer;
+    transition: color .12s, transform .15s var(--ease-out);
+  }
+  .patch:hover { color: var(--pink); }
+  .patch.on {
+    color: var(--pink); background: var(--raised);
+    border: 2px dashed var(--pink); outline: 2px solid var(--raised); outline-offset: 0;
+    box-shadow: var(--lift); transform: rotate(-2deg);
+  }
+  .patch.locked { color: #76688a; cursor: default; }
+  .grow { flex: 1; }
+  .wallet { display: flex; flex-direction: column; gap: 6px; align-items: center; font-size: 11px; font-variant-numeric: tabular-nums; }
+  .wallet div { display: flex; align-items: center; gap: 4px; }
+  .wallet .coins { color: var(--cyan); }
+  .wallet .xp { color: var(--gold); }
+  .topbar { display: flex; align-items: center; gap: 10px; padding: 12px 10px 0 12px; }
+  .topbar .bubble { flex: 1; padding: 9px 14px; }
+  /* the tail reaches back to the pet at the top of the spine */
+  .topbar .bubble::before { content: ""; position: absolute; left: -9px; top: 16px; width: 12px; height: 12px; background: var(--raised); border-left: 2px solid var(--pink-seam); border-bottom: 2px solid var(--pink-seam); transform: rotate(45deg); }
+  .page { min-width: 0; min-height: 0; padding: 14px 14px 12px 16px; }
+  #content { height: 100%; }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="spine">
+    <div class="me" title="lilac blob, your active pet"><img class="px" src="../assets/pets/lilac-blob.png" alt="lilac blob"></div>
+    <button class="patch" data-tab><span data-icon="home"></span>home</button>
+    <button class="patch" data-tab><span data-icon="boxes"></span>boxes</button>
+    <button class="patch on" data-tab><span data-icon="collection"></span>pets</button>
+    <button class="patch" data-tab><span data-icon="adventures"></span>trips</button>
+    <button class="patch" data-tab><span data-icon="upgrades"></span>gear</button>
+    <button class="patch locked" title="found on a trip"><span data-icon="lock"></span>???</button>
+    <div class="grow"></div>
+    <div class="wallet">
+      <div class="coins"><span data-icon="coin"></span>10.4k</div>
+      <div class="xp"><span data-icon="xp"></span>72</div>
+    </div>
+    <button class="patch" data-tab title="settings"><span data-icon="settings"></span></button>
+  </nav>
+  <div class="topbar">
+    <div class="bubble">ooh. that gold one looks… expensive. i'm still the cutest though ♪</div>
+    <div class="winbtns"><button title="shrink">▾</button><button title="close">✕</button></div>
+  </div>
+  <main class="page dots"><div id="content"></div></main>
+</div>
+<script src="../shared/pixel.js"></script>
+<script>renderCollection(document.getElementById("content")); paintIcons(); wireTabs();</script>
+</body>
+</html>

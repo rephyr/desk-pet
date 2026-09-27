@@ -22,28 +22,12 @@ var _out_request := 0  # bumps on every let-out, so an older pending one can tel
 func _ready() -> void:
 	var win := get_window()
 	win.title = "Desk Pets"
+	UiTheme.apply()
 	theme = UiTheme.get_theme()
 	set_anchors_preset(PRESET_FULL_RECT)
 
-	var panel := PanelContainer.new()
-	panel.set_anchors_preset(PRESET_FULL_RECT)
-	add_child(panel)
-	panel.add_child(NightSky.new())
-	_compact = CompactView.new()
-	_expanded = ExpandedView.new()
-	panel.add_child(_compact)
-	panel.add_child(_expanded)
-	_expanded.visible = false
-	var guide := TutorialGuide.new()
-	guide.target_for = func() -> Control:
-		return _expanded.tutorial_target() if _expanded_mode else _compact.expand_button
-	panel.add_child(guide)
-
-	_compact.expand_requested.connect(_set_expanded.bind(true))
-	_compact.let_out_toggled.connect(func(): _set_out(not GameState.pet_out))
-	_compact.quit_requested.connect(_quit)
-	_expanded.collapse_requested.connect(_set_expanded.bind(false))
-	_expanded.quit_requested.connect(_quit)
+	_build_views()
+	Settings.look_changed.connect(_rebuild_look)
 	GameState.collection.active_changed.connect(func(p): if _pet: _pet.set_pet(p))
 	GameState.new_game.connect(func(): _set_expanded(true))
 
@@ -78,13 +62,59 @@ func _process(delta: float) -> void:
 
 # ---- layers ---------------------------------------------------------------
 
+var _panel: PanelContainer
+
+
+## Both layers, in the player's look. Called again (after freeing the old ones) when the look changes.
+func _build_views() -> void:
+	_panel = PanelContainer.new()
+	_panel.set_anchors_preset(PRESET_FULL_RECT)
+	_panel.add_theme_stylebox_override("panel", UiTheme.box(UiTheme.PAGE, UiTheme.PINK_SEAM, 14, 2, 0))
+	_panel.clip_contents = true
+	add_child(_panel)
+	_panel.add_child(NightSky.new())
+	_compact = CompactView.new()
+	var compact_margin := MarginContainer.new()
+	for side in ["left", "right", "top", "bottom"]:
+		compact_margin.add_theme_constant_override("margin_" + side, 0)  # the panel lays itself out
+	compact_margin.add_child(_compact)
+	_expanded = ExpandedView.new()
+	_panel.add_child(compact_margin)
+	_panel.add_child(_expanded)
+	compact_margin.visible = not _expanded_mode
+	_expanded.visible = _expanded_mode
+	var guide := TutorialGuide.new()
+	guide.target_for = func() -> Control:
+		return _expanded.tutorial_target() if _expanded_mode else _compact.expand_button
+	_panel.add_child(guide)
+	_compact.expand_requested.connect(_set_expanded.bind(true))
+	_compact.let_out_toggled.connect(func(): _set_out(not GameState.pet_out))
+	_compact.quit_requested.connect(_quit)
+	_expanded.collapse_requested.connect(_set_expanded.bind(false))
+	_expanded.quit_requested.connect(_quit)
+	_compact.set_pet_out(GameState.pet_out)
+
+
+## The player picked new colours, a font or icons: rebuild both layers in the new look.
+func _rebuild_look() -> void:
+	var tab := _expanded.current_tab()
+	UiTheme.apply()
+	theme = UiTheme.get_theme()
+	remove_child(_panel)
+	_panel.queue_free()
+	_build_views()
+	move_child(_panel, 0)
+	if _expanded_mode:
+		_expanded.show_tab(tab)
+
+
 func _set_expanded(on: bool) -> void:
 	if on == _expanded_mode:
 		return
 	_expanded_mode = on
 	if on:
 		_expanded.show_start()  # the full game always opens in your pet's room
-	_compact.visible = not on
+	_compact.get_parent().visible = not on
 	_expanded.visible = on
 	_apply_size()
 
@@ -120,6 +150,11 @@ func _apply_dev_args() -> void:
 		var bits := open.split(":")
 		GameState.add_debug_coins()
 		_expanded.boxes.open(bits[0], int(bits[1]) if bits.size() > 1 else 1, DevArgs.value("force"))
+	var pick := DevArgs.value("pick")  # e.g. pond: opens that place's card on the map
+	if pick != "":
+		_set_expanded(true)
+		_expanded.show_tab("adventures")
+		_expanded.adventures.pick_place(pick)
 	var trip := DevArgs.value("trip")  # e.g. garden: sends one pet and goes along on the trail
 	if trip != "" and not GameState.sendable_pets().is_empty():
 		var going: Array[Pet] = [GameState.sendable_pets()[0]]

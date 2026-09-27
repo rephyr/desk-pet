@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frame B3: Roomy Spine</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/base.css">
+<style>
+  /* B3: a wider spine that is also your pet's corner: pet, name, food and mood, then the index.
+     The active tab peeks out over the page edge like a sticker index tab. */
+  .app { display: grid; grid-template-columns: 140px 1fr; background: var(--deep); }
+  .spine { position: relative; z-index: 2; display: flex; flex-direction: column; gap: 3px; padding: 12px 0 10px 10px; border-right: 2px solid #2c1d3d; }
+  .me { display: flex; flex-direction: column; align-items: center; padding: 4px 10px 12px 0; margin-bottom: 6px; border-bottom: 2px dashed #2c1d3d; }
+  .me img { width: 64px; height: 72px; }
+  .me .name { font: 15px/1 var(--display); color: var(--pink); margin: 6px 0 8px; }
+  .mini { width: 100%; display: grid; grid-template-columns: auto 1fr; gap: 4px 6px; align-items: center; font-size: 11px; color: var(--muted); }
+  .mini .bar { height: 6px; border-radius: 3px; background: var(--deep); border: 1px solid #3a2750; overflow: hidden; }
+  .mini .bar i { display: block; height: 100%; border-radius: 3px; }
+  .tab {
+    position: relative; display: flex; align-items: center; gap: 9px;
+    height: 34px; padding: 0 10px; margin-right: -2px;
+    background: none; border: 2px solid transparent; border-right: 0; border-radius: var(--r-lg) 0 0 var(--r-lg);
+    color: var(--muted); font-size: 13px; cursor: pointer; text-align: left;
+    transition: color .12s, padding .15s var(--ease-out);
+  }
+  .tab:hover { color: var(--pink); padding-left: 13px; }
+  .tab.on { background: var(--page); border-color: var(--pink-seam); color: var(--pink); }
+  .tab.locked { color: #76688a; cursor: default; }
+  .tab.locked:hover { padding-left: 10px; color: #76688a; }
+  .tab .new { margin-left: auto; margin-right: 6px; width: 7px; height: 7px; border-radius: 2px; background: var(--gold); }
+  .grow { flex: 1; }
+  .page { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 12px 14px 12px 16px; gap: 14px; }
+  .top { display: flex; align-items: center; gap: 10px; }
+  .top .bubble { flex: 1; padding: 8px 14px; }
+  #content { flex: 1; min-height: 0; }
+  /* narrower spine leaves less room: 4 columns */
+  .grid { grid-template-columns: repeat(4, 1fr); }
+  .collection { grid-template-columns: 1fr 232px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="spine">
+    <div class="me">
+      <img class="px" src="../assets/pets/lilac-blob.png" alt="">
+      <div class="name">lilac blob</div>
+      <div class="mini">
+        <span>food</span><span class="bar"><i style="width:72%; background: var(--pink)"></i></span>
+        <span>mood</span><span class="bar"><i style="width:88%; background: var(--lilac)"></i></span>
+      </div>
+    </div>
+    <button class="tab" data-tab><span data-icon="home"></span>home</button>
+    <button class="tab" data-tab><span data-icon="boxes"></span>boxes<span class="new" title="something new"></span></button>
+    <button class="tab on" data-tab><span data-icon="collection"></span>pets</button>
+    <button class="tab" data-tab><span data-icon="adventures"></span>trips</button>
+    <button class="tab" data-tab><span data-icon="upgrades"></span>gear</button>
+    <button class="tab locked" title="found on a trip"><span data-icon="lock"></span>???</button>
+    <div class="grow"></div>
+    <button class="tab" data-tab><span data-icon="settings"></span>settings</button>
+  </nav>
+  <main class="page dots">
+    <div class="top">
+      <div class="bubble">ooh. that gold one looks… expensive. i'm still the cutest though ♪</div>
+      <span class="chip coins"><span data-icon="coin"></span>10,421</span>
+      <span class="chip xp"><span data-icon="xp"></span>72</span>
+      <div class="winbtns"><button title="shrink">▾</button><button title="close">✕</button></div>
+    </div>
+    <div id="content"></div>
+  </main>
+</div>
+<script src="../shared/pixel.js"></script>
+<script>renderCollection(document.getElementById("content")); paintIcons(); wireTabs();</script>
+</body>
+</html>

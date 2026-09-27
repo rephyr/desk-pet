@@ -1,26 +1,30 @@
 class_name AdventuresTab
-extends VBoxContainer
-## Sending pets on adventures. At the top your active pet chats about what's going on (PetVoice);
-## below, your pet's doodle map of the world (MapView) and the trips out on the right. Tapping a
-## place on the map swaps the map for picking who goes there. A trip waiting at an event shows its options there (small parties also show when the
-## default gets picked); a trip that's back shows its summary.
+extends HBoxContainer
+## Sending pets on adventures ("trips"). Your pet's crayon map of the world (MapView) fills the
+## left; tapping a place sticks a card onto the map for picking who goes there. A hands-on trip
+## can be watched up close on the trail (TrailView), in the map's place. The trips that are away
+## are stickers on the right: one waiting at an event shows its options, one that's back shows
+## what it brought. Your active pet talks about it all in the shared bubble (PetBubble).
 ## All the rules live in AdventureRunner; this only shows them and passes on clicks.
 
-const PAGE_SIZE := 24
+const PAGE_SIZE := 12
 const QUICK_PICK := 10
 
 var _location_id := ""
 var _map := MapView.new()
 var _trail := TrailView.new()  # a hands-on trip up close, see TrailView
-var _picker: VBoxContainer
-var _place_label := UiTheme.label("", UiTheme.PINK)
+var _picker := PanelContainer.new()
+var _place_title := UiTheme.title("", 18)
+var _place_note := UiTheme.label("", UiTheme.GOLD, UiTheme.SMALL + 1)
+var _facts := HFlowContainer.new()
 var _odds := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
 var _send: Button
 var _picked := {}  # uid -> true
-var _picked_label := UiTheme.label("", UiTheme.TEXT, UiTheme.SMALL)
+var _picked_label := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
 var _quick := GridContainer.new()
-var _grid := HFlowContainer.new()
+var _grid := GridContainer.new()
 var _page := 0
+var _pager := HBoxContainer.new()
 var _page_label := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
 var _runs := VBoxContainer.new()
 var _run_rows: Array[Dictionary] = []  # { run, bar, time } or { run, countdown }
@@ -29,29 +33,36 @@ var _dirty := true
 var _estimate_key := ""  # which picks the cached estimate is for
 var _estimate := 1.0
 var _tick := 0.0
-var _columns := HBoxContainer.new()
-var _portrait := PetPortrait.new(3, true)
-var _speech := UiTheme.label("", UiTheme.TEXT, UiTheme.SMALL)
 var _voice_rng := RandomNumberGenerator.new()
 
 
 func _init() -> void:
-	add_theme_constant_override("separation", 10)
+	add_theme_constant_override("separation", 14)
 	size_flags_vertical = SIZE_EXPAND_FILL
 	_voice_rng.randomize()
-	add_child(_voice_row())
-	_columns.add_theme_constant_override("separation", 14)
-	_columns.size_flags_vertical = SIZE_EXPAND_FILL
-	add_child(_columns)
 	_location_id = GameState.open_locations()[0].id
-	_columns.add_child(_map)
-	_picker = _picker_column()
-	_picker.visible = false
-	_columns.add_child(_picker)
+
+	# the map, with the place card stuck onto it and the trail in its place when watching
+	var area := Control.new()
+	area.size_flags_horizontal = SIZE_EXPAND_FILL
+	area.size_flags_vertical = SIZE_EXPAND_FILL
+	add_child(area)
+	for c in [_map, _trail]:
+		c.set_anchors_preset(PRESET_FULL_RECT)
+		area.add_child(c)
 	_trail.visible = false
 	_trail.back_to_map.connect(func(): _show_map(true))
-	_columns.add_child(_trail)
-	_columns.add_child(_runs_column())
+	_build_picker()
+	_picker.visible = false
+	# the card sticks onto the map's top right, a little crooked
+	var stuck := Tilted.new(_picker, 1.0)
+	stuck.set_anchors_preset(PRESET_TOP_RIGHT)
+	stuck.grow_horizontal = GROW_DIRECTION_BEGIN
+	stuck.offset_right = -14
+	stuck.offset_top = 40
+	area.add_child(stuck)
+	add_child(_runs_column())
+
 	_map.place_picked.connect(_choose_place)
 	_map.lead_picked.connect(func(id): GameState.follow_lead(id))
 	_map.rumour_picked.connect(func(id): GameState.follow_rumour(id))
@@ -63,7 +74,7 @@ func _init() -> void:
 	visibility_changed.connect(func():
 		_rebuild_if_dirty()
 		if is_visible_in_tree():
-			_speak()
+			speak()
 			# a hands-on trip is out: go along with it
 			for run in GameState.runs:
 				if run.chooser == "player" and run.status != RunState.Status.DONE:
@@ -71,60 +82,45 @@ func _init() -> void:
 					break)
 
 
-## Your active pet and a speech bubble.
-func _voice_row() -> HBoxContainer:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 8)
-	row.add_child(_portrait)
-	var bubble := PanelContainer.new()
-	bubble.add_theme_stylebox_override("panel", UiTheme.box(UiTheme.BG_RAISED, UiTheme.PINK.darkened(0.35), 12, 2, 10))
-	bubble.size_flags_horizontal = SIZE_EXPAND_FILL
-	bubble.size_flags_vertical = SIZE_SHRINK_CENTER
-	_speech.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	bubble.add_child(_speech)
-	row.add_child(bubble)
-	return row
-
-
 ## The active pet says something about what's going on; news of a trip it's talking about is
 ## used up, so it doesn't repeat itself next time.
-func _speak() -> void:
+func speak() -> void:
 	var pet := GameState.collection.active()
-	_portrait.visible = pet != null
 	if pet == null:
-		_speech.text = ""
 		return
-	_portrait.set_pet(pet)
 	var catalog := Catalog.shared()
 	# big news first: something found, something new opened up
 	var news := GameState.take_announcement()
 	if news != "":
 		var more := GameState.take_announcement()
-		_speech.text = news + (" " + more if more != "" else "")
-		_speech.visible_ratio = 0.0
-		create_tween().tween_property(_speech, "visible_ratio", 1.0, 0.02 * _speech.text.length())
+		PetBubble.say(self, news + (" " + more if more != "" else ""))
 		return
 	var what := PetVoice.situation(GameState.news, GameState.rumours, GameState.runs, catalog)
 	GameState.news = {}
-	_speech.text = PetVoice.line(pet, what, _voice_rng, catalog)
-	_speech.visible_ratio = 0.0
-	create_tween().tween_property(_speech, "visible_ratio", 1.0, 0.02 * _speech.text.length())
-	_portrait.view.squash = 0.4
+	PetBubble.say(self, PetVoice.line(pet, what, _voice_rng, catalog))
 
 
-## A place on the map was tapped: pick who goes there.
+## Opens a place's card, as if it was tapped on the map (dev flag --pick).
+func pick_place(location_id: String) -> void:
+	_choose_place(location_id)
+
+
+## A place on the map was tapped: stick its card onto the map to pick who goes.
 func _choose_place(location_id: String) -> void:
 	_location_id = location_id
+	_map.selected = location_id
+	_map.queue_redraw()
 	_trim_to_party_size()
 	_show_map(false)
 	_rebuild_picker()
 
 
 func _show_map(on: bool) -> void:
-	_map.visible = on
+	_map.visible = true
 	_picker.visible = not on
 	_trail.visible = false
 	if on:
+		_map.selected = ""
 		_map.refresh()
 
 
@@ -136,67 +132,105 @@ func _show_trail(run: RunState) -> void:
 	_trail.visible = true
 
 
-func _picker_column() -> VBoxContainer:
+# ---- the place card ----------------------------------------------------------------
+
+func _build_picker() -> void:
+	_picker.custom_minimum_size = Vector2(256, 0)
+	_picker.add_theme_stylebox_override("panel", UiTheme.sticker(UiTheme.LILAC_SEAM, 12, UiTheme.RAISED, 14))
 	var col := VBoxContainer.new()
-	col.size_flags_horizontal = SIZE_EXPAND_FILL
-	col.add_theme_constant_override("separation", 6)
-
-	var head := HBoxContainer.new()
-	head.add_theme_constant_override("separation", 8)
-	head.add_child(UiTheme.button("‹ map", func(): _show_map(true)))
-	head.add_child(_place_label)
-	col.add_child(head)
-	var go := HBoxContainer.new()
-	go.add_theme_constant_override("separation", 8)
+	col.add_theme_constant_override("separation", 7)
+	_picker.add_child(col)
+	col.add_child(_place_title)
+	col.add_child(_place_note)
+	_facts.add_theme_constant_override("h_separation", 5)
+	_facts.add_theme_constant_override("v_separation", 5)
+	col.add_child(_facts)
 	_odds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_odds.size_flags_horizontal = SIZE_EXPAND_FILL
-	go.add_child(_odds)
-	_send = UiTheme.button("send ♡", _send_picked)
-	go.add_child(_send)
-	col.add_child(go)
+	col.add_child(_odds)
 
-	var top := HBoxContainer.new()
-	top.add_child(_picked_label)
-	top.add_child(UiTheme.spacer())
-	top.add_child(UiTheme.small_button("‹", func(): _turn(-1)))
-	top.add_child(_page_label)
-	top.add_child(UiTheme.small_button("›", func(): _turn(1)))
-	col.add_child(top)
+	var who := HBoxContainer.new()
+	who.add_child(UiTheme.label("who's going?", UiTheme.MUTED, UiTheme.SMALL))
+	who.add_child(UiTheme.spacer())
+	who.add_child(_picked_label)
+	col.add_child(who)
 
-	_quick.columns = 4
+	_quick.columns = 3
 	_quick.add_theme_constant_override("h_separation", 4)
 	_quick.add_theme_constant_override("v_separation", 4)
 	var catalog := Catalog.shared()
 	for tier in catalog.tiers:
-		var b := UiTheme.button("+%d %s" % [QUICK_PICK, tier.name], _quick_pick.bind(tier.id))
-		b.add_theme_color_override("font_color", catalog.tier_color(tier.id))
-		b.add_theme_font_size_override("font_size", UiTheme.SMALL)
+		var b := UiTheme.filter_chip("+%d %s" % [QUICK_PICK, tier.name], catalog.tier_color(tier.id))
+		b.toggle_mode = false
+		b.pressed.connect(_quick_pick.bind(tier.id))
 		b.size_flags_horizontal = SIZE_EXPAND_FILL
 		_quick.add_child(b)
-	var clear := UiTheme.button("clear", func():
+	var clear := UiTheme.filter_chip("clear", UiTheme.MUTED)
+	clear.toggle_mode = false
+	clear.pressed.connect(func():
 		_picked.clear()
 		_rebuild_picker())
-	clear.add_theme_font_size_override("font_size", UiTheme.SMALL)
 	clear.size_flags_horizontal = SIZE_EXPAND_FILL
 	_quick.add_child(clear)
 	col.add_child(_quick)
 
-	var scroll := ScrollContainer.new()
-	scroll.size_flags_vertical = SIZE_EXPAND_FILL
-	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_grid.size_flags_horizontal = SIZE_EXPAND_FILL
+	_grid.columns = 4
 	_grid.add_theme_constant_override("h_separation", 6)
 	_grid.add_theme_constant_override("v_separation", 6)
-	scroll.add_child(_grid)
-	col.add_child(scroll)
-	return col
+	col.add_child(_grid)
+	_pager.add_child(UiTheme.spacer())
+	_pager.add_child(UiTheme.small_button("‹", func(): _turn(-1)))
+	_pager.add_child(_page_label)
+	_pager.add_child(UiTheme.small_button("›", func(): _turn(1)))
+	col.add_child(_pager)
 
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 8)
+	var not_yet := UiTheme.button("not yet", func(): _show_map(true))
+	not_yet.size_flags_horizontal = SIZE_EXPAND_FILL
+	buttons.add_child(not_yet)
+	_send = UiTheme.button("send them", _send_picked)
+	_send.icon = UiTheme.icon("heart", 14)
+	_send.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_send.add_theme_constant_override("icon_max_width", 14)
+	_send.add_theme_color_override("icon_normal_color", Color.WHITE)
+	_send.add_theme_color_override("icon_hover_color", Color.WHITE)
+	_send.add_theme_color_override("icon_disabled_color", Color(1, 1, 1, 0.4))
+	_send.size_flags_horizontal = SIZE_EXPAND_FILL
+	_send.size_flags_stretch_ratio = 1.5
+	buttons.add_child(_send)
+	col.add_child(buttons)
+
+
+## One pet you could send: a little tile with its picture; picked ones are stitched and tilted.
+func _chip(pet: Pet) -> Control:
+	var catalog := Catalog.shared()
+	var b := Button.new()
+	b.focus_mode = FOCUS_NONE
+	b.custom_minimum_size = Vector2(50, 46)
+	b.tooltip_text = "%s (%s)" % [pet.display_name(catalog), catalog.tier_at(catalog.rank(pet.rarity)).name]
+	var picked := _picked.has(pet.uid)
+	var sb: StyleBox = UiTheme.stitched(UiTheme.PINK, UiTheme.PINK_PRESSED, 8, 2) if picked else UiTheme.box(UiTheme.DEEP, catalog.tier_color(pet.rarity).lerp(UiTheme.LINE, 0.5), 8, 2, 2)
+	var hover := UiTheme.box(UiTheme.DEEP, UiTheme.PINK_SEAM, 8, 2, 2)
+	b.add_theme_stylebox_override("normal", sb)
+	b.add_theme_stylebox_override("hover", sb if picked else hover)
+	b.add_theme_stylebox_override("pressed", sb)
+	var portrait := PetPortrait.new(2, false)
+	portrait.mouse_filter = MOUSE_FILTER_IGNORE
+	portrait.set_pet(pet)
+	b.add_child(portrait)
+	b.resized.connect(func(): portrait.position = b.size / 2.0 - portrait.custom_minimum_size / 2.0)
+	b.pressed.connect(_toggle.bind(pet))
+	b.set_meta("pet", pet)
+	return Tilted.new(b, -3.0 if picked else 0.0)
+
+
+# ---- trips that are away ----------------------------------------------------------
 
 func _runs_column() -> VBoxContainer:
 	var col := VBoxContainer.new()
-	col.custom_minimum_size = Vector2(270, 0)
+	col.custom_minimum_size = Vector2(252, 0)
 	col.add_theme_constant_override("separation", 8)
-	col.add_child(UiTheme.label("away", UiTheme.PINK))
+	col.add_child(UiTheme.title("away", 17))
 	_result.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_result.visible = false
 	col.add_child(_result)
@@ -204,13 +238,21 @@ func _runs_column() -> VBoxContainer:
 	scroll.size_flags_vertical = SIZE_EXPAND_FILL
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_runs.size_flags_horizontal = SIZE_EXPAND_FILL
-	_runs.add_theme_constant_override("separation", 8)
-	scroll.add_child(_runs)
+	_runs.add_theme_constant_override("separation", 12)
+	var pad := MarginContainer.new()
+	pad.size_flags_horizontal = SIZE_EXPAND_FILL
+	pad.add_theme_constant_override("margin_right", 6)
+	pad.add_theme_constant_override("margin_bottom", 8)
+	pad.add_child(_runs)
+	scroll.add_child(pad)
 	col.add_child(scroll)
 	if OS.is_debug_build():
-		col.add_child(UiTheme.button("dev: skip the walking", func(): GameState.debug_finish_runs()))
-		col.add_child(UiTheme.button("dev: unlock everything", func(): GameState.debug_unlock_all()))
-		col.add_child(UiTheme.button("dev: lock everything", func(): GameState.debug_lock_all()))
+		for dev in [["dev: skip the walking", func(): GameState.debug_finish_runs()],
+				["dev: unlock everything", func(): GameState.debug_unlock_all()],
+				["dev: lock everything", func(): GameState.debug_lock_all()]]:
+			var b := UiTheme.button(dev[0], dev[1])
+			b.add_theme_font_size_override("font_size", UiTheme.SMALL)
+			col.add_child(b)
 	return col
 
 
@@ -259,10 +301,7 @@ func _toggle(pet: Pet) -> void:
 		if _picked.size() >= _max_party():
 			return
 		_picked[pet.uid] = true
-	for card in _grid.get_children():
-		if card is PetCard:
-			card.set_selected(_picked.has(card.pet.uid))
-	_refresh_send()
+	_rebuild_picker()
 
 
 func _trim_to_party_size() -> void:
@@ -280,13 +319,12 @@ func _picked_pets() -> Array[Pet]:
 
 ## For the tutorial: the place on the map, then a pet to pick for the trip, then the send button.
 func tutorial_target() -> Control:
-	if _map.visible:
+	if not _picker.visible:
 		return _map.hotspot(_location_id)
 	if not _picked.is_empty():
 		return _send
-	for card in _grid.get_children():
-		if card is PetCard:
-			return card
+	for holder in _grid.get_children():
+		return holder
 	return null
 
 
@@ -333,47 +371,51 @@ func _rebuild_picker() -> void:
 		if _picked.has(pet.uid):
 			still[pet.uid] = true
 	_picked = still
-	_quick.visible = _max_party() != 1
+	_quick.visible = _max_party() > Chooser.SMALL_PARTY
 	var pages := maxi(1, ceili(pets.size() / float(PAGE_SIZE)))
 	_page = clampi(_page, 0, pages - 1)
-	_page_label.text = "%d/%d" % [_page + 1, pages]
+	_page_label.text = "%d of %d" % [_page + 1, pages]
+	_pager.visible = pages > 1
 	for pet in pets.slice(_page * PAGE_SIZE, (_page + 1) * PAGE_SIZE):
-		var card := PetCard.new(pet, 2, false)
-		card.pressed.connect(_toggle)
-		card.set_selected(_picked.has(pet.uid))
-		_grid.add_child(card)
+		_grid.add_child(_chip(pet))
 	_refresh_send()
 
 
 func _refresh_send() -> void:
 	var catalog := Catalog.shared()
 	var d := catalog.location(_location_id)
-	_place_label.text = "%s · %s" % [d.name, _about(d.minutes)]
+	_place_title.text = d.name
+	_place_note.text = str(d.get("map", {}).get("note", ""))
+	_place_note.visible = _place_note.text != ""
 	var pets := _picked_pets()
 	var most := _max_party()
+	UiTheme.clear(_facts)
+	_facts.add_child(UiTheme.tag(_about(d.minutes)))
+	_facts.add_child(UiTheme.tag("1 pet" if most == 1 else ("as many as you like" if most > 999 else "up to %d pets" % most)))
 	if most == 1:
-		_picked_label.text = "who goes?"
+		_picked_label.text = "%d of 1" % pets.size()
 	elif most <= Chooser.SMALL_PARTY:
-		_picked_label.text = "%d of %d picked" % [pets.size(), most]
+		_picked_label.text = "%d of %d" % [pets.size(), most]
 	else:
 		_picked_label.text = "%d picked" % pets.size()
 	_send.disabled = pets.is_empty()
+	_send.text = "send %s" % pets[0].display_name(catalog) if pets.size() == 1 else "send them"
 	if pets.is_empty():
-		_odds.text = "pick who goes ♡"
+		_odds.text = "tap a pet to pick it"
 		return
 	var time := _duration(AdventureRunner.duration(d, Party.make(pets, catalog)))
 	match Chooser.kind_for(pets.size()):
 		"player":
-			_odds.text = "%s · you choose the way ♡" % time
+			_odds.text = "about %s there and back. you choose the way!" % time
 		"timeout":
-			_odds.text = "%s · you'll be asked along the way ♡" % time
+			_odds.text = "about %s there and back. they'll ask you along the way." % time
 		_:
 			# trial runs are slow for big swarms: only redo them when the picks change
 			var key := _location_id + ":" + ",".join(_picked.keys())
 			if key != _estimate_key:
 				_estimate_key = key
 				_estimate = AdventureRunner.estimate_return(_location_id, pets, catalog)
-			_odds.text = "%s · about %d%% come home" % [time, roundi(_estimate * 100.0)]
+			_odds.text = "about %s there and back. about %d%% come home." % [time, roundi(_estimate * 100.0)]
 
 
 func _rebuild_runs() -> void:
@@ -382,20 +424,35 @@ func _rebuild_runs() -> void:
 	var catalog := Catalog.shared()
 	for run in GameState.runs:
 		var d := catalog.location(run.location_id)
+		var border := UiTheme.LILAC_SEAM
+		match run.status:
+			RunState.Status.WAITING: border = UiTheme.GOLD
+			RunState.Status.DONE: border = UiTheme.MINT
 		var panel := PanelContainer.new()
-		panel.add_theme_stylebox_override("panel", UiTheme.box(UiTheme.BG_RAISED, UiTheme.LILAC.darkened(0.45), 10, 2, 8))
+		panel.add_theme_stylebox_override("panel", UiTheme.sticker(border, 12, UiTheme.RAISED, 11))
 		var col := VBoxContainer.new()
-		col.add_theme_constant_override("separation", 4)
+		col.add_theme_constant_override("separation", 6)
 		panel.add_child(col)
 
+		# who and where, and "watch" for a hands-on trip
 		var top := HBoxContainer.new()
-		top.add_child(UiTheme.label(d.name, UiTheme.PINK, UiTheme.SMALL))
-		top.add_child(UiTheme.spacer())
+		top.add_theme_constant_override("separation", 8)
+		var first: Pet = GameState.collection.get_pet(run.party.uids[0]) if not run.party.uids.is_empty() else null
+		if first:
+			var face := PetPortrait.new(2, false)
+			face.set_pet(first)
+			face.mouse_filter = MOUSE_FILTER_IGNORE
+			top.add_child(face)
+		var names := VBoxContainer.new()
+		names.add_theme_constant_override("separation", 0)
+		names.size_flags_horizontal = SIZE_EXPAND_FILL
+		names.add_child(UiTheme.label(d.name, UiTheme.PINK, UiTheme.SMALL + 1))
 		var who := run.party.who() if run.party.setting_out() == 1 else "%d pets" % run.party.setting_out()
-		top.add_child(UiTheme.label(who, UiTheme.MUTED, UiTheme.SMALL))
+		names.add_child(UiTheme.label(who, UiTheme.MUTED, UiTheme.SMALL))
+		top.add_child(names)
 		if run.chooser == "player" and run.status != RunState.Status.DONE:
 			var watch := UiTheme.small_button("watch ›", _show_trail.bind(run))
-			watch.add_theme_font_size_override("font_size", UiTheme.SMALL)
+			watch.add_theme_font_size_override("font_size", UiTheme.SMALL + 1)
 			top.add_child(watch)
 		col.add_child(top)
 
@@ -404,41 +461,51 @@ func _rebuild_runs() -> void:
 		var speaker := GameState.collection.active()
 		var solo := run.party.setting_out() == 1 and speaker != null
 		if solo and run.status != RunState.Status.DONE:
-			col.add_child(_wrapped(PetVoice.feeling(speaker, run.party, run.history, catalog), UiTheme.PINK))
+			col.add_child(_wrapped(PetVoice.feeling(speaker, run.party, run.history, catalog), UiTheme.TEXT))
 		match run.status:
 			RunState.Status.WAITING:
 				var event := run.current_event(catalog)
 				var options := AdventureRunner.options_of(event, d)
 				var allowed := AdventureRunner.allowed_options(event, run.party, d)
-				col.add_child(_wrapped(event.title, UiTheme.TEXT))
+				col.add_child(_wrapped(event.title, UiTheme.GOLD))
 				var scene := str(event.text)
 				if solo:
 					scene += " " + PetVoice.spotted(speaker, event, run.party, d, catalog, Rewards.depth_boost(run.history.size()))
-				col.add_child(_wrapped(scene, UiTheme.LILAC))
+				col.add_child(_wrapped(scene, UiTheme.TEXT))
 				for i in allowed:
 					var option: Dictionary = options[i]
 					var b := UiTheme.button(option.label, GameState.answer_event.bind(run, i))
-					b.add_theme_font_size_override("font_size", UiTheme.SMALL)
+					b.add_theme_font_size_override("font_size", UiTheme.SMALL + 1)
 					col.add_child(b)
 				if run.chooser == "timeout":
 					var countdown := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
+					countdown.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 					col.add_child(countdown)
 					_run_rows.append({ "run": run, "countdown": countdown, "default": options[Chooser.default_option(event, allowed)].label })
 			RunState.Status.DONE:
 				col.add_child(_wrapped(AdventureRunner.summary(run), UiTheme.TEXT))
-				var back := UiTheme.button("welcome back ♡", _collect.bind(run))
-				back.add_theme_font_size_override("font_size", UiTheme.SMALL)
+				var back := UiTheme.button("welcome back", _collect.bind(run))
+				back.icon = UiTheme.icon("heart", 14)
+				back.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+				back.add_theme_constant_override("icon_max_width", 14)
+				back.add_theme_color_override("icon_normal_color", Color.WHITE)
+				back.add_theme_color_override("icon_hover_color", Color.WHITE)
 				col.add_child(back)
 			_:
 				var bar := UiTheme.bar(UiTheme.LILAC)
 				bar.max_value = 1.0
 				bar.step = 0.0
 				col.add_child(bar)
+				var when := HBoxContainer.new()
+				var where := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
+				when.add_child(where)
+				when.add_child(UiTheme.spacer())
 				var time := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
-				col.add_child(time)
-				_run_rows.append({ "run": run, "bar": bar, "time": time })
-		if not run.history.is_empty():
-			col.add_child(_wrapped("\n".join(run.history.map(func(e): return "· " + str(e.text))), UiTheme.MUTED))
+				when.add_child(time)
+				col.add_child(when)
+				_run_rows.append({ "run": run, "bar": bar, "time": time, "where": where })
+		for e in run.history:
+			col.add_child(_wrapped(str(e.text), UiTheme.MUTED))
 		_runs.add_child(panel)
 	if GameState.runs.is_empty():
 		_runs.add_child(UiTheme.label("nobody's away", UiTheme.MUTED, UiTheme.SMALL))
@@ -452,14 +519,15 @@ func _refresh_runs() -> void:
 	for row in _run_rows:
 		var run: RunState = row.run
 		if row.has("countdown"):
-			row.countdown.text = "if nobody picks: %s in %s" % [row.default, _duration(TimeoutChooser.deadline(run) - now)]
+			row.countdown.text = "if nobody picks, it's %s in %s" % [row.default, _duration(TimeoutChooser.deadline(run) - now)]
 			continue
 		var d := catalog.location(run.location_id)
 		var gap := AdventureRunner.gap(d, run.party, run.events.size())
 		var within := clampf(1.0 - (run.next_at - now) / gap, 0.0, 1.0)
 		row.bar.value = (run.step + within) / (run.events.size() + 1.0)
-		var left := _duration(run.next_at - now)
-		row.time.text = ("heading home… %s" if run.step >= run.events.size() else "on the way… %s") % left
+		var heading_home := run.step >= run.events.size()
+		row.where.text = "heading home" if heading_home else "on the way"
+		row.time.text = ("back in %s" if heading_home else "next in %s") % _duration(run.next_at - now)
 
 
 func _collect(run: RunState) -> void:
@@ -471,13 +539,13 @@ func _collect(run: RunState) -> void:
 	if _trail.visible and _trail.run == run:
 		_show_map(true)
 	_rebuild()
-	_speak()
+	speak()
 
 
 func _wrapped(text: String, color: Color) -> Label:
-	var l := UiTheme.label(text, color, UiTheme.SMALL)
+	var l := UiTheme.label(text, color, UiTheme.SMALL + 1)
 	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	l.custom_minimum_size = Vector2(240, 0)
+	l.custom_minimum_size = Vector2(210, 0)
 	return l
 
 
@@ -493,7 +561,9 @@ func _process(delta: float) -> void:
 
 static func _about(minutes: float) -> String:
 	var hours := snappedf(minutes / 60.0, 0.5)
-	return "~%d min" % roundi(minutes) if minutes < 60.0 else ("~%d h" % hours if hours == floorf(hours) else "~%.1f h" % hours)
+	if minutes < 60.0:
+		return "about %d min" % roundi(minutes)
+	return "about %d h" % hours if hours == floorf(hours) else "about %.1f h" % hours
 
 
 static func _duration(seconds: float) -> String:

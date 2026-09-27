@@ -48,6 +48,17 @@ var announcements: Array[String] = []  # news for your pet to tell you: finds, t
 var errands: Array = []  # errands going on now, see Errands.start()
 var errands_on := true  # your pet sends spare pets on errands
 var packs_on := true  # your pet opens packs while the game sits small in the corner
+
+
+## Turns one of your pet's jobs ("packs" or "errands") on or off, from settings or the corner panel.
+func set_job(job: String, on: bool) -> void:
+	match job:
+		"packs": packs_on = on
+		"errands": errands_on = on
+	save_game()
+	changed.emit()
+
+
 var coin_reserve := 50  # coins your pet never spends on packs
 var pinned: Array[String] = []  # good pulls your pet opened, waiting for you to see them
 ## What your pet did while you weren't looking, for the home screen to tell you:

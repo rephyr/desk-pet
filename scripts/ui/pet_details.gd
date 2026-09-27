@@ -1,33 +1,40 @@
 class_name PetDetails
 extends PanelContainer
-## Everything about one pet: big portrait, parts with their rarities, traits, stats,
-## and the button to make it your active pet.
+## Everything about one pet, as a big sticker with a stitched edge: its portrait, name, rarity and
+## finish, parts, traits and stats, and the button to make it your active pet.
 
 var _pet: Pet
 var _portrait := PetPortrait.new(6, true)
-var _name := UiTheme.label("", UiTheme.TEXT)
+var _name := UiTheme.title("", 20)
 var _tags := HBoxContainer.new()
-var _info := VBoxContainer.new()
+var _info := GridContainer.new()
 var _active_button: Button
 
 
 func _init() -> void:
-	custom_minimum_size = Vector2(240, 0)
-	add_theme_stylebox_override("panel", UiTheme.box(UiTheme.BG_RAISED, UiTheme.LILAC.darkened(0.45), 10, 2, 10))
+	custom_minimum_size = Vector2(236, 0)
+	add_theme_stylebox_override("panel", UiTheme.sticker(UiTheme.LILAC_SEAM, 12, UiTheme.RAISED, 16))
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 6)
+	col.add_theme_constant_override("separation", 4)
 	add_child(col)
 	col.add_child(_portrait)
 	_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(_name)
 	_tags.alignment = BoxContainer.ALIGNMENT_CENTER
-	_tags.add_theme_constant_override("separation", 8)
+	_tags.add_theme_constant_override("separation", 6)
 	col.add_child(_tags)
-	_info.add_theme_constant_override("separation", 1)
+	var gap := Control.new()
+	gap.custom_minimum_size = Vector2(0, 6)
+	col.add_child(gap)
+	_info.columns = 2
+	_info.add_theme_constant_override("h_separation", 12)
+	_info.add_theme_constant_override("v_separation", 2)
 	col.add_child(_info)
-	col.add_child(UiTheme.spacer())
-	_active_button = UiTheme.button("make active ♡", func():
+	var fill := Control.new()
+	fill.size_flags_vertical = SIZE_EXPAND_FILL
+	col.add_child(fill)
+	_active_button = UiTheme.button("make active", func():
 		if _pet:
 			GameState.collection.set_active(_pet.uid))
 	col.add_child(_active_button)
@@ -50,23 +57,22 @@ func show_pet(pet: Pet) -> void:
 	_name.text = pet.display_name(catalog)
 
 	UiTheme.clear(_tags)
-	_tags.add_child(UiTheme.tier_label(pet.rarity, UiTheme.FONT_SIZE))
+	var tier_color := catalog.tier_color(pet.rarity)
+	_tags.add_child(UiTheme.tag(catalog.tier_at(catalog.rank(pet.rarity)).name, tier_color, tier_color))
 	var f := catalog.finish(pet.finish)
 	if f.id != "normal":
-		_tags.add_child(UiTheme.label(f.name, catalog.tier_color(f.rarity)))
+		_tags.add_child(UiTheme.tag(f.name, UiTheme.GOLD))
 
 	UiTheme.clear(_info)
-	_section("parts")
 	for slot in Catalog.SLOTS:
 		var p := catalog.part(slot, pet.parts[slot])
-		_row(slot, p.get("name", pet.parts[slot]), catalog.tier_color(p.get("rarity", "common")))
-	_section("traits")
+		_row(slot, p.get("name", pet.parts[slot]), UiTheme.TEXT)
 	if pet.traits.is_empty():
-		_row("", "none", UiTheme.MUTED)
+		_row("trait", "none", UiTheme.MUTED)
 	for id in pet.traits:
 		var t := catalog.trait_info(id)
-		_row(t.get("name", id), t.get("desc", ""), UiTheme.LILAC)
-	_section("stats")
+		_row("trait", t.get("name", id), UiTheme.TEXT)
+		_row("", t.get("desc", ""), UiTheme.MUTED)
 	for stat in Pet.STATS:
 		_row(stat, str(pet.stats.get(stat, 0)), UiTheme.TEXT)
 	_refresh_active()
@@ -78,21 +84,26 @@ func _refresh_active() -> void:
 	var is_active := GameState.collection.active_uid == _pet.uid
 	var away := GameState.away().has(_pet.uid)
 	_active_button.disabled = is_active or away
-	_active_button.text = "★ your active pet" if is_active else ("away…" if away else "make active ♡")
-
-
-func _section(title: String) -> void:
-	var l := UiTheme.label(title, UiTheme.PINK, UiTheme.SMALL)
-	_info.add_child(l)
+	_active_button.text = "your active pet" if is_active else ("away on a trip…" if away else "make active")
+	_active_button.icon = UiTheme.icon("heart", 14) if is_active or not away else null
+	_active_button.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_active_button.add_theme_constant_override("icon_max_width", 14)
+	_active_button.add_theme_color_override("icon_normal_color", Color.WHITE)
+	_active_button.add_theme_color_override("icon_disabled_color", Color.WHITE)
 
 
 func _row(key: String, value: String, color: Color) -> void:
-	var row := HBoxContainer.new()
 	var k := UiTheme.label(key, UiTheme.MUTED, UiTheme.SMALL)
-	k.custom_minimum_size = Vector2(72, 0)
-	row.add_child(k)
+	k.size_flags_vertical = SIZE_SHRINK_BEGIN
+	_info.add_child(k)
 	var v := UiTheme.label(value, color, UiTheme.SMALL)
 	v.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	v.size_flags_horizontal = SIZE_EXPAND_FILL
-	row.add_child(v)
-	_info.add_child(row)
+	v.custom_minimum_size = Vector2(130, 0)
+	_info.add_child(v)
+
+
+func _draw() -> void:
+	# a stitched line just inside the edge, like the sticker was sewn on
+	var inner := Rect2(Vector2(5, 5), size - Vector2(10, 10))
+	var sb := UiTheme.stitched(UiTheme.LINE, Color(0, 0, 0, 0), 8, 0)
+	draw_style_box(sb, inner)

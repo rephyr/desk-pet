@@ -1,0 +1,490 @@
+{
+ "schemaVersion": 2,
+ "generatedAt": "2026-09-27T07:54:49.332280+00:00",
+ "title": "Design System: Desk Pets",
+ "extensions": {
+  "colorMeta": {
+   "bubblegum-pink": {
+    "role": "primary",
+    "displayName": "Bubblegum Pink",
+    "canonical": "#ff79c6",
+    "tonalRamp": [
+     "#3d0023",
+     "#7a0046",
+     "#b60069",
+     "#f3008b",
+     "#ff30a7",
+     "#ff6dc1",
+     "#ffa9da",
+     "#ffe5f4"
+    ]
+   },
+   "lilac-glow": {
+    "role": "secondary",
+    "displayName": "Lilac Glow",
+    "canonical": "#c9a0ff",
+    "tonalRamp": [
+     "#1a003d",
+     "#35007a",
+     "#4f00b6",
+     "#6900f3",
+     "#8930ff",
+     "#ac6dff",
+     "#cea9ff",
+     "#f1e5ff"
+    ]
+   },
+   "ice-cyan": {
+    "role": "tertiary",
+    "displayName": "Ice Cyan",
+    "canonical": "#8be9fd",
+    "tonalRamp": [
+     "#01323c",
+     "#026378",
+     "#0394b3",
+     "#04c5ef",
+     "#34d8fb",
+     "#6fe4fd",
+     "#aaeffe",
+     "#e6faff"
+    ]
+   },
+   "star-gold": {
+    "role": "tertiary",
+    "displayName": "Star Gold",
+    "canonical": "#ffe08a",
+    "tonalRamp": [
+     "#3d2d00",
+     "#7a5900",
+     "#b68600",
+     "#f3b200",
+     "#ffc830",
+     "#ffd86d",
+     "#ffe8a9",
+     "#fff8e5"
+    ]
+   },
+   "mint-leaf": {
+    "role": "tertiary",
+    "displayName": "Mint Leaf",
+    "canonical": "#8fe8c0",
+    "tonalRamp": [
+     "#0a3321",
+     "#156541",
+     "#1f9761",
+     "#29c981",
+     "#53dc9e",
+     "#86e6bb",
+     "#b8f0d7",
+     "#eafbf3"
+    ]
+   },
+   "petal-text": {
+    "role": "neutral",
+    "displayName": "Petal Text",
+    "canonical": "#f5dcec",
+    "tonalRamp": [
+     "#300e23",
+     "#5f1b46",
+     "#8e2869",
+     "#bd368c",
+     "#d15ea8",
+     "#de8dc1",
+     "#ecbcdb",
+     "#f9ebf4"
+    ]
+   },
+   "dusk-muted": {
+    "role": "neutral",
+    "displayName": "Dusk Muted",
+    "canonical": "#9a88ad",
+    "tonalRamp": [
+     "#1e1924",
+     "#3d3248",
+     "#5b4a6c",
+     "#796390",
+     "#9784ab",
+     "#b5a8c3",
+     "#d4ccdc",
+     "#f2f0f5"
+    ]
+   },
+   "midnight-page": {
+    "role": "neutral",
+    "displayName": "Midnight Page",
+    "canonical": "#1a1024",
+    "tonalRamp": [
+     "#1f132a",
+     "#3d2554",
+     "#5b387e",
+     "#794ba8",
+     "#9870bf",
+     "#b69ad2",
+     "#d4c3e5",
+     "#f2edf7"
+    ]
+   },
+   "deep-night": {
+    "role": "neutral",
+    "displayName": "Deep Night",
+    "canonical": "#120a19",
+    "tonalRamp": [
+     "#1f112c",
+     "#3f2357",
+     "#5e3482",
+     "#7d45ad",
+     "#9a6bc4",
+     "#b896d5",
+     "#d5c2e6",
+     "#f3edf8"
+    ]
+   },
+   "raised-plum": {
+    "role": "neutral",
+    "displayName": "Raised Plum",
+    "canonical": "#241634",
+    "tonalRamp": [
+     "#1e122b",
+     "#3b2455",
+     "#593680",
+     "#7648aa",
+     "#956ec1",
+     "#b498d3",
+     "#d3c3e5",
+     "#f2edf7"
+    ]
+   },
+   "trail-paper": {
+    "role": "neutral",
+    "displayName": "Trail Paper",
+    "canonical": "#1b1324",
+    "tonalRamp": [
+     "#1e1528",
+     "#3c2a50",
+     "#593f77",
+     "#77549f",
+     "#9678b8",
+     "#b49fcc",
+     "#d3c7e1",
+     "#f2eef6"
+    ]
+   },
+   "lilac-seam": {
+    "role": "secondary",
+    "displayName": "Lilac Seam",
+    "canonical": "#6f588c",
+    "tonalRamp": [
+     "#1e1826",
+     "#3b2f4b",
+     "#594670",
+     "#765e95",
+     "#9580af",
+     "#b4a5c6",
+     "#d3cade",
+     "#f2eff5"
+    ]
+   },
+   "pink-seam": {
+    "role": "primary",
+    "displayName": "Pink Seam",
+    "canonical": "#a64f81",
+    "tonalRamp": [
+     "#291420",
+     "#522740",
+     "#7b3b60",
+     "#a44e80",
+     "#bc739d",
+     "#d09cba",
+     "#e3c5d6",
+     "#f7eef3"
+    ]
+   },
+   "pink-pressed": {
+    "role": "primary",
+    "displayName": "Pink Pressed",
+    "canonical": "#592a45",
+    "tonalRamp": [
+     "#2a1420",
+     "#532740",
+     "#7c3a60",
+     "#a54e80",
+     "#bd729d",
+     "#d09cba",
+     "#e3c5d6",
+     "#f7eef3"
+    ]
+   },
+   "tier-common": {
+    "role": "rarity",
+    "displayName": "Tier: common",
+    "canonical": "#8a7f99",
+    "tonalRamp": [
+     "#1e1b22",
+     "#3c3644",
+     "#595165",
+     "#776c87",
+     "#968ca3",
+     "#b5aebe",
+     "#d3cfd9",
+     "#f2f1f4"
+    ]
+   },
+   "tier-uncommon": {
+    "role": "rarity",
+    "displayName": "Tier: uncommon",
+    "canonical": "#6fe3a8",
+    "tonalRamp": [
+     "#0a331e",
+     "#14663c",
+     "#1e985a",
+     "#27cb78",
+     "#52dd96",
+     "#84e7b5",
+     "#b7f1d4",
+     "#eafbf2"
+    ]
+   },
+   "tier-rare": {
+    "role": "rarity",
+    "displayName": "Tier: rare",
+    "canonical": "#5cc8ff",
+    "tonalRamp": [
+     "#00293d",
+     "#00517a",
+     "#0079b6",
+     "#00a1f3",
+     "#30b9ff",
+     "#6dceff",
+     "#a9e2ff",
+     "#e5f6ff"
+    ]
+   },
+   "tier-epic": {
+    "role": "rarity",
+    "displayName": "Tier: epic",
+    "canonical": "#b77dff",
+    "tonalRamp": [
+     "#1b003d",
+     "#36007a",
+     "#5100b6",
+     "#6c00f3",
+     "#8c30ff",
+     "#ae6dff",
+     "#cfa9ff",
+     "#f1e5ff"
+    ]
+   },
+   "tier-legendary": {
+    "role": "rarity",
+    "displayName": "Tier: legendary",
+    "canonical": "#ffc857",
+    "tonalRamp": [
+     "#3d2900",
+     "#7a5200",
+     "#b67b00",
+     "#f3a300",
+     "#ffbb30",
+     "#ffcf6d",
+     "#ffe3a9",
+     "#fff7e5"
+    ]
+   },
+   "tier-mythic": {
+    "role": "rarity",
+    "displayName": "Tier: mythic",
+    "canonical": "#ff4f9a",
+    "tonalRamp": [
+     "#3d001a",
+     "#7a0034",
+     "#b6004e",
+     "#f30067",
+     "#ff3088",
+     "#ff6dab",
+     "#ffa9ce",
+     "#ffe5f0"
+    ]
+   }
+  },
+  "typographyMeta": {
+   "display": {
+    "displayName": "Display",
+    "purpose": "One-word exclamations on scenes."
+   },
+   "headline": {
+    "displayName": "Headline",
+    "purpose": "Place names, streaks, big reveals."
+   },
+   "title": {
+    "displayName": "Title",
+    "purpose": "Buttons and section headers."
+   },
+   "body": {
+    "displayName": "Body",
+    "purpose": "Default text, bubbles, trip stories."
+   },
+   "label": {
+    "displayName": "Label",
+    "purpose": "Tags, rarity labels, timers."
+   }
+  },
+  "shadows": [
+   {
+    "name": "sticker-lift",
+    "value": "0 6px 14px rgba(6, 2, 12, 0.6)",
+    "purpose": "Cards, bubbles and panels resting on the page."
+   },
+   {
+    "name": "sticker-lift-hover",
+    "value": "0 9px 18px rgba(6, 2, 12, 0.6)",
+    "purpose": "A card under the cursor rises slightly."
+   },
+   {
+    "name": "reward-glow",
+    "value": "0 0 18px rgba(255, 121, 198, 0.45)",
+    "purpose": "Rewards, new pulls, highlights; use the tier colour for pulls."
+   }
+  ],
+  "motion": [
+   {
+    "name": "squash",
+    "value": "scale(0.95) over 80ms",
+    "purpose": "Press feedback on buttons and pets."
+   },
+   {
+    "name": "hover",
+    "value": "120ms ease-out",
+    "purpose": "Outline colour and lift changes."
+   }
+  ]
+ },
+ "components": [
+  {
+   "name": "Button",
+   "kind": "button",
+   "refersTo": "button",
+   "description": "Default squishy button, sunk into the page; pink on hover, deep pink and a squash when pressed.",
+   "html": "<button class=\"ds-btn\">send them off</button>",
+   "css": ".ds-btn { font-family: 'Maple Mono', monospace; font-size: 15px; color: #f5dcec; background: #120a19; border: 2px solid #6f588c; border-radius: 8px; padding: 6px 14px; cursor: pointer; transition: border-color .12s, color .12s, transform .08s; } .ds-btn:hover { border-color: #ff79c6; color: #ff79c6; } .ds-btn:focus-visible { outline: 2px solid #ff79c6; outline-offset: 2px; } .ds-btn:active { background: #592a45; border-color: #ff79c6; color: #f5dcec; transform: scale(.95); }"
+  },
+  {
+   "name": "Flat link button",
+   "kind": "button",
+   "refersTo": "button",
+   "description": "Text-only action such as 'watch ›' or '‹ map'.",
+   "html": "<button class=\"ds-link\">watch ›</button>",
+   "css": ".ds-link { font-family: 'Maple Mono', monospace; font-size: 13px; color: #f5dcec; background: none; border: 0; padding: 2px 4px; cursor: pointer; } .ds-link:hover, .ds-link:focus-visible { color: #ff79c6; outline: none; }"
+  },
+  {
+   "name": "Sticker card",
+   "kind": "card",
+   "refersTo": "card",
+   "description": "Raised plum card with a lilac seam that lifts off the page.",
+   "html": "<div class=\"ds-card\"><div class=\"ds-card-title\">the garden path</div><div class=\"ds-card-body\">peach cat went… somewhere…</div></div>",
+   "css": ".ds-card { font-family: 'Maple Mono', monospace; background: #241634; border: 2px solid #6f588c; border-radius: 12px; padding: 12px; color: #f5dcec; box-shadow: 0 6px 14px rgba(6,2,12,.6); max-width: 320px; transition: transform .12s, box-shadow .12s; } .ds-card:hover { transform: translateY(-2px); box-shadow: 0 9px 18px rgba(6,2,12,.6); } .ds-card-title { color: #ff79c6; font-size: 13px; margin-bottom: 6px; } .ds-card-body { font-size: 13px; }"
+  },
+  {
+   "name": "Speech bubble",
+   "kind": "custom",
+   "refersTo": "speech-bubble",
+   "description": "The active pet's voice.",
+   "html": "<div class=\"ds-bubble\">where did everyone go… oh.. the garden path.. ♪</div>",
+   "css": ".ds-bubble { font-family: 'Maple Mono', monospace; font-size: 13px; color: #f5dcec; background: #241634; border: 2px solid #a64f81; border-radius: 14px; padding: 14px; box-shadow: 0 6px 14px rgba(6,2,12,.6); max-width: 420px; }"
+  },
+  {
+   "name": "Pet card (legendary)",
+   "kind": "card",
+   "refersTo": "pet-card",
+   "description": "A collected pet as a sticker; outline is its rarity colour, glow on a fresh pull.",
+   "html": "<div class=\"ds-pet\"><div class=\"ds-pet-art\"></div><div class=\"ds-pet-name\">peach cat</div><div class=\"ds-pet-tier\">legendary</div></div>",
+   "css": ".ds-pet { font-family: 'Maple Mono', monospace; width: 110px; background: #241634; border: 2px solid #ffc857; border-radius: 10px; padding: 6px; text-align: center; color: #f5dcec; box-shadow: 0 6px 14px rgba(6,2,12,.6), 0 0 18px rgba(255,200,87,.45); } .ds-pet-art { height: 56px; margin: 4px auto; width: 56px; background: #ffb59a; border-radius: 4px; image-rendering: pixelated; } .ds-pet-name { font-size: 13px; } .ds-pet-tier { font-size: 11px; color: #ffc857; }"
+  },
+  {
+   "name": "Tabs",
+   "kind": "nav",
+   "refersTo": "tab-active",
+   "description": "Header tab row; the active tab uses the pressed style.",
+   "html": "<nav class=\"ds-tabs\"><button>home</button><button class=\"on\">adventures</button><button>boxes</button></nav>",
+   "css": ".ds-tabs { display: flex; gap: 8px; } .ds-tabs button { font-family: 'Maple Mono', monospace; font-size: 15px; color: #f5dcec; background: #120a19; border: 2px solid #6f588c; border-radius: 8px; padding: 6px 10px; cursor: pointer; } .ds-tabs button:hover, .ds-tabs button:focus-visible { border-color: #ff79c6; color: #ff79c6; outline: none; } .ds-tabs button.on { background: #592a45; border-color: #ff79c6; color: #f5dcec; }"
+  },
+  {
+   "name": "Progress bar",
+   "kind": "custom",
+   "refersTo": "",
+   "description": "Pill bar for food, mood and trip progress.",
+   "html": "<div class=\"ds-bar\"><div class=\"ds-bar-fill\"></div></div>",
+   "css": ".ds-bar { width: 220px; height: 10px; background: #120a19; border: 2px solid #653d80; border-radius: 5px; overflow: hidden; } .ds-bar-fill { width: 40%; height: 100%; background: #c9a0ff; border-radius: 5px; }"
+  },
+  {
+   "name": "Place title",
+   "kind": "custom",
+   "refersTo": "",
+   "description": "Coiny headline for a place name, with its muted note line.",
+   "html": "<div class=\"ds-place\"><div class=\"ds-place-name\">the garden path</div><div class=\"ds-place-note\">●●○○ &nbsp; bag <span>◆27</span> &nbsp; +12 xp</div></div>",
+   "css": ".ds-place-name { font-family: 'Coiny', 'Maple Mono', sans-serif; font-size: 20px; color: #ff79c6; } .ds-place-note { font-family: 'Maple Mono', monospace; font-size: 13px; color: #9a88ad; margin-top: 4px; } .ds-place-note span { color: #8be9fd; }"
+  }
+ ],
+ "narrative": {
+  "northStar": "Sticker book at midnight",
+  "overview": "Desk Pets looks like a well-loved sticker book opened under the covers at night. The page is a dark violet (in the current plum theme), and everything on it is a sticker: outlined cards that lift off the page, pixel-art pets with crisp edges, crayon doodles on the map and the trail. Collecting is the point, so things you own look like things worth keeping: each card carries its rarity as the colour of its outline, and rare things get their own glow.",
+  "keyCharacteristics": [
+   "Colour themes are open (light and dark being explored); plum is the current default",
+   "Outlined, rounded sticker cards that lift off the page",
+   "Rarity lives in outline colour; glow is saved for rewards and rare pulls",
+   "Pixel-art pets with nearest-neighbour scaling, beside crayon-style doodles",
+   "Coiny for moments, Maple Mono for everything else; colours, font and icons are player settings",
+   "Lowercase, friendly copy; the pet talks in speech bubbles"
+  ],
+  "rules": [
+   {
+    "name": "The Fixed Meaning Rule",
+    "body": "Cyan is coins, gold is sparkles and xp, mint is healing. Never use them decoratively; the player reads them before the words.",
+    "section": "colors"
+   },
+   {
+    "name": "The Roles Not Colours Rule",
+    "body": "Screens use colour roles (page, raised, deep, text, pink, lilac, coins, xp), never raw colours, so any theme, light or dark, can swap the whole palette.",
+    "section": "colors"
+   },
+   {
+    "name": "The Rarity Belongs To Pets Rule",
+    "body": "Tier colours only ever mean rarity; UI chrome never borrows them.",
+    "section": "colors"
+   },
+   {
+    "name": "The Lowercase Voice Rule",
+    "body": "UI and pet copy is lowercase and friendly (\"say welcome back\"). Numbers and names keep their own case.",
+    "section": "typography"
+   },
+   {
+    "name": "The No Dot Separator Rule",
+    "body": "Never join bits of text with a dot or bullet separator (\"52 pets · page 1 of 3\", \"greedy · earns more coins\"). Give each piece its own element, line or label instead, or use plain words and punctuation (a colon, a comma, \"and\").",
+    "section": "typography"
+   },
+   {
+    "name": "The Display Is A Moment Rule",
+    "body": "The display size (headline and up) never sets a paragraph or a button row; one or two uses per screen.",
+    "section": "typography"
+   },
+   {
+    "name": "The Glow Is Earned Rule",
+    "body": "Glows mean \"something good happened here\". A glow on anything routine teaches the player to ignore it.",
+    "section": "elevation"
+   }
+  ],
+  "dos": [
+   "Do keep every surface on the violet ladder: Deep Night #120a19, Midnight Page #1a1024, Raised Plum #241634.",
+   "Do outline stickers with 2px borders and 8-14px corners.",
+   "Do keep colour meanings fixed: cyan coins, gold xp/sparkles, mint healing, tiers for rarity.",
+   "Do scale pixel art by whole numbers with nearest-neighbour sampling.",
+   "Do write UI copy in lowercase, short and friendly."
+  ],
+  "donts": [
+   "Don't hardcode a colour in a screen; use the theme's roles so every theme works.",
+   "Don't use blur, frosted glass, gradients across panels or other effects Godot can't draw.",
+   "Don't glow routine chrome; glow is for rewards and rare pulls.",
+   "Don't show odds, percentages or anything that hints the game is dark in pet speech.",
+   "Don't set paragraphs or button rows in the display size.",
+   "Don't use a dot or bullet (·, •) as a separator between pieces of text."
+  ]
+ }
+}

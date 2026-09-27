@@ -1,0 +1,48 @@
+/* Desk Pets tokens, from DESIGN.md. Everything here must be drawable in Godot. */
+@font-face { font-family: "Coiny"; src: local("Coiny"), local("Coiny Regular"); }
+@font-face { font-family: "Maple Mono"; src: local("Maple Mono NF"), local("Maple Mono"); }
+
+:root {
+  --pink: #ff79c6;
+  --pink-seam: #a64f81;
+  --pink-pressed: #592a45;
+  --lilac: #c9a0ff;
+  --lilac-seam: #6f588c;
+  --cyan: #8be9fd;
+  --gold: #ffe08a;
+  --mint: #8fe8c0;
+  --text: #f5dcec;
+  --muted: #9a88ad;
+  --muted-seam: #4d4457;
+  --page: #1a1024;
+  --deep: #120a19;
+  --raised: #241634;
+  --paper: #1b1324;
+  --line: #2c1d3d;
+  --dot: #2a1c3b;
+  --backdrop: #0b0610;
+  --locked: #76688a;
+
+  --tier-common: #8a7f99;
+  --tier-uncommon: #6fe3a8;
+  --tier-rare: #5cc8ff;
+  --tier-epic: #b77dff;
+  --tier-legendary: #ffc857;
+  --tier-mythic: #ff4f9a;
+
+  --display: "Coiny", "Maple Mono", sans-serif;
+  --body: "Maple Mono", monospace;
+  --display-weight: 400;
+  --body-weight: 400;
+  --body-size: 13px;
+
+  --r-sm: 6px;
+  --r-md: 8px;
+  --r-lg: 10px;
+  --r-xl: 12px;
+  --r-panel: 14px;
+
+  --lift: 0 6px 14px rgba(6, 2, 12, 0.6);
+  --lift-hover: 0 9px 18px rgba(6, 2, 12, 0.6);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}

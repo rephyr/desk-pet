@@ -15,14 +15,15 @@ const PICKUP_GAP := [150.0, 260.0]  # px of path between things to grab
 const PICKUP_WEIGHTS := { "coins": 60, "xp": 28, "heal": 8, "part": 4 }
 const HIT := 26.0
 const STREAK_MAX := 1.5  # most a streak multiplies what you grab
-const PAPER := Color("1b1324")
-const COLORS := { "coins": UiTheme.CYAN, "xp": Color("ffe08a"), "heal": Color("8fe8c0"), "part": UiTheme.PINK }
+var COLORS := { "coins": UiTheme.CYAN, "xp": UiTheme.GOLD, "heal": UiTheme.MINT, "part": UiTheme.PINK }
 
 var run: RunState
 var view := PetView.new()
 var _back := UiTheme.button("‹ map")
-var _title_font := SystemFont.new()
-var _note_font := SystemFont.new()
+var _title_font: Font = UiTheme.DISPLAY_FONT
+var _coin_icon := UiTheme.icon("coin", 14)
+var _xp_icon := UiTheme.icon("xp", 14)
+var _note_font: Font = UiTheme.BODY_FONT
 var _shown_x := -1.0  # world x drawn now, easing toward where the pet really is
 var _pickups: Array[Dictionary] = []  # { x, kind, gone }
 var _next_pickup := 0.0
@@ -43,8 +44,6 @@ func _init() -> void:
 	size_flags_horizontal = SIZE_EXPAND_FILL
 	size_flags_vertical = SIZE_EXPAND_FILL
 	_rng.randomize()
-	_title_font.font_names = PackedStringArray(["Coiny", "Maple Mono"])
-	_note_font.font_names = PackedStringArray(["Maple Mono", "monospace"])
 	view.pixel = 5
 	add_child(view)
 	_back.add_theme_font_size_override("font_size", UiTheme.SMALL)
@@ -168,7 +167,7 @@ func _grab(p: Dictionary) -> void:
 	var at := _pickup_at(p)
 	var text := ""
 	if got.has("coins"):
-		text = "+◆%d" % got.coins
+		text = "+%d coins" % got.coins
 	elif got.has("xp"):
 		text = "+%d xp" % got.xp
 		_xp_grabbed += int(got.xp)
@@ -176,8 +175,6 @@ func _grab(p: Dictionary) -> void:
 		text = "feels better!" if int(got.heal) > 0 else "a nice leaf!"
 	elif got.has("part"):
 		text = "a part!!"
-	if _streak >= 3:
-		text += "  streak x%d!" % _streak
 	_floaters.append({ "text": text, "at": at, "age": 0.0, "color": COLORS.get(p.kind, UiTheme.TEXT) })
 	view.squash = 0.4
 
@@ -185,7 +182,7 @@ func _grab(p: Dictionary) -> void:
 # ---- drawing --------------------------------------------------------------------
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), PAPER)
+	draw_style_box(UiTheme.box(UiTheme.PAPER, UiTheme.LINE, 14, 2, 0), Rect2(Vector2.ZERO, size))
 	if run == null:
 		return
 	var catalog := Catalog.shared()
@@ -206,24 +203,35 @@ func _draw() -> void:
 			draw_circle(Vector2(_pet_x() - 14.0 - i * 7.0, ground + 2.0), 3.0 * _dust, Color(UiTheme.LILAC, 0.5 * _dust))
 	# what's going on
 	draw_string(_title_font, Vector2(16, 34), location.name, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, UiTheme.PINK)
-	var dots := ""
+	# progress pips, then what's in the bag and the xp so far
+	var x := 20.0
 	for i in run.events.size():
-		dots += "●" if i < run.step else "○"
-	var bag := Rewards.total(run.loot, "coins")
-	draw_string(_note_font, Vector2(16, 56), "%s   bag ◆%d   +%d xp" % [dots, bag, run.xp + _xp_grabbed], HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UiTheme.MUTED)
+		var done := i < run.step
+		draw_circle(Vector2(x, 52), 5.0, UiTheme.PINK if done else Color(0, 0, 0, 0))
+		draw_arc(Vector2(x, 52), 5.0, 0.0, TAU, 16, UiTheme.PINK if done else UiTheme.PINK_SEAM, 2.0, true)
+		x += 15.0
+	x += 8.0
+	var bag := "%d in the bag" % Rewards.total(run.loot, "coins")
+	draw_texture_rect(_coin_icon, Rect2(x, 45, 14, 14), false)
+	draw_string(_note_font, Vector2(x + 18, 57), bag, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UiTheme.CYAN)
+	x += 30.0 + _note_font.get_string_size(bag, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
+	draw_texture_rect(_xp_icon, Rect2(x, 45, 14, 14), false)
+	draw_string(_note_font, Vector2(x + 18, 57), "%d xp" % (run.xp + _xp_grabbed), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UiTheme.GOLD)
 	var hint := ""
 	match run.status:
 		RunState.Status.WALKING:
 			hint = "click to hurry!  grab things on the path"
 		RunState.Status.WAITING:
-			hint = "something's up! pick what to do on the trip card →"
+			hint = "something's up! pick what to do on the trip card"
 		RunState.Status.DONE:
-			hint = "back home! say welcome back →"
+			hint = "back home! say welcome back"
 	draw_string(_note_font, Vector2(16, size.y - 18.0), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UiTheme.LILAC)
 	if run.status == RunState.Status.WAITING:
 		draw_string(_title_font, Vector2(_pet_x() + 22.0, ground - 90.0), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, UiTheme.PINK)
 	if _streak >= 2:
-		draw_string(_title_font, Vector2(16, 84), "streak x%d" % _streak, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("ffe08a"))
+		draw_set_transform(Vector2(18, 90), deg_to_rad(-3.0))
+		draw_string(_title_font, Vector2.ZERO, "streak ×%d!" % _streak, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, UiTheme.GOLD)
+		draw_set_transform(Vector2.ZERO)
 	for f in _floaters:
 		var c: Color = f.color
 		c.a = 1.0 - f.age / 1.2
@@ -234,9 +242,9 @@ func _draw() -> void:
 func _draw_scenery(doodle: String) -> void:
 	var ground := _ground()
 	var far := Color(UiTheme.LILAC, 0.18)
-	var near := Color("8fe8c0", 0.45)
+	var near := Color(UiTheme.MINT, 0.45)
 	if doodle in ["pond", "stream"]:
-		near = Color("8cc8ff", 0.45)
+		near = Color(UiTheme.CYAN, 0.45)
 	elif doodle in ["hut", "well", "door", "stairs"]:
 		near = Color(UiTheme.LILAC, 0.45)
 	# far: hills or trees, drifting slowly

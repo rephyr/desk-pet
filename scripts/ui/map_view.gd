@@ -13,16 +13,17 @@ signal rumour_picked(rumour_id: String)
 const UNIT := 150.0  # px per map unit when there's plenty of room
 const MARGIN := 70.0
 const HIT := 34.0  # px around a doodle that counts as clicking it
-const PAPER := Color("1b1324")
-const GRAIN := Color("2a2036")
-const PINK := Color("ff9ccf")
-const LILAC := Color("c9a0ff")
-const MINT := Color("8fe8c0")
-const PEACH := Color("ffb59a")
-const SKY := Color("8cc8ff")
-const YELLOW := Color("ffe08a")
-const DIM := Color("968aaf")
-const DOODLE_COLORS := {
+# colours from the player's theme (set in _init; the map redraws when the look changes)
+var PAPER := UiTheme.PAPER
+var GRAIN := UiTheme.DOT
+var PINK := UiTheme.PINK
+var LILAC := UiTheme.LILAC
+var MINT := UiTheme.MINT
+var PEACH := UiTheme.GOLD.lerp(UiTheme.PINK, 0.35)
+var SKY := UiTheme.CYAN
+var YELLOW := UiTheme.GOLD
+var DIM := UiTheme.MUTED
+var DOODLE_COLORS := {
 	"house": PINK, "grass": MINT, "trees": MINT, "hill": MINT, "apple": PINK,
 	"pond": SKY, "stream": SKY, "hut": SKY, "well": LILAC, "door": LILAC, "stairs": LILAC,
 }
@@ -32,8 +33,8 @@ var selected := ""
 ## Which map page is showing (data/unlocks.json "pages"). Each page is its own drawing.
 var page := ""
 
-var _title_font := SystemFont.new()
-var _note_font := SystemFont.new()
+var _title_font: Font = UiTheme.DISPLAY_FONT
+var _note_font: Font = UiTheme.BODY_FONT
 var _nodes: Array[Dictionary] = []  # { id, kind: open / spotted / rumour / unknown, pos, ... }
 var _edges: Array[Dictionary] = []  # { from, to, faint }
 var _scale := UNIT
@@ -49,9 +50,6 @@ func _init() -> void:
 	clip_contents = true
 	size_flags_horizontal = SIZE_EXPAND_FILL
 	size_flags_vertical = SIZE_EXPAND_FILL
-	_title_font.font_names = PackedStringArray(["Coiny", "Maple Mono"])
-	_note_font.font_names = PackedStringArray(["Maple Mono", "monospace"])
-	_note_font.font_italic = true
 	_page_tabs.add_theme_constant_override("separation", 6)
 	add_child(_page_tabs)
 	resized.connect(refresh)
@@ -88,17 +86,31 @@ func _refresh_pages() -> void:
 	UiTheme.clear(_page_tabs)
 	_page_tabs.visible = open.size() > 1
 	for p in open:
-		var b := UiTheme.button(p.name)
-		b.add_theme_font_size_override("font_size", UiTheme.SMALL)
-		b.toggle_mode = true
-		b.button_pressed = p.id == page
+		# a bookmark hanging from the top of the paper
+		var b := Button.new()
+		b.text = p.name
+		b.focus_mode = FOCUS_NONE
+		b.add_theme_font_size_override("font_size", UiTheme.SMALL + 1)
+		var on: bool = p.id == page
+		var sb := UiTheme.box(UiTheme.RAISED if on else UiTheme.DEEP, UiTheme.PINK_SEAM if on else UiTheme.LINE, 8, 2, 4)
+		sb.corner_radius_top_left = 0
+		sb.corner_radius_top_right = 0
+		sb.border_width_top = 0
+		sb.content_margin_left = 10
+		sb.content_margin_right = 10
+		sb.content_margin_top = 8 if on else 4
+		for state in ["normal", "hover", "pressed", "hover_pressed"]:
+			b.add_theme_stylebox_override(state, sb)
+		b.add_theme_color_override("font_color", UiTheme.PINK if on else UiTheme.MUTED)
+		b.add_theme_color_override("font_hover_color", UiTheme.PINK)
+		b.size_flags_vertical = SIZE_SHRINK_BEGIN
 		b.pressed.connect(func():
 			page = p.id
 			selected = ""
 			refresh())
 		_page_tabs.add_child(b)
 	_page_tabs.reset_size()
-	_page_tabs.position = Vector2(size.x - _page_tabs.size.x - 12.0, 12.0)
+	_page_tabs.position = Vector2(size.x - _page_tabs.size.x - 16.0, 0.0)
 
 
 # ---- what's on the map --------------------------------------------------------
@@ -216,7 +228,7 @@ func _node_at(point: Vector2) -> Dictionary:
 # ---- drawing --------------------------------------------------------------------
 
 func _draw() -> void:
-	draw_rect(Rect2(Vector2.ZERO, size), PAPER)
+	draw_style_box(UiTheme.box(PAPER, UiTheme.LINE, 14, 2, 0), Rect2(Vector2.ZERO, size))
 	var grain := RandomNumberGenerator.new()
 	grain.seed = 7
 	for i in int(size.x * size.y / 900.0):

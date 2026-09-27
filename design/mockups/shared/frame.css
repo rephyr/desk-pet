@@ -1,0 +1,46 @@
+/* The chosen frame: B2 (starry spine) with B1's stitches.
+   The spine is a strip of night sky sewn onto the page; your pet sits on a little moon at the top.
+   The dim stars are pets that never came back. Never explained. */
+@import url("https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Fredoka:wght@500;600;700&family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap");
+
+.app { display: grid; grid-template-columns: 80px 1fr; background: var(--deep); }
+.spine { position: relative; z-index: 2; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 6px 10px 0; background: var(--sky, var(--deep)); }
+.spine::after {
+  content: ""; position: absolute; top: 10px; bottom: 10px; right: 3px; width: 2px; border-radius: 1px;
+  background: repeating-linear-gradient(to bottom, var(--pink-seam) 0 6px, transparent 6px 11px);
+}
+.sky { position: absolute; inset: 0; pointer-events: none; }
+.spine > *:not(.sky) { position: relative; }
+.moon { width: 64px; height: 70px; display: grid; place-items: end center; margin-bottom: 8px; }
+.moon::before { content: ""; position: absolute; bottom: 0; left: 6px; right: 6px; height: 12px; border-radius: 50%; background: var(--raised); box-shadow: inset 0 2px 0 var(--line); }
+.moon .empty-seat { position: relative; width: 40px; height: 44px; margin-bottom: 7px; border: 2px dashed var(--line); border-radius: 12px; }
+.moon img { position: relative; width: 48px; height: 54px; margin-bottom: 5px; }
+.tab {
+  width: 62px; padding: 7px 0 5px;
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: none; border: 2px solid transparent; border-radius: var(--r-lg);
+  color: var(--muted); font-size: 11px; cursor: pointer; text-decoration: none;
+  transition: color .12s, transform .15s var(--ease-out);
+}
+.tab:hover { color: var(--pink); transform: translateY(-2px); }
+.tab.on {
+  color: var(--pink); background: var(--raised);
+  border: 2px dashed var(--pink); box-shadow: 0 0 0 3px var(--raised), var(--lift);
+  transform: rotate(-3deg) translateX(2px);
+}
+.tab.locked { color: var(--locked); cursor: default; }
+.tab.locked:hover { transform: none; color: var(--locked); }
+.tab .new { position: absolute; top: 5px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+.spine .grow { flex: 1; }
+.page { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 12px 14px 12px 16px; gap: 14px; }
+.top { display: flex; align-items: center; gap: 10px; }
+.top .bubble { flex: 1; padding: 8px 14px; }
+.top .bubble::before { content: ""; position: absolute; left: -8px; top: 50%; width: 12px; height: 12px; background: var(--raised); border-left: 2px solid var(--pink-seam); border-bottom: 2px solid var(--pink-seam); transform: translateY(-50%) rotate(45deg); }
+#content { flex: 1; min-height: 0; }
+
+/* collection in this frame */
+.detail { position: relative; }
+.detail::before { content: ""; position: absolute; inset: 5px; border: 2px dashed var(--line); border-radius: 8px; pointer-events: none; }
+
+/* a stitched line, for dividing things inside a sticker */
+.stitch-line { height: 2px; background: repeating-linear-gradient(to right, var(--line) 0 5px, transparent 5px 9px); border: 0; margin: 0; }

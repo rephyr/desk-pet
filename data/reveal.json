@@ -14,5 +14,22 @@
 		"epic": { "pause": 0.65, "adds": ["rotate", "dim"], "burst": 50, "shake": 5, "banner": true, "hold": 0.8 },
 		"legendary": { "pause": 0.85, "adds": ["fountain", "pack_shake"], "burst": 90, "shake": 9, "banner": true, "hold": 1.2 },
 		"mythic": { "pause": 1.15, "adds": ["shockwave", "screen_shake"], "burst": 160, "shake": 14, "banner": true, "hold": 1.8 }
+	},
+	"pet_says": {
+		"_note": "What your active pet says in its bubble while you open one box. {name} is the new pet, {finish} its finish.",
+		"land": ["rip it! rip it!", "ooh, what's inside?", "open it open it open it"],
+		"climb": ["…", "ooh… ooh…", "it's glowing!"],
+		"pull": ["something's in there!", "pull it out!"],
+		"mist": ["it's all… foggy. wave it away?"],
+		"finish": ["and it's {finish}!!", "{finish}!! so pretty!"],
+		"result": {
+			"common": ["a {name}! hi, {name}.", "hello, {name}! welcome!"],
+			"uncommon": ["ooh, a {name}! nice!", "a {name}! i like its face."],
+			"rare": ["a {name}!! can it stay? it's staying.", "a {name}! so rare! so fancy!"],
+			"epic": ["a {name}!! i'm not jealous. i'm not.", "woah. a {name}. WOAH."],
+			"legendary": ["a {name}!!! look at it!!", "a {name}!!! best day ever!!"],
+			"mythic": ["oh. it's… humming. it's very cute.", "a {name}… is it looking at me?"]
+		},
+		"many": ["{count}!! a {name}, and so many friends!", "{count} new friends! the best one is a {name}!"]
 	}
 }

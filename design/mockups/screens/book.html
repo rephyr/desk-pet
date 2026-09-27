@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Collection Book</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  .book { display: flex; flex-direction: column; height: 100%; min-height: 0; gap: 10px; }
+  .book-bar { display: flex; align-items: center; gap: 10px; }
+  .book-bar .found { color: var(--muted); font-size: 12px; margin-left: auto; }
+  .book-bar .found b { color: var(--text); font-weight: inherit; }
+
+  /* bookmarks sticking out of the top of the spread */
+  .marks { display: flex; gap: 4px; padding-left: 14px; margin-bottom: -12px; position: relative; z-index: 1; }
+  .mark { position: relative; display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px 12px; border-radius: 8px 8px 0 0; background: var(--deep); border: 2px solid var(--line); border-bottom: 0; color: var(--muted); font-size: 12px; cursor: pointer; transition: transform .15s var(--ease-out), color .12s; }
+  .mark:hover { color: var(--pink); transform: translateY(-2px); }
+  .mark.on { background: var(--raised); color: var(--pink); border-color: var(--pink-seam); transform: translateY(-4px); }
+  .mark .star { color: var(--gold); line-height: 0; }
+
+  /* the open book: two pages sewn together in the middle */
+  .spread { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; background: var(--raised); border: 2px solid var(--lilac-seam); border-radius: var(--r-panel); box-shadow: var(--lift); }
+  .spread::after { content: ""; position: absolute; left: 50%; top: 10px; bottom: 10px; width: 2px; margin-left: -1px; background: repeating-linear-gradient(to bottom, var(--pink-seam) 0 6px, transparent 6px 11px); }
+  .spread .page-l { border-right: 2px solid var(--line); }
+  .bpage { position: relative; padding: 14px 18px 30px; min-height: 0; overflow: hidden; }
+  .bpage h2 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 12px; font: var(--display-weight) 20px/1 var(--display); color: var(--pink); }
+  .bpage h2 small { font: var(--body-weight) 12px/1 var(--body); color: var(--muted); }
+  .bpage h2 small.full { color: var(--gold); }
+  .slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px 10px; }
+  .pno { position: absolute; bottom: 8px; font-size: 11px; color: var(--muted); }
+  .page-l .pno { left: 18px; } .page-r .pno { right: 18px; }
+  .turn { position: absolute; bottom: 4px; }
+  .page-l .turn { left: 50px; } .page-r .turn { right: 50px; }
+
+  /* a sticker you've found, stuck in a little crooked */
+  .slot { position: relative; height: 92px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 6px; border-radius: var(--r-lg); }
+  .slot img { width: 40px; height: 45px; margin-bottom: 4px; }
+  .slot .nm { font-size: 11px; line-height: 1.2; text-align: center; }
+  .slot .ct { font-size: 11px; color: var(--muted); }
+  .slot.got { background: var(--page); border: 2px solid var(--tier); box-shadow: var(--lift); transform: rotate(var(--tilt)); transition: transform .15s var(--ease-out); cursor: pointer; }
+  .slot.got:hover { transform: rotate(0) translateY(-3px); }
+  .slot.got .nm { color: var(--text); }
+  .slot.got .tr { font-size: 11px; color: var(--tier); }
+  .slot .newdot { position: absolute; top: -5px; right: -5px; width: 12px; height: 12px; border-radius: 50%; background: var(--gold); border: 2px solid var(--raised); }
+  /* an empty spot waiting for its sticker */
+  .slot.missing { border: 2px dashed var(--line); background: color-mix(in srgb, var(--deep) 50%, transparent); }
+  .slot.missing img { filter: brightness(0); opacity: .28; }
+  .slot.missing .nm { color: var(--locked); }
+  /* the reward at the end of each page */
+  .slot.reward { border: 2px dashed color-mix(in srgb, var(--gold) 60%, var(--line)); color: var(--gold); justify-content: center; gap: 5px; text-align: center; padding: 6px; }
+  .slot.reward .nm { color: var(--muted); }
+  .slot.reward.open { border-style: solid; border-color: var(--gold); background: var(--page); box-shadow: var(--lift), 0 0 16px color-mix(in srgb, var(--gold) 35%, transparent); transform: rotate(2deg); }
+  .slot.reward.open .nm { color: var(--text); }
+  .slot.reward.open .does { font-size: 11px; color: var(--muted); line-height: 1.25; }
+  .slot.reward.open .nm { color: var(--gold); }
+
+  /* finishes, drawn on a plain blob */
+  .fx-shiny, .fx-holo, .fx-prismatic, .fx-glitch { position: relative; }
+  .fx-ghost img { opacity: .55; filter: drop-shadow(0 0 4px var(--lilac)); }
+  .fx-glitch img { filter: drop-shadow(2px 0 0 #5cf2ff) drop-shadow(-2px 0 0 #ff4f9a); }
+  .fx-prismatic img { animation: prism 3s linear infinite; }
+  @keyframes prism { to { filter: hue-rotate(360deg); } }
+  .fx-holo img, .fx-shiny img { -webkit-mask: none; }
+  .fx-holo::after, .fx-shiny::after { content: ""; position: absolute; inset: 6px 10px 30px; border-radius: 6px; pointer-events: none; background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, .35) 50%, transparent 70%); background-size: 250% 100%; animation: sheen 2.2s linear infinite; }
+  .fx-holo::after { background-image: linear-gradient(115deg, transparent 25%, rgba(255, 140, 220, .35) 40%, rgba(140, 230, 255, .35) 52%, rgba(255, 240, 150, .35) 64%, transparent 78%); }
+  @keyframes sheen { from { background-position: 150% 0; } to { background-position: -100% 0; } }
+  .no-anim *, .no-anim *::before, .no-anim *::after { animation-duration: 0s !important; transition: none !important; }
+</style>
+</head>
+<body>
+<div class="app" data-tab="pets" data-say="look, our sticker book! the empty spots are for friends we haven't met yet ♪"></div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  if (params.has("shot")) document.body.classList.add("no-anim");
+  const P = (slot, id, tier, got, count, isNew) => ({ slot, id, tier, got, count, isNew });
+  // what this save has found (synthetic)
+  const SECTIONS = [
+    { id: "bodies", title: "bodies", reward: { name: "a cozy blanket", does: "pets rest a little faster" }, parts: [
+      P("body", "blob", "common", true, 20), P("body", "cat", "common", true, 23), P("body", "bear", "uncommon", true, 9, true),
+      P("body", "bunny", "rare"), P("body", "fox", "epic"), P("body", "dragon", "legendary"), P("body", "void", "mythic")] },
+    { id: "palettes", title: "palettes", reward: { name: "a paint set", does: "shinies turn up a bit more" }, parts: [
+      P("palette", "lilac", "common", true, 19), P("palette", "mint", "common", true, 8), P("palette", "peach", "common", true, 17),
+      P("palette", "sky", "uncommon", true, 5), P("palette", "bubblegum", "uncommon", true, 1), P("palette", "midnight", "rare", true, 2),
+      P("palette", "toxic", "epic"), P("palette", "gold", "legendary"), P("palette", "abyss", "mythic")] },
+    { id: "patterns", title: "patterns", reward: { name: "sticky paws", does: "grabs more on the trail" }, parts: [
+      P("pattern", "plain", "common", true, 26), P("pattern", "spots", "common", true, 13), P("pattern", "stripes", "uncommon", true, 10),
+      P("pattern", "checker", "rare", true, 1), P("pattern", "stars", "epic", true, 1), P("pattern", "circuit", "legendary", true, 1, true)] },
+    { id: "eyes", title: "eyes", reward: { name: "a magnifying glass", does: "spots new places sooner" }, parts: [
+      P("eyes", "round", "common", true, 30), P("eyes", "sleepy", "common", true, 12), P("eyes", "happy", "uncommon", true, 7),
+      P("eyes", "sparkle", "rare", true, 2), P("eyes", "cyclops", "epic"), P("eyes", "x", "legendary")] },
+    { id: "accessories", title: "accessories", reward: { name: "a little wardrobe", does: "more room in the bag" }, parts: [
+      P("accessory", "none", "common", true, 31), P("accessory", "bow", "common", true, 6), P("accessory", "leaf", "uncommon", true, 3),
+      P("accessory", "headphones", "rare"), P("accessory", "halo", "epic"), P("accessory", "crown", "legendary"), P("accessory", "horns", "mythic")] },
+    { id: "finishes", title: "finishes", reward: { name: "a glitter jar", does: "finishes turn up a bit more" }, parts: [
+      P("finish", "normal", "common", true, 44), P("finish", "shiny", "uncommon", true, 6), P("finish", "holo", "rare", true, 1),
+      P("finish", "ghost", "epic"), P("finish", "glitch", "legendary"), P("finish", "prismatic", "mythic")] },
+  ];
+  const tilt = i => [-2.5, 1.5, -1, 2.2, -1.8, 1, 2.6, -2.2, 0.8, -1.4][i % 10];
+  const found = s => s.parts.filter(p => p.got).length;
+  const full = s => found(s) === s.parts.length;
+
+  function slotHtml(p, i) {
+    const img = p.slot === "finish" ? "../assets/book/body-blob.png" : `../assets/book/${p.slot}-${p.id}.png`;
+    const name = p.slot === "accessory" && p.id === "none" ? "no hat" : p.id;
+    if (!p.got) return `<div class="slot missing" title="not found yet"><img class="px" src="${img}" alt=""><span class="nm">???</span></div>`;
+    return `<div class="slot got${p.slot === "finish" ? " fx-" + p.id : ""}" style="--tier: var(--tier-${p.tier}); --tilt: ${tilt(i)}deg">
+      ${p.isNew ? `<span class="newdot" title="new!"></span>` : ""}
+      <img class="px" src="${img}" alt=""><span class="nm">${name}</span><span class="ct">×${p.count}</span></div>`;
+  }
+  function rewardHtml(s) {
+    if (full(s)) return `<div class="slot reward open" title="${s.reward.does}"><span class="nm">${s.reward.name}</span><span class="does">${s.reward.does}</span></div>`;
+    return `<div class="slot reward" title="fill the page to open it"><span data-icon="boxes"></span><span class="nm">fill the page for a surprise</span></div>`;
+  }
+  function pageHtml(s, side, no) {
+    return `<section class="bpage page-${side}">
+      <h2>${s.title} <small class="${full(s) ? "full" : ""}">${full(s) ? "page full!" : `${found(s)} of ${s.parts.length}`}</small></h2>
+      <div class="slots">${s.parts.map(slotHtml).join("")}${rewardHtml(s)}</div>
+      <span class="pno">${no}</span>
+    </section>`;
+  }
+
+  const content = mountFrame();
+  let spread = Math.max(0, Math.min(2, Number(params.get("spread") || 1) - 1));
+  function render() {
+    const total = SECTIONS.reduce((n, s) => n + s.parts.length, 0), got = SECTIONS.reduce((n, s) => n + found(s), 0);
+    const [l, r] = [SECTIONS[spread * 2], SECTIONS[spread * 2 + 1]];
+    content.innerHTML = `
+      <div class="book">
+        <div class="book-bar">
+          <div class="seg"><button onclick="location.href='pets.html'+location.search">pets</button><button class="on">book</button></div>
+          <span class="found">found <b>${got} of ${total}</b> stickers</span>
+        </div>
+        <div class="marks">${SECTIONS.map((s, i) => `<button class="mark${Math.floor(i / 2) === spread ? " on" : ""}" data-s="${Math.floor(i / 2)}">${s.title}${full(s) ? `<span class="star" data-icon="xp" data-px="1.2"></span>` : ""}</button>`).join("")}</div>
+        <div class="spread">
+          ${pageHtml(l, "l", spread * 2 + 1)}
+          ${pageHtml(r, "r", spread * 2 + 2)}
+          ${spread > 0 ? `<button class="link turn" style="left: 18px; bottom: 6px" data-turn="-1" title="turn back">‹ back</button>` : ""}
+          ${spread < 2 ? `<button class="link turn" style="right: 18px; bottom: 6px" data-turn="1" title="turn the page">turn ›</button>` : ""}
+        </div>
+      </div>`;
+    content.querySelectorAll(".turn").forEach(t => t.style.position = "absolute");
+    content.querySelectorAll(".pno").forEach(n => n.style.display = "none");
+    content.querySelectorAll("[data-s]").forEach(b => b.addEventListener("click", () => { spread = Number(b.dataset.s); render(); }));
+    content.querySelectorAll("[data-turn]").forEach(b => b.addEventListener("click", () => { spread += Number(b.dataset.turn); render(); }));
+    paintIcons(content);
+  }
+  render();
+  applyLook(loadLook());
+</script>
+</body>
+</html>

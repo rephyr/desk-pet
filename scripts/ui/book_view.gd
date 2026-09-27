@@ -1,23 +1,50 @@
 class_name BookView
-extends ScrollContainer
-## The collection book: every part and every body+finish combo, with how many you've pulled.
-## Undiscovered entries show as dark silhouettes.
+extends VBoxContainer
+## The collection book, as a sticker album open on two pages. One page per part slot (bodies,
+## palettes, patterns, eyes, accessories), then one per body for its finishes. Parts you've pulled
+## are stickers stuck in a little crooked, with how many you've had; the rest are empty dashed
+## spots with a dark silhouette. Bookmarks along the top jump between spreads.
 
 # the pet every part is shown on, with just that one part swapped in
-const SHOWCASE := { "body": "cat", "palette": "lilac", "pattern": "plain", "eyes": "round", "accessory": "none" }
+const SHOWCASE := { "body": "blob", "palette": "lilac", "pattern": "plain", "eyes": "round", "accessory": "none" }
 const SLOT_TITLES := { "body": "bodies", "palette": "palettes", "pattern": "patterns", "eyes": "eyes", "accessory": "accessories" }
+const TILTS := [-2.5, 1.5, -1.0, 2.2, -1.8, 1.0, 2.6, -2.2, 0.8, -1.4]
 
-var _pages := VBoxContainer.new()
+var _found_label := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL + 1)
+var _marks := HBoxContainer.new()
+var _spread := HBoxContainer.new()
+var _pages: Array[Dictionary] = []  # { title, bookmark, tiles: [{ parts, finish, name, tier, seen }] }
+var _at := 0  # which spread is open
 var _dirty := true
 
 
 func _init() -> void:
-	horizontal_scroll_mode = SCROLL_MODE_DISABLED
 	size_flags_horizontal = SIZE_EXPAND_FILL
 	size_flags_vertical = SIZE_EXPAND_FILL
-	_pages.size_flags_horizontal = SIZE_EXPAND_FILL
-	_pages.add_theme_constant_override("separation", 14)
-	add_child(_pages)
+	add_theme_constant_override("separation", 0)
+	var head := HBoxContainer.new()
+	head.add_child(UiTheme.spacer())
+	head.add_child(_found_label)
+	add_child(head)
+	_marks.add_theme_constant_override("separation", 4)
+	var marks_pad := MarginContainer.new()
+	marks_pad.add_theme_constant_override("margin_left", 14)
+	marks_pad.add_theme_constant_override("margin_top", 4)
+	marks_pad.add_child(_marks)
+	add_child(marks_pad)
+	var book := PanelContainer.new()
+	book.size_flags_vertical = SIZE_EXPAND_FILL
+	book.add_theme_stylebox_override("panel", UiTheme.sticker(UiTheme.LILAC_SEAM, 14, UiTheme.RAISED, 0))
+	book.add_child(_spread)
+	_spread.add_theme_constant_override("separation", 0)
+	# the binding: stitches down the middle
+	_spread.draw.connect(func():
+		var x := _spread.size.x / 2.0
+		var y := 10.0
+		while y < _spread.size.y - 10.0:
+			_spread.draw_line(Vector2(x, y), Vector2(x, y + 6.0), UiTheme.PINK_SEAM, 2.0)
+			y += 11.0)
+	add_child(book)
 	GameState.collection.pets_added.connect(func(_p): _mark_dirty())
 	visibility_changed.connect(_rebuild_if_needed)
 
@@ -31,64 +58,158 @@ func _rebuild_if_needed() -> void:
 	if not _dirty or not is_visible_in_tree():
 		return
 	_dirty = false
-	UiTheme.clear(_pages)
+	_collect()
+	_show_spread()
+
+
+## What's in the book: every part, then every body's finishes, with how often you've pulled each.
+func _collect() -> void:
+	_pages.clear()
 	var catalog := Catalog.shared()
 	var collection := GameState.collection
+	var got := 0
+	var total := 0
 	for slot in Catalog.SLOTS:
-		var tiles: Array[Control] = []
-		var found := 0
+		var tiles: Array = []
 		for part in catalog.slots[slot]:
-			var seen := collection.times_seen(Collection.part_key(slot, part.id))
-			found += 1 if seen > 0 else 0
 			var parts := SHOWCASE.duplicate()
 			parts[slot] = part.id
-			tiles.append(_tile(parts, "normal", part.name, part.rarity, seen, 3))
-		_add_page("%s  %d/%d" % [SLOT_TITLES[slot], found, tiles.size()], tiles)
-
-	# finishes: one row per body
+			var shown_name: String = "no hat" if slot == "accessory" and part.id == "none" else part.name
+			tiles.append({ "parts": parts, "finish": "normal", "name": shown_name, "tier": part.rarity, "seen": collection.times_seen(Collection.part_key(slot, part.id)) })
+		_pages.append({ "title": SLOT_TITLES[slot], "bookmark": SLOT_TITLES[slot], "tiles": tiles })
 	for body in catalog.slots.body:
-		var tiles: Array[Control] = []
-		var found := 0
+		var tiles: Array = []
 		for f in catalog.finishes:
-			var seen := collection.times_seen(Collection.finish_key(body.id, f.id))
-			found += 1 if seen > 0 else 0
 			var parts := SHOWCASE.duplicate()
 			parts.body = body.id
-			tiles.append(_tile(parts, f.id, f.name if f.name != "" else "normal", f.rarity, seen, 2))
-		_add_page("%s finishes  %d/%d" % [body.name, found, tiles.size()], tiles)
+			tiles.append({ "parts": parts, "finish": f.id, "name": f.name if f.name != "" else "normal", "tier": f.rarity, "seen": collection.times_seen(Collection.finish_key(body.id, f.id)) })
+		_pages.append({ "title": "%s finishes" % body.name, "bookmark": "finishes" if body == catalog.slots.body[0] else "", "tiles": tiles })
+	for page in _pages:
+		for t in page.tiles:
+			total += 1
+			got += 1 if t.seen > 0 else 0
+	_found_label.text = "found %d of %d stickers" % [got, total]
 
 
-func _add_page(title: String, tiles: Array[Control]) -> void:
-	_pages.add_child(UiTheme.label(title, UiTheme.PINK))
-	var flow := HFlowContainer.new()
-	flow.add_theme_constant_override("h_separation", 8)
-	flow.add_theme_constant_override("v_separation", 8)
-	for t in tiles:
-		flow.add_child(t)
-	_pages.add_child(flow)
+func _show_spread() -> void:
+	var spreads := ceili(_pages.size() / 2.0)
+	_at = clampi(_at, 0, spreads - 1)
+	UiTheme.clear(_marks)
+	for i in _pages.size():
+		var page: Dictionary = _pages[i]
+		if page.bookmark == "":
+			continue
+		var on: bool = i / 2 == _at or (page.bookmark == "finishes" and _at >= i / 2)
+		var mark := Button.new()
+		mark.text = page.bookmark
+		mark.focus_mode = FOCUS_NONE
+		mark.add_theme_font_size_override("font_size", UiTheme.SMALL + 1)
+		var sb := UiTheme.box(UiTheme.RAISED if on else UiTheme.DEEP, UiTheme.PINK_SEAM if on else UiTheme.LINE, 8, 2, 4)
+		sb.corner_radius_bottom_left = 0
+		sb.corner_radius_bottom_right = 0
+		sb.border_width_bottom = 0
+		sb.content_margin_left = 10
+		sb.content_margin_right = 10
+		sb.content_margin_bottom = 10 if on else 6
+		for state in ["normal", "hover", "pressed", "hover_pressed"]:
+			mark.add_theme_stylebox_override(state, sb)
+		mark.add_theme_color_override("font_color", UiTheme.PINK if on else UiTheme.MUTED)
+		mark.size_flags_vertical = SIZE_SHRINK_END
+		if _full(page):
+			mark.icon = UiTheme.icon("xp", 12)
+			mark.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			mark.add_theme_constant_override("icon_max_width", 12)
+		var to := i / 2
+		mark.pressed.connect(func():
+			_at = to
+			_show_spread())
+		_marks.add_child(mark)
+	UiTheme.clear(_spread)
+	for side in 2:
+		var index := _at * 2 + side
+		_spread.add_child(_page(_pages[index] if index < _pages.size() else {}, side, spreads))
 
 
-func _tile(parts: Dictionary, finish: String, title: String, tier_id: String, seen: int, pixel: int) -> PanelContainer:
-	var discovered := seen > 0
-	var color := Catalog.shared().tier_color(tier_id)
+func _full(page: Dictionary) -> bool:
+	return page.tiles.all(func(t): return t.seen > 0)
+
+
+func _page(page: Dictionary, side: int, spreads: int) -> Control:
+	var margin := MarginContainer.new()
+	margin.size_flags_horizontal = SIZE_EXPAND_FILL
+	for s in ["left", "right"]:
+		margin.add_theme_constant_override("margin_" + s, 18)
+	margin.add_theme_constant_override("margin_top", 14)
+	margin.add_theme_constant_override("margin_bottom", 8)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 12)
+	margin.add_child(col)
+	if page.is_empty():
+		return margin
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 10)
+	head.add_child(UiTheme.title(page.title, 20))
+	var found: int = page.tiles.filter(func(t): return t.seen > 0).size()
+	var full: bool = found == page.tiles.size()
+	var count := UiTheme.label("page full!" if full else "%d of %d" % [found, page.tiles.size()], UiTheme.GOLD if full else UiTheme.MUTED, UiTheme.SMALL + 1)
+	count.size_flags_vertical = SIZE_SHRINK_END
+	head.add_child(count)
+	col.add_child(head)
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.add_theme_constant_override("h_separation", 10)
+	grid.add_theme_constant_override("v_separation", 12)
+	for i in page.tiles.size():
+		grid.add_child(_slot(page.tiles[i], i))
+	col.add_child(grid)
+	var fill := Control.new()
+	fill.size_flags_vertical = SIZE_EXPAND_FILL
+	col.add_child(fill)
+	var turn := HBoxContainer.new()
+	if side == 0 and _at > 0:
+		turn.add_child(UiTheme.small_button("‹ back", func():
+			_at -= 1
+			_show_spread()))
+	turn.add_child(UiTheme.spacer())
+	if side == 1 and _at < spreads - 1:
+		turn.add_child(UiTheme.small_button("turn ›", func():
+			_at += 1
+			_show_spread()))
+	col.add_child(turn)
+	return margin
+
+
+## A found part stuck in a little crooked, or an empty dashed spot with a dark silhouette.
+func _slot(tile: Dictionary, i: int) -> Control:
+	var got: bool = tile.seen > 0
+	var color := Catalog.shared().tier_color(tile.tier)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(78, 0)
-	panel.add_theme_stylebox_override("panel",
-		UiTheme.box(UiTheme.BG_RAISED, color if discovered else UiTheme.BG_RAISED.lightened(0.1), 8, 2, 4))
+	panel.custom_minimum_size = Vector2(78, 90)
+	if got:
+		panel.add_theme_stylebox_override("panel", UiTheme.sticker(color, 10, UiTheme.PAGE, 4))
+		panel.tooltip_text = "%s (%s)" % [tile.name, Catalog.shared().tier_at(Catalog.shared().rank(tile.tier)).name]
+	else:
+		panel.add_theme_stylebox_override("panel", UiTheme.stitched(UiTheme.LINE, UiTheme.DEEP.lerp(UiTheme.RAISED, 0.5), 10, 4))
+		panel.tooltip_text = "not found yet"
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 0)
+	col.alignment = BoxContainer.ALIGNMENT_END
+	col.mouse_filter = MOUSE_FILTER_IGNORE
 	panel.add_child(col)
-
 	var pet := Pet.new()
-	pet.parts = parts
-	pet.finish = finish
-	var portrait := PetPortrait.new(pixel, false)
-	portrait.set_pet(pet, not discovered)
+	pet.parts = tile.parts
+	pet.finish = tile.finish
+	var portrait := PetPortrait.new(2, false)
+	portrait.mouse_filter = MOUSE_FILTER_IGNORE
+	portrait.set_pet(pet, not got)
+	if not got:
+		portrait.modulate.a = 0.35
 	col.add_child(portrait)
-	var name_label := UiTheme.label(title if discovered else "???", color if discovered else UiTheme.MUTED, UiTheme.SMALL)
+	var name_label := UiTheme.label(tile.name if got else "???", UiTheme.TEXT if got else UiTheme.LOCKED, UiTheme.SMALL)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(name_label)
-	var count := UiTheme.label("×%d" % seen if discovered else " ", UiTheme.MUTED, UiTheme.SMALL - 1)
-	count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(count)
-	return panel
+	if got:
+		var count := UiTheme.label("×%d" % tile.seen, UiTheme.MUTED, UiTheme.SMALL)
+		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		col.add_child(count)
+	return Tilted.new(panel, TILTS[i % TILTS.size()] if got else 0.0)

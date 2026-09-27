@@ -1,0 +1,350 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boxes</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  .boxes { display: grid; grid-template-columns: 272px 1fr; gap: 16px; height: 100%; min-height: 0; }
+
+  /* ---- the shop: packs as stickers, odds printed on the back ---- */
+  .shop { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+  .offer { position: relative; padding: 12px 12px 12px; }
+  .offer .front { display: grid; grid-template-columns: 70px 1fr; gap: 12px; align-items: center; }
+  .offer .pack-art { display: block; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .35)); transform: rotate(-4deg); transition: transform .2s var(--ease-out); }
+  .offer:hover .pack-art { transform: rotate(-1deg) translateY(-3px); }
+  .offer h3 { margin: 0 0 6px; font: var(--display-weight) 17px/1.1 var(--display); color: var(--pink); }
+  .offer .facts { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .offer .bag { font-size: 11px; color: var(--mint); }
+  .offer .bag.none { color: var(--muted); }
+  .offer .flip { position: absolute; top: 9px; right: 10px; font-size: 11px; color: var(--muted); }
+  .offer .flip:hover { color: var(--pink); }
+  .offer .buttons { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: 12px; }
+  .offer .buttons .btn { padding: 6px 4px; font-size: 12px; flex-direction: column; gap: 0; line-height: 1.2; }
+  .offer .buttons .btn small { color: var(--cyan); font-size: 11px; display: inline-flex; align-items: center; gap: 3px; }
+  .offer .buttons .btn small.free { color: var(--mint); }
+  .odds { display: none; margin-top: 10px; padding-top: 10px; position: relative; font-size: 11px; }
+  .odds::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 2px; background: repeating-linear-gradient(to right, var(--line) 0 5px, transparent 5px 9px); }
+  .odds .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; }
+  .odds dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; }
+  .odds dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; color: var(--muted); }
+  .odds .head { grid-column: 1 / -1; color: var(--muted); margin-bottom: 2px; }
+  .offer.flipped .odds { display: block; }
+  .offer.flipped .buttons { display: none; }
+
+  /* ---- the table where boxes get opened ---- */
+  .table { position: relative; overflow: hidden; border-radius: var(--r-panel); background: var(--paper); border: 2px dashed var(--line); }
+  .table .hint { position: absolute; left: 0; right: 0; bottom: 16px; text-align: center; color: var(--muted); font-size: 12px; }
+  .table .ghost-pack { position: absolute; left: 50%; top: 50%; width: 110px; height: 143px; transform: translate(-50%, -58%) rotate(-3deg); border: 2px dashed var(--line); border-radius: 14px; }
+
+  .stage { position: absolute; inset: 0; }
+  .rays { position: absolute; left: 50%; top: 44%; width: 560px; height: 560px; margin: -280px 0 0 -280px; opacity: 0; transition: opacity .4s; animation: spin 18s linear infinite; }
+  .rays path { fill: var(--beam); opacity: .16; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .beam { position: absolute; left: 50%; bottom: 52%; width: 120px; height: 0; margin-left: -60px; border-radius: 60px 60px 0 0; background: linear-gradient(to top, color-mix(in srgb, var(--beam) 55%, transparent), transparent); transition: height .35s var(--ease-out), background .2s; }
+  .packwrap { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -38%); transition: transform .45s cubic-bezier(.3, 1.4, .5, 1); }
+  .packwrap .pack-art { display: block; filter: drop-shadow(0 10px 14px rgba(0, 0, 0, .4)); }
+  .packwrap .strip { cursor: grab; transition: transform .45s ease-in, opacity .45s; transform-origin: 90% 20%; }
+  .stage.ripped .strip { transform: translate(90px, -80px) rotate(35deg); opacity: 0; }
+  .tearhint { position: absolute; left: 50%; top: calc(50% - 118px); transform: translateX(-50%); color: var(--pink); font-size: 12px; white-space: nowrap; animation: bob 1.2s ease-in-out infinite; }
+  @keyframes bob { 50% { transform: translate(-50%, -4px); } }
+  .stage:not(.s-land) .tearhint { display: none; }
+
+  /* the rarity ladder: lights up one tier at a time */
+  .ladder { position: absolute; right: 22px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column-reverse; gap: 7px; opacity: 0; transition: opacity .3s; }
+  .ladder div { display: flex; align-items: center; gap: 7px; font-size: 11px; color: var(--locked); transition: color .2s; }
+  .ladder i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line); background: var(--deep); transition: background .2s, border-color .2s, box-shadow .2s; }
+  .ladder div.lit { color: var(--tier); }
+  .ladder div.lit i { background: var(--tier); border-color: var(--tier); }
+  .ladder div.here i { box-shadow: 0 0 10px var(--tier); transform: scale(1.25); }
+  .stage.s-climb .ladder, .stage.s-pull .ladder { opacity: 1; }
+
+  .pet-out { position: absolute; left: 50%; top: 50%; width: 96px; height: 108px; margin-left: -48px; transform: translateY(-20px); clip-path: inset(0 0 100% 0); transition: transform .5s cubic-bezier(.3, 1.5, .5, 1), clip-path .5s; }
+  .stage.s-pull .pet-out { transform: translateY(-95px); clip-path: inset(0 0 22% 0); cursor: grab; }
+  .stage.s-celebrate .pet-out { transform: translateY(-150px) scale(1.15); clip-path: inset(0 0 0 0); }
+  .pullhint { position: absolute; left: 50%; top: calc(50% - 140px); transform: translateX(-50%); color: var(--pink); font-size: 12px; white-space: nowrap; display: none; }
+  .stage.s-pull .pullhint { display: block; }
+  .stage.misty .pullhint { display: none; }
+  .stage.s-celebrate .packwrap { transform: translate(-50%, 10%) scale(.9); }
+  .stage.s-celebrate .rays { opacity: 1; }
+  .stage.s-celebrate .beam { height: 0 !important; }
+
+  .mist { position: absolute; left: 50%; top: 50%; width: 220px; height: 170px; margin: -230px 0 0 -110px; pointer-events: none; opacity: 0; transition: opacity .6s; }
+  .mist b { position: absolute; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--lilac) 70%, var(--raised)) 0 40%, transparent 70%); animation: drift 3s ease-in-out infinite alternate; }
+  @keyframes drift { to { transform: translate(8px, -6px) scale(1.08); } }
+  .stage.misty .mist { opacity: .95; pointer-events: auto; cursor: pointer; }
+
+  .banner { position: absolute; left: 0; right: 0; top: 18px; text-align: center; font: var(--display-weight) 34px/1 var(--display); color: var(--beam); text-shadow: 0 0 18px color-mix(in srgb, var(--beam) 60%, transparent), 0 3px 0 var(--deep); opacity: 0; transform: scale(.6); transition: opacity .3s, transform .4s cubic-bezier(.3, 1.6, .5, 1); }
+  .stage.s-celebrate.big .banner { opacity: 1; transform: scale(1); }
+  .spark { position: absolute; left: 50%; top: 40%; width: 6px; height: 6px; border-radius: 2px; background: var(--beam); animation: fly 1.1s var(--ease-out) forwards; }
+  @keyframes fly { from { transform: translate(0, 0) rotate(0); opacity: 1; } to { transform: translate(var(--dx), var(--dy)) rotate(200deg); opacity: 0; } }
+
+  /* the result card */
+  .result { position: absolute; left: 50%; top: 50%; width: 300px; transform: translate(-50%, -50%) scale(.9); opacity: 0; pointer-events: none; transition: opacity .3s, transform .35s cubic-bezier(.3, 1.4, .5, 1); padding: 16px 18px 16px; text-align: center; }
+  .stage.s-result .result { opacity: 1; transform: translate(-50%, -50%); pointer-events: auto; }
+  .stage.s-result .packwrap, .stage.s-result .pet-out, .stage.s-result .ladder, .stage.s-result .beam { opacity: 0; }
+  .stage.s-result .rays { opacity: .5; }
+  .result .petbox { position: relative; width: 120px; height: 132px; margin: 2px auto 8px; display: grid; place-items: center; border-radius: var(--r-xl); background: var(--deep); border: 2px solid var(--tier); box-shadow: 0 0 20px color-mix(in srgb, var(--tier) 40%, transparent); overflow: hidden; }
+  .result .petbox img { width: 96px; height: 108px; }
+  .result .petbox.holo::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 25%, rgba(255, 140, 220, .28) 38%, rgba(140, 230, 255, .28) 50%, rgba(255, 240, 150, .28) 62%, transparent 75%); background-size: 250% 100%; animation: holo 2.4s linear infinite; mix-blend-mode: screen; }
+  .result .petbox.shiny::after { content: ""; position: absolute; inset: 0; background: linear-gradient(115deg, transparent 40%, rgba(255, 255, 255, .35) 50%, transparent 60%); background-size: 250% 100%; animation: holo 2s linear infinite; }
+  .result .petbox.ghost img { opacity: .6; filter: drop-shadow(0 0 6px var(--lilac)); }
+  @keyframes holo { from { background-position: 150% 0; } to { background-position: -100% 0; } }
+  .result h2 { margin: 0; font: var(--display-weight) 24px/1.1 var(--display); color: var(--pink); }
+  .result .tags { display: flex; justify-content: center; gap: 6px; margin: 6px 0 10px; }
+  .tag { display: inline-flex; align-items: center; padding: 2px 9px; border-radius: 999px; font-size: 11px; background: var(--deep); border: 2px solid var(--line); }
+  .result .new { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-bottom: 14px; }
+  .result .new .tag { border-color: color-mix(in srgb, var(--gold) 55%, var(--line)); color: var(--text); }
+  .result .new .tag b { color: var(--gold); font-weight: inherit; margin-right: 5px; }
+  .result .actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .result .actions .btn { flex-direction: column; gap: 0; line-height: 1.25; }
+  .result .actions small { color: var(--cyan); font-size: 11px; display: inline-flex; align-items: center; gap: 3px; }
+
+  /* ---- ten at once ---- */
+  .many { position: absolute; inset: 0; padding: 16px 16px 12px; display: none; flex-direction: column; gap: 12px; }
+  .stage.s-many .many { display: flex; }
+  .stage.s-many .packwrap, .stage.s-many .ladder, .stage.s-many .beam, .stage.s-many .rays { display: none; }
+  .many-head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+  .many-head h2 { margin: 0; font: var(--display-weight) 22px/1 var(--display); color: var(--pink); }
+  .many-head .best { color: var(--muted); font-size: 12px; }
+  .many-head .best b { color: var(--tier-rare); font-weight: inherit; }
+  .counts { display: flex; gap: 6px; flex-wrap: wrap; }
+  .counts .tag { color: var(--tier); border-color: color-mix(in srgb, var(--tier) 45%, var(--line)); }
+  .many .grid { grid-template-columns: repeat(5, 1fr); gap: 10px; overflow: visible; padding: 0; }
+  .many .pet-card { opacity: 0; transform: scale(.7); animation: pop .35s cubic-bezier(.3, 1.5, .5, 1) forwards; animation-delay: calc(var(--i) * 90ms); }
+  @keyframes pop { to { opacity: 1; transform: none; } }
+  .many .pet-card .fin { font-size: 11px; color: var(--gold); }
+  .many .actions { margin-top: auto; display: flex; gap: 8px; justify-content: flex-end; }
+  .no-anim *, .no-anim *::before, .no-anim *::after { animation-duration: 0s !important; animation-delay: 0s !important; transition: none !important; }
+</style>
+</head>
+<body>
+<div class="app" data-tab="boxes" data-say="ooh, boxes! the shiny one. no wait, the other shiny one.">
+  <div class="boxes">
+    <div class="shop" id="shop"></div>
+    <div class="table">
+      <div class="ghost-pack"></div>
+      <div class="hint">pick a box and rip it open</div>
+      <div class="stage" id="stage"></div>
+    </div>
+  </div>
+</div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script src="../shared/pack.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const content = mountFrame();
+  const say = text => { document.querySelector(".top .bubble").textContent = text; };
+  const coinIcon = `<span data-icon="coin" data-px="1.2"></span>`;
+
+  // ---- shop ----
+  const shop = content.querySelector("#shop");
+  shop.innerHTML = BOXES.map(b => `
+    <article class="offer sticker${params.get("odds") === b.id ? " flipped" : ""}" data-box="${b.id}">
+      <button class="link flip">odds</button>
+      <div class="front">
+        ${packSvg(b, 66)}
+        <div>
+          <h3>${b.name}</h3>
+          <div class="facts">
+            <span class="chip coins">${coinIcon}${b.price}</span>
+            <span class="bag${b.bag ? "" : " none"}">${b.bag ? `${b.bag} in your bag` : "none in your bag"}</span>
+          </div>
+        </div>
+      </div>
+      <div class="buttons">
+        <button class="btn" data-open="1">open 1<small class="${b.bag ? "free" : ""}">${b.bag ? "from bag" : coinIcon + b.price}</small></button>
+        <button class="btn" data-open="10">open 10<small>${coinIcon}${b.price * 10}</small></button>
+        <button class="btn" data-open="max">open all<small>${Math.floor(10421 / b.price)} boxes</small></button>
+      </div>
+      <div class="odds">
+        <div class="cols">
+          <dl><dt class="head">rarity</dt>${TIER_ORDER.map(t => `<dt style="color: var(--tier-${t})">${t}</dt><dd>${b.tiers[t]}</dd>`).join("")}</dl>
+          <dl><dt class="head">finish</dt>${Object.entries(b.finishes).map(([f, v]) => `<dt>${f}</dt><dd>${v}</dd>`).join("")}</dl>
+        </div>
+      </div>
+    </article>`).join("");
+  shop.querySelectorAll(".flip").forEach(f => f.addEventListener("click", () => {
+    const offer = f.closest(".offer");
+    offer.classList.toggle("flipped");
+    f.textContent = offer.classList.contains("flipped") ? "back" : "odds";
+  }));
+  shop.querySelectorAll(".offer.flipped .flip").forEach(f => f.textContent = "back");
+
+  // ---- the stage ----
+  const stage = content.querySelector("#stage");
+  const table = content.querySelector(".table");
+  let run = 0;
+
+  function buildStage(box, tier) {
+    const pull = PULLS[tier];
+    stage.style.setProperty("--beam", `var(--tier-common)`);
+    const rays = Array.from({ length: 12 }, (_, i) => {
+      const a = (i / 12) * Math.PI * 2, b = a + 0.16;
+      return `<path d="M280 280 L${280 + Math.cos(a) * 280} ${280 + Math.sin(a) * 280} L${280 + Math.cos(b) * 280} ${280 + Math.sin(b) * 280} Z"/>`;
+    }).join("");
+    stage.innerHTML = `
+      <svg class="rays" viewBox="0 0 560 560" aria-hidden="true">${rays}</svg>
+      <div class="beam"></div>
+      <div class="banner">${tier}!</div>
+      <img class="px pet-out" src="../assets/pets/${pull.pet}.png" alt="${pull.name}">
+      <div class="packwrap">${packSvg(box, 110)}</div>
+      <div class="mist">${[[20, 30, 110], [90, 10, 120], [60, 60, 130], [0, 70, 90], [130, 60, 100]].map(([x, y, s]) => `<b style="left:${x}px; top:${y}px; width:${s}px; height:${s}px"></b>`).join("")}</div>
+      <div class="tearhint">drag the strip off ↗</div>
+      <div class="pullhint">pull it out!</div>
+      <div class="ladder">${TIER_ORDER.map(t => `<div data-t="${t}" style="--tier: var(--tier-${t})"><i></i>${t}</div>`).join("")}</div>
+      <div class="result sticker" style="--tier: var(--tier-${tier})">
+        <div class="petbox ${pull.finish}"><img class="px" src="../assets/pets/${pull.pet}.png" alt=""></div>
+        <h2>${pull.name}</h2>
+        <div class="tags">
+          <span class="tag" style="color: var(--tier-${tier}); border-color: var(--tier-${tier})">${tier}</span>
+          ${pull.finish ? `<span class="tag" style="color: var(--gold)">${pull.finish}</span>` : ""}
+        </div>
+        ${pull.fresh.length ? `<div class="new">${pull.fresh.map(f => `<span class="tag"><b>new</b>${f}</span>`).join("")}</div>` : `<div class="new"></div>`}
+        <div class="actions">
+          <button class="btn" data-again>open another<small>${coinIcon}${box.price}</small></button>
+          <button class="btn primary" data-done>lovely!</button>
+        </div>
+      </div>
+      <div class="many"></div>`;
+    paintIcons(stage);
+    stage.querySelector("[data-done]").addEventListener("click", reset);
+    stage.querySelector("[data-again]").addEventListener("click", () => openOne(box.id, randomTier()));
+  }
+
+  function set(state) {
+    stage.className = "stage " + state.split(" ").map(s => s.startsWith("s-") || ["ripped", "misty", "big"].includes(s) ? s : "s-" + s).join(" ");
+    table.querySelector(".ghost-pack").style.display = "none";
+    table.querySelector(".hint").style.display = "none";
+  }
+
+  function lightTo(tier) {
+    const rank = TIER_ORDER.indexOf(tier);
+    stage.style.setProperty("--beam", `var(--tier-${tier})`);
+    stage.querySelector(".beam").style.height = `${60 + rank * 34}px`;
+    stage.querySelectorAll(".ladder div").forEach((d, i) => {
+      d.classList.toggle("lit", i <= rank);
+      d.classList.toggle("here", i === rank);
+    });
+  }
+
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  const click = el => new Promise(r => el.addEventListener("click", r, { once: true }));
+
+  async function openOne(boxId, tier) {
+    const me = ++run;
+    const box = BOXES.find(b => b.id === boxId);
+    buildStage(box, tier);
+    const pack = stage.querySelector(".packwrap");
+    pack.style.transform = "translate(-50%, -160%)";
+    set("land");
+    say("rip it! rip it!");
+    await wait(30); pack.style.transform = "";
+    await click(stage.querySelector(".strip"));
+    if (me !== run) return;
+    set("climb ripped");
+    say("…");
+    for (let i = 0; i <= TIER_ORDER.indexOf(tier); i++) {
+      lightTo(TIER_ORDER[i]);
+      await wait(380 + i * 140);
+      if (me !== run) return;
+    }
+    set("pull ripped" + (tier === "mythic" ? " misty" : ""));
+    say(tier === "mythic" ? "it's all… foggy. wave it away?" : "something's in there!");
+    if (tier === "mythic") { await click(stage.querySelector(".mist")); set("pull ripped"); }
+    await click(stage.querySelector(".pet-out"));
+    if (me !== run) return;
+    celebrate(tier);
+    await wait(tier === "common" ? 700 : 1500);
+    if (me !== run) return;
+    set("result ripped");
+    say({ common: "a peach cat! hi, peach cat.", uncommon: "ooh, shiny! it's so shiny!", rare: "a sky bunny!! can it stay? it's staying.",
+          epic: "a holo fox!! i'm not jealous. i'm not.", legendary: "a golden dragon!!! with a crown!!", mythic: "oh. it's… humming. it's very cute." }[tier]);
+  }
+
+  function celebrate(tier) {
+    const rank = TIER_ORDER.indexOf(tier);
+    set("celebrate ripped" + (rank >= 3 ? " big" : ""));
+    const n = [10, 18, 30, 50, 90, 160][rank];
+    for (let i = 0; i < Math.min(n, 70); i++) {
+      const s = document.createElement("i");
+      s.className = "spark";
+      const a = Math.random() * Math.PI * 2, d = 80 + Math.random() * 200;
+      s.style.setProperty("--dx", Math.cos(a) * d + "px");
+      s.style.setProperty("--dy", Math.sin(a) * d - 40 + "px");
+      if (i % 3 === 0) s.style.background = "var(--gold)";
+      stage.appendChild(s);
+    }
+  }
+
+  function openMany(boxId) {
+    ++run;
+    const box = BOXES.find(b => b.id === boxId);
+    buildStage(box, "rare");
+    const got = ["sky-bunny:rare", "mint-bear:uncommon", "peach-bear:uncommon:shiny", "peach-cat:common", "mint-blob:common",
+                 "lilac-cat:common", "peach-cat:common", "mint-blob:common", "lilac-cat:common", "peach-cat:common"]
+      .map(s => { const [id, tier, fin] = s.split(":"); return { id, tier, fin, name: id.replace("-", " ") }; });
+    const count = t => got.filter(g => g.tier === t).length;
+    stage.querySelector(".many").innerHTML = `
+      <div class="many-head">
+        <h2>10 pets!</h2>
+        <span class="best">best: <b>sky bunny</b> (rare)</span>
+      </div>
+      <div class="counts">${["common", "uncommon", "rare"].map(t => `<span class="tag" style="--tier: var(--tier-${t})">${count(t)} ${t}</span>`).join("")}</div>
+      <div class="grid">${got.map((g, i) => `
+        <div class="pet-card${g.tier === "rare" ? " glow" : ""}" style="--tier: var(--tier-${g.tier}); --i: ${i}">
+          <img class="px" src="../assets/pets/${g.id}.png" width="48" height="54" alt="">
+          <div class="name">${g.fin ? "shiny " : ""}${g.name}</div>
+          <div class="tier">${g.tier}</div>
+        </div>`).join("")}</div>
+      <div class="actions"><button class="btn" data-again10>open 10 more<small>${coinIcon}${box.price * 10}</small></button><button class="btn primary" data-done10>lovely!</button></div>`;
+    paintIcons(stage);
+    stage.querySelector("[data-done10]").addEventListener("click", reset);
+    stage.querySelector("[data-again10]").addEventListener("click", () => openMany(boxId));
+    set("many");
+    say("ten!! a sky bunny, and so many peach cats. hi, peach cats.");
+  }
+
+  function reset() {
+    ++run;
+    stage.className = "stage";
+    stage.innerHTML = "";
+    table.querySelector(".ghost-pack").style.display = "";
+    table.querySelector(".hint").style.display = "";
+    say("ooh, boxes! the shiny one. no wait, the other shiny one.");
+  }
+
+  const randomTier = () => { const r = Math.random(); return r < .5 ? "common" : r < .75 ? "uncommon" : r < .9 ? "rare" : r < .97 ? "epic" : r < .995 ? "legendary" : "mythic"; };
+  shop.querySelectorAll("[data-open]").forEach(b => b.addEventListener("click", () => {
+    const boxId = b.closest(".offer").dataset.box;
+    if (b.dataset.open === "1") openOne(boxId, params.get("tier") || randomTier()); else openMany(boxId);
+  }));
+
+  // ---- fixed states for screenshots: ?state=land|climb|pull|mist|celebrate|result|many&tier=legendary ----
+  const state = params.get("state");
+  if (state) {
+    document.body.classList.add("no-anim");
+    const tier = params.get("tier") || "legendary";
+    const box = BOXES[0];
+    if (state === "many") openMany(box.id);
+    else {
+      buildStage(box, tier);
+      const lines = { land: "rip it! rip it!", climb: "…", pull: "something's in there!", mist: "it's all… foggy. wave it away?", celebrate: "!!!", result: "a golden dragon!!! with a crown!!" };
+      say(lines[state] || "");
+      if (state === "land") set("land");
+      if (state === "climb") { set("climb ripped"); lightTo(TIER_ORDER[Math.min(3, TIER_ORDER.indexOf(tier))]); }
+      if (state === "pull") { set("pull ripped"); lightTo(tier); }
+      if (state === "mist") { set("pull ripped misty"); lightTo(tier); }
+      if (state === "celebrate") { lightTo(tier); celebrate(tier); stage.querySelectorAll(".spark").forEach(s => s.remove()); }
+      if (state === "result") set("result ripped");
+    }
+  }
+  applyLook(loadLook());
+</script>
+</body>
+</html>

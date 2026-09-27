@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frame B: Book Spine</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/base.css">
+<style>
+  /* B: an open book. A spine of sticker tabs on the left, your pet sits on top of the spine */
+  .app { display: grid; grid-template-columns: 78px 1fr; background: var(--deep); }
+  .spine { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 12px 0 10px; border-right: 2px solid #2c1d3d; }
+  .me { position: relative; margin-bottom: 8px; }
+  .me img { width: 48px; height: 54px; }
+  .me .heart { position: absolute; right: -6px; top: -2px; }
+  .tab {
+    width: 60px; padding: 7px 0 5px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    background: none; border: 2px solid transparent; border-radius: var(--r-lg);
+    color: var(--muted); font-size: 11px; cursor: pointer;
+    transition: color .12s, transform .15s var(--ease-out), background .12s;
+  }
+  .tab:hover { color: var(--pink); }
+  .tab.on { background: var(--raised); border-color: var(--pink-seam); color: var(--pink); box-shadow: var(--lift); transform: rotate(-3deg) translateX(3px); }
+  .tab.locked { color: #76688a; cursor: default; }
+  .spine .grow { flex: 1; }
+  .page { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 12px 14px 12px 18px; gap: 14px; }
+  .top { display: flex; align-items: center; gap: 10px; }
+  .top .bubble { flex: 1; padding: 8px 14px; }
+  .top .bubble::before { content: ""; position: absolute; left: -8px; top: 50%; width: 12px; height: 12px; background: var(--raised); border-left: 2px solid var(--pink-seam); border-bottom: 2px solid var(--pink-seam); transform: translateY(-50%) rotate(45deg); }
+  .top h1 { margin: 0; font: 22px/1 var(--display); color: var(--pink); font-weight: 400; }
+  .top .right { display: flex; align-items: center; gap: 8px; }
+  #content { flex: 1; min-height: 0; }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="spine">
+    <div class="me" title="lilac blob, your active pet">
+      <img class="px" src="../assets/pets/lilac-blob.png" alt="lilac blob">
+      <span class="heart" data-icon="heart" data-px="1.5"></span>
+    </div>
+    <button class="tab" data-tab><span data-icon="home"></span>home</button>
+    <button class="tab" data-tab><span data-icon="boxes"></span>boxes</button>
+    <button class="tab on" data-tab><span data-icon="collection"></span>pets</button>
+    <button class="tab" data-tab><span data-icon="adventures"></span>trips</button>
+    <button class="tab" data-tab><span data-icon="upgrades"></span>gear</button>
+    <button class="tab locked" title="found on a trip"><span data-icon="lock"></span>???</button>
+    <div class="grow"></div>
+    <button class="tab" data-tab><span data-icon="settings"></span></button>
+  </nav>
+  <main class="page dots">
+    <div class="top">
+      <div class="bubble">ooh. that gold one looks… expensive. i'm still the cutest though ♪</div>
+      <div class="right">
+        <span class="chip coins"><span data-icon="coin"></span>10,421</span>
+        <span class="chip xp"><span data-icon="xp"></span>72</span>
+        <div class="winbtns"><button title="shrink">▾</button><button title="close">✕</button></div>
+      </div>
+    </div>
+    <div id="content"></div>
+  </main>
+</div>
+<script src="../shared/pixel.js"></script>
+<script>renderCollection(document.getElementById("content")); paintIcons(); wireTabs();</script>
+</body>
+</html>

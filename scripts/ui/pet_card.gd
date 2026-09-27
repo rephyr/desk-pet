@@ -1,13 +1,14 @@
 class_name PetCard
 extends PanelContainer
-## A trading-card style tile for one pet: frame in its rarity colour, glow for the rare ones.
+## One pet as a sticker: outlined in its rarity colour, with a soft glow for the very rare ones.
+## It lifts and tilts a little under the mouse; the chosen one gets a pink ring.
 
 signal pressed(pet: Pet)
 
-const WIDTH := 104
+const WIDTH := 92
 
 var pet: Pet
-var _style: StyleBoxFlat
+var _selected := false
 
 
 func _init(p_pet: Pet, pixel := 3, animated := false) -> void:
@@ -17,15 +18,18 @@ func _init(p_pet: Pet, pixel := 3, animated := false) -> void:
 	var rank := catalog.rank(pet.rarity)
 	mouse_filter = MOUSE_FILTER_STOP
 	custom_minimum_size = Vector2(WIDTH, 0)
+	size_flags_horizontal = SIZE_EXPAND_FILL
 	tooltip_text = pet.display_name(catalog)
 
-	_style = UiTheme.box(UiTheme.BG_RAISED, color.darkened(0.25 if rank < 2 else 0.0), 10, 2, 6)
-	_style.shadow_color = Color(color, 0.45)
-	_style.shadow_size = rank * 3  # rarer cards glow more
-	add_theme_stylebox_override("panel", _style)
+	var style := UiTheme.sticker(color, 10, UiTheme.RAISED, 6)
+	if rank >= 4:
+		style.shadow_color = Color(color, 0.4)  # legendary and up glow
+		style.shadow_size = 10
+		style.shadow_offset = Vector2.ZERO
+	add_theme_stylebox_override("panel", style)
 
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 2)
+	col.add_theme_constant_override("separation", 1)
 	col.mouse_filter = MOUSE_FILTER_IGNORE
 	add_child(col)
 
@@ -37,17 +41,32 @@ func _init(p_pet: Pet, pixel := 3, animated := false) -> void:
 	var name_label := UiTheme.label(pet.display_name(catalog), UiTheme.TEXT, UiTheme.SMALL)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	name_label.custom_minimum_size = Vector2(WIDTH - 12, 0)
+	name_label.custom_minimum_size = Vector2(WIDTH - 14, 0)
 	col.add_child(name_label)
 
-	var tag := UiTheme.tier_label(pet.rarity, UiTheme.SMALL - 1)
+	var tag := UiTheme.tier_label(pet.rarity, UiTheme.SMALL)
 	tag.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(tag)
 
+	resized.connect(func(): pivot_offset = size / 2.0)
+	mouse_entered.connect(func(): _lift(true))
+	mouse_exited.connect(func(): _lift(false))
+
 
 func set_selected(selected: bool) -> void:
-	_style.bg_color = UiTheme.BG_RAISED.lightened(0.12) if selected else UiTheme.BG_RAISED
-	_style.set_border_width_all(3 if selected else 2)
+	_selected = selected
+	queue_redraw()
+
+
+func _lift(up: bool) -> void:
+	var t := create_tween().set_parallel().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_property(self, "rotation_degrees", -1.0 if up else 0.0, 0.15)
+	t.tween_property(self, "scale", Vector2(1.04, 1.04) if up else Vector2.ONE, 0.15)
+
+
+func _draw() -> void:
+	if _selected:
+		draw_style_box(UiTheme.box(Color(0, 0, 0, 0), UiTheme.PINK, 14, 2, 0), Rect2(Vector2(-5, -5), size + Vector2(10, 10)))
 
 
 func _gui_input(event: InputEvent) -> void:

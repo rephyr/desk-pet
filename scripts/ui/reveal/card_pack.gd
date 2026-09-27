@@ -22,15 +22,26 @@ const THROW_MIN_UP := 350.0
 const SPIN := 4.0  # rad/s the thrown strip starts tumbling at
 const FADE_TIME := 0.9
 
-const FOIL := Color("6b4fa0")
-const FOIL_LIGHT := Color("8e6fd0")
-const FOIL_DARK := Color("3d2a63")
-const EDGE := Color("c9a0ff")
+var FOIL := Color("6b4fa0")
+var FOIL_LIGHT := Color("8e6fd0")
+var FOIL_DARK := Color("3d2a63")
+var EDGE := Color("c9a0ff")
 const SHEEN := Color(1, 1, 1, 0.12)
-const LOGO := Color("ff79c6")
+var LOGO := Color("ff79c6")
 const INSIDE := Color("0d0612")
 const FOIL_BACK := Color("c8b8e8")  # the silvery inside of the foil, seen on a folded flap
 const SHADOW := Color(0, 0, 0, 0.3)
+
+## Colours the pack from a box's "art" in data/boxes.json (foil, foil_light, foil_dark, edge, logo).
+func set_art(art: Dictionary) -> void:
+	FOIL = Color(art.get("foil", "#6b4fa0"))
+	FOIL_LIGHT = Color(art.get("foil_light", "#8e6fd0"))
+	FOIL_DARK = Color(art.get("foil_dark", "#3d2a63"))
+	EDGE = Color(art.get("edge", "#c9a0ff"))
+	LOGO = Color(art.get("logo", "#ff79c6"))
+	queue_redraw()
+	back.queue_redraw()
+
 
 ## 0..1: how far along the tear line it's ripped.
 var tear := 0.0:

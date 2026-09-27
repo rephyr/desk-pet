@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frame B2: Starry Spine</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/base.css">
+<style>
+  /* B2: the spine is a strip of night sky. Your pet sits on the moon; tabs are stickers on the sky */
+  .app { display: grid; grid-template-columns: 80px 1fr; background: var(--deep); }
+  .spine { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 0; background: #0f0816; border-right: 2px solid #2c1d3d; overflow: hidden; }
+  .sky { position: absolute; inset: 0; pointer-events: none; }
+  .spine > *:not(.sky) { position: relative; }
+  .moon { position: relative; width: 64px; height: 70px; display: grid; place-items: end center; margin-bottom: 8px; }
+  .moon::before { content: ""; position: absolute; bottom: 0; left: 6px; right: 6px; height: 12px; border-radius: 50%; background: #2a1f3d; box-shadow: inset 0 2px 0 #3d2d57; }
+  .moon img { position: relative; width: 48px; height: 54px; margin-bottom: 5px; }
+  .tab {
+    width: 60px; padding: 7px 0 5px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    background: none; border: 2px solid transparent; border-radius: var(--r-lg);
+    color: var(--muted); font-size: 11px; cursor: pointer;
+    transition: color .12s, transform .15s var(--ease-out);
+  }
+  .tab:hover { color: var(--pink); transform: translateY(-2px); }
+  .tab.on { background: var(--raised); border-color: var(--pink-seam); color: var(--pink); box-shadow: var(--lift); transform: rotate(-3deg) translateX(3px); }
+  .tab.locked { color: #76688a; cursor: default; }
+  .tab.locked:hover { transform: none; color: #76688a; }
+  .grow { flex: 1; }
+  .page { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 12px 14px 12px 18px; gap: 14px; }
+  .top { display: flex; align-items: center; gap: 10px; }
+  .top .bubble { flex: 1; padding: 8px 14px; }
+  .top .bubble::before { content: ""; position: absolute; left: -8px; top: 50%; width: 12px; height: 12px; background: var(--raised); border-left: 2px solid var(--pink-seam); border-bottom: 2px solid var(--pink-seam); transform: translateY(-50%) rotate(45deg); }
+  #content { flex: 1; min-height: 0; }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="spine">
+    <svg class="sky" width="80" height="600" aria-hidden="true"></svg>
+    <div class="moon" title="lilac blob, your active pet"><img class="px" src="../assets/pets/lilac-blob.png" alt="lilac blob"></div>
+    <button class="tab" data-tab><span data-icon="home"></span>home</button>
+    <button class="tab" data-tab><span data-icon="boxes"></span>boxes</button>
+    <button class="tab on" data-tab><span data-icon="collection"></span>pets</button>
+    <button class="tab" data-tab><span data-icon="adventures"></span>trips</button>
+    <button class="tab" data-tab><span data-icon="upgrades"></span>gear</button>
+    <button class="tab locked" title="found on a trip"><span data-icon="lock"></span>???</button>
+    <div class="grow"></div>
+    <button class="tab" data-tab title="settings"><span data-icon="settings"></span></button>
+  </nav>
+  <main class="page dots">
+    <div class="top">
+      <div class="bubble">ooh. that gold one looks… expensive. i'm still the cutest though ♪</div>
+      <span class="chip coins"><span data-icon="coin"></span>10,421</span>
+      <span class="chip xp"><span data-icon="xp"></span>72</span>
+      <div class="winbtns"><button title="shrink">▾</button><button title="close">✕</button></div>
+    </div>
+    <div id="content"></div>
+  </main>
+</div>
+<script src="../shared/pixel.js"></script>
+<script>
+  // a few tiny dim stars, one per pet that never came back; never explained
+  const sky = document.querySelector(".sky");
+  const tints = ["#c9a0ff", "#ffb59a", "#8fe8c0", "#8cc8ff", "#ff8fc8", "#f5dcec"];
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  for (let i = 0; i < 26; i++) {
+    const x = Math.floor(rnd() * 76) + 2, y = Math.floor(rnd() * 590) + 4;
+    sky.insertAdjacentHTML("beforeend", `<rect x="${x}" y="${y}" width="1" height="1" fill="${tints[i % tints.length]}" opacity="${(0.25 + rnd() * 0.35).toFixed(2)}"/>`);
+  }
+  renderCollection(document.getElementById("content")); paintIcons(); wireTabs();
+</script>
+</body>
+</html>

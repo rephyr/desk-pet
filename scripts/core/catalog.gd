@@ -25,6 +25,7 @@ var grafting := {}  # sewing parts onto your active pet, see data/grafting.json
 var unlock_list: Array[Dictionary] = []  # what adventures open up, see data/unlocks.json
 var finds := {}  # find id -> special item
 var pages: Array[Dictionary] = []  # map pages, in order
+var tier_overrides := {}  # tier id -> Color, set by the player's colour theme (see UiTheme.apply)
 
 var _tier_rank := {}  # tier id -> index
 var _parts_by_id := {}  # slot -> { part id -> part }
@@ -90,7 +91,8 @@ func tier_at(rank_index: int) -> Dictionary:
 
 
 func tier_color(tier_id: String) -> Color:
-	return Color(tier_at(rank(tier_id)).color)
+	var id: String = tier_at(rank(tier_id)).id
+	return tier_overrides.get(id, Color(tier_at(rank(tier_id)).color))
 
 
 # ---- lookups --------------------------------------------------------------

@@ -1,0 +1,94 @@
+/* Colour themes and font sets (a player setting). Put data-theme / data-font on <html>, or on any
+   element to preview one theme inside another. Every theme sets every role, so screens never
+   hardcode a colour. */
+[data-theme] { color: var(--text); }
+[data-font] { font-family: var(--body); font-weight: var(--body-weight); }
+
+/* ---------- dark ---------- */
+[data-theme="plum"] { /* midnight plum: today's colours */
+  --page: #1a1024; --deep: #120a19; --raised: #241634; --paper: #1b1324;
+  --line: #2c1d3d; --dot: #2a1c3b; --backdrop: #0b0610;
+  --text: #f5dcec; --muted: #9a88ad; --muted-seam: #4d4457; --locked: #76688a;
+  --pink: #ff79c6; --pink-seam: #a64f81; --pink-pressed: #592a45;
+  --lilac: #c9a0ff; --lilac-seam: #6f588c;
+  --cyan: #8be9fd; --gold: #ffe08a; --mint: #8fe8c0;
+  --tier-common: #8a7f99; --tier-uncommon: #6fe3a8; --tier-rare: #5cc8ff;
+  --tier-epic: #b77dff; --tier-legendary: #ffc857; --tier-mythic: #ff4f9a;
+  --sky: #0f0816;
+  --lift: 0 6px 14px rgba(6, 2, 12, 0.6); --lift-hover: 0 9px 18px rgba(6, 2, 12, 0.6);
+}
+
+[data-theme="blueberry"] {
+  --page: #151a33; --deep: #0e1226; --raised: #1f2547; --paper: #161b36;
+  --line: #262d52; --dot: #222a4c; --backdrop: #0a0d1c;
+  --text: #eae6ff; --muted: #8e92bd; --muted-seam: #3f4466; --locked: #6d7299;
+  --pink: #ff8fc8; --pink-seam: #a3598a; --pink-pressed: #4f2a55;
+  --lilac: #a9b4ff; --lilac-seam: #545e9a;
+  --cyan: #7fe6ff; --gold: #ffd98a; --mint: #8ff0c8;
+  --tier-common: #8a7f99; --tier-uncommon: #6fe3a8; --tier-rare: #5cc8ff;
+  --tier-epic: #b77dff; --tier-legendary: #ffc857; --tier-mythic: #ff4f9a;
+  --sky: #0a0d1f;
+  --lift: 0 6px 14px rgba(3, 5, 16, 0.6); --lift-hover: 0 9px 18px rgba(3, 5, 16, 0.6);
+}
+
+[data-theme="cocoa"] {
+  --page: #1e1417; --deep: #150d10; --raised: #2a1c20; --paper: #1d1316;
+  --line: #3a262c; --dot: #33222a; --backdrop: #0f090b;
+  --text: #fbe6e4; --muted: #ab8e92; --muted-seam: #57414a; --locked: #86686e;
+  --pink: #ff7e9d; --pink-seam: #a3505f; --pink-pressed: #5a2632;
+  --lilac: #f2b8a0; --lilac-seam: #7a5048;
+  --cyan: #8be9e0; --gold: #ffd98a; --mint: #9fe8b8;
+  --tier-common: #8a7f99; --tier-uncommon: #6fe3a8; --tier-rare: #5cc8ff;
+  --tier-epic: #b77dff; --tier-legendary: #ffc857; --tier-mythic: #ff4f9a;
+  --sky: #110a0c;
+  --lift: 0 6px 14px rgba(10, 4, 6, 0.6); --lift-hover: 0 9px 18px rgba(10, 4, 6, 0.6);
+}
+
+/* ---------- light ---------- */
+[data-theme="lilac-milk"] {
+  --page: #efe5f6; --deep: #e4d6ef; --raised: #faf5fd; --paper: #f1e8f7;
+  --line: #d6c3e6; --dot: #dccbea; --backdrop: #cfc0dd;
+  --text: #3b2750; --muted: #7b6690; --muted-seam: #c3b2d3; --locked: #a896ba;
+  --pink: #d9468f; --pink-seam: #e79ac3; --pink-pressed: #f7cfe3;
+  --lilac: #8b5fd0; --lilac-seam: #c7aee6;
+  --cyan: #1a86a8; --gold: #b07a0c; --mint: #2e9b6d;
+  --tier-common: #8d80a0; --tier-uncommon: #2fae73; --tier-rare: #2e8fd0;
+  --tier-epic: #9152e0; --tier-legendary: #cf8f0f; --tier-mythic: #e0337f;
+  --sky: #e0d0ec;
+  --lift: 0 6px 14px rgba(90, 52, 130, 0.16); --lift-hover: 0 9px 18px rgba(90, 52, 130, 0.2);
+}
+
+[data-theme="peach-sorbet"] {
+  --page: #fbece4; --deep: #f3dccf; --raised: #fff7f2; --paper: #fcefe8;
+  --line: #efcdbd; --dot: #f1d6c8; --backdrop: #e6cbbd;
+  --text: #4a2b35; --muted: #8f6b72; --muted-seam: #dcbfb6; --locked: #b89a98;
+  --pink: #e05a7e; --pink-seam: #f0a3b3; --pink-pressed: #fbd3dc;
+  --lilac: #9a5e88; --lilac-seam: #e2bcae;
+  --cyan: #178a9b; --gold: #b8740a; --mint: #2f9a6a;
+  --tier-common: #9a8a8f; --tier-uncommon: #2fae73; --tier-rare: #2e8fd0;
+  --tier-epic: #9152e0; --tier-legendary: #cf8f0f; --tier-mythic: #e0337f;
+  --sky: #f0d6c8;
+  --lift: 0 6px 14px rgba(140, 70, 60, 0.15); --lift-hover: 0 9px 18px rgba(140, 70, 60, 0.2);
+}
+
+/* ---------- fonts ---------- */
+[data-font="coiny"] { /* today: Coiny titles, Maple Mono text */
+  --display: "Coiny", "Maple Mono", sans-serif; --display-weight: 400;
+  --body: "Maple Mono", monospace; --body-weight: 400; --body-size: 13px;
+}
+[data-font="fredoka"] {
+  --display: "Fredoka", sans-serif; --display-weight: 700;
+  --body: "Fredoka", sans-serif; --body-weight: 500; --body-size: 14px;
+}
+[data-font="baloo"] {
+  --display: "Baloo 2", sans-serif; --display-weight: 800;
+  --body: "Baloo 2", sans-serif; --body-weight: 600; --body-size: 14px;
+}
+[data-font="nunito"] {
+  --display: "Nunito", sans-serif; --display-weight: 900;
+  --body: "Nunito", sans-serif; --body-weight: 700; --body-size: 14px;
+}
+[data-font="mplus"] {
+  --display: "M PLUS Rounded 1c", sans-serif; --display-weight: 800;
+  --body: "M PLUS Rounded 1c", sans-serif; --body-weight: 700; --body-size: 13px;
+}

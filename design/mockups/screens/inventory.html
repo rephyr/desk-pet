@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bag</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  .bagview { display: grid; grid-template-columns: 1fr 272px; gap: 14px; height: 100%; min-height: 0; }
+  .bag { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .bag h2, .sew h2 { margin: 0; font: var(--display-weight) 18px/1 var(--display); color: var(--pink); }
+  .boxes-row { display: flex; align-items: center; gap: 14px; padding: 10px 14px; }
+  .boxes-row .packs { display: flex; gap: 10px; }
+  .boxes-row .pk { position: relative; transform: rotate(-5deg); }
+  .boxes-row .pk:nth-child(2) { transform: rotate(4deg); }
+  .boxes-row .pk b { position: absolute; right: -8px; bottom: -4px; padding: 0 6px; border-radius: 999px; background: var(--pink); color: var(--deep); font-size: 11px; font-weight: 700; }
+  .boxes-row .say { flex: 1; font-size: 12px; color: var(--muted); }
+  .parts-head { display: flex; align-items: center; gap: 10px; }
+  .filters { display: flex; gap: 5px; margin: 0; }
+  .parts { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px 10px; overflow: auto; padding: 6px 6px 10px 4px; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--lilac-seam) transparent; }
+  .part { position: relative; display: flex; flex-direction: column; align-items: center; padding: 8px 4px 7px; border-radius: var(--r-lg); background: var(--raised); border: 2px solid var(--tier); box-shadow: var(--lift); cursor: pointer; transform: rotate(var(--tilt)); transition: transform .15s var(--ease-out); }
+  .part:hover { transform: rotate(0) translateY(-3px); }
+  .part.on { outline: 2px dashed var(--pink); outline-offset: 3px; transform: rotate(0); }
+  .part img { width: 40px; height: 45px; }
+  .part .nm { font-size: 11px; margin-top: 4px; }
+  .part .sl { font-size: 11px; color: var(--muted); }
+  .part .ct { position: absolute; top: -6px; right: -6px; padding: 0 6px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); font-size: 11px; color: var(--text); }
+
+  /* the sewing table */
+  .sew { position: relative; padding: 14px 16px 14px; display: flex; flex-direction: column; min-height: 0; }
+  .sew::before { content: ""; position: absolute; inset: 5px; border: 2px dashed var(--line); border-radius: 8px; pointer-events: none; }
+  .sew .onto { font-size: 12px; color: var(--muted); margin: 4px 0 10px; }
+  .ba { display: grid; grid-template-columns: 1fr 40px 1fr; align-items: center; text-align: center; }
+  .ba .pet { display: grid; place-items: center; height: 96px; border-radius: var(--r-lg); background: var(--deep); border: 2px solid var(--line); }
+  .ba .pet.after { border: 2px dashed var(--pink); }
+  .ba img { width: 64px; height: 72px; }
+  .ba .lbl { font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .thread { color: var(--pink); }
+  .sew dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; font-size: 12px; margin: 14px 0 0; }
+  .sew dt { color: var(--muted); }
+  .sew dd { margin: 0; }
+  .sew .risk { color: var(--gold); }
+  .sew .change { color: var(--mint); }
+  .sew .go { margin-top: auto; }
+  .sew .go .btn { width: 100%; }
+  .sew .fine { font-size: 11px; color: var(--muted); margin-top: 7px; text-align: center; }
+
+  /* after sewing */
+  .done { position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 20px; border-radius: var(--r-xl); background: var(--raised); }
+  .sew.held .done.ok, .sew.slipped .done.no { display: flex; }
+  .done img { width: 96px; height: 108px; }
+  .done b { font: var(--display-weight) 20px/1.1 var(--display); color: var(--pink); font-weight: 400; margin: 10px 0 6px; }
+  .done span { font-size: 12px; color: var(--muted); max-width: 210px; }
+  .done .btn { margin-top: 16px; }
+  .done.ok img { animation: wiggle .6s cubic-bezier(.3, 1.6, .5, 1); }
+  @keyframes wiggle { 30% { transform: rotate(-8deg) scale(1.08); } 60% { transform: rotate(6deg); } }
+</style>
+</head>
+<body>
+<div class="app" data-tab="inventory" data-say="sparkle eyes?? i'd see everything! EVERYTHING!!"></div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script src="../shared/pack.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const content = mountFrame();
+  const say = t => { document.querySelector(".top .bubble").textContent = t; };
+  const RISK = { common: "an easy stitch", uncommon: "a simple stitch", rare: "a fiddly stitch", epic: "a tricky stitch", legendary: "a very tricky stitch", mythic: "the trickiest stitch" };
+  const PARTS = [
+    { slot: "eyes", id: "sparkle", tier: "rare", n: 1, change: "turns curious", line: "sparkle eyes?? i'd see everything! EVERYTHING!!" },
+    { slot: "accessory", id: "bow", tier: "common", n: 2, change: "no change", line: "a bow! i'd be so fancy." },
+    { slot: "pattern", id: "spots", tier: "common", n: 3, change: "no change", line: "spots! like a cow! moo." },
+    { slot: "body", id: "cat", tier: "common", n: 1, change: "no change", line: "a cat shape? i'd have ears! pointy ones!" },
+    { slot: "palette", id: "peach", tier: "common", n: 2, change: "no change", line: "peachy… i'd look like a snack." },
+    { slot: "accessory", id: "leaf", tier: "uncommon", n: 1, change: "no change", line: "a leaf hat. very outdoorsy." },
+    { slot: "pattern", id: "stripes", tier: "uncommon", n: 1, change: "no change", line: "stripes make you faster. everyone knows that." },
+    { slot: "eyes", id: "happy", tier: "uncommon", n: 1, change: "turns cheerful", line: "happy eyes! i'm already happy though. MORE happy!" },
+    { slot: "accessory", id: "crown", tier: "legendary", n: 1, change: "no change", line: "a CROWN. i was born for this." },
+  ];
+  const tilt = i => [-2, 1.5, -1, 2, -1.5, 1, 2.2, -2.4, .8][i % 9];
+  let picked = 0;
+
+  function render(state = "") {
+    const p = PARTS[picked];
+    const after = p.id === "sparkle" ? "lilac-blob-sparkle-sewn" : "lilac-blob";
+    content.innerHTML = `
+      <div class="bagview">
+        <div class="bag">
+          <div class="boxes-row sticker">
+            <h2>boxes</h2>
+            <div class="packs">${[BOXES[0], BOXES[0]].map((b, i) => `<div class="pk">${packSvg(b, 30)}${i === 1 ? "<b>2</b>" : ""}</div>`).slice(1).join("")}</div>
+            <span class="say">2 starter boxes found on trips</span>
+            <a class="btn" href="boxes.html">open them</a>
+          </div>
+          <div class="parts-head">
+            <h2>parts</h2>
+            <div class="filters">${["all", "body", "palette", "pattern", "eyes", "accessory"].map((f, i) => `<button class="fchip${i === 0 ? " on" : ""}" style="--tier: var(--pink)">${f}</button>`).join("")}</div>
+          </div>
+          <div class="parts">${PARTS.map((q, i) => `
+            <div class="part${i === picked ? " on" : ""}" data-i="${i}" style="--tier: var(--tier-${q.tier}); --tilt: ${tilt(i)}deg">
+              ${q.n > 1 ? `<span class="ct">×${q.n}</span>` : ""}
+              <img class="px" src="../assets/book/${q.slot}-${q.id}.png" alt="">
+              <span class="nm">${q.id}</span><span class="sl">${q.slot}</span>
+            </div>`).join("")}</div>
+        </div>
+        <div class="sew sticker ${state}">
+          <h2>sew it on?</h2>
+          <div class="onto">onto lilac blob, your active pet</div>
+          <div class="ba">
+            <div><div class="pet"><img class="px" src="../assets/pets/lilac-blob.png" alt="now"></div><div class="lbl">now</div></div>
+            <svg class="thread" width="40" height="30" viewBox="0 0 40 30" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M4 18 Q12 4 20 16 Q28 28 34 12" stroke-dasharray="3 4"/><path d="M29 10 L35 11 L34 17"/></svg>
+            <div><div class="pet after"><img class="px" src="../assets/pets/${after}.png" alt="after"></div><div class="lbl">after</div></div>
+          </div>
+          <dl>
+            <dt>part</dt><dd style="color: var(--tier-${p.tier})">${p.id} ${p.slot}</dd>
+            <dt>stitch</dt><dd class="risk">${RISK[p.tier]}</dd>
+            <dt>mood</dt><dd class="change">${p.change}</dd>
+          </dl>
+          <div class="go"><button class="btn primary" data-sew>sew it on</button>
+            <div class="fine">if the stitch holds, the old ${p.slot} goes back in your bag</div></div>
+          <div class="done ok"><img class="px" src="../assets/pets/${after}.png" alt=""><b>it held!</b><span>lilac blob has ${p.id} ${p.slot} now, with a neat little stitch.</span><button class="btn" data-back>lovely!</button></div>
+          <div class="done no"><img class="px" src="../assets/pets/lilac-blob.png" alt=""><b>the stitch slipped…</b><span>the ${p.id} ${p.slot} came loose and got lost. lilac blob is just the same.</span><button class="btn" data-back>oh well</button></div>
+        </div>
+      </div>`;
+    paintIcons(content);
+    content.querySelectorAll(".part").forEach(el => el.addEventListener("click", () => { picked = Number(el.dataset.i); render(); say(PARTS[picked].line); }));
+    content.querySelector("[data-sew]").addEventListener("click", () => {
+      const held = Math.random() > ({ common: .05, uncommon: .1, rare: .2, epic: .3, legendary: .45, mythic: .6 })[p.tier];
+      content.querySelector(".sew").classList.add(held ? "held" : "slipped");
+      say(held ? "look at me!! do i look different? i feel different." : "aw. it tickled though.");
+    });
+    content.querySelectorAll("[data-back]").forEach(b => b.addEventListener("click", () => render()));
+    content.querySelectorAll(".fchip").forEach(b => b.addEventListener("click", () => { content.querySelectorAll(".fchip").forEach(x => x.classList.remove("on")); b.classList.add("on"); }));
+  }
+  render(params.get("state") || "");
+  if (params.get("state") === "held") say("look at me!! do i look different? i feel different.");
+  if (params.get("state") === "slipped") say("aw. it tickled though.");
+  applyLook(loadLook());
+</script>
+</body>
+</html>

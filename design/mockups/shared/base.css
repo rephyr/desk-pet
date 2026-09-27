@@ -1,0 +1,141 @@
+/* Shared pieces for every mockup screen. The window is 920x600 (logical px). */
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--backdrop);
+  color: var(--text);
+  font: var(--body-weight) var(--body-size)/1.45 var(--body);
+}
+::selection { background: var(--pink-pressed); color: var(--text); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--pink); outline-offset: 2px; }
+
+/* no fades while the page first appears in its theme */
+html:not(.ready) *, html:not(.ready) *::before, html:not(.ready) *::after { transition: none !important; }
+
+/* the game window */
+.app {
+  position: relative;
+  width: 920px;
+  height: 600px;
+  overflow: hidden;
+  background: var(--page);
+  border: 2px solid var(--pink-seam);
+  border-radius: var(--r-panel);
+}
+
+/* sticker book backing: a faint dot grid on the page */
+.dots {
+  background-color: var(--page);
+  background-image: radial-gradient(circle, var(--dot) 1px, transparent 1.4px);
+  background-size: 16px 16px;
+  background-position: 8px 8px;
+}
+
+/* pixel art: always crisp */
+.px { image-rendering: pixelated; display: block; }
+.icon { display: inline-block; line-height: 0; vertical-align: middle; }
+.icon svg { display: block; }
+
+/* ---- buttons ---- */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  padding: 6px 14px;
+  background: var(--deep);
+  border: 2px solid var(--lilac-seam);
+  border-radius: var(--r-md);
+  color: var(--text);
+  font-size: inherit;
+  cursor: pointer;
+  text-decoration: none;
+  transition: border-color .12s, color .12s, transform .08s var(--ease-out);
+}
+.btn:hover { border-color: var(--pink); color: var(--pink); }
+.btn:active { background: var(--pink-pressed); border-color: var(--pink); color: var(--text); transform: scale(.95); }
+.btn:disabled { border-color: var(--muted-seam); color: var(--muted); cursor: default; transform: none; }
+.btn.primary { border-color: var(--pink-seam); }
+.link { background: none; border: 0; padding: 2px 4px; cursor: pointer; color: var(--text); }
+.link:hover { color: var(--pink); }
+
+/* ---- stickers (cards) ---- */
+.sticker {
+  background: var(--raised);
+  border: 2px solid var(--lilac-seam);
+  border-radius: var(--r-xl);
+  box-shadow: var(--lift);
+}
+
+/* ---- currency chips ---- */
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px 3px 7px;
+  background: var(--deep);
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  font-variant-numeric: tabular-nums;
+}
+.chip.coins { color: var(--cyan); }
+.chip.xp { color: var(--gold); }
+
+/* ---- the pet's speech bubble ---- */
+.bubble {
+  position: relative;
+  background: var(--raised);
+  border: 2px solid var(--pink-seam);
+  border-radius: var(--r-panel);
+  padding: 9px 14px;
+  box-shadow: var(--lift);
+}
+
+/* ---- window buttons ---- */
+.winbtns { display: flex; gap: 2px; }
+.winbtns button { width: 26px; height: 26px; border: 0; background: none; color: var(--muted); border-radius: var(--r-sm); cursor: pointer; }
+.winbtns button:hover { color: var(--pink); background: var(--deep); }
+
+/* ---- collection sample content ---- */
+.collection { display: grid; grid-template-columns: 1fr 248px; gap: 16px; height: 100%; min-height: 0; }
+.coll-main { display: flex; flex-direction: column; min-height: 0; }
+.coll-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.filters { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+.fchip { padding: 2px 10px; border-radius: 999px; font-size: 11px; cursor: pointer; background: none; color: var(--muted); border: 2px solid var(--line); transition: color .12s, border-color .12s, background .12s; }
+.fchip:hover { color: var(--tier); border-color: var(--tier); }
+.fchip.on { color: var(--tier); border-color: var(--tier); background: color-mix(in srgb, var(--tier) 14%, var(--deep)); }
+.coll-bar .count { color: var(--muted); font-size: 11px; margin-left: auto; }
+.coll-bar .pager { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 11px; margin-left: 10px; }
+.detail .does { color: var(--muted); }
+.seg { display: inline-flex; background: var(--deep); border: 2px solid var(--line); border-radius: var(--r-md); padding: 2px; }
+.seg button { border: 0; background: none; padding: 3px 12px; border-radius: var(--r-sm); cursor: pointer; color: var(--muted); }
+.seg button.on { background: var(--pink-pressed); color: var(--text); }
+.seg button:hover:not(.on) { color: var(--pink); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 12px; overflow: auto; padding: 4px 6px 14px 4px; min-height: 0; }
+.pet-card {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 8px 4px 7px;
+  background: var(--raised);
+  border: 2px solid var(--tier, var(--tier-common));
+  border-radius: var(--r-lg);
+  box-shadow: var(--lift);
+  cursor: pointer;
+  transition: transform .15s var(--ease-out), box-shadow .15s;
+}
+.pet-card:hover { transform: translateY(-3px) rotate(-1deg); box-shadow: var(--lift-hover); }
+.pet-card.on { outline: 2px solid var(--pink); outline-offset: 3px; }
+.pet-card img { width: 48px; height: 54px; }
+.pet-card .name { margin-top: 5px; font-size: 11px; text-align: center; line-height: 1.25; }
+.pet-card .tier { font-size: 11px; color: var(--tier); }
+.pet-card.glow { box-shadow: var(--lift), 0 0 16px color-mix(in srgb, var(--tier) 45%, transparent); }
+
+.detail { display: flex; flex-direction: column; align-items: center; padding: 14px 16px 12px; min-height: 0; }
+.detail img { width: 96px; height: 108px; }
+.detail h2 { font: var(--display-weight) 20px/1.1 var(--display); color: var(--pink); margin: 10px 0 2px; }
+.detail .tier { font-size: 11px; }
+.detail dl { width: 100%; display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 12px 0 12px; font-size: 11px; }
+.detail dt { color: var(--muted); }
+.detail dd { margin: 0; }
+.detail .btn { margin-top: auto; width: 100%; }
+
+.grid::-webkit-scrollbar { width: 8px; }
+.grid { scrollbar-width: thin; scrollbar-color: var(--lilac-seam) transparent; }

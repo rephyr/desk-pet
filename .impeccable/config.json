@@ -1,0 +1,296 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "ai-color-palette",
+        "value": "*",
+        "files": [
+          "design/mockups/index.html"
+        ],
+        "createdAt": "2026-09-27T08:08:55.770Z",
+        "reason": "Emilia's global instructions pin a soft dark pink/lilac cyberpunk look; palette is the game's existing UiTheme, recorded in DESIGN.md"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "fredoka",
+        "files": [
+          "design/mockups/frame/lab.html"
+        ],
+        "createdAt": "2026-09-27T08:20:23.641Z",
+        "reason": "Emilia asked to try bold soft fonts (2026-09-27); lab page compares candidates"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "baloo 2",
+        "files": [
+          "design/mockups/frame/lab.html"
+        ],
+        "createdAt": "2026-09-27T08:20:23.659Z",
+        "reason": "Emilia asked to try bold soft fonts (2026-09-27); lab page compares candidates"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "m plus rounded 1c",
+        "files": [
+          "design/mockups/frame/lab.html"
+        ],
+        "createdAt": "2026-09-27T08:20:23.668Z",
+        "reason": "Emilia asked to try bold soft fonts (2026-09-27); lab page compares candidates"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "coiny",
+        "createdAt": "2026-09-27T08:26:57.036Z",
+        "reason": "Coiny + Maple Mono is a player font option listed in DESIGN.md Typography (Emilia asked for all fonts as a theme setting)"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "maple mono",
+        "createdAt": "2026-09-27T08:26:57.054Z",
+        "reason": "Coiny + Maple Mono is a player font option listed in DESIGN.md Typography (Emilia asked for all fonts as a theme setting)"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "design/mockups/shared/frame.css"
+        ],
+        "createdAt": "2026-09-27T08:27:13.992Z",
+        "reason": "the dashed gradients are the stitch seams Emilia asked for (B1 stitches); Godot draws them as dashed lines"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "design/mockups/frame/lab.html"
+        ],
+        "createdAt": "2026-09-27T08:27:14.002Z",
+        "reason": "stitch seams Emilia asked for"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "design/mockups/frame/option-b1.html"
+        ],
+        "createdAt": "2026-09-27T08:27:14.011Z",
+        "reason": "stitch seams Emilia asked for"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/pets.html"
+        ],
+        "createdAt": "2026-09-27T08:27:14.021Z",
+        "reason": "stitch seams Emilia asked for"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/settings.html"
+        ],
+        "createdAt": "2026-09-27T08:27:14.030Z",
+        "reason": "stitch seams Emilia asked for"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/settings.html"
+        ],
+        "createdAt": "2026-09-27T08:27:14.039Z",
+        "reason": "Claude: static .app is empty until frame.js mounts the spine and padded page; rendered screenshot shows proper insets"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "fredoka",
+        "createdAt": "2026-09-27T08:30:28.644Z",
+        "reason": "player font option listed in DESIGN.md Typography (Emilia asked for all fonts as a theme setting)"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "baloo 2",
+        "createdAt": "2026-09-27T08:30:28.653Z",
+        "reason": "player font option listed in DESIGN.md Typography (Emilia asked for all fonts as a theme setting)"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "nunito",
+        "createdAt": "2026-09-27T08:30:28.663Z",
+        "reason": "player font option listed in DESIGN.md Typography (Emilia asked for all fonts as a theme setting)"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "m plus rounded 1c",
+        "createdAt": "2026-09-27T08:30:28.672Z",
+        "reason": "player font option listed in DESIGN.md Typography (Emilia asked for all fonts as a theme setting)"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/boxes.html"
+        ],
+        "createdAt": "2026-09-27T08:35:13.425Z",
+        "reason": "Claude: .app is empty until frame.js mounts; .table is a stage canvas of absolutely placed layers, not a text container"
+      },
+      {
+        "rule": "marquee",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/boxes.html"
+        ],
+        "createdAt": "2026-09-27T08:35:13.435Z",
+        "reason": "Claude: .tearhint is a small vertical bob prompting the rip, shown only until the strip is pulled"
+      },
+      {
+        "rule": "radial-halo",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/boxes.html"
+        ],
+        "createdAt": "2026-09-27T08:35:13.445Z",
+        "reason": "Claude: the soft blobs are the mythic-pull mist the player waves away (pack_opening.gd stage 5)"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/boxes.html"
+        ],
+        "createdAt": "2026-09-27T08:35:13.454Z",
+        "reason": "stitch divider Emilia asked for"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/book.html"
+        ],
+        "createdAt": "2026-09-27T08:40:33.298Z",
+        "reason": "DESIGN.md Glow Is Earned rule: glow only on the opened page-reward sticker and rare pet cards"
+      },
+      {
+        "rule": "tiny-text",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/panel.html"
+        ],
+        "createdAt": "2026-09-27T08:43:31.935Z",
+        "reason": "Claude: 300px desktop widget; 11px text is DESIGN.md's label role (bar labels, timers, switches); status line is 12px"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/panel.html"
+        ],
+        "createdAt": "2026-09-27T08:43:31.945Z",
+        "reason": "Claude: the clips are the fixed 300x318 window and its sky strip; nothing needs to escape them"
+      },
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/trips.html"
+        ],
+        "createdAt": "2026-09-27T08:46:16.086Z",
+        "reason": "Claude: the clip is the map/trail paper; the place card and bookmarks sit outside it"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/book.html"
+        ],
+        "createdAt": "2026-09-27T08:51:05.899Z",
+        "reason": "stitch seams Emilia asked for (frame spine and stitched stickers)"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/gear.html"
+        ],
+        "createdAt": "2026-09-27T08:51:05.908Z",
+        "reason": "stitch seams Emilia asked for (frame spine and stitched stickers)"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/home.html"
+        ],
+        "createdAt": "2026-09-27T08:51:05.918Z",
+        "reason": "stitch seams Emilia asked for (frame spine and stitched stickers)"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/inventory.html"
+        ],
+        "createdAt": "2026-09-27T08:51:05.929Z",
+        "reason": "stitch seams Emilia asked for (frame spine and stitched stickers)"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/panel.html"
+        ],
+        "createdAt": "2026-09-27T08:51:05.939Z",
+        "reason": "stitch seams Emilia asked for (frame spine and stitched stickers)"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/trips.html"
+        ],
+        "createdAt": "2026-09-27T08:51:05.949Z",
+        "reason": "stitch seams Emilia asked for (frame spine and stitched stickers)"
+      },
+      {
+        "rule": "repeating-stripes-gradient",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/tutorial.html"
+        ],
+        "createdAt": "2026-09-27T08:51:05.959Z",
+        "reason": "stitch seams Emilia asked for (frame spine and stitched stickers)"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/home.html"
+        ],
+        "createdAt": "2026-09-27T08:51:05.969Z",
+        "reason": "Claude: .app is empty until frame.js mounts the padded page"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/trips.html"
+        ],
+        "createdAt": "2026-09-27T08:51:05.979Z",
+        "reason": "Claude: .app is empty until frame.js mounts the padded page"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/panel.html"
+        ],
+        "createdAt": "2026-09-27T08:51:05.990Z",
+        "reason": "Claude: 34px header row is vertically centred; the scene is a drawn canvas, not a text box"
+      }
+    ]
+  }
+}

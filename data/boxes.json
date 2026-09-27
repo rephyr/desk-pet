@@ -1,10 +1,11 @@
 {
-	"_note": "Box types. 'hidden' boxes aren't sold in the shop (the tutorial box: what your first two pets come from, only commons). 'tiers' are weights for each part's rarity roll, 'finishes' for the finish roll, 'traits' for how many traits (index = count).",
+	"_note": "Box types. 'hidden' boxes aren't sold in the shop (the tutorial box: what your first two pets come from, only commons). 'tiers' are weights for each part's rarity roll, 'finishes' for the finish roll, 'traits' for how many traits (index = count). 'art' colours the pack (the shop sticker and the one you rip open).",
 	"boxes": [
 		{
 			"id": "starter",
 			"name": "starter box",
 			"price": 50,
+			"art": { "foil": "#6b4fa0", "foil_light": "#8e6fd0", "foil_dark": "#3d2a63", "edge": "#c9a0ff", "logo": "#ff79c6" },
 			"tiers": { "common": 600, "uncommon": 250, "rare": 110, "epic": 32, "legendary": 7, "mythic": 1 },
 			"finishes": { "normal": 800, "shiny": 150, "holo": 38, "ghost": 9, "glitch": 2.5, "prismatic": 0.5 },
 			"traits": [0, 60, 30, 10]
@@ -13,6 +14,7 @@
 			"id": "lucky",
 			"name": "lucky box",
 			"price": 250,
+			"art": { "foil": "#c98a2e", "foil_light": "#ffc46b", "foil_dark": "#7a4f16", "edge": "#fff0c9", "logo": "#ff5f9e" },
 			"tiers": { "common": 300, "uncommon": 330, "rare": 230, "epic": 100, "legendary": 32, "mythic": 8 },
 			"finishes": { "normal": 600, "shiny": 250, "holo": 100, "ghost": 35, "glitch": 12, "prismatic": 3 },
 			"traits": [0, 30, 45, 25]

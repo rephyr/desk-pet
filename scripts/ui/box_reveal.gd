@@ -7,7 +7,17 @@ const MAX_CARDS := 60  # beyond this, the summary just counts them
 const BASE_SUSPENSE := 0.5
 const SUSPENSE_PER_RANK := 0.45
 
+signal again(count: int)
+signal done
+
 var _summary: Label
+var _head := HBoxContainer.new()
+var _title := UiTheme.title("", 22)
+var _best := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL + 1)
+var _counts := HBoxContainer.new()
+var _actions := HBoxContainer.new()
+var _count := 0
+var _again: Button
 var _stage: Control
 var _tween: Tween
 var _skip := false
@@ -17,15 +27,26 @@ func _init() -> void:
 	size_flags_horizontal = SIZE_EXPAND_FILL
 	size_flags_vertical = SIZE_EXPAND_FILL
 	add_theme_constant_override("separation", 10)
-	_summary = UiTheme.label("buy a box to see what's inside ✦", UiTheme.MUTED)
+	_summary = UiTheme.label("", UiTheme.MUTED)
 	_summary.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_summary.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_summary.visible = false
 	add_child(_summary)
+	_head.add_theme_constant_override("separation", 12)
+	_head.add_child(_title)
+	_best.size_flags_vertical = SIZE_SHRINK_END
+	_head.add_child(_best)
+	add_child(_head)
+	_counts.add_theme_constant_override("separation", 6)
+	add_child(_counts)
 	_stage = Control.new()
 	_stage.size_flags_vertical = SIZE_EXPAND_FILL
 	_stage.mouse_filter = MOUSE_FILTER_STOP
 	_stage.gui_input.connect(_on_stage_input)
 	add_child(_stage)
+	_actions.alignment = BoxContainer.ALIGNMENT_END
+	_actions.add_theme_constant_override("separation", 8)
+	add_child(_actions)
 
 
 func play(pets: Array[Pet]) -> void:
@@ -85,9 +106,8 @@ func _card_back(glow: Color) -> PanelContainer:
 	sb.shadow_color = Color(glow, 0.6)
 	sb.shadow_size = 14
 	back.add_theme_stylebox_override("panel", sb)
-	var mark := UiTheme.label("✦", glow, 40)
-	mark.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	mark.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	var mark := UiTheme.icon_rect("boxes", 40, glow)
+	mark.size_flags_horizontal = SIZE_SHRINK_CENTER
 	back.add_child(mark)
 	return back
 
@@ -99,40 +119,66 @@ func _play_many(pets: Array[Pet]) -> void:
 	scroll.set_anchors_preset(PRESET_FULL_RECT)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_stage.add_child(scroll)
-	var flow := HFlowContainer.new()
+	var flow := GridContainer.new()
+	flow.columns = 5
 	flow.size_flags_horizontal = SIZE_EXPAND_FILL
-	flow.add_theme_constant_override("h_separation", 8)
-	flow.add_theme_constant_override("v_separation", 8)
-	scroll.add_child(flow)
+	flow.add_theme_constant_override("h_separation", 10)
+	flow.add_theme_constant_override("v_separation", 10)
+	var pad := MarginContainer.new()
+	pad.size_flags_horizontal = SIZE_EXPAND_FILL
+	for side in ["left", "top", "right", "bottom"]:
+		pad.add_theme_constant_override("margin_" + side, 6)
+	pad.add_child(flow)
+	scroll.add_child(pad)
+	_count = pets.size()
+	_title.text = "opening %d boxes…" % pets.size()
+	_best.text = ""
+	UiTheme.clear(_counts)
+	UiTheme.clear(_actions)
 
 	# show the best pulls first so they're never lost past the card limit
 	var shown := _best_first(pets).slice(0, MAX_CARDS)
-	_summary.text = "opening %d boxes…" % pets.size()
 	_tween = create_tween()
 	for pet in shown:
-		var card := PetCard.new(pet, 2, false)
+		var card := PetCard.new(pet, 3, false)
 		card.mouse_filter = MOUSE_FILTER_PASS  # still shows its tooltip, and lets clicks skip
 		card.modulate.a = 0.0
 		flow.add_child(card)
-		_tween.tween_property(card, "modulate:a", 1.0, 0.04)
+		_tween.tween_property(card, "modulate:a", 1.0, 0.07)
 	_tween.tween_callback(_announce.bind(pets))
 
 
 func _announce(pets: Array[Pet]) -> void:
 	var catalog := Catalog.shared()
 	var best: Pet = _best_first(pets)[0]
-	var text := "✦ %s %s ✦" % [catalog.tier_at(catalog.rank(best.rarity)).name, best.display_name(catalog)]
-	if pets.size() > 1:
-		var counts := {}
-		for pet in pets:
-			counts[pet.rarity] = counts.get(pet.rarity, 0) + 1
-		var parts: Array[String] = []
-		for tier in catalog.tiers:
-			if counts.has(tier.id):
-				parts.append("%d %s" % [counts[tier.id], tier.name])
-		text = "%d pets · best: %s\n%s" % [pets.size(), text, " · ".join(parts)]
-	_summary.text = text
-	_summary.add_theme_color_override("font_color", catalog.tier_color(best.rarity))
+	var tier_name: String = catalog.tier_at(catalog.rank(best.rarity)).name
+	_title.text = "%d pets!" % pets.size() if pets.size() > 1 else best.display_name(catalog)
+	_best.text = "best: %s (%s)" % [best.display_name(catalog), tier_name]
+	UiTheme.clear(_counts)
+	var counts := {}
+	for pet in pets:
+		counts[pet.rarity] = counts.get(pet.rarity, 0) + 1
+	for tier in catalog.tiers:
+		if counts.has(tier.id):
+			var color := catalog.tier_color(tier.id)
+			_counts.add_child(UiTheme.tag("%d %s" % [counts[tier.id], tier.name], color, color.lerp(UiTheme.LINE, 0.55)))
+	UiTheme.clear(_actions)
+	_again = UiTheme.button("open %d more" % _count, func(): again.emit(_count))
+	_actions.add_child(_again)
+	_actions.add_child(UiTheme.button("lovely!", func(): done.emit()))
+	var says: Array = Catalog.shared().reveal.get("pet_says", {}).get("many", [])
+	if not says.is_empty():
+		var line: String = says[randi() % says.size()]
+		PetBubble.say(self, line.replace("{count}", str(pets.size())).replace("{name}", best.display_name(catalog)))
+
+
+## How many more boxes you could open now: "open N more" shrinks to fit, or greys out.
+func set_can_open(can: int) -> void:
+	if _again == null or not is_instance_valid(_again):
+		return
+	var n := mini(_count, can)
+	_again.disabled = n < 1
+	_again.text = "open %d more" % n if n > 1 else ("open 1 more" if n == 1 else "no more to open")
 
 
 ## Rarest first, then by finish.

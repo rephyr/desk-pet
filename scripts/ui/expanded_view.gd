@@ -1,38 +1,68 @@
 class_name ExpandedView
-extends VBoxContainer
-## The full game layer: your pet's room (home), then tabs for boxes, the collection, adventures
-## and your inventory.
+extends HBoxContainer
+## The full game: an open book. The starry spine on the left (your pet on its moon, the tabs),
+## the dotted page on the right: your pet's speech bubble, coins, xp and the window buttons along
+## the top, then the tab. Tabs: home (your pet's room), boxes, pets, trips, bag, settings.
 
 signal collapse_requested
 signal quit_requested
 
-var _coins := UiTheme.label("", UiTheme.CYAN)
 var boxes := BoxesTab.new()
 var collection := CollectionTab.new()
 var adventures := AdventuresTab.new()
 var home := HomeTab.new()
-var _tabs := {}  # name -> Control
-var _tab_buttons := {}  # name -> Button
+var spine := Spine.new()
+var bubble := PetBubble.new()
+var _coins := UiTheme.chip("coin", "", UiTheme.CYAN)
+var _xp := UiTheme.chip("xp", "", UiTheme.GOLD)
+var _tabs := {}  # id -> Control
 var _current := "boxes"
-var _hint := UiTheme.label("", UiTheme.PINK, UiTheme.SMALL)
+var _rng := RandomNumberGenerator.new()
+
+## Tab ids (the save and unlocks use these), with the names and icons players see.
+const TABS := [
+	["home", "home", "home"],
+	["boxes", "boxes", "boxes"],
+	["collection", "pets", "pets"],
+	["adventures", "trips", "trips"],
+	["inventory", "bag", "bag"],
+]
 
 
 func _init() -> void:
-	add_theme_constant_override("separation", 12)
+	add_theme_constant_override("separation", 0)
+	_rng.randomize()
+	add_child(spine)
+	var page := DottedPage.new()
+	page.size_flags_horizontal = SIZE_EXPAND_FILL
+	add_child(page)
+	var column := VBoxContainer.new()
+	column.add_theme_constant_override("separation", 14)
+	page.add_child(column)
 
-	var header := HBoxContainer.new()
-	header.add_theme_constant_override("separation", 8)
-	UiTheme.make_window_handle(header)
-	add_child(header)
-	var title := UiTheme.label("desk pets ♡", UiTheme.PINK)
-	title.mouse_filter = MOUSE_FILTER_PASS
-	header.add_child(title)
-	var title_gap := Control.new()
-	title_gap.custom_minimum_size = Vector2(12, 0)
-	header.add_child(title_gap)
+	# along the top: the bubble, coins and xp, the window buttons
+	var top := HBoxContainer.new()
+	top.add_theme_constant_override("separation", 8)
+	UiTheme.make_window_handle(top)
+	column.add_child(top)
+	var tail_gap := Control.new()
+	tail_gap.custom_minimum_size = Vector2(4, 0)
+	tail_gap.mouse_filter = MOUSE_FILTER_PASS
+	top.add_child(tail_gap)
+	top.add_child(bubble)
+	top.add_child(_coins)
+	top.add_child(_xp)
+	if OS.is_debug_build():
+		var cheat := UiTheme.small_button("+%d" % GameState.DEBUG_COINS, func(): GameState.add_debug_coins())
+		cheat.tooltip_text = "debug only: free coins for testing"
+		cheat.add_theme_font_size_override("font_size", UiTheme.SMALL)
+		top.add_child(cheat)
+	top.add_child(_window_button("▾", "shrink to the corner", func(): collapse_requested.emit()))
+	top.add_child(_window_button("×", "close", func(): quit_requested.emit()))
 
 	var body := MarginContainer.new()
 	body.size_flags_vertical = SIZE_EXPAND_FILL
+	column.add_child(body)
 	var inventory := InventoryTab.new()
 	inventory.open_box_requested.connect(func(box_id):
 		show_tab("boxes")
@@ -42,47 +72,29 @@ func _init() -> void:
 		show_tab("boxes")
 		boxes.open(box_id, 1))
 	_tabs = { "home": home, "boxes": boxes, "collection": collection, "adventures": adventures, "inventory": inventory, "settings": SettingsTab.new() }
-	var group := ButtonGroup.new()
-	for tab_name in _tabs:
-		body.add_child(_tabs[tab_name])
-		var b := UiTheme.button(tab_name)
-		b.toggle_mode = true
-		b.button_group = group
-		b.toggled.connect(func(on):
-			if not on:
-				return
-			if not GameState.tab_open(tab_name):
-				# locked: say what opens it, and stay where you were
-				_say_hint(GameState.tab_hint(tab_name))
-				_tab_buttons[_current].button_pressed = true
-				return
-			_current = tab_name
-			_show(tab_name))
-		header.add_child(b)
-		_tab_buttons[tab_name] = b
-	add_child(body)
+	for tab_id in _tabs:
+		body.add_child(_tabs[tab_id])
+	for t in TABS:
+		spine.add_tab(t[0], t[1], t[2])
+	spine.add_tab("settings", "", "settings", true)
+	spine.tab_pressed.connect(_on_tab_pressed)
 	show_start()
 
-	_hint.modulate.a = 0.0
-	header.add_child(_hint)
-	var gap := UiTheme.spacer()
-	gap.mouse_filter = MOUSE_FILTER_PASS
-	header.add_child(gap)
-	_coins.mouse_filter = MOUSE_FILTER_PASS
-	header.add_child(_coins)
-	if OS.is_debug_build():
-		var cheat := UiTheme.small_button("+%d" % GameState.DEBUG_COINS, func(): GameState.add_debug_coins())
-		cheat.tooltip_text = "debug only: free coins for testing"
-		header.add_child(cheat)
-	header.add_child(UiTheme.small_button("▾", func(): collapse_requested.emit()))
-	header.add_child(UiTheme.small_button("×", func(): quit_requested.emit()))
-
 	GameState.changed.connect(_refresh)
+	GameState.collection.active_changed.connect(func(_p): _refresh())
+	GameState.adventures_changed.connect(_refresh_tabs)
 	GameState.tutorial_changed.connect(_refresh_tabs)
 	GameState.unlocked.connect(func(_e): _refresh_tabs())
 	GameState.new_game.connect(_refresh_tabs)
 	_refresh()
 	_refresh_tabs()
+
+
+func _window_button(text: String, tip: String, on_pressed: Callable) -> Button:
+	var b := UiTheme.small_button(text, on_pressed)
+	b.tooltip_text = tip
+	b.add_theme_color_override("font_color", UiTheme.MUTED)
+	return b
 
 
 ## Which tabs a tutorial step shows: they appear one by one as you learn them.
@@ -96,29 +108,37 @@ const TUTORIAL_TABS := {
 
 func _refresh_tabs() -> void:
 	var shown: Array = TUTORIAL_TABS.get(GameState.tutorial, _tabs.keys())
-	for tab_name in _tab_buttons:
-		var b: Button = _tab_buttons[tab_name]
-		b.visible = tab_name in shown
-		# locked tabs show a padlock; tapping them tells you what opens them
-		var locked := not GameState.tab_open(tab_name)
-		b.icon = UiTheme.lock_icon() if locked else null
-		b.modulate = Color(1, 1, 1, 0.55) if locked else Color.WHITE
-		b.tooltip_text = GameState.tab_hint(tab_name)
+	var back := GameState.runs.any(func(r: RunState): return r.status != RunState.Status.WALKING)
+	for tab_id in _tabs:
+		var news := false
+		match tab_id:
+			"boxes": news = GameState.bag.values().any(func(n): return int(n) > 0)
+			"adventures": news = back
+		spine.set_tab_state(tab_id, tab_id in shown, not GameState.tab_open(tab_id), news)
+		spine.tab_button(tab_id).tooltip_text = GameState.tab_hint(tab_id)
 	# jump to where the tutorial wants you
 	match GameState.tutorial:
 		"open_first":
 			show_tab("boxes")
 
 
+func _on_tab_pressed(tab_id: String) -> void:
+	if not GameState.tab_open(tab_id):
+		# locked: the pet says what opens it, and you stay where you were
+		PetBubble.say(self, GameState.tab_hint(tab_id))
+		return
+	show_tab(tab_id)
+
+
 ## The button the tutorial is pointing at right now, or null.
 func tutorial_target() -> Control:
 	match GameState.tutorial:
 		"open_first", "open_second":
-			return null if boxes.is_revealing() else (boxes.tutorial_target() if boxes.visible else _tab_buttons.boxes)
+			return null if boxes.is_revealing() else (boxes.tutorial_target() if boxes.visible else spine.tab_button("boxes"))
 		"make_active":
-			return collection.tutorial_target() if collection.visible else _tab_buttons.collection
+			return collection.tutorial_target() if collection.visible else spine.tab_button("collection")
 		"send":
-			return adventures.tutorial_target() if adventures.visible else _tab_buttons.adventures
+			return adventures.tutorial_target() if adventures.visible else spine.tab_button("adventures")
 	return null
 
 
@@ -127,24 +147,62 @@ func show_start() -> void:
 	show_tab("boxes" if GameState.tutorial_active() else "home")
 
 
-func show_tab(tab_name: String) -> void:
-	if _tab_buttons.has(tab_name):
-		_tab_buttons[tab_name].button_pressed = true  # also calls _show through the toggle
-
-
-func _show(tab_name: String) -> void:
-	_current = tab_name
+func show_tab(tab_id: String) -> void:
+	if not _tabs.has(tab_id) or not GameState.tab_open(tab_id):
+		return
+	_current = tab_id
 	for n in _tabs:
-		_tabs[n].visible = n == tab_name
+		_tabs[n].visible = n == tab_id
+	spine.set_current(tab_id)
+	# tabs with something of their own to say say it when they open; the rest get a general line
+	if not _tabs[tab_id].has_method("speak"):
+		_general_line()
+
+
+func current_tab() -> String:
+	return _current
+
+
+func _general_line() -> void:
+	var pet := GameState.collection.active()
+	if pet == null:
+		return
+	var catalog := Catalog.shared()
+	PetBubble.say(self, PetVoice.line(pet, PetVoice.situation(GameState.news, GameState.rumours, GameState.runs, catalog), _rng, catalog))
 
 
 func _refresh() -> void:
-	_coins.text = "◆ %d   xp %d" % [GameState.coins, GameState.xp]
+	(_coins.find_child("Amount", true, false) as Label).text = _thousands(GameState.coins)
+	(_xp.find_child("Amount", true, false) as Label).text = _thousands(GameState.xp)
+	bubble.visible = GameState.collection.active() != null
+	# news dots: boxes waiting in the bag, trips waiting for you
+	spine.set_news("boxes", GameState.bag.values().any(func(n): return int(n) > 0))
+	spine.set_news("adventures", GameState.runs.any(func(r: RunState): return r.status != RunState.Status.WALKING))
 
 
-func _say_hint(text: String) -> void:
-	_hint.text = text
-	_hint.modulate.a = 1.0
-	var t := create_tween()
-	t.tween_interval(2.5)
-	t.tween_property(_hint, "modulate:a", 0.0, 0.6)
+static func _thousands(n: int) -> String:
+	var s := str(absi(n))
+	var out := ""
+	while s.length() > 3:
+		out = "," + s.right(3) + out
+		s = s.left(s.length() - 3)
+	return ("-" if n < 0 else "") + s + out
+
+
+## The page: the dotted backing paper of a sticker book.
+class DottedPage extends MarginContainer:
+	func _init() -> void:
+		add_theme_constant_override("margin_left", 16)
+		add_theme_constant_override("margin_right", 12)
+		add_theme_constant_override("margin_top", 10)
+		add_theme_constant_override("margin_bottom", 12)
+
+	func _draw() -> void:
+		draw_rect(Rect2(Vector2.ZERO, size), UiTheme.PAGE)
+		var y := 8.0
+		while y < size.y:
+			var x := 8.0
+			while x < size.x:
+				draw_rect(Rect2(x - 1, y - 1, 2, 2), UiTheme.DOT)
+				x += 16.0
+			y += 16.0

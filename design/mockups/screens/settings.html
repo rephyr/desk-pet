@@ -1,0 +1,163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Settings</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  .settings { height: 100%; overflow: auto; display: flex; flex-direction: column; gap: 12px; padding: 2px 4px 10px 2px; scrollbar-width: thin; scrollbar-color: var(--lilac-seam) transparent; }
+  .settings section { padding: 10px 16px 12px; }
+  .settings h2 { margin: 0 0 10px; font: var(--display-weight) 18px/1.1 var(--display); color: var(--pink); }
+  .label { color: var(--muted); font-size: 12px; margin: 0 0 7px; }
+  .pick-row { display: flex; gap: 10px; }
+  .pick {
+    position: relative; padding: 0; cursor: pointer; text-align: center;
+    background: none; border: 2px solid transparent; border-radius: var(--r-lg);
+    transition: transform .15s var(--ease-out);
+  }
+  .pick:hover { transform: translateY(-2px); }
+  .pick[aria-checked="true"] { transform: rotate(-2deg); }
+  .pick[aria-checked="true"] .face { outline: 2px dashed var(--pink); outline-offset: 3px; }
+
+  /* colour theme: a tiny version of the window, drawn in that theme */
+  .swatch .face {
+    display: grid; grid-template-columns: 26px 1fr; width: 116px; height: 64px; overflow: hidden;
+    border: 2px solid var(--pink-seam); border-radius: var(--r-lg); background: var(--deep); box-shadow: var(--lift);
+  }
+  .swatch .mspine { position: relative; display: flex; flex-direction: column; align-items: center; gap: 5px; padding-top: 7px; }
+  .swatch .mspine::after { content: ""; position: absolute; right: 2px; top: 4px; bottom: 4px; width: 1px; background: repeating-linear-gradient(to bottom, var(--pink-seam) 0 3px, transparent 3px 6px); }
+  .swatch .mspine i { width: 12px; height: 4px; border-radius: 2px; background: var(--muted-seam); }
+  .swatch .mspine i:nth-child(2) { background: var(--pink); }
+  .swatch .mpage { background: var(--page); padding: 7px 7px 0; display: flex; flex-direction: column; gap: 6px; }
+  .swatch .mbubble { height: 9px; border-radius: 5px; background: var(--raised); border: 1px solid var(--pink-seam); }
+  .swatch .mcards { display: flex; gap: 4px; }
+  .swatch .mcards b { flex: 1; height: 22px; border-radius: 4px; background: var(--raised); border: 1px solid var(--lilac-seam); }
+  .swatch .mcards b:nth-child(2) { border-color: var(--tier-legendary); }
+  .swatch .mcards b:nth-child(3) { border-color: var(--tier-rare); }
+  .swatch .mdots { display: flex; gap: 3px; justify-content: flex-end; }
+  .swatch .mdots i { width: 6px; height: 6px; border-radius: 50%; }
+  .swatch .name { display: block; margin-top: 7px; font-size: 12px; color: var(--text); }
+  .swatch .kind { display: block; font-size: 11px; color: var(--muted); }
+
+  /* fonts: each tile is written in its own font */
+  .font-tile .face, .icon-tile .face {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    width: 84px; height: 62px; background: var(--raised); border: 2px solid var(--lilac-seam); border-radius: var(--r-lg); box-shadow: var(--lift);
+  }
+  .font-tile .face { width: 100px; padding: 0 8px; }
+  .font-tile .aa { font: var(--display-weight) 22px/1 var(--display); color: var(--pink); }
+  .font-tile .sample { font-size: 12px; color: var(--text); }
+  .font-tile .name, .icon-tile .name { display: block; margin-top: 7px; font-size: 11px; color: var(--muted); }
+  .icon-tile .face { flex-direction: row; flex-wrap: wrap; gap: 6px 9px; padding: 0 12px; color: var(--text); }
+  .fonts-icons { display: flex; gap: 22px; }
+
+  /* the other settings */
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .row { display: flex; align-items: center; gap: 12px; min-height: 30px; }
+  .row .what { flex: 1; }
+  .row .value { color: var(--muted); font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; }
+  .row .value.coins { color: var(--cyan); display: inline-flex; align-items: center; gap: 4px; justify-content: flex-end; }
+  .stitch-line { margin: 6px 0; }
+  input[type="range"] { -webkit-appearance: none; appearance: none; width: 130px; height: 10px; background: var(--deep); border: 2px solid var(--line); border-radius: 6px; }
+  input[type="range"]::-moz-range-progress { height: 6px; background: var(--lilac); border-radius: 4px; }
+  input[type="range"]::-moz-range-thumb { width: 16px; height: 16px; border-radius: 50%; background: var(--pink); border: 2px solid var(--raised); box-shadow: 0 2px 5px rgba(0,0,0,.3); cursor: pointer; }
+  input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--pink); border: 2px solid var(--raised); cursor: pointer; }
+  .toggle { position: relative; width: 40px; height: 22px; flex: none; padding: 0; border-radius: 12px; border: 2px solid var(--line); background: var(--deep); cursor: pointer; transition: background .15s, border-color .15s; }
+  .toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 14px; height: 14px; border-radius: 50%; background: var(--muted); transition: transform .18s var(--ease-out), background .15s; }
+  .toggle[aria-checked="true"] { background: var(--pink-pressed); border-color: var(--pink); }
+  .toggle[aria-checked="true"]::after { transform: translateX(18px); background: var(--pink); }
+</style>
+</head>
+<body>
+<div class="app" data-tab="settings" data-say="ooh, redecorating? pink looks best on me. obviously ♪">
+  <div class="settings">
+    <section class="sticker">
+      <h2>the look</h2>
+      <p class="label">colours</p>
+      <div class="pick-row" role="radiogroup" aria-label="colours" id="themes"></div>
+      <div class="fonts-icons" style="margin-top: 10px">
+        <div>
+          <p class="label">font</p>
+          <div class="pick-row" role="radiogroup" aria-label="font" id="fonts"></div>
+        </div>
+        <div>
+          <p class="label">icons</p>
+          <div class="pick-row" role="radiogroup" aria-label="icons" id="icons"></div>
+        </div>
+      </div>
+    </section>
+    <div class="two">
+      <section class="sticker">
+        <h2>opening boxes</h2>
+        <div class="row"><span class="what">reveal speed</span><input type="range" min="0.5" max="3" step="0.5" value="1" aria-label="reveal speed"><span class="value">1x</span></div>
+        <hr class="stitch-line">
+        <div class="row"><span class="what">skip the pack animation for one box</span><button class="toggle" role="switch" aria-checked="false" aria-label="skip the pack animation"></button></div>
+        <div class="row"><span class="what">skip the mist on very rare pulls</span><button class="toggle" role="switch" aria-checked="false" aria-label="skip the mist"></button></div>
+      </section>
+      <section class="sticker">
+        <h2>your pet at work</h2>
+        <div class="row"><span class="what">coins lilac blob always keeps</span><input type="range" min="0" max="500" step="10" value="50" aria-label="coins kept"><span class="value coins"><span data-icon="coin" data-px="1.5"></span>50</span></div>
+        <hr class="stitch-line">
+        <div class="row"><span class="what">open boxes in the corner</span><button class="toggle" role="switch" aria-checked="true" aria-label="open boxes in the corner"></button></div>
+        <div class="row"><span class="what">spare pets run errands</span><button class="toggle" role="switch" aria-checked="true" aria-label="spare pets run errands"></button></div>
+      </section>
+    </div>
+  </div>
+</div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  const THEMES = [
+    { id: "plum", name: "midnight plum", kind: "dark" },
+    { id: "blueberry", name: "blueberry night", kind: "dark" },
+    { id: "cocoa", name: "cocoa strawberry", kind: "dark" },
+    { id: "lilac-milk", name: "lilac milk", kind: "light" },
+    { id: "peach-sorbet", name: "peach sorbet", kind: "light" },
+  ];
+  const FONTS = [
+    { id: "coiny", name: "Coiny + Maple" }, { id: "fredoka", name: "Fredoka" }, { id: "baloo", name: "Baloo 2" },
+    { id: "nunito", name: "Nunito" }, { id: "mplus", name: "M PLUS Rounded" },
+  ];
+  const ICON_STYLES = [{ id: "doodle", name: "doodle" }, { id: "pixel", name: "pixel" }];
+
+  const content = mountFrame();
+  const look = loadLook();
+
+  content.querySelector("#themes").innerHTML = THEMES.map(t => `
+    <button class="pick swatch" role="radio" data-key="theme" data-value="${t.id}">
+      <span class="face" data-theme="${t.id}">
+        <span class="mspine"><i></i><i></i><i></i><i></i></span>
+        <span class="mpage dots"><span class="mbubble"></span><span class="mcards"><b></b><b></b><b></b></span>
+          <span class="mdots"><i style="background: var(--cyan)"></i><i style="background: var(--gold)"></i></span></span>
+      </span>
+      <span class="name">${t.name}</span><span class="kind">${t.kind}</span>
+    </button>`).join("");
+  content.querySelector("#fonts").innerHTML = FONTS.map(f => `
+    <button class="pick font-tile" role="radio" data-key="font" data-value="${f.id}">
+      <span class="face" data-font="${f.id}"><span class="aa">Aa</span><span class="sample">lilac blob</span></span>
+      <span class="name">${f.name}</span>
+    </button>`).join("");
+  content.querySelector("#icons").innerHTML = ICON_STYLES.map(s => `
+    <button class="pick icon-tile" role="radio" data-key="icons" data-value="${s.id}">
+      <span class="face" data-icons="${s.id}"><span data-icon="home"></span><span data-icon="boxes"></span><span data-icon="coin"></span><span data-icon="heart"></span></span>
+      <span class="name">${s.name}</span>
+    </button>`).join("");
+
+  function refresh() {
+    content.querySelectorAll(".pick").forEach(b => b.setAttribute("aria-checked", String(look[b.dataset.key] === b.dataset.value)));
+    applyLook(look);
+  }
+  content.querySelectorAll(".pick").forEach(b => b.addEventListener("click", () => { look[b.dataset.key] = b.dataset.value; refresh(); }));
+  content.querySelectorAll(".toggle").forEach(t => t.addEventListener("click", () => t.setAttribute("aria-checked", String(t.getAttribute("aria-checked") !== "true"))));
+  content.querySelectorAll('input[type="range"]').forEach(r => r.addEventListener("input", () => {
+    const v = r.nextElementSibling;
+    if (v.classList.contains("coins")) v.lastChild.textContent = r.value; else v.textContent = r.value + "x";
+  }));
+  refresh();
+</script>
+</body>
+</html>

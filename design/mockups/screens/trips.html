@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trips</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  .trips { display: grid; grid-template-columns: 1fr 250px; gap: 14px; height: 100%; min-height: 0; }
+
+  /* ---- the crayon map ---- */
+  .mapwrap { position: relative; min-height: 0; }
+  .marks { position: absolute; right: 16px; top: -2px; display: flex; gap: 4px; z-index: 2; }
+  .mark { padding: 4px 10px 8px; border-radius: 0 0 8px 8px; background: var(--deep); border: 2px solid var(--line); border-top: 0; color: var(--muted); font-size: 12px; cursor: pointer; }
+  .mark.on { background: var(--raised); color: var(--pink); border-color: var(--pink-seam); padding-top: 8px; }
+  .map { position: absolute; inset: 0; border-radius: var(--r-panel); background: var(--paper); border: 2px solid var(--line); overflow: hidden; }
+  .map > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .map h2 { position: absolute; left: 18px; top: 12px; margin: 0; font: var(--display-weight) 20px/1 var(--display); color: var(--pink); }
+  .map h2::after { content: ""; display: block; height: 3px; margin-top: 4px; border-radius: 2px; background: var(--pink-seam); transform: rotate(-1deg); }
+  .crayon { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .road { fill: none; stroke: var(--gold); stroke-width: 2.5; stroke-dasharray: 7 7; stroke-linecap: round; opacity: .55; }
+  .place { cursor: pointer; }
+  .place:hover .crayon { stroke-width: 3.6; }
+  .place text.nm { font: var(--display-weight) 13px var(--display); text-anchor: middle; }
+  .place text.note { font: 11px var(--body); fill: var(--gold); }
+  .cloud { fill: none; stroke: var(--muted); stroke-width: 2.2; stroke-dasharray: 3 4; }
+  .cloud-q { font: var(--display-weight) 16px var(--display); fill: var(--lilac); text-anchor: middle; }
+  .picked { fill: none; stroke: var(--pink); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 150 12; }
+
+  /* ---- the place card, stuck on the map next to the place ---- */
+  .pick { position: absolute; right: 14px; top: 44px; width: 244px; padding: 14px 14px 12px; display: none; transform: rotate(1deg); }
+  .show-pick .pick { display: block; }
+  .pick h3 { margin: 0; font: var(--display-weight) 18px/1.1 var(--display); color: var(--pink); }
+  .pick .note { color: var(--gold); font-size: 12px; margin: 2px 0 8px; }
+  .pick .facts { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+  .tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; border-radius: 999px; font-size: 11px; background: var(--deep); border: 2px solid var(--line); color: var(--muted); }
+  .pick .who { font-size: 12px; color: var(--muted); margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .pick .pets { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+  .pchip { position: relative; display: grid; place-items: center; height: 50px; border-radius: var(--r-md); background: var(--deep); border: 2px solid var(--line); cursor: pointer; transition: transform .12s var(--ease-out); }
+  .pchip img { width: 32px; height: 36px; }
+  .pchip:hover { transform: translateY(-2px); border-color: var(--pink-seam); }
+  .pchip.on { border: 2px dashed var(--pink); background: var(--pink-pressed); transform: rotate(-3deg); }
+  .pick .row { display: flex; gap: 8px; }
+  .pick .row .btn { flex: 1; white-space: nowrap; }
+  .pick .row .btn.primary { flex: 1.5; }
+
+  /* ---- trips that are away ---- */
+  .away { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: auto; padding: 6px 4px 8px 2px; scrollbar-width: thin; scrollbar-color: var(--lilac-seam) transparent; }
+  .away h2 { margin: 0; font: var(--display-weight) 17px/1 var(--display); color: var(--pink); }
+  .trip { padding: 10px 12px 11px; }
+  .trip .head { display: flex; align-items: center; gap: 8px; }
+  .trip .head img { width: 32px; height: 36px; }
+  .trip .head b { display: block; font-weight: inherit; color: var(--pink); font-size: 13px; }
+  .trip .head span { display: block; font-size: 11px; color: var(--muted); }
+  .trip .head .link { margin-left: auto; font-size: 12px; }
+  .trip .story { font-size: 12px; line-height: 1.35; margin: 8px 0; }
+  .trip .story em { font-style: normal; color: var(--muted); }
+  .trip .bar { height: 8px; border-radius: 4px; background: var(--deep); border: 2px solid var(--line); overflow: hidden; }
+  .trip .bar i { display: block; height: 100%; background: var(--lilac); border-radius: 3px; }
+  .trip .when { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .trip .choices { display: grid; gap: 5px; }
+  .trip .choices .btn { font-size: 12px; padding: 5px 8px; }
+  .trip.waiting { border-color: var(--gold); }
+  .trip.back { border-color: var(--mint); }
+  .trip .got { display: flex; flex-wrap: wrap; gap: 5px; margin: 6px 0 9px; }
+
+  /* ---- the trail (a trip up close) ---- */
+  .trail { position: absolute; inset: 0; display: none; border-radius: var(--r-panel); overflow: hidden; background: var(--paper); border: 2px solid var(--line); }
+  .show-trail .trail { display: block; }
+  .show-trail .map, .show-trail .marks { display: none; }
+  .trail > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .trail .info { position: absolute; left: 18px; top: 14px; }
+  .trail .info h2 { margin: 0 0 6px; font: var(--display-weight) 20px/1 var(--display); color: var(--pink); }
+  .trail .info .line { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .pips { display: inline-flex; gap: 4px; }
+  .pips i { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--pink-seam); }
+  .pips i.done { background: var(--pink); border-color: var(--pink); }
+  .streak { position: absolute; left: 18px; top: 84px; font: var(--display-weight) 18px/1 var(--display); color: var(--gold); transform: rotate(-3deg); }
+  .trail .walker { position: absolute; left: 150px; top: 250px; width: 80px; height: 90px; }
+  .trail .hint { position: absolute; left: 18px; bottom: 14px; color: var(--lilac); font-size: 13px; }
+  .trail .back { position: absolute; right: 14px; top: 12px; }
+  .pop { position: absolute; font-size: 12px; color: var(--gold); transform: rotate(-4deg); }
+</style>
+</head>
+<body>
+<div class="app" data-tab="trips" data-say="where did everyone go… oh.. the garden path.. ♪">
+  <div class="trips">
+    <div class="mapwrap">
+      <div class="marks"><button class="mark on">the backyard</button><button class="mark">beyond the fence</button></div>
+      <div class="map" id="map"><svg viewBox="0 0 530 516" preserveAspectRatio="xMidYMid meet" id="mapsvg" aria-hidden="true"></svg><h2>lilac blob's map</h2></div>
+      <div class="pick sticker" id="pick"></div>
+      <div class="trail" id="trail"></div>
+    </div>
+    <div class="away" id="away"></div>
+  </div>
+</div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const content = mountFrame();
+  const say = t => { document.querySelector(".top .bubble").textContent = t; };
+
+  // places on the backyard page, from data/adventures.json ("map")
+  const PLACES = [
+    { id: "garden", name: "the garden path", x: 0, y: 0, doodle: "house", color: "var(--pink)", note: "home", time: "a short walk", size: "1 pet" },
+    { id: "meadow", name: "the meadow", x: -1.3, y: -0.8, doodle: "grass", color: "var(--mint)", note: "so many flowers!!", time: "a little trip", size: "up to 3 pets" },
+    { id: "woods", name: "the woods", x: -2.3, y: -1.9, doodle: "trees", color: "var(--mint)", note: "spooky!", time: "a long trip", size: "up to 5 pets" },
+    { id: "pond", name: "the duck pond", x: 0.9, y: 1.1, doodle: "pond", color: "var(--cyan)", note: "quack!", time: "a little trip", size: "up to 3 pets" },
+    { id: "stream", name: "the stream", x: 2.1, y: 1.7, doodle: "stream", color: "var(--cyan)", note: "splashy", time: "a long trip", size: "up to 5 pets" },
+    { id: "shed", name: "the old shed", x: 1.6, y: -0.6, doodle: "hut", color: "var(--lilac)", note: "dusty", time: "a little trip", size: "up to 3 pets" },
+  ];
+  const ROADS = [["garden", "meadow"], ["meadow", "woods"], ["garden", "shed"], ["garden", "pond"], ["pond", "stream"]];
+  const U = 92, OX = 262, OY = 272;
+  const at = p => [OX + p.x * U, OY + p.y * U];
+  const byId = id => PLACES.find(p => p.id === id);
+
+  const MAP_DOODLES = {
+    house: c => `<path class="crayon" stroke="${c}" d="M-20 2 L0 -18 L21 1 M-15 -2 L-14 18 L15 17 L15 -3 M-5 17 L-4 7 L5 7 L6 17"/>`,
+    grass: c => `<path class="crayon" stroke="var(--mint)" d="M-22 14 L-17 -2 L-12 14 M-8 14 L-3 -6 L2 14 M6 14 L11 0 L16 14"/><circle cx="-12" cy="-6" r="4" fill="${"var(--pink)"}"/><circle cx="10" cy="-9" r="4" fill="var(--gold)"/>`,
+    trees: c => `<path class="crayon" stroke="${c}" d="M-26 14 L-18 -14 L-10 14 Z M-6 14 L3 -20 L12 14 Z M14 14 L21 -10 L28 14 Z"/><path class="crayon" stroke="var(--gold)" d="M-18 14 L-18 20 M3 14 L3 21 M21 14 L21 20" opacity=".7"/>`,
+    pond: c => `<path class="crayon" stroke="${c}" d="M-26 4 Q-24 -10 0 -10 Q26 -9 25 4 Q23 15 0 15 Q-24 15 -26 4 Z"/><path class="crayon" stroke="var(--gold)" d="M6 -2 Q10 -8 14 -2 Q10 2 6 -2 Z"/><path class="crayon" stroke="${c}" d="M-14 4 L-4 4" opacity=".6"/>`,
+    stream: c => `<path class="crayon" stroke="${c}" d="M-26 -8 Q-13 -16 0 -8 Q13 0 26 -8 M-26 2 Q-13 -6 0 2 Q13 10 26 2 M-26 12 Q-13 4 0 12 Q13 20 26 12"/>`,
+    hut: c => `<path class="crayon" stroke="${c}" d="M-20 0 L0 -20 L20 0 M-16 -3 L-16 16 L16 16 L16 -3 M-6 16 L-6 4 L6 4 L6 16"/><path class="crayon" stroke="var(--muted)" d="M-12 -8 L-8 -12" opacity=".7"/>`,
+  };
+  const cloud = (x, y) => `<g transform="translate(${x} ${y})"><path class="cloud" d="M-22 8 Q-30 -4 -18 -10 Q-14 -24 2 -18 Q16 -26 22 -12 Q34 -6 26 8 Q14 16 0 12 Q-14 18 -22 8 Z"/><text class="cloud-q" y="6">?</text></g>`;
+
+  function drawMap(picked) {
+    const svg = content.querySelector("#mapsvg");
+    let s = ROADS.map(([a, b]) => { const [x1, y1] = at(byId(a)), [x2, y2] = at(byId(b)); const mx = (x1 + x2) / 2 + (y2 - y1) * .12, my = (y1 + y2) / 2 - (x2 - x1) * .12; return `<path class="road" d="M${x1} ${y1} Q${mx} ${my} ${x2} ${y2}"/>`; }).join("");
+    s += cloud(OX + 2.6 * U, OY - 1.3 * U) + cloud(OX + 2.5 * U, OY + 0.85 * U) + cloud(OX - 2.45 * U, OY + 0.7 * U);
+    s += PLACES.map(p => { const [x, y] = at(p); return `
+      <g class="place" data-id="${p.id}" transform="translate(${x} ${y})">
+        ${p.id === picked ? `<path class="picked" d="M-44 -4 Q-42 -36 2 -38 Q46 -36 46 0 Q44 38 0 40 Q-40 40 -46 6"/>` : ""}
+        ${MAP_DOODLES[p.doodle](p.color)}
+        <text class="nm" y="36" fill="${p.color}">${p.name}</text>
+        <text class="note" x="${p.doodle === "house" ? 20 : 26}" y="-18">${p.note}</text>
+      </g>`; }).join("");
+    // pets out on trips, walking the roads
+    const [gx, gy] = at(byId("garden")), [px, py] = at(byId("pond")), [mx, my] = at(byId("meadow"));
+    s += `<image href="../assets/pets/peach-cat.png" x="${(gx + mx) / 2 - 12}" y="${(gy + my) / 2 - 30}" width="24" height="27" style="image-rendering: pixelated"/>`;
+    s += `<image href="../assets/pets/mint-bear.png" x="${px - 52}" y="${py - 30}" width="24" height="27" style="image-rendering: pixelated"/><text x="${px - 26}" y="${py - 22}" style="font: 16px var(--display); fill: var(--gold)">!</text>`;
+    svg.innerHTML = s;
+    svg.querySelectorAll(".place").forEach(g => g.addEventListener("click", () => showPick(g.dataset.id)));
+  }
+
+  const SENDABLE = ["peach-bear", "sky-bunny", "lilac-cat", "mint-blob", "midnight-bear", "toxic-cat", "bubblegum-fox", "gold-dragon"];
+  function showPick(id) {
+    const p = byId(id);
+    drawMap(id);
+    const pick = content.querySelector("#pick");
+    pick.innerHTML = `
+      <h3>${p.name}</h3>
+      <div class="note">${p.note}</div>
+      <div class="facts"><span class="tag">${p.time}</span><span class="tag">${p.size}</span><span class="tag" style="color: var(--mint)">3 finds here</span></div>
+      <div class="who"><span>who's going?</span><span>1 of 3</span></div>
+      <div class="pets">${SENDABLE.map((s, i) => `<button class="pchip${i === 1 ? " on" : ""}" title="${s.replace("-", " ")}"><img class="px" src="../assets/pets/${s}.png" alt=""></button>`).join("")}</div>
+      <div class="row"><button class="btn" data-close>not yet</button><button class="btn primary">send them <span data-icon="heart" data-px="1.3"></span></button></div>`;
+    paintIcons(pick);
+    pick.querySelectorAll(".pchip").forEach(c => c.addEventListener("click", () => c.classList.toggle("on")));
+    pick.querySelector("[data-close]").addEventListener("click", () => { content.querySelector(".mapwrap").classList.remove("show-pick"); drawMap(); });
+    content.querySelector(".mapwrap").classList.add("show-pick");
+    say({ pond: "the pond? i heard the ducks bite. only a little.", woods: "the woods are spooky… take a friend or two!", garden: "the garden! easy. i could do it with my eyes closed." }[id] || `${p.name}? ooh. bring me something!`);
+  }
+
+  // trips that are away
+  content.querySelector("#away").innerHTML = `
+    <h2>away</h2>
+    <div class="trip sticker waiting">
+      <div class="head"><img class="px" src="../assets/pets/mint-bear.png" alt=""><div><b>the duck pond</b><span>mint bear</span></div><button class="link" data-watch>watch ›</button></div>
+      <div class="story">ducks! and something sparkly at the bottom of the pond. <em>mint bear is… hmm…</em></div>
+      <div class="choices"><button class="btn">feed the ducks</button><button class="btn">dive for it</button><button class="btn">go home</button></div>
+    </div>
+    <div class="trip sticker">
+      <div class="head"><img class="px" src="../assets/pets/peach-cat.png" alt=""><div><b>the meadow</b><span>peach cat</span></div><button class="link" data-watch>watch ›</button></div>
+      <div class="story">peach cat is… limping..? or skipping. <em>skipping!</em></div>
+      <div class="bar"><i style="width: 38%"></i></div>
+      <div class="when"><span>on the way</span><span>back in 3:12</span></div>
+    </div>
+    <div class="trip sticker back">
+      <div class="head"><img class="px" src="../assets/pets/sky-bunny.png" alt=""><div><b>the garden path</b><span>sky bunny</span></div></div>
+      <div class="got"><span class="tag" style="color: var(--cyan)"><span data-icon="coin" data-px="1.1"></span>47</span><span class="tag" style="color: var(--gold)"><span data-icon="xp" data-px="1.1"></span>13</span><span class="tag" style="color: var(--lilac)">a part</span></div>
+      <button class="btn primary" style="width: 100%">welcome back <span data-icon="heart" data-px="1.3"></span></button>
+    </div>`;
+
+  // the trail: a trip up close
+  function showTrail() {
+    const trail = content.querySelector("#trail");
+    const ground = 340;
+    let scene = "";
+    for (let i = 0; i < 6; i++) scene += `<path d="M${40 + i * 100} ${ground - 20} L${70 + i * 100} ${ground - 70 - (i % 3) * 18} L${100 + i * 100} ${ground - 20} Z" fill="var(--lilac)" opacity=".14"/>`;
+    for (let i = 0; i < 9; i++) { const x = 20 + i * 62; scene += i % 2 ? `<path class="crayon" stroke="var(--mint)" stroke-width="2" d="M${x} ${ground} L${x + 4} ${ground - 12} L${x + 8} ${ground}" opacity=".7"/>` : `<circle cx="${x}" cy="${ground - 8}" r="4" fill="var(--pink)" opacity=".5"/>`; }
+    scene += `<path d="M0 ${ground + 4} Q130 ${ground} 265 ${ground + 5} Q400 ${ground + 9} 530 ${ground + 3}" stroke="var(--pink-seam)" stroke-width="3" fill="none" stroke-linecap="round"/>`;
+    const gem = (x, y) => `<path d="M${x} ${y - 8} L${x + 7} ${y} L${x} ${y + 8} L${x - 7} ${y} Z" fill="var(--cyan)"/>`;
+    const spark = (x, y) => `<path d="M${x} ${y - 9} Q${x + 1} ${y - 1} ${x + 9} ${y} Q${x + 1} ${y + 1} ${x} ${y + 9} Q${x - 1} ${y + 1} ${x - 9} ${y} Q${x - 1} ${y - 1} ${x} ${y - 9} Z" fill="var(--gold)"/>`;
+    scene += gem(300, ground - 16) + spark(380, ground - 22) + gem(450, ground - 12) + `<circle cx="515" cy="${ground - 20}" r="13" fill="var(--pink)" opacity=".18"/>` + spark(515, ground - 20).replace("var(--gold)", "var(--pink)");
+    for (let i = 0; i < 4; i++) scene += `<circle cx="${140 - i * 8}" cy="${ground - 2}" r="${3 - i * .5}" fill="var(--lilac)" opacity=".5"/>`;
+    trail.innerHTML = `
+      <svg viewBox="0 0 530 516" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${scene}</svg>
+      <div class="info">
+        <h2>the meadow</h2>
+        <div class="line"><span class="pips"><i class="done"></i><i></i><i></i><i></i></span>
+          <span class="tag" style="color: var(--cyan)"><span data-icon="coin" data-px="1.1"></span>21 in the bag</span>
+          <span class="tag" style="color: var(--gold)"><span data-icon="xp" data-px="1.1"></span>12</span></div>
+      </div>
+      <div class="streak">streak ×7!</div>
+      <img class="px walker" src="../assets/pets/peach-cat.png" alt="peach cat">
+      <span class="pop" style="left: 222px; top: 226px">+2 xp</span>
+      <button class="btn back" data-map>‹ map</button>
+      <div class="hint">click to hurry! grab things on the path</div>`;
+    paintIcons(trail);
+    trail.querySelector("[data-map]").addEventListener("click", () => { content.querySelector(".mapwrap").classList.remove("show-trail"); say("where did everyone go… oh.. the garden path.. ♪"); });
+    content.querySelector(".mapwrap").classList.remove("show-pick");
+    content.querySelector(".mapwrap").classList.add("show-trail");
+    say("go, peach cat, go!! grab the sparkly ones!");
+  }
+  content.querySelectorAll("[data-watch]").forEach(w => w.addEventListener("click", showTrail));
+
+  drawMap();
+  const state = params.get("state");
+  if (state === "pick") showPick(params.get("place") || "pond");
+  if (state === "trail") showTrail();
+  applyLook(loadLook());
+</script>
+</body>
+</html>

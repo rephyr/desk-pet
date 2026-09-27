@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Corner Panel</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* the small idle window that sits in a corner of the desktop while you work: 300x318 */
+  .panel { position: relative; width: 300px; height: 318px; display: flex; flex-direction: column; overflow: hidden; background: var(--page); border: 2px solid var(--pink-seam); border-radius: var(--r-panel); }
+  .phead { display: flex; align-items: center; gap: 6px; height: 34px; padding: 0 4px 0 10px; background: var(--deep); }
+  .phead .title { display: flex; align-items: center; gap: 5px; font: var(--display-weight) 15px/1 var(--display); color: var(--pink); }
+  .phead .chip { margin-left: auto; padding: 1px 8px 1px 5px; font-size: 12px; }
+  .phead .winbtns button { width: 24px; height: 24px; }
+
+  .scene { position: relative; height: 112px; background: var(--sky); overflow: hidden; }
+  .scene .stars { position: absolute; inset: 0; }
+  .scene .ground { position: absolute; left: 0; right: 0; bottom: 16px; height: 3px; }
+  .scene .walker { position: absolute; bottom: 18px; left: 70px; width: 48px; height: 54px; animation: walk 6s ease-in-out infinite; }
+  @keyframes walk { 0%, 100% { transform: translateX(0); } 45%, 55% { transform: translateX(120px); } }
+  .scene .walker img { width: 48px; height: 54px; animation: hop .4s ease-in-out infinite; }
+  @keyframes hop { 50% { transform: translateY(-3px); } }
+  .scene .pile { position: absolute; right: 18px; bottom: 18px; width: 50px; height: 40px; }
+  .scene .pile svg { position: absolute; }
+  .jobs { position: absolute; right: 8px; top: 7px; display: flex; gap: 5px; }
+  .job { display: inline-flex; align-items: center; gap: 5px; padding: 2px 8px 2px 6px; border-radius: 999px; font-size: 11px; cursor: pointer; background: color-mix(in srgb, var(--deep) 80%, transparent); border: 2px solid var(--line); color: var(--muted); }
+  .job i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted-seam); }
+  .job.on { color: var(--text); border-color: var(--pink-seam); }
+  .job.on i { background: var(--pink); }
+
+  /* a good pull, held up to show you */
+  .showoff { position: absolute; left: 34px; bottom: 18px; display: none; }
+  .showoff .me { width: 48px; height: 54px; }
+  .showoff .held { position: absolute; left: 6px; bottom: 50px; width: 36px; height: 40px; animation: lift 1.2s ease-in-out infinite; }
+  @keyframes lift { 50% { transform: translateY(-4px); } }
+  .showoff .glow { position: absolute; left: -10px; bottom: 40px; width: 68px; height: 60px; border-radius: 50%; background: radial-gradient(circle, color-mix(in srgb, var(--tier-legendary) 40%, transparent), transparent 70%); }
+  .showoff .spk { position: absolute; width: 4px; height: 4px; background: var(--gold); border-radius: 1px; animation: tw 1s ease-in-out infinite; }
+  @keyframes tw { 50% { opacity: .2; transform: scale(.5); } }
+  .showoff .say { position: absolute; left: 58px; bottom: 30px; padding: 3px 9px; border-radius: 10px; background: var(--raised); border: 2px solid var(--pink-seam); font-size: 11px; white-space: nowrap; }
+  .panel.pull .walker { display: none; }
+  .panel.pull .showoff { display: block; }
+
+  .body { flex: 1; display: flex; flex-direction: column; gap: 9px; padding: 9px 12px 10px; }
+  .status { display: flex; align-items: flex-start; gap: 8px; font-size: 12px; line-height: 1.3; min-height: 32px; }
+  .status .icon { color: var(--gold); margin-top: 1px; }
+  .status .what { flex: 1; }
+  .status .when { color: var(--muted); font-size: 11px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .needs { display: grid; grid-template-columns: auto 1fr; gap: 5px 8px; align-items: center; font-size: 11px; color: var(--muted); }
+  .needs .bar { height: 9px; border-radius: 5px; background: var(--deep); border: 2px solid var(--line); overflow: hidden; }
+  .needs .bar i { display: block; height: 100%; border-radius: 4px; }
+  .actions { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; margin-top: auto; }
+  .actions .btn { padding: 5px 4px; font-size: 12px; }
+  .actions small { color: var(--cyan); display: inline-flex; align-items: center; gap: 2px; }
+
+  body { gap: 18px; grid-auto-flow: column; }
+  .caption { color: var(--muted); font-size: 12px; text-align: center; margin-top: 8px; }
+</style>
+</head>
+<body>
+  <div>
+    <div class="panel" id="panel">
+      <div class="phead">
+        <div class="title"><span data-icon="heart" data-px="1.5"></span>desk pets</div>
+        <span class="chip coins"><span data-icon="coin" data-px="1.3"></span>10,421</span>
+        <div class="winbtns"><button title="open the full game">▴</button><button title="close">✕</button></div>
+      </div>
+      <div class="scene">
+        <svg class="stars" width="300" height="112" aria-hidden="true"></svg>
+        <svg class="ground" viewBox="0 0 300 3" preserveAspectRatio="none" aria-hidden="true"><path d="M0 1.5 Q75 0.5 150 1.6 Q225 2.5 300 1.2" stroke="var(--lilac-seam)" stroke-width="2.5" fill="none" stroke-linecap="round"/></svg>
+        <div class="jobs">
+          <button class="job on"><i></i>opening packs</button>
+          <button class="job on"><i></i>errands</button>
+        </div>
+        <div class="walker"><img class="px" src="../assets/pets/lilac-blob.png" alt="lilac blob"></div>
+        <div class="showoff">
+          <div class="glow"></div>
+          <img class="px held" src="../assets/pets/gold-dragon.png" alt="a gold dragon">
+          <img class="px me" src="../assets/pets/lilac-blob.png" alt="">
+          <i class="spk" style="left: -4px; bottom: 90px"></i><i class="spk" style="left: 46px; bottom: 96px; animation-delay: .3s"></i><i class="spk" style="left: 50px; bottom: 70px; animation-delay: .6s"></i>
+          <span class="say">look!! a gold dragon!!</span>
+        </div>
+        <div class="pile"></div>
+      </div>
+      <div class="body">
+        <div class="status">
+          <span data-icon="inventory" data-px="1.6"></span>
+          <span class="what">lilac cat is looking for shiny stones</span>
+          <span class="when">back in 0:49</span>
+        </div>
+        <div class="needs">
+          <span>food</span><span class="bar"><i style="width: 90%; background: var(--pink)"></i></span>
+          <span>mood</span><span class="bar"><i style="width: 95%; background: var(--lilac)"></i></span>
+        </div>
+        <div class="actions">
+          <button class="btn">feed <small><span data-icon="coin" data-px="1.1"></span>3</small></button>
+          <button class="btn">pat</button>
+          <button class="btn" title="your pet walks around on your windows">let out</button>
+        </div>
+      </div>
+    </div>
+  </div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script src="../shared/pack.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  document.querySelector(".stars").innerHTML = stars(18).replace(/y="(\d+)"/g, (m, y) => `y="${Number(y) % 90}"`);
+  document.querySelector(".pile").innerHTML = [[0, 12, -12], [14, 6, 8], [26, 14, 18]].map(([x, y, r]) =>
+    `<div style="position:absolute; left:${x}px; top:${y}px; transform: rotate(${r}deg)">${packSvg(BOXES[0], 20)}</div>`).join("");
+  if (params.get("state") === "pull") document.getElementById("panel").classList.add("pull");
+  document.querySelectorAll(".job").forEach(j => j.addEventListener("click", () => j.classList.toggle("on")));
+  document.querySelector(".scene").addEventListener("click", () => document.getElementById("panel").classList.toggle("pull"));
+  if (params.has("shot")) document.querySelectorAll("*").forEach(e => e.style.animationPlayState = "paused");
+  applyLook(loadLook());
+</script>
+</body>
+</html>

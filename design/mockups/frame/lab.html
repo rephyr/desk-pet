@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en" data-theme="plum" data-font="fredoka" data-icons="doodle">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Theme Lab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@500;600;700;800&family=Fredoka:wght@500;600;700&family=M+PLUS+Rounded+1c:wght@500;700;800&display=swap">
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<style>
+  /* B3 (roomy spine) + B1's stitches: the spine is sewn onto the page, the active tab is a stitched patch */
+  body { gap: 14px; align-content: center; transition: background .2s; }
+  .app { display: grid; grid-template-columns: 140px 1fr; background: var(--deep); border-color: var(--pink-seam); }
+  .spine { position: relative; z-index: 2; display: flex; flex-direction: column; gap: 3px; padding: 12px 0 10px 10px; }
+  /* the seam: a row of stitches down the spine's edge */
+  .spine::after {
+    content: ""; position: absolute; top: 10px; bottom: 10px; right: 5px; width: 2px; border-radius: 1px;
+    background: repeating-linear-gradient(to bottom, var(--pink-seam) 0 6px, transparent 6px 11px);
+  }
+  .me { display: flex; flex-direction: column; align-items: center; padding: 4px 14px 12px 0; margin-bottom: 6px; position: relative; }
+  .me::after { content: ""; position: absolute; left: 4px; right: 18px; bottom: 0; height: 2px; background: repeating-linear-gradient(to right, var(--line) 0 5px, transparent 5px 9px); }
+  .me img { width: 64px; height: 72px; }
+  .me .name { font: var(--display-weight) 16px/1 var(--display); color: var(--pink); margin: 6px 0 8px; }
+  .mini { width: 100%; display: grid; grid-template-columns: auto 1fr; gap: 4px 6px; align-items: center; font-size: 11px; color: var(--muted); }
+  .mini .bar { height: 7px; border-radius: 4px; background: var(--page); border: 1px solid var(--line); overflow: hidden; }
+  .mini .bar i { display: block; height: 100%; border-radius: 4px; }
+  .tab {
+    position: relative; display: flex; align-items: center; gap: 9px;
+    height: 36px; padding: 0 10px; margin-right: 12px;
+    background: none; border: 2px solid transparent; border-radius: var(--r-lg);
+    color: var(--muted); cursor: pointer; text-align: left;
+    transition: color .12s, transform .15s var(--ease-out);
+  }
+  .tab:hover { color: var(--pink); transform: translateX(3px); }
+  .tab.on {
+    color: var(--pink); background: var(--raised);
+    border: 2px dashed var(--pink); box-shadow: 0 0 0 3px var(--raised), var(--lift);
+    transform: rotate(-2deg);
+  }
+  .tab.locked { color: var(--locked); cursor: default; }
+  .tab.locked:hover { transform: none; color: var(--locked); }
+  .tab .new { margin-left: auto; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+  .grow { flex: 1; }
+  .page { display: flex; flex-direction: column; min-width: 0; min-height: 0; padding: 12px 14px 12px 12px; gap: 14px; }
+  .top { display: flex; align-items: center; gap: 10px; }
+  .top .bubble { flex: 1; padding: 8px 14px; }
+  #content { flex: 1; min-height: 0; }
+  .grid { grid-template-columns: repeat(4, 1fr); }
+  .collection { grid-template-columns: 1fr 232px; }
+  /* stitches inside the big sticker too */
+  .detail { position: relative; }
+  .detail::before { content: ""; position: absolute; inset: 5px; border: 2px dashed var(--line); border-radius: 8px; pointer-events: none; }
+
+  /* the lab controls (not part of the game) */
+  .controls { display: flex; flex-wrap: wrap; gap: 14px; justify-content: center; font: 500 13px/1 system-ui, sans-serif; color: var(--muted); }
+  .controls label { display: flex; align-items: center; gap: 6px; }
+  .controls select { font: inherit; padding: 5px 8px; border-radius: 8px; border: 2px solid var(--line); background: var(--raised); color: var(--text); }
+  .shot .controls { display: none; }
+</style>
+</head>
+<body>
+<div class="controls">
+  <label>colours
+    <select id="theme">
+      <option value="plum">midnight plum (dark)</option>
+      <option value="blueberry">blueberry night (dark)</option>
+      <option value="cocoa">cocoa strawberry (dark)</option>
+      <option value="lilac-milk">lilac milk (light)</option>
+      <option value="peach-sorbet">peach sorbet (light)</option>
+    </select>
+  </label>
+  <label>font
+    <select id="font">
+      <option value="fredoka">Fredoka</option>
+      <option value="baloo">Baloo 2</option>
+      <option value="nunito">Nunito</option>
+      <option value="mplus">M PLUS Rounded</option>
+      <option value="coiny">today: Coiny + Maple Mono</option>
+    </select>
+  </label>
+  <label>icons
+    <select id="icons">
+      <option value="doodle">doodle</option>
+      <option value="pixel">pixel</option>
+    </select>
+  </label>
+</div>
+<div class="app">
+  <nav class="spine">
+    <div class="me">
+      <img class="px" src="../assets/pets/lilac-blob.png" alt="">
+      <div class="name">lilac blob</div>
+      <div class="mini">
+        <span>food</span><span class="bar"><i style="width:72%; background: var(--pink)"></i></span>
+        <span>mood</span><span class="bar"><i style="width:88%; background: var(--lilac)"></i></span>
+      </div>
+    </div>
+    <button class="tab" data-tab><span data-icon="home"></span>home</button>
+    <button class="tab" data-tab><span data-icon="boxes"></span>boxes<span class="new" title="something new"></span></button>
+    <button class="tab on" data-tab><span data-icon="collection"></span>pets</button>
+    <button class="tab" data-tab><span data-icon="adventures"></span>trips</button>
+    <button class="tab" data-tab><span data-icon="upgrades"></span>gear</button>
+    <button class="tab locked" title="found on a trip"><span data-icon="lock"></span>???</button>
+    <div class="grow"></div>
+    <button class="tab" data-tab><span data-icon="settings"></span>settings</button>
+  </nav>
+  <main class="page dots">
+    <div class="top">
+      <div class="bubble">ooh. that gold one looks… expensive. i'm still the cutest though ♪</div>
+      <span class="chip coins"><span data-icon="coin"></span>10,421</span>
+      <span class="chip xp"><span data-icon="xp"></span>72</span>
+      <div class="winbtns"><button title="shrink">▾</button><button title="close">✕</button></div>
+    </div>
+    <div id="content"></div>
+  </main>
+</div>
+<script src="../shared/pixel.js"></script>
+<script>
+  const root = document.documentElement;
+  const params = new URLSearchParams(location.search);
+  if (params.has("shot")) document.body.classList.add("shot");
+  for (const key of ["theme", "font", "icons"]) {
+    const select = document.getElementById(key);
+    if (params.get(key)) root.dataset[key] = params.get(key);
+    select.value = root.dataset[key];
+    select.addEventListener("change", () => {
+      root.dataset[key] = select.value;
+      params.set(key, select.value);
+      history.replaceState(null, "", "?" + params);
+      paintIcons();
+    });
+  }
+  renderCollection(document.getElementById("content")); paintIcons(); wireTabs();
+</script>
+</body>
+</html>

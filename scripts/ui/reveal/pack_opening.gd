@@ -20,7 +20,7 @@ const FLICK_SPEED := 900.0  # px/s: a quick flick pops the pet out / throws the 
 const MIST_THROW := 170.0  # dragging the mist this far off the pet also clears it
 const PULL_HIDDEN := -0.45  # pull value where the pet is fully inside the pack
 const DROP_HEIGHT := 260.0
-const DIM_ALPHA := 0.55
+var DIM_ALPHA := 0.55 if UiTheme.DARK else 0.28  # how far the dim goes on big pulls; gentler on light themes
 
 var _stage := Stage.IDLE
 var _pet: Pet
@@ -39,8 +39,9 @@ var _pack := CardPack.new()
 var _pet_clip := Control.new()  # hides the part of the pet still inside the pack
 var _pet_view := PetView.new()
 var _blocker := RevealBlocker.new()
-var _banner := UiTheme.label("", UiTheme.TEXT, 30)
-var _hint := UiTheme.label("", UiTheme.MUTED)
+var _banner := UiTheme.title("", 34)
+var _hint := UiTheme.label("", UiTheme.PINK)
+var _ladder := RarityLadder.new()
 var _speech := UiTheme.label("", UiTheme.PINK)  # the pet inside talking (tutorial only)
 ## Lines the pet inside says while you open it: on landing, while you rip, once it's out.
 ## Empty outside the tutorial: then boxes just rip.
@@ -101,8 +102,11 @@ func _init() -> void:
 	_hint.position.y = -30
 	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	add_child(_hint)
-	_result.set_anchors_preset(PRESET_TOP_WIDE)
-	_result.position.y = 10
+	_result.set_anchors_and_offsets_preset(PRESET_CENTER)
+	_result.grow_horizontal = GROW_DIRECTION_BOTH
+	_result.grow_vertical = GROW_DIRECTION_BOTH
+	_ladder.visible = false
+	add_child(_ladder)
 	_result.open_again.connect(func(): open_again.emit(_box_id))
 	_result.done.connect(_close)
 	add_child(_result)
@@ -117,6 +121,8 @@ func play(pet: Pet, box_id: String) -> void:
 	_pet = pet
 	_box_id = box_id
 	_pet_view.pet = pet
+	var box: Dictionary = Catalog.shared().box(box_id)
+	_pack.set_art(box.get("art", {}))
 	var chance := Catalog.shared().tier_chance(box_id, pet.rarity)
 	_ritual = not Settings.skip_ritual and chance <= float(_cfg.ritual_max_chance)
 	_mist_on = _ritual
@@ -142,6 +148,7 @@ func skip() -> void:
 	for r in rank + 1:
 		_effects.add_layers(catalog.reveal_tier(catalog.tier_at(r).id).adds, 0.01)
 	_effects.color = catalog.tier_color(_pet.rarity)
+	_ladder.light(rank)
 	_dim.color.a = DIM_ALPHA if _effects.has_layer("dim") else 0.0
 	_mist_on = false
 	_set_pull(1.0)
@@ -153,6 +160,9 @@ func skip() -> void:
 func _land(run: int) -> void:
 	_stage = Stage.LANDING
 	_say("")
+	queue_redraw()
+	_ladder.light(-1)
+	_ladder.visible = true
 	_pack.position = Vector2(0, -DROP_HEIGHT)
 	var t := _tween()
 	t.tween_property(_pack, "position:y", 0.0, float(_cfg.land_time)).set_trans(Tween.TRANS_BOUNCE).set_ease(Tween.EASE_OUT)
@@ -160,7 +170,8 @@ func _land(run: int) -> void:
 	if run != _run:
 		return
 	_stage = Stage.RIP
-	_say("rip the top off ✦")
+	_say("drag the strip off the top")
+	_pet_says("land")
 	_box_says(0)
 	if box_talk.size() > 1:
 		get_tree().create_timer(1.8).timeout.connect(func():
@@ -198,6 +209,8 @@ func _rip_off(run: int, velocity: Vector2) -> void:
 	var catalog := Catalog.shared()
 	_effects.color = catalog.tier_color(catalog.tier_at(0).id)
 	_effects.add_layers(catalog.reveal_tier(catalog.tier_at(0).id).adds, float(_cfg.layer_fade) / Settings.reveal_speed)
+	_ladder.light(0)
+	_pet_says("climb")
 	_effects.burst(8)
 	_climb(run)
 
@@ -224,6 +237,7 @@ func _climb(run: int) -> void:
 
 func _step_to(tier_id: String, rank: int) -> void:
 	var step := Catalog.shared().reveal_tier(tier_id)
+	_ladder.light(rank)
 	var t := _tween()
 	t.tween_property(_effects, "color", Catalog.shared().tier_color(tier_id), float(_cfg.color_fade)) \
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
@@ -247,7 +261,8 @@ func _peek(run: int) -> void:
 	if run != _run:
 		return
 	_stage = Stage.PULL
-	_say("pull your pet out ✦")
+	_say("pull it out!")
+	_pet_says("pull")
 	if autoplay:
 		var t2 := _tween()
 		t2.tween_method(_set_pull, 0.0, 0.5, 1.0)
@@ -266,7 +281,8 @@ func _pop_pet(run: int) -> void:
 		return
 	if _ritual:
 		_stage = Stage.RITUAL
-		_say("move the mist to peek · flick it away")
+		_say("move the mist to peek, then flick it away")
+		_pet_says("mist")
 		if autoplay:
 			var t2 := _tween()
 			t2.tween_method(func(o): _blocker_offset = o; _set_pull(_pull), Vector2.ZERO, Vector2(70, -10), 1.2)
@@ -301,7 +317,7 @@ func _celebrate(run: int) -> void:
 	_shake = maxf(_shake, float(step.get("shake", 0)))
 	_pet_view.squash = 0.8
 	if step.get("banner", false):
-		_banner.text = catalog.tier_at(catalog.rank(_pet.rarity)).name.to_upper() + "!"
+		_banner.text = catalog.tier_at(catalog.rank(_pet.rarity)).name + "!"
 		_banner.add_theme_color_override("font_color", catalog.tier_color(_pet.rarity))
 		_pop_in(_banner)
 	await _wait(float(step.get("hold", 0.4)))
@@ -311,7 +327,8 @@ func _celebrate(run: int) -> void:
 	var f := catalog.finish(_pet.finish)
 	if f.id != "normal":
 		var color := catalog.tier_color(f.rarity)
-		_banner.text = "…and it's %s!" % f.name.to_upper()
+		_banner.text = "…and it's %s!" % f.name
+		_pet_says("finish")
 		_banner.add_theme_color_override("font_color", color)
 		_pop_in(_banner)
 		var flash := _tween()
@@ -329,6 +346,12 @@ func _show_result() -> void:
 	_stage = Stage.RESULT
 	_say("")
 	_banner.visible = false
+	# the pet steps out of the scene and onto its result card; the light stays behind it
+	_pack.visible = false
+	_pack.back.visible = false
+	_pet_clip.visible = false
+	_ladder.visible = false
+	_pet_says("result")
 	_result.visible = true
 	_result.show_pet(_pet, _box_id)
 
@@ -359,7 +382,12 @@ func _reset() -> void:
 	_shake = 0.0
 	_scene.visible = false
 	_pet_view.modulate = Color.WHITE
-	_say("open a box to see what's inside ✦")
+	_say("pick a box and rip it open")
+	_ladder.visible = false
+	_pack.visible = true
+	_pack.back.visible = true
+	_pet_clip.visible = true
+	queue_redraw()
 
 
 # ---- state setters --------------------------------------------------------
@@ -495,10 +523,33 @@ func _pack_local(pos: Vector2) -> Vector2:
 
 func _layout() -> void:
 	_scene.position = _base_position()
+	_ladder.position = Vector2(size.x - 110.0, size.y / 2.0 - 70.0)
 
 
 func _base_position() -> Vector2:
 	return Vector2(size.x / 2.0, size.y * 0.78)
+
+
+## Your active pet talks in its bubble: a line from reveal.json "pet_says" for this moment.
+func _pet_says(moment: String) -> void:
+	var says: Dictionary = _cfg.get("pet_says", {})
+	var lines: Variant = says.get(moment, [])
+	if lines is Dictionary:
+		lines = lines.get(_pet.rarity, [])
+	if not lines is Array or lines.is_empty() or _pet == null:
+		return
+	var catalog := Catalog.shared()
+	var line: String = lines[randi() % lines.size()]
+	line = line.replace("{name}", _pet.display_name(catalog)).replace("{finish}", catalog.finish(_pet.finish).name)
+	PetBubble.say(self, line)
+
+
+func _draw() -> void:
+	# before a box is picked: an empty dashed spot where the pack will land
+	if _stage == Stage.IDLE:
+		var s := Vector2(CardPack.WIDTH, CardPack.HEIGHT) * 0.8
+		var at := Vector2(size.x / 2.0, size.y * 0.47) - s / 2.0
+		draw_style_box(UiTheme.stitched(UiTheme.LINE, Color(0, 0, 0, 0), 16, 0), Rect2(at, s))
 
 
 func _say(text: String) -> void:
@@ -530,3 +581,31 @@ func _kill_tweens() -> void:
 		if t.is_valid():
 			t.kill()
 	_tweens.clear()
+
+
+## The rarity ladder beside the pack: one pip per tier, lit one at a time as the light climbs.
+class RarityLadder extends Control:
+	var _lit := -1
+
+	func _init() -> void:
+		custom_minimum_size = Vector2(100, 140)
+		size = custom_minimum_size
+		mouse_filter = MOUSE_FILTER_IGNORE
+
+	func light(rank: int) -> void:
+		_lit = rank
+		queue_redraw()
+
+	func _draw() -> void:
+		var catalog := Catalog.shared()
+		var font := UiTheme.BODY_FONT
+		for r in catalog.tiers.size():
+			var tier := catalog.tier_at(r)
+			var y := size.y - 10.0 - r * 22.0
+			var color := catalog.tier_color(tier.id)
+			var on := r <= _lit
+			if r == _lit:
+				draw_circle(Vector2(8, y), 10.0, Color(color, 0.25))
+			draw_circle(Vector2(8, y), 6.0, color if on else UiTheme.DEEP)
+			draw_arc(Vector2(8, y), 6.0, 0.0, TAU, 20, color if on else UiTheme.LINE, 2.0, true)
+			draw_string(font, Vector2(22, y + 4), tier.name, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.SMALL, color if on else UiTheme.LOCKED)

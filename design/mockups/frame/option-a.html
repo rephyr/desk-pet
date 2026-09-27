@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Frame A: Index Tabs</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/base.css">
+<style>
+  /* A: the page is a sticker book page; tabs are index tabs stuck onto its top edge */
+  .app { display: flex; flex-direction: column; background: var(--deep); }
+  header { display: flex; align-items: flex-end; gap: 10px; height: 52px; padding: 0 8px 0 14px; }
+  .title { display: flex; align-items: center; gap: 7px; align-self: center; font: 18px/1 var(--display); color: var(--pink); white-space: nowrap; }
+  .tabs { display: flex; gap: 4px; align-self: flex-end; margin-left: 6px; }
+  .tab {
+    display: flex; align-items: center; gap: 6px;
+    height: 34px; padding: 0 10px; white-space: nowrap;
+    background: #1d1229; color: var(--muted);
+    border: 2px solid #2c1d3d; border-bottom: 0;
+    border-radius: 10px 10px 0 0;
+    cursor: pointer; position: relative; top: 2px;
+    transition: color .12s, height .15s var(--ease-out);
+  }
+  .tab:hover { color: var(--pink); height: 37px; }
+  .tab.on { height: 38px; background: var(--page); color: var(--pink); border-color: var(--pink-seam); z-index: 2; }
+  .tab.locked { color: #76688a; cursor: default; }
+  .tab.locked:hover { height: 34px; color: #76688a; }
+  .right { margin-left: auto; display: flex; align-items: center; gap: 8px; align-self: center; }
+  .page {
+    flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 14px;
+    margin: 0 8px 8px; padding: 14px 16px 12px;
+    border: 2px solid var(--pink-seam); border-radius: 0 var(--r-panel) var(--r-panel) var(--r-panel);
+  }
+  .say { display: flex; align-items: center; gap: 12px; }
+  .say .face { width: 40px; height: 45px; flex: none; }
+  .say .bubble { flex: 1; }
+  .say .bubble::before { content: ""; position: absolute; left: -8px; top: 50%; width: 12px; height: 12px; background: var(--raised); border-left: 2px solid var(--pink-seam); border-bottom: 2px solid var(--pink-seam); transform: translateY(-50%) rotate(45deg); }
+  #content { flex: 1; min-height: 0; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="title"><span data-icon="heart"></span>desk pets</div>
+    <nav class="tabs">
+      <button class="tab" data-tab><span data-icon="home"></span>home</button>
+      <button class="tab" data-tab><span data-icon="boxes"></span>boxes</button>
+      <button class="tab on" data-tab><span data-icon="collection"></span>pets</button>
+      <button class="tab" data-tab><span data-icon="adventures"></span>trips</button>
+      <button class="tab" data-tab><span data-icon="upgrades"></span>gear</button>
+      <button class="tab locked" title="found on a trip"><span data-icon="lock"></span></button>
+      <button class="tab" data-tab title="settings"><span data-icon="settings"></span></button>
+    </nav>
+    <div class="right">
+      <span class="chip coins"><span data-icon="coin"></span>10,421</span>
+      <span class="chip xp"><span data-icon="xp"></span>72</span>
+      <div class="winbtns"><button title="shrink">▾</button><button title="close">✕</button></div>
+    </div>
+  </header>
+  <main class="page dots">
+    <div class="say">
+      <img class="px face" src="../assets/pets/lilac-blob.png" alt="">
+      <div class="bubble">ooh. that gold one looks… expensive. i'm still the cutest though ♪</div>
+    </div>
+    <div id="content"></div>
+  </main>
+</div>
+<script src="../shared/pixel.js"></script>
+<script>renderCollection(document.getElementById("content")); paintIcons(); wireTabs();</script>
+</body>
+</html>

@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Desk Pets Mockups</title>
+<link rel="stylesheet" href="shared/tokens.css">
+<style>
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 32px 24px 48px; background: var(--deep); color: var(--text); font: 13px/1.5 var(--body); }
+  ::selection { background: var(--pink-pressed); }
+  h1 { font: 28px/1 var(--display); color: var(--pink); margin: 0 0 6px; font-weight: 400; }
+  h2 { font: 18px/1 var(--display); color: var(--lilac); margin: 36px 0 14px; font-weight: 400; }
+  p { color: var(--muted); margin: 0; max-width: 70ch; }
+  .row { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 18px; }
+  a.card { display: block; color: inherit; text-decoration: none; background: var(--raised); border: 2px solid var(--lilac-seam); border-radius: var(--r-xl); padding: 10px 10px 12px; box-shadow: var(--lift); transition: transform .15s var(--ease-out), border-color .12s; }
+  a.card:hover, a.card:focus-visible { border-color: var(--pink); transform: translateY(-3px); outline: none; }
+  a.card img { width: 100%; border-radius: var(--r-md); display: block; }
+  a.card b { display: block; margin-top: 8px; color: var(--pink); font-weight: 400; }
+  a.card span { color: var(--muted); font-size: 12px; }
+</style>
+</head>
+<body>
+  <h1>desk pets mockups</h1>
+  <p>Browser mockups of the game's screens, following DESIGN.md. Each page is the real window size (920x600). Click around: tabs and pet cards respond.</p>
+
+  <h2>the frame (pick one)</h2>
+  <div class="row">
+    <a class="card" href="frame/option-a.html"><img src="shots/frame-a.png" alt=""><b>A: index tabs</b><span>Tabs are index tabs stuck on top of a sticker book page. Closest to today.</span></a>
+    <a class="card" href="frame/option-b.html"><img src="shots/frame-b.png" alt=""><b>B: book spine</b><span>A spine of icon tabs on the left, your pet sits on top of it. Most room for content.</span></a>
+    <a class="card" href="frame/option-c.html"><img src="shots/frame-c.png" alt=""><b>C: pet floor</b><span>Your pet lives on a floor at the bottom of every screen, tabs are stickers beside it.</span></a>
+  </div>
+
+  <h2>screens (the chosen frame: B2 starry spine + stitches)</h2>
+  <p>Pick colours, font and icons in settings: the choice carries over to every screen page.</p>
+  <div class="row">
+    <a class="card" href="screens/settings.html"><img src="shots/settings-plum.png" alt=""><b>settings</b><span>With "the look": colours, font and icons.</span></a>
+    <a class="card" href="screens/pets.html"><img src="shots/pets.png" alt=""><b>pets</b><span>The collection in the default look: midnight plum, Coiny + Maple Mono, doodle icons.</span></a>
+  </div>
+
+  <h2>the first minutes (tutorial)</h2>
+  <div class="row">
+    <a class="card" href="screens/tutorial.html?step=1"><img src="shots/tutorial/step1.png" alt=""><b>1. two boxes that talk</b><span>A new game: an empty seat on the moon, only the boxes tab. Click the wiggling box.</span></a>
+    <a class="card" href="screens/tutorial.html?step=2"><img src="shots/tutorial/step2.png" alt=""><b>2. pick your pet</b><span>One stays with you, the other goes exploring. The pets tab appears.</span></a>
+    <a class="card" href="screens/tutorial.html?step=3"><img src="shots/tutorial/step3.png" alt=""><b>3. send the other one</b><span>Your pet sits on its moon and talks for the first time. The trips tab appears.</span></a>
+  </div>
+
+  <h2>bag and sewing</h2>
+  <div class="row">
+    <a class="card" href="screens/inventory.html"><img src="shots/bag.png" alt=""><b>the bag</b><span>Boxes found on trips, loose parts, and the sewing table: before and after, how tricky the stitch is.</span></a>
+    <a class="card" href="screens/inventory.html?state=held"><img src="shots/bag-held.png" alt=""><b>it held!</b><span>Try "sew it on": rarer parts slip more often.</span></a>
+  </div>
+
+  <h2>gear (xp upgrades)</h2>
+  <div class="row">
+    <a class="card" href="screens/gear.html"><img src="shots/gear.png" alt=""><b>gear for the trips</b><span>Stickers on a crayon path. Buying reveals the next ones; automations wait further down. Try "get it".</span></a>
+    <a class="card" href="screens/gear.html?state=locked"><img src="shots/gear-locked.png" alt=""><b>before it's earned</b><span>The pet dreams about boots until a trip brings home some xp.</span></a>
+  </div>
+
+  <h2>trips</h2>
+  <div class="row">
+    <a class="card" href="screens/trips.html"><img src="shots/trips/map.png" alt=""><b>the map</b><span>Your pet's crayon map. Pets out on trips walk the roads; ? clouds are still unexplored. Click a place.</span></a>
+    <a class="card" href="screens/trips.html?state=pick&place=pond"><img src="shots/trips/pick.png" alt=""><b>picking a place</b><span>The place card sticks onto the map: how long, how many pets, who's going.</span></a>
+    <a class="card" href="screens/trips.html?state=trail"><img src="shots/trips/trail.png" alt=""><b>the trail</b><span>"watch ›" on a trip: click to hurry, grab things on the path.</span></a>
+  </div>
+
+  <h2>home and the corner panel</h2>
+  <div class="row">
+    <a class="card" href="screens/home.html"><img src="shots/home.png" alt=""><b>home: the pet's room</b><span>Things found on trips become furniture (hover them). Sticky notes on the wall are what needs you.</span></a>
+    <a class="card" href="screens/panel.html"><img src="shots/panel.png" alt=""><b>corner panel</b><span>The small window on your desktop: your pet opens packs from the pile and runs errands.</span></a>
+    <a class="card" href="screens/panel.html?state=pull"><img src="shots/panel-pull.png" alt=""><b>corner panel: a good pull</b><span>Held up to show you until you tap it. Click the sky to toggle.</span></a>
+  </div>
+
+  <h2>collection book</h2>
+  <div class="row">
+    <a class="card" href="screens/book.html"><img src="shots/book-1.png" alt=""><b>bodies and palettes</b><span>Found parts are stickers stuck in a little crooked; empty spots show a silhouette.</span></a>
+    <a class="card" href="screens/book.html?spread=2"><img src="shots/book-2.png" alt=""><b>a full page</b><span>Filling a page opens its reward sticker and stars its bookmark.</span></a>
+    <a class="card" href="screens/book.html?spread=3&theme=lilac-milk"><img src="shots/book-3.png" alt=""><b>accessories and finishes (lilac milk)</b><span>Finishes are shown on a plain blob.</span></a>
+  </div>
+
+  <h2>boxes</h2>
+  <p>Open <a href="screens/boxes.html" style="color: var(--pink)">the boxes screen</a> and click "open 1" (from the bag) or "open 10": the whole ritual plays and you do the rip and the pull.</p>
+  <div class="row">
+    <a class="card" href="screens/boxes.html?odds=lucky"><img src="shots/boxes/shop.png" alt=""><b>shop</b><span>The shop: packs as stickers. "odds" flips a pack to its back.</span></a>
+    <a class="card" href="screens/boxes.html?state=land"><img src="shots/boxes/land.png" alt=""><b>1. the pack lands</b><span>Drag the strip off the top.</span></a>
+    <a class="card" href="screens/boxes.html?state=climb&tier=legendary"><img src="shots/boxes/climb.png" alt=""><b>2. the light climbs</b><span>The rarity ladder lights up one tier at a time.</span></a>
+    <a class="card" href="screens/boxes.html?state=pull&tier=legendary"><img src="shots/boxes/pull.png" alt=""><b>3. pull it out</b><span>The pet peeks out of the pack.</span></a>
+    <a class="card" href="screens/boxes.html?state=mist&tier=mythic"><img src="shots/boxes/mist.png" alt=""><b>3b. mythic mist</b><span>Very rare pulls hide in mist you wave away.</span></a>
+    <a class="card" href="screens/boxes.html?state=celebrate&tier=legendary"><img src="shots/boxes/celebrate.png" alt=""><b>4. celebration</b><span>Sized to the rarity; epic and up get a banner.</span></a>
+    <a class="card" href="screens/boxes.html?state=result&tier=legendary"><img src="shots/boxes/result.png" alt=""><b>5. the result</b><span>Rarity, finish and the parts that are new to you.</span></a>
+    <a class="card" href="screens/boxes.html?state=many"><img src="shots/boxes/many.png" alt=""><b>open 10</b><span>Stickers pop in, with a summary of what you got.</span></a>
+  </div>
+
+  <h2>theme lab: B3 + stitches + doodle icons</h2>
+  <p>Open <a href="frame/lab.html" style="color: var(--pink)">the lab</a> and switch colours, font and icons live with the pickers above the window.</p>
+  <h2>colour schemes</h2>
+  <div class="row">
+    <a class="card" href="frame/lab.html?theme=plum&font=fredoka"><img src="shots/lab/theme-plum.png" alt=""><b>midnight plum (today) (dark)</b></a>
+    <a class="card" href="frame/lab.html?theme=blueberry&font=fredoka"><img src="shots/lab/theme-blueberry.png" alt=""><b>blueberry night (dark)</b></a>
+    <a class="card" href="frame/lab.html?theme=cocoa&font=fredoka"><img src="shots/lab/theme-cocoa.png" alt=""><b>cocoa strawberry (dark)</b></a>
+    <a class="card" href="frame/lab.html?theme=lilac-milk&font=fredoka"><img src="shots/lab/theme-lilac-milk.png" alt=""><b>lilac milk (light)</b></a>
+    <a class="card" href="frame/lab.html?theme=peach-sorbet&font=fredoka"><img src="shots/lab/theme-peach-sorbet.png" alt=""><b>peach sorbet (light)</b></a>
+  </div>
+  <h2>fonts</h2>
+  <div class="row">
+    <a class="card" href="frame/lab.html?theme=plum&font=fredoka"><img src="shots/lab/font-fredoka.png" alt=""><b>Fredoka</b></a>
+    <a class="card" href="frame/lab.html?theme=plum&font=baloo"><img src="shots/lab/font-baloo.png" alt=""><b>Baloo 2</b></a>
+    <a class="card" href="frame/lab.html?theme=plum&font=nunito"><img src="shots/lab/font-nunito.png" alt=""><b>Nunito</b></a>
+    <a class="card" href="frame/lab.html?theme=plum&font=mplus"><img src="shots/lab/font-mplus.png" alt=""><b>M PLUS Rounded</b></a>
+    <a class="card" href="frame/lab.html?theme=plum&font=coiny"><img src="shots/lab/font-coiny.png" alt=""><b>today: Coiny + Maple Mono</b></a>
+  </div>
+
+  <h2>variations on B</h2>
+  <div class="row">
+    <a class="card" href="frame/option-b1.html"><img src="shots/frame-b1.png" alt=""><b>B1: stitched spine</b><span>The spine is sewn onto the page. Tabs are patches, the active one stitched on. The bubble comes from the pet; coins and xp live at the bottom of the spine.</span></a>
+    <a class="card" href="frame/option-b2.html"><img src="shots/frame-b2.png" alt=""><b>B2: starry spine</b><span>The spine is a strip of night sky with a few tiny dim stars. Your pet sits on a little moon. Coins and xp beside the bubble.</span></a>
+    <a class="card" href="frame/option-b3.html"><img src="shots/frame-b3.png" alt=""><b>B3: roomy spine</b><span>A wider spine that's your pet's corner: name, food and mood, then the tabs as a list. The active tab joins the page; a dot marks news.</span></a>
+  </div>
+
+  <h2>before (today's game)</h2>
+  <div class="row">
+    <a class="card" href="before/collection_3.0.png"><img src="before/collection_3.0.png" alt=""><b>collection</b></a>
+    <a class="card" href="before/home_3.0.png"><img src="before/home_3.0.png" alt=""><b>home</b></a>
+    <a class="card" href="before/adventures_3.0.png"><img src="before/adventures_3.0.png" alt=""><b>adventures</b></a>
+    <a class="card" href="before/boxes_3.0.png"><img src="before/boxes_3.0.png" alt=""><b>boxes</b></a>
+    <a class="card" href="before/inventory_3.0.png"><img src="before/inventory_3.0.png" alt=""><b>inventory</b></a>
+    <a class="card" href="before/panel_3.0.png"><img src="before/panel_3.0.png" alt=""><b>corner panel</b></a>
+  </div>
+</body>
+</html>

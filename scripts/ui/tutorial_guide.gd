@@ -6,15 +6,16 @@ extends Control
 
 var target_for: Callable  # () -> Control: what to point at right now, or null
 var _bubble := PanelContainer.new()
-var _line := UiTheme.label("", UiTheme.TEXT, UiTheme.SMALL)
+var _line := UiTheme.label("", UiTheme.TEXT, UiTheme.SMALL + 1)
 var _target: Control
 var _time := 0.0
+var _ring := UiTheme.stitched(UiTheme.PINK, Color(0, 0, 0, 0), 14, 0)
 
 
 func _init() -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
 	_bubble.mouse_filter = MOUSE_FILTER_IGNORE
-	_bubble.add_theme_stylebox_override("panel", UiTheme.box(UiTheme.BG_DEEP, UiTheme.PINK, 10, 2, 8))
+	_bubble.add_theme_stylebox_override("panel", UiTheme.sticker(UiTheme.PINK_SEAM, 14, UiTheme.RAISED, 10))
 	_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	_line.custom_minimum_size = Vector2(220, 0)
 	_bubble.add_child(_line)
@@ -46,10 +47,12 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	if _target == null or not _target.is_visible_in_tree():
 		return
+	# a stitched ring that breathes in and out around the thing to press
 	var glow := 0.5 + 0.5 * sin(_time * 4.0)
-	var r := _target_rect().grow(4.0 + glow * 3.0)
-	var sb := UiTheme.box(Color(0, 0, 0, 0), Color(UiTheme.PINK, 0.5 + 0.5 * glow), 10, 3, 0)
-	draw_style_box(sb, r)
+	var r := _target_rect().grow(6.0 + glow * 4.0)
+	_ring.dash_color = Color(UiTheme.PINK, 0.55 + 0.45 * glow)
+	_ring.width = 3.0
+	draw_style_box(_ring, r)
 
 
 func _target_rect() -> Rect2:

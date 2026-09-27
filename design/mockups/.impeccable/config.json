@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "clipped-overflow-container",
+        "value": "*",
+        "files": [
+          "design/mockups/frame/option-b.html"
+        ],
+        "createdAt": "2026-09-27T08:08:23.100Z",
+        "reason": "Claude: the clip is the fixed 920x600 game window frame, intentional; the badge sits inside it"
+      }
+    ]
+  }
+}
