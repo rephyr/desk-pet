@@ -87,6 +87,14 @@ func _speak() -> void:
 		return
 	_portrait.set_pet(pet)
 	var catalog := Catalog.shared()
+	# big news first: something found, something new opened up
+	var news := GameState.take_announcement()
+	if news != "":
+		var more := GameState.take_announcement()
+		_speech.text = news + (" " + more if more != "" else "")
+		_speech.visible_ratio = 0.0
+		create_tween().tween_property(_speech, "visible_ratio", 1.0, 0.02 * _speech.text.length())
+		return
 	var what := PetVoice.situation(GameState.news, GameState.rumours, GameState.runs, catalog)
 	GameState.news = {}
 	_speech.text = PetVoice.line(pet, what, _voice_rng, catalog)

@@ -47,6 +47,8 @@ static func roll(reward: Dictionary, party: Party, location: Dictionary, rng: Ra
 				var part := roll_part(str(reward.get("box", location.box)), rng, catalog, slots)
 				add(out, { "part:%s:%s" % part: 1 })
 			return out
+	if kind == "find":
+		return { "find:%s" % reward.id: 1 }  # a special item: always exactly one
 	# any other kind: a chance of one (or more, for big parties) of that thing
 	var n := count(float(reward.get("chance", 1.0)) * items, rng)
 	return { "%s:%s" % [kind, reward.get("id", "")]: n } if n > 0 else {}

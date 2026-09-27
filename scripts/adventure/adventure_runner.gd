@@ -20,14 +20,15 @@ const HOME_OPTION := {
 }
 
 
-static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: int, catalog: Catalog) -> RunState:
+## `found` lists special items already found: events that give them don't turn up any more.
+static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: int, catalog: Catalog, found := {}) -> RunState:
 	var location := catalog.location(location_id)
 	var s := RunState.new()
 	s.location_id = location_id
 	s.party = Party.make(pets, catalog)
 	s.chooser = Chooser.kind_for(pets.size())
 	s.rng_seed = rng_seed
-	s.events = pick_events(location, rng_seed)
+	s.events = pick_events(location, rng_seed, found, catalog)
 	s.started = now
 	s.next_at = now + gap(location, s.party, s.events.size())
 	return s
@@ -35,16 +36,19 @@ static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: i
 
 ## The events a trip will meet: a place's fixed list, or a draw from its pool (weighted, no
 ## repeats), so trips to the same place go differently.
-static func pick_events(location: Dictionary, rng_seed: int) -> Array[String]:
+static func pick_events(location: Dictionary, rng_seed: int, found := {}, catalog: Catalog = null) -> Array[String]:
 	var out: Array[String] = []
+	var still := func(id) -> bool:
+		return catalog == null or not found.has(str(catalog.events.get(id, {}).get("find", "")))
 	if not location.has("pool"):
-		out.assign(location.get("events", []))
+		out.assign(location.get("events", []).filter(still))
 		return out
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([rng_seed, "pool"])
 	var weights := {}
 	for entry in location.pool:
-		weights[entry.event] = float(entry.get("weight", 1.0))
+		if still.call(entry.event):
+			weights[entry.event] = float(entry.get("weight", 1.0))
 	for i in mini(int(location.get("draws", 3)), weights.size()):
 		var id: String = Weighted.pick(weights, rng)
 		weights.erase(id)

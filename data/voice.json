@@ -1,5 +1,5 @@
 {
-	"_note": "What the active pet says on the adventures tab. It is the only voice in the game: sincerely innocent, cheerful, and it never understands what's really happening. Its EYES pick its personality; its ACCESSORY adds a little tic at the end of each line. Situations: idle (nothing going on), away (a trip is out), needs_you (a trip is waiting for a choice), someone_back (a trip is back, not welcomed yet), back_all / back_some / back_none (just welcomed a trip back), part_found (it brought parts), rumour (word of somewhere new, waiting for you to decide), spotted (a pet saw a new place on its trip). {place} {home} {sent} {lost} {rumour} {spot} {who} are filled in. Lines are picked at random. HINTS are what the active pet says under each option on a trip (never numbers): 'risk' has 5 steps from sure to scared, picked from the real chance; 'reward' has 4 steps from a crumb to something special, picked from what the option can give; 'home' is for going home, 'rest' for options that heal. 'bias' shifts how this personality reads risk (-1 always sounds surer, +1 more scared). {trip} is the pet on the trip. 'feeling' is the line on top of a trip: how the pet on the trip seems after the last event (start / good / bad / hurt). GRAFT is what your active pet says about a part being sewn onto it: 'risk' has 5 steps from sure to scared (from the real chance, with the same bias), then a 'success' or 'fail' line.",
+	"_note": "What the active pet says on the adventures tab. It is the only voice in the game: sincerely innocent, cheerful, and it never understands what's really happening. Its EYES pick its personality; its ACCESSORY adds a little tic at the end of each line. Situations: idle (nothing going on), away (a trip is out), needs_you (a trip is waiting for a choice), someone_back (a trip is back, not welcomed yet), back_all / back_some / back_none (just welcomed a trip back), part_found (it brought parts), rumour (word of somewhere new, waiting for you to decide), spotted (a pet saw a new place on its trip). {place} {home} {sent} {lost} {rumour} {spot} {who} are filled in. Lines are picked at random. HINTS are what the active pet says under each option on a trip (never numbers): 'risk' has 5 steps from sure to scared, picked from the real chance; 'reward' has 4 steps from a crumb to something special, picked from what the option can give; 'home' is for going home, 'rest' for options that heal. 'bias' shifts how this personality reads risk (-1 always sounds surer, +1 more scared). {trip} is the pet on the trip. 'feeling' is the line on top of a trip: how the pet on the trip seems after the last event (start / good / bad / hurt). GRAFT is what your active pet says about a part being sewn onto it: 'risk' has 5 steps from sure to scared (from the real chance, with the same bias), then a 'success' or 'fail' line. 'at_work' is said after the list of what your pet did while you were busy (errands, packs).",
 	"default": "cheerful",
 	"personalities": [
 		{
@@ -48,6 +48,10 @@
 				"spotted": [
 					"{who} saw {spot} on the way! can we go? can we?",
 					"guess what! {who} found {spot}!"
+				],
+				"at_work": [
+					"i worked so hard! look!",
+					"busy busy! that was fun!"
 				]
 			},
 			"hints": {
@@ -138,6 +142,10 @@
 				"spotted": [
 					"{who} spotted {spot}! what a lovely find!",
 					"there's {spot} out there! {who} saw it!"
+				],
+				"at_work": [
+					"what a productive day!",
+					"everyone helped out! so nice!"
 				]
 			},
 			"hints": {
@@ -228,6 +236,10 @@
 				"spotted": [
 					"{who} found {spot}. obviously i'd have found it faster.",
 					"{spot}? {who} found it. good scouting."
+				],
+				"at_work": [
+					"i managed everything. perfectly.",
+					"you're welcome."
 				]
 			},
 			"hints": {
@@ -318,6 +330,10 @@
 				"spotted": [
 					"{who} saw… {spot}… i think…",
 					"{spot}… exists… apparently…"
+				],
+				"at_work": [
+					"i did… stuff… i think…",
+					"was i… working…? yes…"
 				]
 			},
 			"hints": {
@@ -408,6 +424,10 @@
 				"spotted": [
 					"{who} saw {spot}! it's new! new is fine!",
 					"{spot}!? {who} found it! should we? maybe!"
+				],
+				"at_work": [
+					"i did my best! is it good? it's good!",
+					"everyone came back! i counted!"
 				]
 			},
 			"hints": {
@@ -498,6 +518,10 @@
 				"spotted": [
 					"{who} found {spot}. it was waiting.",
 					"{spot}. {who} saw it first. then it saw {who}."
+				],
+				"at_work": [
+					"i kept things moving. things like to move.",
+					"work happened. i watched it happen."
 				]
 			},
 			"hints": {

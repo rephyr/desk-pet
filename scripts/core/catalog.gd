@@ -22,6 +22,9 @@ var rumours: Array[Dictionary] = []  # what exploration can bring back
 var voice := {}  # what the active pet says, see data/voice.json
 var tutorial := {}  # the first few minutes of a new game, see data/tutorial.json
 var grafting := {}  # sewing parts onto your active pet, see data/grafting.json
+var unlock_list: Array[Dictionary] = []  # what adventures open up, see data/unlocks.json
+var finds := {}  # find id -> special item
+var pages: Array[Dictionary] = []  # map pages, in order
 
 var _tier_rank := {}  # tier id -> index
 var _parts_by_id := {}  # slot -> { part id -> part }
@@ -69,6 +72,10 @@ func _init() -> void:
 	voice = _load("voice.json")
 	tutorial = _load("tutorial.json")
 	grafting = _load("grafting.json")
+	var unlock_data := _load("unlocks.json")
+	unlock_list.assign(unlock_data.unlocks)
+	finds = _index(unlock_data.finds)
+	pages.assign(unlock_data.pages)
 
 
 # ---- rarity ---------------------------------------------------------------

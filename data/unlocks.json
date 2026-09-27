@@ -1,0 +1,22 @@
+{
+	"_note": "Everything past the basics is opened through adventures. Each unlock has 'earn': every condition must be met ('find': a special item a pet brought home from a trip, see 'finds' and the events that give them; 'first': the first of something, e.g. 'part'; 'packs_opened': packs you opened yourself). 'show' is how it looks until then: 'locked' (a tab with a padlock and the 'hint') or 'hidden' (not there at all; automation is always hidden). 'opens' is what it turns on: 'tab:<name>', 'feature:<id>' (errands, packs = your pet opening packs, parties) or 'page:<id>' (a map page). 'announce' is what your active pet says when it opens.",
+	"unlocks": [
+		{ "id": "inventory", "opens": ["tab:inventory"], "show": "locked", "hint": "pets bring things home from their trips",
+			"earn": { "first": "part" }, "announce": "a pet brought something home! it's in your inventory now!" },
+		{ "id": "errands", "opens": ["feature:errands"], "show": "hidden",
+			"earn": { "find": "basket" }, "announce": "a little basket! now i can send friends to fetch things while you're busy!" },
+		{ "id": "cart", "opens": ["feature:parties", "page:beyond"], "show": "hidden",
+			"earn": { "find": "cart" }, "announce": "a cart! more friends can go on trips together now! and look, there's a gate in the fence!!" },
+		{ "id": "packs", "opens": ["feature:packs"], "show": "hidden",
+			"earn": { "find": "cushion", "packs_opened": 200 }, "announce": "a comfy cushion! i can sit here and open packs for you!" }
+	],
+	"finds": [
+		{ "id": "basket", "name": "a little basket" },
+		{ "id": "cart", "name": "a little cart" },
+		{ "id": "cushion", "name": "a comfy cushion" }
+	],
+	"pages": [
+		{ "id": "backyard", "name": "the backyard", "start": true },
+		{ "id": "beyond", "name": "beyond the fence" }
+	]
+}

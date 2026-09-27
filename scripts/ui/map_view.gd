@@ -29,6 +29,8 @@ const DOODLE_COLORS := {
 
 ## The place picked for the next trip, circled on the map.
 var selected := ""
+## Which map page is showing (data/unlocks.json "pages"). Each page is its own drawing.
+var page := ""
 
 var _title_font := SystemFont.new()
 var _note_font := SystemFont.new()
@@ -39,6 +41,7 @@ var _offset := Vector2.ZERO
 var _hover := ""
 var _hotspots := {}  # location id -> Control, so the tutorial can point at a place
 var _tick := 0.0
+var _page_tabs := HBoxContainer.new()
 
 
 func _init() -> void:
@@ -49,6 +52,8 @@ func _init() -> void:
 	_title_font.font_names = PackedStringArray(["Coiny", "Maple Mono"])
 	_note_font.font_names = PackedStringArray(["Maple Mono", "monospace"])
 	_note_font.font_italic = true
+	_page_tabs.add_theme_constant_override("separation", 6)
+	add_child(_page_tabs)
 	resized.connect(refresh)
 	GameState.adventures_changed.connect(refresh)
 	GameState.collection.active_changed.connect(func(_p): queue_redraw())
@@ -56,6 +61,7 @@ func _init() -> void:
 
 ## Re-reads what's been found and redraws.
 func refresh() -> void:
+	_refresh_pages()
 	_collect()
 	_fit()
 	_place_hotspots()
@@ -74,6 +80,27 @@ func _process(delta: float) -> void:
 		queue_redraw()
 
 
+## One little tab per open page, top right, when there's more than one.
+func _refresh_pages() -> void:
+	var open: Array = Catalog.shared().pages.filter(func(p): return GameState.page_open(p.id))
+	if page == "" or not open.any(func(p): return p.id == page):
+		page = open[0].id if not open.is_empty() else ""
+	UiTheme.clear(_page_tabs)
+	_page_tabs.visible = open.size() > 1
+	for p in open:
+		var b := UiTheme.button(p.name)
+		b.add_theme_font_size_override("font_size", UiTheme.SMALL)
+		b.toggle_mode = true
+		b.button_pressed = p.id == page
+		b.pressed.connect(func():
+			page = p.id
+			selected = ""
+			refresh())
+		_page_tabs.add_child(b)
+	_page_tabs.reset_size()
+	_page_tabs.position = Vector2(size.x - _page_tabs.size.x - 12.0, 12.0)
+
+
 # ---- what's on the map --------------------------------------------------------
 
 func _collect() -> void:
@@ -82,7 +109,7 @@ func _collect() -> void:
 	_edges.clear()
 	var at := {}  # location id -> node, so each place is drawn once
 	for location in catalog.locations:
-		if not location.has("map"):
+		if not location.has("map") or str(location.get("page", "")) != page:
 			continue
 		if GameState.location_open(location):
 			at[location.id] = _node(location, "open")
@@ -92,7 +119,7 @@ func _collect() -> void:
 		for unlock in catalog.rumour(rumour_id).get("unlocks", []):
 			var id := str(unlock).trim_prefix("location:")
 			var location := catalog.location(id)
-			if location.has("map") and not at.has(id):
+			if location.has("map") and not at.has(id) and str(location.get("page", "")) == page:
 				var node := _node(location, "rumour")
 				node.rumour = rumour_id
 				at[id] = node
@@ -103,7 +130,7 @@ func _collect() -> void:
 			continue
 		for lead in node.location.get("leads_to", []):
 			var to := catalog.location(lead.to)
-			if not at.has(lead.to) and to.has("map"):
+			if not at.has(lead.to) and to.has("map") and str(to.get("page", "")) == page:
 				at[lead.to] = _node(to, "unknown")
 			if at.has(lead.to):
 				_edges.append({ "from": id, "to": lead.to, "faint": at[lead.to].kind != "open" })
@@ -262,6 +289,8 @@ func _draw_trips() -> void:
 	var home := _screen(home_node.pos)
 	var i := 0
 	for run in GameState.runs:
+		if str(Catalog.shared().location(run.location_id).get("page", "")) != page:
+			continue  # out on another page of the map
 		var place := home
 		for node in _nodes:
 			if node.id == run.location_id:

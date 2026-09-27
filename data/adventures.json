@@ -1,5 +1,5 @@
 {
-	"_note": "Adventures: everything pets are sent out to do. TYPES just group places (and what they're like). LOCATIONS form a branching map: only the one with 'start' is open at first; the rest open when a pet spots them on a trip ('leads_to': { to, spot = chance per trip that comes home, wait_minutes + wait_text = a time lock after spotting }) or when a rumour leads there. 'map' places it on the pet's doodle map (x/y in map units, garden at 0,0; 'doodle' picks the drawing; 'note' is the pet's scribble); 'more': true draws a ? cloud beyond it. A place has a fixed 'events' list, or a weighted 'pool' that each trip draws 'draws' events from without repeats; 'go_home': true adds a 'go home' option (keep the bag) to every event; 'part_slots' makes parts found there lean to those slots. 'minutes' is the whole trip, 'max_party' caps party size there, 'difficulty' multiplies option difficulty, 'danger' how many get hurt or lost, 'loot' multiplies coins, 'box' is the box found there and the odds for part rarity; 'finish_rewards' is a treat bag for trips that go all the way (not home early). Rewards grow the further into a trip an event is (x1, x1.25, x1.5, ...). EVENTS are shared. Option: 'chance' is its own chance of going well (tilted a little by 'stat' and down if hurt); older options test 'stat' against 'difficulty'; no chance and no stat = always works; 'tag' is for policies; 'min_party' hides it for smaller parties. Outcome: 'lost'/'injured'/'heal' are [min, max] fractions of the party, 'hurt' is a fraction of pets that lose a heart ('hearts': 2 = both at once; a pet hurt twice doesn't come back, and nothing it found comes home), 'progress' is continue / end / skip, 'leave_injured' leaves the injured behind, 'rewards' is a list of { kind, ... } handled in scripts/adventure/rewards.gd (coins: 'amount' per pet; box/part/rumour/anything else: 'chance', growing with the square root of the party). RUMOURS are what exploring brings back: 'about' is how the pet describes it, 'unlocks' what saying yes opens, 'requires' what must be open before anyone can hear it. {who} is the pet's name, or 'the party'. Texts stay cheerful and plain.",
+	"_note": "Adventures: everything pets are sent out to do. TYPES just group places (and what they're like). LOCATIONS form a branching map: only the one with 'start' is open at first; the rest open when a pet spots them on a trip ('leads_to': { to, spot = chance per trip that comes home, wait_minutes + wait_text = a time lock after spotting }) or when a rumour leads there. 'map' places it on the pet's doodle map (x/y in map units, garden at 0,0; 'doodle' picks the drawing; 'note' is the pet's scribble); 'more': true draws a ? cloud beyond it. 'page' is which map page it's on (data/unlocks.json 'pages'); a place with 'start' is open as soon as its page is. 'errand' is what your pet can send spare pets to do there while you're busy (idle): 'minutes' each, 'coins' range, a chance of a common part or a starter box, and what they're 'doing' for the corner panel. Errands never lose a pet and never bring rare parts or new places: those only come from your own trips. A place has a fixed 'events' list, or a weighted 'pool' that each trip draws 'draws' events from without repeats; 'go_home': true adds a 'go home' option (keep the bag) to every event; 'part_slots' makes parts found there lean to those slots. 'minutes' is the whole trip, 'max_party' caps party size there, 'difficulty' multiplies option difficulty, 'danger' how many get hurt or lost, 'loot' multiplies coins, 'box' is the box found there and the odds for part rarity; 'finish_rewards' is a treat bag for trips that go all the way (not home early). Rewards grow the further into a trip an event is (x1, x1.25, x1.5, ...). EVENTS are shared. Option: 'chance' is its own chance of going well (tilted a little by 'stat' and down if hurt); older options test 'stat' against 'difficulty'; no chance and no stat = always works; 'tag' is for policies; 'min_party' hides it for smaller parties. Outcome: 'lost'/'injured'/'heal' are [min, max] fractions of the party, 'hurt' is a fraction of pets that lose a heart ('hearts': 2 = both at once; a pet hurt twice doesn't come back, and nothing it found comes home), 'progress' is continue / end / skip, 'leave_injured' leaves the injured behind, 'rewards' is a list of { kind, ... } handled in scripts/adventure/rewards.gd (coins: 'amount' per pet; box/part/rumour/anything else: 'chance', growing with the square root of the party). RUMOURS are what exploring brings back: 'about' is how the pet describes it, 'unlocks' what saying yes opens, 'requires' what must be open before anyone can hear it. An event with 'find' gives a special item once (see data/unlocks.json): it stops turning up after it's been found. {who} is the pet's name, or 'the party'. Texts stay cheerful and plain.",
 	"types": [
 		{ "id": "foraging", "name": "foraging", "desc": "little trips for snacks and shiny things", "risk": "safe" },
 		{ "id": "exploration", "name": "exploring", "desc": "going further to see what's out there", "risk": "low" },
@@ -7,7 +7,7 @@
 	],
 	"locations": [
 		{
-			"id": "garden", "type": "foraging", "name": "the garden path", "start": true, "max_party": 1, "minutes": 4, "go_home": true,
+			"id": "garden", "type": "foraging", "page": "backyard", "name": "the garden path", "errand": { "minutes": 3, "coins": [6, 10], "part_chance": 0.12, "box_chance": 0.03, "doing": ["picking flowers", "chasing bugs", "collecting pebbles", "sniffing the roses"] }, "start": true, "max_party": 1, "minutes": 4, "go_home": true,
 			"difficulty": 1.0, "danger": 1.0, "loot": 2.0, "box": "starter", "finish_rewards": [{ "kind": "coins", "amount": [2, 4] }, { "kind": "part", "chance": 0.2 }], "draws": 4,
 			"pool": [
 				{ "event": "garden_fork", "weight": 3 }, { "event": "garden_brambles", "weight": 3 },
@@ -19,35 +19,34 @@
 			"map": { "x": 0.0, "y": 0.0, "doodle": "house", "note": "home" }
 		},
 		{
-			"id": "meadow", "type": "foraging", "name": "the meadow", "minutes": 6, "go_home": true,
+			"id": "meadow", "type": "foraging", "page": "backyard", "name": "the meadow", "errand": { "minutes": 5, "coins": [10, 16], "part_chance": 0.12, "box_chance": 0.03, "doing": ["gathering clover", "watching butterflies", "rolling in the hay", "counting mole hills"] }, "minutes": 6, "go_home": true,
 			"difficulty": 1.1, "danger": 1.0, "loot": 2.2, "box": "starter", "finish_rewards": [{ "kind": "coins", "amount": [2, 4] }, { "kind": "part", "chance": 0.25 }], "draws": 4, "part_slots": ["body", "pattern"],
 			"pool": [
 				{ "event": "meadow_butterflies", "weight": 3 }, { "event": "meadow_hay", "weight": 2 },
-				{ "event": "meadow_moles", "weight": 2 }, { "event": "meadow_kite", "weight": 1 },
+				{ "event": "meadow_moles", "weight": 2 }, { "event": "meadow_kite", "weight": 1 }, { "event": "meadow_basket", "weight": 3 },
 				{ "event": "garden_fork", "weight": 2 }, { "event": "garden_ball", "weight": 1 }
 			],
 			"leads_to": [{ "to": "woods", "spot": 0.35, "wait_minutes": 30, "wait_text": "it's too dark to find the way into the woods yet" }],
 			"map": { "x": -1.3, "y": -0.8, "doodle": "grass", "note": "so many flowers!!" }
 		},
 		{
-			"id": "woods", "type": "foraging", "name": "the woods", "minutes": 10, "go_home": true,
+			"id": "woods", "type": "foraging", "page": "backyard", "name": "the woods", "errand": { "minutes": 8, "coins": [16, 26], "part_chance": 0.14, "box_chance": 0.04, "doing": ["gathering pinecones", "hunting for mushrooms", "listening to the owl", "collecting twigs"] }, "minutes": 10, "go_home": true,
 			"difficulty": 1.3, "danger": 1.1, "loot": 6.5, "box": "starter", "finish_rewards": [{ "kind": "coins", "amount": [3, 5] }, { "kind": "part", "chance": 0.3 }, { "kind": "box", "chance": 0.05 }], "draws": 4, "part_slots": ["body", "pattern"],
 			"pool": [
 				{ "event": "woods_mushrooms", "weight": 3 }, { "event": "woods_owl", "weight": 2 },
-				{ "event": "woods_log", "weight": 2 }, { "event": "woods_fox", "weight": 2 },
+				{ "event": "woods_log", "weight": 2 }, { "event": "woods_fox", "weight": 2 }, { "event": "woods_cart", "weight": 2 },
 				{ "event": "garden_brambles", "weight": 1 }
 			],
-			"leads_to": [{ "to": "fields", "spot": 0.3 }],
-			"map": { "x": -2.3, "y": -1.9, "doodle": "trees", "note": "spooky!" }
+						"map": { "x": -2.3, "y": -1.9, "doodle": "trees", "note": "spooky!" }
 		},
 		{
-			"id": "fields", "type": "exploration", "name": "the far fields", "minutes": 12, "go_home": true,
+			"id": "fields", "type": "exploration", "page": "beyond", "start": true, "name": "the far fields", "minutes": 12, "go_home": true,
 			"difficulty": 1.0, "danger": 0.8, "loot": 4.0, "box": "starter", "finish_rewards": [{ "kind": "coins", "amount": [2, 4] }, { "kind": "rumour", "chance": 0.3 }],
-			"events": ["hill", "tracks", "signpost"],
+			"events": ["hill", "tracks", "fields_cushion", "signpost"],
 			"map": { "x": -1.1, "y": -3.0, "doodle": "hill", "note": "so far away!" }
 		},
 		{
-			"id": "orchard", "type": "foraging", "name": "the orchard", "minutes": 12, "go_home": true,
+			"id": "orchard", "type": "foraging", "page": "beyond", "name": "the orchard", "errand": { "minutes": 8, "coins": [16, 26], "part_chance": 0.14, "box_chance": 0.04, "doing": ["picking apples", "collecting windfalls", "napping under a tree", "stacking baskets"] }, "minutes": 12, "go_home": true,
 			"difficulty": 1.2, "danger": 1.0, "loot": 4.5, "box": "starter", "finish_rewards": [{ "kind": "coins", "amount": [3, 5] }, { "kind": "part", "chance": 0.3 }, { "kind": "box", "chance": 0.05 }], "draws": 4,
 			"pool": [
 				{ "event": "garden_apples", "weight": 4 }, { "event": "garden_bees", "weight": 2 },
@@ -56,7 +55,7 @@
 			"map": { "x": 0.1, "y": -2.1, "doodle": "apple", "note": "apples!!" }
 		},
 		{
-			"id": "pond", "type": "foraging", "name": "the duck pond", "minutes": 6, "go_home": true,
+			"id": "pond", "type": "foraging", "page": "backyard", "name": "the duck pond", "errand": { "minutes": 5, "coins": [10, 16], "part_chance": 0.12, "box_chance": 0.03, "doing": ["fetching pond water", "feeding the ducks", "skipping stones", "saying hi to frogs"] }, "minutes": 6, "go_home": true,
 			"difficulty": 1.1, "danger": 1.0, "loot": 2.2, "box": "starter", "finish_rewards": [{ "kind": "coins", "amount": [2, 4] }, { "kind": "part", "chance": 0.25 }], "draws": 4, "part_slots": ["eyes", "palette"],
 			"pool": [
 				{ "event": "garden_pond", "weight": 2 }, { "event": "pond_frog", "weight": 3 },
@@ -66,7 +65,7 @@
 			"map": { "x": 0.9, "y": 1.1, "doodle": "pond", "note": "quack!" }
 		},
 		{
-			"id": "stream", "type": "foraging", "name": "the stream", "minutes": 10, "go_home": true, "more": true,
+			"id": "stream", "type": "foraging", "page": "backyard", "name": "the stream", "errand": { "minutes": 8, "coins": [16, 26], "part_chance": 0.14, "box_chance": 0.04, "doing": ["filling a bucket", "looking for shiny stones", "racing leaf boats", "counting fish"] }, "minutes": 10, "go_home": true, "more": true,
 			"difficulty": 1.3, "danger": 1.1, "loot": 5.6, "box": "starter", "finish_rewards": [{ "kind": "coins", "amount": [3, 5] }, { "kind": "part", "chance": 0.3 }, { "kind": "box", "chance": 0.05 }], "draws": 4, "part_slots": ["eyes", "palette"],
 			"pool": [
 				{ "event": "stream_stones", "weight": 3 }, { "event": "stream_fish", "weight": 2 },
@@ -75,7 +74,7 @@
 			"map": { "x": 2.1, "y": 1.7, "doodle": "stream", "note": "splashy" }
 		},
 		{
-			"id": "shed", "type": "foraging", "name": "the old shed", "minutes": 6, "go_home": true, "more": true,
+			"id": "shed", "type": "foraging", "page": "backyard", "name": "the old shed", "errand": { "minutes": 5, "coins": [10, 16], "part_chance": 0.12, "box_chance": 0.03, "doing": ["sorting buttons", "dusting boxes", "tidying the mouse boot", "looking for string"] }, "minutes": 6, "go_home": true, "more": true,
 			"difficulty": 1.1, "danger": 1.0, "loot": 2.2, "box": "starter", "finish_rewards": [{ "kind": "coins", "amount": [2, 4] }, { "kind": "part", "chance": 0.25 }], "draws": 4, "part_slots": ["accessory"],
 			"pool": [
 				{ "event": "shed_boxes", "weight": 3 }, { "event": "shed_spider", "weight": 2 },
@@ -84,19 +83,19 @@
 			"map": { "x": 1.6, "y": -0.6, "doodle": "hut", "note": "dusty" }
 		},
 		{
-			"id": "well", "type": "dungeon", "name": "the old well", "minutes": 40,
+			"id": "well", "type": "dungeon", "page": "beyond", "name": "the old well", "minutes": 40,
 			"difficulty": 1.5, "danger": 1.0, "loot": 1.0, "box": "starter",
 			"events": ["dark", "rope", "fox"],
 			"map": { "x": 2.6, "y": -1.5, "doodle": "well", "note": "so deep" }
 		},
 		{
-			"id": "cellar", "type": "dungeon", "name": "the cellar", "minutes": 90,
+			"id": "cellar", "type": "dungeon", "page": "beyond", "name": "the cellar", "minutes": 90,
 			"difficulty": 2.0, "danger": 1.3, "loot": 1.6, "box": "lucky",
 			"events": ["dark", "door", "rope"],
 			"map": { "x": 3.5, "y": -2.2, "doodle": "door", "note": "knock knock" }
 		},
 		{
-			"id": "below", "type": "dungeon", "name": "further down", "minutes": 120,
+			"id": "below", "type": "dungeon", "page": "beyond", "name": "further down", "minutes": 120,
 			"difficulty": 2.5, "danger": 1.7, "loot": 2.4, "box": "lucky",
 			"events": ["door", "dark", "thing", "door"],
 			"map": { "x": 4.3, "y": -3.0, "doodle": "stairs", "note": "…" }
@@ -109,6 +108,34 @@
 		{ "id": "below", "title": "stairs going down", "about": "some stairs that go further down than anyone's been", "unlocks": ["location:below"], "requires": ["location:cellar"] }
 	],
 	"events": [
+		{
+			"id": "meadow_basket", "title": "a little basket", "text": "a little basket sits all alone in the grass. perfect for carrying things!", "find": "basket", "default": 0,
+			"options": [
+				{ "label": "bring it home ♡", "tag": "careful",
+					"success": { "text": "{who} is bringing the basket home!", "rewards": [{ "kind": "find", "id": "basket" }] } },
+				{ "label": "leave it", "tag": "careful",
+					"success": { "text": "maybe it belongs to someone." } }
+			]
+		},
+		{
+			"id": "woods_cart", "title": "an old cart", "text": "under the leaves at the far end of the woods: an old cart! it still rolls, but it's stuck in the mud.", "find": "cart", "default": 1,
+			"options": [
+				{ "label": "pull it out", "tag": "brave", "stat": "power", "chance": 0.6,
+					"success": { "text": "{who} pulled it free! it rolls!", "rewards": [{ "kind": "find", "id": "cart" }] },
+					"failure": { "text": "the mud won this time!", "hurt": [1, 1] } },
+				{ "label": "leave it for now", "tag": "careful",
+					"success": { "text": "it'll still be there." } }
+			]
+		},
+		{
+			"id": "fields_cushion", "title": "a comfy cushion", "text": "a big comfy cushion, lying in the grass like it's waiting for someone.", "find": "cushion", "default": 0,
+			"options": [
+				{ "label": "bring it home ♡", "tag": "careful",
+					"success": { "text": "{who} dragged the cushion all the way home!", "rewards": [{ "kind": "find", "id": "cushion" }] } },
+				{ "label": "leave it", "tag": "careful",
+					"success": { "text": "it looked so comfy though." } }
+			]
+		},
 		{
 			"id": "meadow_butterflies", "title": "butterflies", "text": "a cloud of butterflies! one of them has shiny wings.", "default": 0,
 			"options": [

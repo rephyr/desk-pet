@@ -211,9 +211,22 @@ func _speak() -> void:
 		_speech.text = ""
 		return
 	var catalog := Catalog.shared()
-	var what := PetVoice.situation(GameState.news, GameState.rumours, GameState.runs, catalog)
-	GameState.news = {}
-	_speech.text = PetVoice.line(pet, what, _rng, catalog)
+	# big news first: something found, something new opened up
+	var news := GameState.take_announcement()
+	if news != "":
+		var more := GameState.take_announcement()
+		_speech.text = news + (" " + more if more != "" else "")
+		_speech.visible_ratio = 0.0
+		create_tween().tween_property(_speech, "visible_ratio", 1.0, 0.02 * _speech.text.length())
+		return
+	# first what it did for you while you were busy, if anything
+	var work := PetVoice.work_summary(pet, GameState.take_idle_log(), _rng, catalog)
+	if work != "":
+		_speech.text = work
+	else:
+		var what := PetVoice.situation(GameState.news, GameState.rumours, GameState.runs, catalog)
+		GameState.news = {}
+		_speech.text = PetVoice.line(pet, what, _rng, catalog)
 	_speech.visible_ratio = 0.0
 	create_tween().tween_property(_speech, "visible_ratio", 1.0, 0.02 * _speech.text.length())
 	_pet.view.squash = 0.4

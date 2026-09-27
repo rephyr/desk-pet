@@ -13,6 +13,8 @@ var adventures := AdventuresTab.new()
 var home := HomeTab.new()
 var _tabs := {}  # name -> Control
 var _tab_buttons := {}  # name -> Button
+var _current := "boxes"
+var _hint := UiTheme.label("", UiTheme.PINK, UiTheme.SMALL)
 
 
 func _init() -> void:
@@ -47,13 +49,22 @@ func _init() -> void:
 		b.toggle_mode = true
 		b.button_group = group
 		b.toggled.connect(func(on):
-			if on:
-				_show(tab_name))
+			if not on:
+				return
+			if not GameState.tab_open(tab_name):
+				# locked: say what opens it, and stay where you were
+				_say_hint(GameState.tab_hint(tab_name))
+				_tab_buttons[_current].button_pressed = true
+				return
+			_current = tab_name
+			_show(tab_name))
 		header.add_child(b)
 		_tab_buttons[tab_name] = b
 	add_child(body)
 	show_start()
 
+	_hint.modulate.a = 0.0
+	header.add_child(_hint)
 	var gap := UiTheme.spacer()
 	gap.mouse_filter = MOUSE_FILTER_PASS
 	header.add_child(gap)
@@ -68,6 +79,7 @@ func _init() -> void:
 
 	GameState.changed.connect(_refresh)
 	GameState.tutorial_changed.connect(_refresh_tabs)
+	GameState.unlocked.connect(func(_e): _refresh_tabs())
 	GameState.new_game.connect(_refresh_tabs)
 	_refresh()
 	_refresh_tabs()
@@ -85,7 +97,13 @@ const TUTORIAL_TABS := {
 func _refresh_tabs() -> void:
 	var shown: Array = TUTORIAL_TABS.get(GameState.tutorial, _tabs.keys())
 	for tab_name in _tab_buttons:
-		_tab_buttons[tab_name].visible = tab_name in shown
+		var b: Button = _tab_buttons[tab_name]
+		b.visible = tab_name in shown
+		# locked tabs show a padlock; tapping them tells you what opens them
+		var locked := not GameState.tab_open(tab_name)
+		b.icon = UiTheme.lock_icon() if locked else null
+		b.modulate = Color(1, 1, 1, 0.55) if locked else Color.WHITE
+		b.tooltip_text = GameState.tab_hint(tab_name)
 	# jump to where the tutorial wants you
 	match GameState.tutorial:
 		"open_first":
@@ -115,9 +133,18 @@ func show_tab(tab_name: String) -> void:
 
 
 func _show(tab_name: String) -> void:
+	_current = tab_name
 	for n in _tabs:
 		_tabs[n].visible = n == tab_name
 
 
 func _refresh() -> void:
 	_coins.text = "◆ %d" % GameState.coins
+
+
+func _say_hint(text: String) -> void:
+	_hint.text = text
+	_hint.modulate.a = 1.0
+	var t := create_tween()
+	t.tween_interval(2.5)
+	t.tween_property(_hint, "modulate:a", 0.0, 0.6)

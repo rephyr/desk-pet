@@ -27,6 +27,8 @@ func _init() -> void:
 	_test_garden(catalog)
 	_test_intel(catalog)
 	_test_grafting(catalog)
+	_test_errands(catalog)
+	_test_unlocks(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -48,11 +50,22 @@ func _test_data_is_consistent(catalog: Catalog) -> void:
 			_check(not catalog.finish(f).is_empty() and catalog.finish(f).id == f, "box %s finish %s exists" % [b.id, f])
 	for t in catalog.adventure_types:
 		_check(t.has("name") and t.has("risk"), "adventure type %s has a name and risk" % t.id)
-	var first_places := catalog.locations.filter(func(l): return l.get("start", false))
+	var first_pages := catalog.pages.filter(func(p): return p.get("start", false)).map(func(p): return p.id)
+	var first_places := catalog.locations.filter(func(l): return l.get("start", false) and l.page in first_pages)
 	_check(first_places.size() == 1, "a new game starts with exactly one place to go (%d)" % first_places.size())
-	# every place can be reached from the start: spotted on trips (leads_to) or through rumours
+	# every place can be reached from the start: spotted on trips (leads_to), through rumours, or on
+	# a map page opened by something found on a reachable place
 	var reached := { first_places[0].id: true }
 	for round_ in catalog.locations.size():
+		for entry in catalog.unlock_list:
+			var find := str(entry.earn.get("find", ""))
+			var found_here := find == "" or _found_in(catalog, reached, find)
+			if found_here:
+				for o in entry.opens:
+					if str(o).begins_with("page:"):
+						for l in catalog.locations:
+							if l.page == str(o).substr(5) and l.get("start", false):
+								reached[l.id] = true
 		for l in catalog.locations:
 			if reached.has(l.id):
 				for lead in l.get("leads_to", []):
@@ -86,7 +99,10 @@ func _test_data_is_consistent(catalog: Catalog) -> void:
 			_check(str(o.get("stat", "")) in ["", "power", "luck", "speed"], "event %s option %s tests a real stat" % [e.id, o.label])
 			for outcome in [o.success, o.get("failure", {})]:
 				for r in outcome.get("rewards", []):
-					_check(r.get("kind", "") in ["coins", "box", "part", "rumour"], "event %s option %s reward kind %s is handled" % [e.id, o.label, r.get("kind", "")])
+					_check(r.get("kind", "") in ["coins", "box", "part", "rumour", "find"], "event %s option %s reward kind %s is handled" % [e.id, o.label, r.get("kind", "")])
+					if r.get("kind", "") == "find":
+						_check(catalog.finds.has(r.get("id", "")), "event %s gives a real find" % e.id)
+						continue
 					for key in ["id", "box"]:
 						_check(not r.has(key) or not catalog.box(r[key]).is_empty(), "event %s option %s reward %s is a real box" % [e.id, o.label, key])
 
@@ -265,7 +281,7 @@ func _test_adventures(catalog: Catalog) -> void:
 ## The pet's voice: every eye gives a personality with something to say in every situation,
 ## every accessory has a tic (even if empty), and lines never show a {placeholder}.
 func _test_voice(catalog: Catalog) -> void:
-	var situations := ["idle", "away", "needs_you", "someone_back", "back_all", "back_some", "back_none", "part_found", "rumour", "spotted"]
+	var situations := ["idle", "away", "needs_you", "someone_back", "back_all", "back_some", "back_none", "part_found", "rumour", "spotted", "at_work"]
 	var ids: Array = catalog.voice.personalities.map(func(p): return p.id)
 	_check(catalog.voice.default in ids, "the default personality exists")
 	for eyes in catalog.slots.eyes:
@@ -286,6 +302,11 @@ func _test_voice(catalog: Catalog) -> void:
 				_check(not "{" in text and text != "", "%s %s line fills in: %s" % [p.id, kind, text])
 				_check(not " the the " in " " + text, "%s %s line doesn't say 'the the': %s" % [p.id, kind, text])
 	var news := { "place": "the woods", "home": 0, "sent": 5, "parts": 0 }
+	var worker := Pet.new()
+	worker.parts = { "eyes": "round", "accessory": "none" }
+	var summary := PetVoice.work_summary(worker, { "errands": 3, "coins": 40, "packs": 2, "good": ["holo fox"] }, rng, catalog)
+	_check(summary.contains("3 errands") and summary.contains("holo fox") and not "{" in summary, "your pet tells you what it did: %s" % summary)
+	_check(PetVoice.work_summary(worker, {}, rng, catalog) == "", "nothing done, nothing to tell")
 	var none: Array[RunState] = []
 	var quiet: Array[String] = []
 	_check(PetVoice.situation(news, quiet, none, catalog).kind == "back_none", "nobody home is back_none")
@@ -496,6 +517,77 @@ func _test_grafting(catalog: Catalog) -> void:
 			_check(line != "" and not "{" in line, "%s has a %s line for sewing" % [p.id, kind])
 		bands[p.id] = p.graft.risk.find(PetVoice.graft_line(speaker, "risk", 0.6, rng, catalog))
 	_check(bands.overconfident <= bands.cheerful and bands.cheerful <= bands.nervous, "overconfident pets sound braver about sewing (%s)" % [bands])
+
+
+## Errands: never lose a pet, only bring commons, keep going while you're away (and give the same
+## total however often you check), and never send more pets than there are slots.
+func _test_errands(catalog: Catalog) -> void:
+	var places: Array[Dictionary] = []
+	places.assign(catalog.locations.filter(func(l): return l.has("errand")))
+	_check(not places.is_empty(), "some places have errands")
+	var pets := ["1", "2", "3", "4"]
+	var next_pet := func(busy: Dictionary) -> String:
+		for uid in pets:
+			if not busy.has(uid):
+				return uid
+		return ""
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	var errands: Array = []
+	Errands.fill(errands, 0.0, places, next_pet, rng)
+	_check(errands.size() == Errands.SLOTS, "your pet fills its errand slots")
+	var result := Errands.run(errands, 8.0 * 3600.0, places, next_pet, rng, catalog)
+	_check(result.done > 50 and Rewards.total(result.loot, "coins") > 0, "a day at work brings back lots of little hauls (%d errands)" % result.done)
+	_check(errands.size() == Errands.SLOTS, "errands keep going")
+	for key in result.loot:
+		if key.begins_with("part:"):
+			var bits: PackedStringArray = key.split(":")
+			_check(catalog.part(bits[1], bits[2]).rarity == "common", "errands only bring common parts (%s)" % key)
+	var coins_per_min := float(Rewards.total(result.loot, "coins")) / (8.0 * 60.0)
+	_check(coins_per_min > 2.0 and coins_per_min < 8.0, "errands pay a gentle trickle (%.1f coins a minute)" % coins_per_min)
+	var none: Array = []
+	var nobody := func(_busy: Dictionary) -> String: return ""
+	Errands.fill(none, 0.0, places, nobody, rng)
+	_check(none.is_empty(), "no spare pets, no errands")
+
+
+## Whether some place already reached has an event that gives this find.
+func _found_in(catalog: Catalog, reached: Dictionary, find: String) -> bool:
+	for l in catalog.locations:
+		if not reached.has(l.id):
+			continue
+		for e in l.get("events", []) + l.get("pool", []).map(func(p): return p.event):
+			if catalog.events[e].get("find", "") == find:
+				return true
+	return false
+
+
+## Unlocks: every one can be earned, every find has an event that gives it, and once found that
+## event stops turning up.
+func _test_unlocks(catalog: Catalog) -> void:
+	var tabs := ["home", "boxes", "collection", "adventures", "inventory", "settings"]
+	var page_ids := catalog.pages.map(func(p): return p.id)
+	for entry in catalog.unlock_list:
+		_check(entry.show in ["locked", "hidden"], "unlock %s is shown locked or hidden" % entry.id)
+		for o in entry.opens:
+			var bits := str(o).split(":")
+			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "parties"]) or (bits[0] == "page" and bits[1] in page_ids)
+			_check(ok, "unlock %s opens something real (%s)" % [entry.id, o])
+		if entry.earn.has("find"):
+			_check(catalog.finds.has(entry.earn.find), "unlock %s waits for a real find" % entry.id)
+		_check(not "{" in str(entry.get("announce", "")), "unlock %s announcement has no placeholders" % entry.id)
+	for find in catalog.finds:
+		_check(catalog.events.values().any(func(e): return e.get("find", "") == find), "some event gives %s" % find)
+	var meadow := catalog.location("meadow")
+	var seen := false
+	for t in 200:
+		if "meadow_basket" in AdventureRunner.pick_events(meadow, t, { "basket": true }, catalog):
+			seen = true
+	_check(not seen, "a find's event stops turning up once it's found")
+	var automation: Array = catalog.unlock_list.filter(func(e): return "feature:packs" in e.opens or "feature:errands" in e.opens)
+	_check(automation.all(func(e): return e.show == "hidden"), "automation stays hidden until found")
+	var packs: Array = catalog.unlock_list.filter(func(e): return "feature:packs" in e.opens)
+	_check(packs.all(func(e): return int(e.earn.get("packs_opened", 0)) >= 100), "your pet only opens packs after you've opened plenty yourself")
 
 
 ## Allowed difference between expected and rolled odds (about 4 standard deviations).

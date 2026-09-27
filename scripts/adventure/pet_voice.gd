@@ -175,3 +175,28 @@ static func graft_line(pet: Pet, kind: String, fail_chance: float, rng: RandomNu
 			break
 	band = clampi(band + int(p.get("hints", {}).get("bias", 0)), 0, 4)
 	return str(lines.get("risk", [""])[band])
+
+
+## What your pet did while you were busy (GameState.idle_log), told in one breath:
+## "while you were busy: 14 errands, ◆150, 3 packs opened, and one was a holo fox! i worked so hard!"
+static func work_summary(pet: Pet, log: Dictionary, rng: RandomNumberGenerator, catalog: Catalog) -> String:
+	var bits: Array[String] = []
+	if int(log.get("errands", 0)) > 0:
+		bits.append("%d errand%s" % [log.errands, "s" if int(log.errands) > 1 else ""])
+	if int(log.get("coins", 0)) > 0:
+		bits.append("◆%d" % log.coins)
+	if int(log.get("parts", 0)) > 0:
+		bits.append("%d part%s" % [log.parts, "s" if int(log.parts) > 1 else ""])
+	if int(log.get("boxes", 0)) > 0:
+		bits.append("%d box%s" % [log.boxes, "es" if int(log.boxes) > 1 else ""])
+	if int(log.get("packs", 0)) > 0:
+		bits.append("%d pack%s opened" % [log.packs, "s" if int(log.packs) > 1 else ""])
+	if bits.is_empty():
+		return ""
+	var text := "while you were busy: " + ", ".join(bits)
+	var good: Array = log.get("good", [])
+	if not good.is_empty():
+		text += ", and one was a %s!" % good[0] if good.size() == 1 else ", and %d were really special!" % good.size()
+	else:
+		text += "!"
+	return text + " " + _pick(pet, "at_work", rng, catalog)

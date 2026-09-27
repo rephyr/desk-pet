@@ -3,7 +3,7 @@ extends Control
 ## switched only with their ▴ / ▾ buttons.
 ## Also owns the transparent overlay the pet walks around in when it's let out.
 
-const COMPACT_SIZE := Vector2i(300, 236)
+const COMPACT_SIZE := Vector2i(300, 318)
 const EXPANDED_SIZE := Vector2i(920, 600)
 const WATCH_INTERVAL := 0.25
 

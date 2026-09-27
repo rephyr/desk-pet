@@ -136,6 +136,23 @@ static func make_window_handle(control: Control) -> void:
 			DisplayServer.window_start_drag(control.get_window().get_window_id()))
 
 
+static var _lock: ImageTexture
+
+
+## A tiny pixel padlock, for locked tabs.
+static func lock_icon() -> ImageTexture:
+	if _lock == null:
+		var rows := ["..ooo..", ".o...o.", ".o...o.", "ooooooo", "ooo.ooo", "ooo.ooo", "ooooooo"]
+		var img := Image.create_empty(7, 7, false, Image.FORMAT_RGBA8)
+		for y in rows.size():
+			for x in rows[y].length():
+				if rows[y][x] == "o":
+					img.set_pixel(x, y, MUTED)
+		img.resize(14, 14, Image.INTERPOLATE_NEAREST)
+		_lock = ImageTexture.create_from_image(img)
+	return _lock
+
+
 ## A tier id as a coloured tag, e.g. "legendary".
 static func tier_label(tier_id: String, size := SMALL) -> Label:
 	var catalog := Catalog.shared()
