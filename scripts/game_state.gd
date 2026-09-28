@@ -1683,10 +1683,10 @@ func sendable_pets() -> Array[Pet]:
 ## `by_you`: you sent it (not your pet's or the workers' auto parties): it may take a scout note.
 func send_on_adventure(location_id: String, pets: Array[Pet], by_you := true) -> RunState:
 	var location := catalog.location(location_id)
-	var allowed := sendable_pets()
+	var gone := away()
 	var going: Array[Pet] = []
-	for pet in pets:
-		if pet in allowed:
+	for pet in pets:  # the sendable ones (see sendable_pets), checked one by one: parties go out hundreds at a time
+		if pet != null and collection.get_pet(pet.uid) == pet and pet.uid != collection.active_uid and not gone.has(pet.uid):
 			going.append(pet)
 	if not location_open(location) or going.is_empty() or going.size() > max_party(location_id):
 		return null

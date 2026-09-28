@@ -107,8 +107,19 @@ already-full pages, with their popups, right after loading).
 
 ## Testing
 
-- `godot --headless -s tests/test_core.gd` - data sanity, box odds over 100k rolls, save round
-  trip, adventures, errands.
+- `godot --headless -s tests/test_core.gd -- --profile=core-test-<lane>` - data sanity, box odds over 100k
+  rolls, save round trip, adventures, errands. With a profile it also tests GameState itself
+  (`_test_game_state`): `_state_from(save)` writes a save dict into the profile and makes a fresh
+  `GameState` from it (no scene tree, about 0.1 s; `saved_at` in the future unless a test wants time
+  away). Old saves are built in code (`_old_save`, `_v21_save`). Covered: migrations v14..now and a
+  round trip, crank catch-up with and without the stool, the auto-adventure loop, thousands of
+  workers with time budgets, gear (A2) and the jar, kitchen and scouting (A3). Without a profile
+  those are skipped (they must never touch the real save) and the last line says "BUT SKIPPED".
+  The profile must be one of your own: every `user://` is shared by all worktrees (it's keyed on
+  the game's name), so each lane uses its own name (`core-test-x4`, like `DESK_PETS_LANE` for
+  `play.py`), and the name `test` is refused (every `--from=<save>` run plays in it). Time limits
+  print their times and fail at 5x a quiet machine's time; `DESK_PETS_SLOW=3` stretches them when
+  several copies run at once.
 - `godot --headless -s tools/balance.gd` - what every place pays per minute, and errands for
   crews of 1 to 1000.
 - `python3 tools/play.py <flow>` - plays `tests/flows/<flow>.flow` in a test profile (its own save

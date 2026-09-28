@@ -346,7 +346,11 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
 - **X2. GameState is big (~2400 lines):** split into parts (machine, errands, automation, runs)
   when a step touches it anyway.
 - **X3. Tuning numbers in data/**, not code (some still in game_state.gd).
-- **X4. Tests:** the v21 migration, crank catch-up, the auto-adventure loop, many workers.
+- **X4. Tests:** done. `tests/test_core.gd` now tests GameState itself in a test profile
+  (`_test_game_state`, run with `-- --profile=core-test-<lane>`): save migrations v14..now plus a
+  round trip, crank catch-up with and without the stool, the auto-adventure loop, thousands of
+  workers with time limits, gear (A2) and the jar, kitchen and scouting (A3). It found that sending
+  hundreds of auto parties was slow with many pets, and that is fixed.
 
 ---
 
