@@ -53,7 +53,8 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   gear bought with xp, rules in `Gear`, levels in `GameState.gear`, packed onto each trip as
   `RunState.gear`), `ErrandsTab` (jobs: the corkboard; upgrades:
   `ErrandToolsView`, the pegboard of tools bought with coins; rules in `Jobs`, levels in
-  `GameState.errand_tools`; the kitchen speeds every other job via `GameState.kitchen_bonus()` (its line: `Jobs.faster_words`),
+  `GameState.errand_tools`; tool and box prices are in capsules x `GameState.capsule_value()`
+  (`Jobs.tool_cost(tool, have, n, value)`, `GameState.box_price` / static `box_cost`); the kitchen speeds every other job via `GameState.kitchen_bonus()` (its line: `Jobs.faster_words`),
   scouting fills `GameState.scout_notes` and `send_on_adventure` packs one onto `RunState.scout`,
   read by `Intel.roll` and `AdventureRunner`), `AutomationTab` (a card per job your pet can do, `JobScene` draws each one; rules in
   `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:
@@ -104,6 +105,9 @@ Save v23 adds `scout_notes` (older saves start with 0); runs save the scout note
 (`RunState.scout`). The new jobs' crews and tool levels ride in the existing `jobs` / `errand_tools`.
 Save v24 adds `stickers` (book page ids; older saves start with none and get the stickers of
 already-full pages, with their popups, right after loading).
+Save v25 keeps your pet's box reserve in capsules (`reserve_capsules`, replacing `coin_reserve`):
+the coins an older save kept become capsules at what one was worth on its machine (at least 1 if
+it kept any). `GameState.coin_reserve()` is the coins that means now.
 
 ## Testing
 

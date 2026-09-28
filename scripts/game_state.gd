@@ -24,7 +24,7 @@ var save_path := DevProfile.path("save.json")  # user://save.json, or a test pro
 ## Headless tests set this before making a GameState: it starts empty and never loads or saves
 ## (a test turns saving on with its own save_path).
 static var testing := false
-const SAVE_VERSION := 24
+const SAVE_VERSION := 25
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
 const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
@@ -99,7 +99,7 @@ func set_job(job: String, on: bool) -> void:
 	changed.emit()
 
 
-var coin_reserve := 50  # coins your pet never spends on boxes (once it may buy them)
+var reserve_capsules := 50  # what your pet never spends on boxes (once it may buy them), in plain capsules
 var saved_boxes := {}  # box id -> true: "save for me", your pet leaves these on the pile
 var buying_on := true  # your pet buys more when the pile runs out (once it has the piggy bank)
 var pinned: Array[String] = []  # good pulls your pet opened, waiting for you to see them
@@ -215,8 +215,44 @@ func _process(delta: float) -> void:
 
 # ---- boxes ----------------------------------------------------------------
 
+## The coins your pet keeps when it buys boxes itself: its reserve of capsules x what a capsule is
+## worth now, so it keeps up with box prices.
+func coin_reserve() -> int:
+	return roundi(minf(float(reserve_capsules) * capsule_value(), Jobs.MAX_PRICE))
+
+
+## Where the reserve starts, its step and its top, in capsules (data/boxes.json "reserve").
+func default_reserve() -> int:
+	return int(catalog.box_rules.get("reserve", {}).get("capsules", 50))
+
+
+func reserve_step() -> int:
+	return int(catalog.box_rules.get("reserve", {}).get("step", 50))
+
+
+func reserve_max() -> int:
+	return int(catalog.box_rules.get("reserve", {}).get("max", 2000))
+
+
+## Sets the reserve to `capsules` (0 up to reserve_max) and saves.
+func set_reserve(capsules: int) -> void:
+	reserve_capsules = clampi(capsules, 0, reserve_max())
+	save_game()
+
+
+## What `count` of a box cost in coins now (see box_cost).
 func box_price(box_id: String, count := 1) -> int:
-	return int(catalog.box(box_id).price) * count
+	return box_cost(catalog.box(box_id), capsule_value(), count)
+
+
+## What `count` of a box cost in coins with a capsule worth `value`: its 'capsules' x value (so the
+## shop keeps up with the machine, like errands), or a fixed 'price'.
+static func box_cost(box: Dictionary, value: float, count := 1) -> int:
+	var unit := float(box.capsules) * value if box.has("capsules") else float(box.get("price", 0))
+	if unit <= 0.0 or count <= 0:
+		return 0
+	var one := maxi(1, roundi(minf(unit, Jobs.MAX_PRICE)))  # one box's price, rounded: 10 cost 10x that
+	return int(minf(float(one) * count, Jobs.MAX_PRICE))
 
 
 ## Buys boxes: they go on your pile (the bag) to open later, by you or your pet. Returns
@@ -557,6 +593,7 @@ func debug_new_game() -> void:
 	_worker_speed.clear()
 	visited.clear()
 	saved_boxes.clear()
+	reserve_capsules = default_reserve()
 	buying_on = true
 	idle_log = {}
 	runs.clear()
@@ -713,12 +750,18 @@ func kitchen_bonus() -> float:
 	return _kitchen
 
 
+## Coins in a plain capsule on the machine now: what errands pay in, and what errand tools and
+## boxes are priced in.
+func capsule_value() -> float:
+	return Machine.coin_value(machine, catalog)
+
+
 ## What an errand's "capsules" pay is worth now (see Jobs.pay): a capsule's coins on the machine,
 ## the tools' extra capsules, its goals, its crew's tips, big finds and shiny ones.
 func job_boost(job_id: String) -> Dictionary:
 	var job := catalog.job(job_id)
 	var shiny := Jobs.tool_sum(catalog, job_id, "shiny", errand_tools) > 0.0
-	return { "coin_value": Machine.coin_value(machine, catalog),
+	return { "coin_value": capsule_value(),
 		"worth": Jobs.tool_sum(catalog, job_id, "worth", errand_tools),
 		"x": Jobs.goal_x(job, job_level(job_id)) * job_tips(job_id),
 		"big": Jobs.tool_sum(catalog, job_id, "big", errand_tools), "big_x": float(catalog.errands.get("big_x", 5)),
@@ -823,17 +866,19 @@ func errand_tool_plan(id: String, n: int) -> Array:
 	var tool := Jobs.tool(catalog, id)
 	var have := errand_tool_level(id)
 	var room := Jobs.tool_room(tool, have)
+	var value := capsule_value()
 	if n < 0:
+		var base := Jobs.tool_base(tool, value)
 		var k := 0
 		var cost := 0.0
 		while k < mini(room, 1000):
-			cost += float(tool.coins) * pow(float(tool.get("grow", 1.0)), have + k)
+			cost += base * pow(float(tool.get("grow", 1.0)), have + k)
 			if cost > coins:
 				break
 			k += 1
 		n = maxi(1, k)
 	n = mini(n, room)
-	return [n, Jobs.tool_cost(tool, have, n)]
+	return [n, Jobs.tool_cost(tool, have, n, value)]
 
 
 ## Buys `n` levels of an errand tool (-1: as many as you can afford). Returns the levels bought.
@@ -997,7 +1042,7 @@ func next_pet_box() -> String:
 	if not (feature_on("shopping") and buying_on):
 		return ""
 	for box in catalog.boxes:
-		if not box.get("hidden", false) and pet_opens(box.id) and coins - box_price(box.id) >= coin_reserve:
+		if not box.get("hidden", false) and pet_opens(box.id) and coins - box_price(box.id) >= coin_reserve():
 			return box.id
 	return ""
 
@@ -2391,7 +2436,7 @@ func save_game() -> void:
 		"gear": gear,
 		"stickers": stickers,
 		"automation": automation,
-		"coin_reserve": coin_reserve,
+		"reserve_capsules": reserve_capsules,
 		"saved_boxes": saved_boxes.keys(),
 		"visited": visited.keys(),
 		"buying_on": buying_on,
@@ -2511,7 +2556,7 @@ func _load_save() -> bool:
 	_crews_changed()
 	gear = Gear.clean(catalog, data.get("gear", {}))  # v22 added gear: older saves start with none
 	_load_automation(data.get("automation", {}))
-	coin_reserve = int(data.get("coin_reserve", 50))
+	reserve_capsules = clampi(int(data.get("reserve_capsules", default_reserve())), 0, reserve_max())  # v25
 	visited.clear()
 	for id in data.get("visited", []):
 		visited[str(id)] = true
@@ -2680,6 +2725,13 @@ func _migrate(data: Dictionary) -> Dictionary:
 			a.taught["boxes"] = true
 			a.task = "boxes" if bool(data.get("packs_on", true)) else ""
 			data.automation = a
+	if version < 25:
+		# v25: your pet's reserve is kept in capsules, like box prices: the coins it kept become
+		# capsules at what one is worth on that save's machine (at least 1 if it kept any)
+		var kept := float(data.get("coin_reserve", default_reserve()))
+		var value := Machine.coin_value({ "bought": data.get("machine", {}).get("bought", {}) }, catalog)
+		data.reserve_capsules = maxi(1, roundi(kept / value)) if kept > 0.0 else 0
+		data.erase("coin_reserve")
 	if version < 7:
 		# v7: dungeon places open one rumour at a time; saves that had the dungeons keep them all
 		var had: Array = data.get("unlocks", [])

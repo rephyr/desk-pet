@@ -39,6 +39,7 @@ func _init() -> void:
 	_test_unlocks(catalog)
 	_test_gear(catalog)
 	_test_book(catalog)
+	_test_prices(catalog)
 	_test_game_state(catalog)
 	var result := "ALL PASSED" if _failures == 0 else "%d FAILED" % _failures
 	if not _skipped.is_empty():
@@ -622,7 +623,7 @@ func _test_errand_tools(catalog: Catalog) -> void:
 	for t in Jobs.all_tools(catalog):
 		_check(not ids.has(t.id), "errand tool %s has its own id" % t.id)
 		ids[t.id] = true
-		_check(t.has("name") and t.has("what") and float(t.coins) > 0.0 and not t.each.is_empty(), "errand tool %s has a name, what it does, a price and an effect" % t.id)
+		_check(t.has("name") and t.has("what") and float(t.get("capsules", 0)) > 0.0 and not t.each.is_empty(), "errand tool %s has a name, what it does, a price and an effect" % t.id)
 		_check(FileAccess.get_file_as_string("res://scripts/ui/ui_theme.gd").contains('\t"%s": ' % t.icon), "errand tool %s has an icon (%s)" % [t.id, t.icon])
 		_check(t.each.keys().all(func(k): return k in known), "errand tool %s only does things errands understand" % t.id)
 		if t.has("machine"):
@@ -1410,7 +1411,8 @@ func _collection_dict(n: int, spread := false, rng_seed := 11) -> Dictionary:
 
 
 ## A save shaped like `version` wrote it (21 and up): 30 pets well into the game, the machine
-## fully fixed, the automation tab open, errands going. v22 added gear, v23 scout notes, v24 stickers.
+## fully fixed, the automation tab open, errands going. v22 added gear, v23 scout notes, v24 stickers,
+## v25 the box reserve in capsules.
 func _old_save(version: int, pets := 30, spread := false) -> Dictionary:
 	var d := {
 		"version": version, "coins": 5000000, "xp": 40, "hunger": 70.0, "happiness": 60.0, "pet_out": false,
@@ -1429,6 +1431,11 @@ func _old_save(version: int, pets := 30, spread := false) -> Dictionary:
 		d.gear = {}
 	if version >= 23:
 		d.scout_notes = 0
+	if version >= 24:
+		d.stickers = []
+	if version >= 25:
+		d.erase("coin_reserve")
+		d.reserve_capsules = 50
 	return d
 
 
@@ -1495,20 +1502,33 @@ func _test_migrations(catalog: Catalog) -> void:
 	again.save_game()
 	_check(_same_save(first, _saved()), "loading a saved game and saving it again changes nothing")
 	again.free()
-	# v22 (gear, no scout notes yet) and v23 (scout notes, no stickers yet) saves load the same way
+	# v22 (gear, no scout notes yet), v23 (scout notes, no stickers yet) and v24 (stickers, reserve still
+	# in coins) saves load the same way
 	var v21 = _state_from(_v21_save(catalog, 21))
 	v21.save_game()
 	var from_21 := _saved()
 	v21.free()
 	var x := from_21.duplicate(true)
 	x.runs = []  # the runs were started a moment apart
-	for version in [22, 23]:
+	for version in [22, 23, 24]:
 		var later = _state_from(_v21_save(catalog, version))
 		later.save_game()
 		var y := _saved()
 		later.free()
 		y.runs = []
 		_check(_same_save(x, y), "v21 and v%d saves load the same" % version)
+	# v25: the reserve an older save kept in coins becomes capsules at what one was worth on its machine
+	for step in [[8000, 1000], [3, 1], [0, 0]]:
+		var v24 := _old_save(24)
+		v24.machine.bought = { "tape": 1, "oil": 1, "flap": 1 }
+		v24.coin_reserve = step[0]
+		var gs24 = _state_from(v24)
+		_check(gs24.reserve_capsules == step[1] and gs24.coin_reserve() == roundi(step[1] * gs24.capsule_value()),
+			"a v24 save keeping %d coins keeps %d capsules (%d)" % [step[0], step[1], gs24.reserve_capsules])
+		gs24.free()
+	var v25 = _state_from(_old_save(25))
+	_check(v25.reserve_capsules == 50, "a v25 save keeps its reserve in capsules (%d)" % v25.reserve_capsules)
+	v25.free()
 	# v14: your pet opening packs becomes the automation tab's boxes job
 	for on in [true, false]:
 		var old := { "version": 14, "coins": 100, "collection": _collection_dict(5), "tutorial": "done",
@@ -1904,7 +1924,7 @@ func _test_jobs_state(catalog: Catalog) -> void:
 	gs = _state_from(chain)
 	gs.set_errand_tool_level("noses", 25)
 	_check(gs.is_unlocked("job:lemonade") and gs.is_unlocked("job:kitchen") and not gs.is_unlocked("job:jar"), "coin hunt lv 25 opens the lemonade stand and the kitchen")
-	gs.coins = Jobs.tool_cost(Jobs.tool(catalog, "lemons"), 0, 10) + 1
+	gs.coins = Jobs.tool_cost(Jobs.tool(catalog, "lemons"), 0, 10, gs.capsule_value()) + 1
 	_check(gs.buy_errand_tool("lemons", -1) == 10 and gs.coins == 1, "as many lemons as you can afford (%d left)" % gs.coins)
 	_check(gs.is_unlocked("job:jar") and not gs.is_unlocked("job:scouting"), "lemonade lv 10 opens the savings jar")
 	gs.set_errand_tool_level("bigger_jar", 10)
@@ -1927,3 +1947,45 @@ func _check(ok: bool, what: String) -> void:
 	if not ok:
 		_failures += 1
 		print("FAIL: " + what)
+
+
+## Errand tools and boxes are priced in the machine's plain capsules, like errands pay, so their
+## prices keep up with the machine.
+func _test_prices(catalog: Catalog) -> void:
+	var game_state: GDScript = load("res://scripts/game_state.gd")
+	for t in Jobs.all_tools(catalog):
+		_check(float(t.get("capsules", 0)) > 0.0 and not t.has("coins"), "errand tool %s is priced in capsules" % t.id)
+	for b in catalog.boxes:
+		_check(float(b.get("capsules", 0)) > 0.0 and not b.has("price"), "box %s is priced in capsules" % b.id)
+	var noses := Jobs.tool(catalog, "noses")
+	_check(Jobs.tool_cost(noses, 3, 1, 10.0) == roundi(Jobs.tool_base(noses) * 10.0 * pow(float(noses.grow), 3)), "a tool's price grows with what a capsule is worth")
+	_check(Jobs.tool_cost(noses, 0, 0, 10.0) == 0, "no levels cost nothing")
+	var spot := { "coins": 500, "grow": 1.5 }
+	_check(Jobs.tool_cost(spot, 2, 1, 1000.0) == Jobs.tool_cost(spot, 2), "a spot with a fixed coin price ignores the machine")
+	var fresh := Machine.coin_value({ "bought": {} }, catalog)
+	var fixed := Machine.coin_value({ "bought": { "tape": 1, "oil": 1, "flap": 1 } }, catalog)
+	_check(is_equal_approx(fresh, 1.0) and is_equal_approx(fixed, 8.0), "tape, oil and flap make a capsule worth 8 (%.1f, %.1f)" % [fresh, fixed])
+	_check(Jobs.tool_cost(noses, 0, 1, fixed) == roundi(8.0 * Jobs.tool_cost(noses, 0, 1, 2.0) / 2.0), "noses cost 8x on a repaired machine (%d)" % Jobs.tool_cost(noses, 0, 1, fixed))
+	var starter := catalog.box("starter")
+	_check(game_state.box_cost(starter, fresh) == int(starter.capsules), "a starter box costs its capsules in coins at the start (%d)" % game_state.box_cost(starter, fresh))
+	_check(game_state.box_cost(starter, fixed) == 8 * game_state.box_cost(starter, fresh), "a starter box costs 8x on a repaired machine")
+	_check(game_state.box_cost(starter, fixed, 10) == 10 * game_state.box_cost(starter, fixed), "10 boxes cost 10 boxes")
+	_check(game_state.box_cost(starter, 74.3, 10) == 10 * game_state.box_cost(starter, 74.3), "10 boxes cost 10 boxes when a capsule is worth a fraction (%d)" % game_state.box_cost(starter, 74.3, 10))
+	_check(game_state.box_cost(starter, 74.3, 0) == 0, "no boxes cost nothing")
+	var reserve: Dictionary = catalog.box_rules.get("reserve", {})
+	_check(int(reserve.get("capsules", 0)) > 0 and int(reserve.get("step", 0)) > 0 and int(reserve.get("max", 0)) >= int(reserve.get("capsules", 0)),
+		"your pet's box reserve has a start, a step and a top in capsules")
+	_check(game_state.box_cost({ "price": 70 }, 1000.0) == 70, "a box with a fixed price ignores the machine")
+	# when errands open a capsule is worth about 75 coins: prices then stay what they were in coins
+	var old := { "noses": 180, "paws": 400, "pockets": 2500, "lemons": 900, "sign": 1600, "cups": 12000, "bigger_jar": 6000,
+		"slot": 9000, "map_case": 15000, "glasses": 20000, "snack": 1200, "naps": 3000, "pebbles": 8000, "team": 20000 }
+	for id in old:
+		var now := Jobs.tool_cost(Jobs.tool(catalog, id), 0, 1, 75.0)
+		_check(absf(now - old[id]) <= 0.1 * old[id], "errand tool %s costs about what it did when errands open (%d, was %d)" % [id, now, old[id]])
+	var maxed := { "bought": {} }
+	for n in catalog.machine_tree.nodes:
+		maxed.bought[n.id] = maxi(1, int(n.get("max", 1)))
+	var top := Machine.coin_value(maxed, catalog)
+	for t in Jobs.all_tools(catalog):
+		_check(Jobs.tool_cost(t, 200, 10, top) > 0, "errand tool %s never costs less than nothing" % t.id)
+	_check(game_state.box_cost(starter, top, 1000000) > 0, "a pile of boxes never costs less than nothing")

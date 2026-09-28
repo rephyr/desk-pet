@@ -44,11 +44,35 @@ if "--show" not in sys.argv and shutil.which("xvfb-run"):
     env = {k: v for k, v in os.environ.items() if k not in ("WAYLAND_DISPLAY", "HYPRLAND_INSTANCE_SIGNATURE")}
     env["__GLX_VENDOR_LIBRARY_NAME"] = "mesa"
     env["__EGL_VENDOR_LIBRARY_FILENAMES"] = "/usr/share/glvnd/egl_vendor.d/50_mesa.json"
-    args = ["xvfb-run", "-a", "-s", "-screen 0 2560x1440x24"] + args
+
+
+def free_display(n):
+    """The first X display number from n up that nothing holds (no lock file, no socket)."""
+    while Path(f"/tmp/.X{n}-lock").exists() or Path(f"/tmp/.X11-unix/X{n}").exists():
+        n += 1
+    return n
+
+
+def xvfb_args(n):
+    return ["xvfb-run", "-n", str(n), "-s", "-screen 0 2560x1440x24"] + args
+
+
+run = [args]
+if env is not None:
+    # a display number of its own per lane + flow (`xvfb-run -a` races when several flows start
+    # at once): the hashed one or the next free one up, and one more try past it if that fails
+    import zlib
+    display = free_display(100 + zlib.crc32(f"{lane}:{name}".encode()) % 800)
+    run = [xvfb_args(display), xvfb_args(free_display(display + 1 + os.getpid() % 50))]
 try:
-    result = subprocess.run(args, cwd=project, capture_output=True, text=True, timeout=300, env=env)
+    for i, cmd in enumerate(run):
+        result = subprocess.run(cmd, cwd=project, capture_output=True, text=True, timeout=300, env=env)
+        out = result.stdout + result.stderr
+        if i + 1 < len(run) and result.returncode != 0 and "Xvfb failed to start" in out:
+            continue
+        break
     code = result.returncode
-    errors = [l for l in (result.stdout + result.stderr).splitlines() if "ERROR" in l or "SCRIPT ERROR" in l]
+    errors = [l for l in out.splitlines() if "ERROR" in l or "SCRIPT ERROR" in l or "Xvfb failed" in l]
 except subprocess.TimeoutExpired:
     code, errors = 2, ["timed out after 300s"]
 log = folder / "play.log"

@@ -1,0 +1,56 @@
+# Boxes and errand tools are priced in capsules: their coin prices grow with the machine.
+from rich
+view full
+tab boxes
+wait 1
+expect text "50 coins"      # one starter box, a capsule worth 1 coin
+expect text "250 coins"     # one lucky box
+expect fits
+shot boxes_start
+fix tape                    # capsules x2: boxes x2
+tab home
+tab boxes
+wait 1
+expect text "100 coins"
+expect text "500 coins"
+click "10"
+wait 1
+expect text "1,000 coins"
+expect fits
+shot boxes_tape
+fix oil
+fix flap                    # a capsule worth 8 coins
+find basket
+wait popup
+click "show me"
+expect tab errands
+wait 1
+click "upgrades"
+wait 1
+click "sniffier noses"
+wait 1
+expect text "buy it\nfor 20"  # sniffier noses: 2.5 capsules x 8
+expect fits
+shot pegboard
+fix shine 10
+fix heavy 3
+fix plate 3                 # a capsule worth about 16k coins: big prices stay short
+expect fits
+shot pegboard_big
+tab boxes
+wait 1
+click "50"
+wait 1
+expect text "need*"
+expect fits
+shot boxes_big
+teach boxes                 # your pet buys boxes too: what it keeps grows with the machine
+reserve 7                   # 7 capsules (not 50 like a box, so the two can't be mixed up)
+unlock feature:shopping
+tab home
+tab boxes
+wait 1
+expect text "keep at least"
+expect text "113k"          # 7 capsules at about 16k
+expect fits
+shot reserve

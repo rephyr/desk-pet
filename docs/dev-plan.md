@@ -351,6 +351,11 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   round trip, crank catch-up with and without the stool, the auto-adventure loop, thousands of
   workers with time limits, gear (A2) and the jar, kitchen and scouting (A3). It found that sending
   hundreds of auto parties was slow with many pets, and that is fixed.
+- **PRICES (done):** errand tools and boxes priced in capsules (errands.json tool "capsules",
+  boxes.json "capsules", x Machine.coin_value via Jobs.tool_cost / GameState.box_price). Early
+  prices unchanged (tools match the old coins at a capsule worth 75, boxes at 1); later they keep
+  up with the pay. Your pet's box reserve is in capsules too (boxes.json "reserve", save v25
+  reserve_capsules). Flow: prices. Questions for Emilia in docs/plans/PRICES-done.md.
 
 ---
 
