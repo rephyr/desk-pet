@@ -1,0 +1,8 @@
+{
+	"_note": "New homes (C3): the stall on the pets tab takes plain pets by the shelf (1, 10, 100, all) and pays points toward a box; the sorting rule sends new pets from box openings to new homes or to work as they arrive. Every number here is a placeholder. box: the box the points pay (becomes the sunny box with B1). box_at: points per box. worth: points per pet by rarity (always well under a box per pet, or new homes becomes a box engine: a starter box's pets are worth about 2.2 points each on average). takes: the stall's buttons (-1: all). rule_default: the sorting card's settings until you change them (below: new pets under this rarity are sorted; to: homes or work; keep: this finish and better always stay). The stall opens the first time the room is full and the sorting card after enough pets went by hand (data/unlocks.json new_homes and sorting).",
+	"box": "starter",
+	"box_at": 25,
+	"worth": { "common": 1, "uncommon": 2, "rare": 5, "epic": 12, "legendary": 20, "mythic": 40 },
+	"takes": [1, 10, 100, -1],
+	"rule_default": { "below": "rare", "to": "homes", "keep": "holo" }
+}

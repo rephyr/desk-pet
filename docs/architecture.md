@@ -37,7 +37,17 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   box workers open at most `GameState.WORKER_BOXES_MAX` boxes at once.
   `GameState.shop_boxes / stash_boxes / box_is_new / boxes_bought / boxes_greeted`.
 - `Collection` owns the pets, the active pet and the book counts (`part:<slot>:<id>`,
-  `finish:<body>:<finish>`).
+  `finish:<body>:<finish>`). Pets are **cards** (whole `Pet`s in `pets`) or **the herd** (`herd`:
+  `"rarity:finish"` -> count, see `Herd` and data/herd.json). `add()` marks `new_part` and calls
+  `refold()`: past `keep_cards` plain cards a shelf, the oldest that may fold (not `always_card`,
+  not in `busy`, a Callable GameState sets: away, pinned, party leaders) become counts, and
+  `pets_folded(uids, keys)` lets GameState move their errand or machine place to a count.
+  `refold()` only walks `_plain_cards` (the plain-finish cards), so piles of holo+ cards cost it
+  nothing. Totals
+  (`count`, `count_of`, `shiny_of`, `plain_count`) are running numbers: nothing loops over the herd.
+  `get_pet("h:<rarity>:<finish>:<n>")` gives a **stand-in** (`Herd.stand_in`: seeded look, average
+  stats, no traits); removing one takes it off its count. Stars are `fallen` (palettes, the first
+  `fallen_keep`) plus `fallen_n`.
 - `PetLook` is the placeholder art (pixel maps in code). Real art replaces `PetLook` only;
   `PetView` (draws a pet, blinking, squash, finish shader) and everything above stay the same.
 - Finish effects are one shader, `shaders/finish.gdshader`; `finishes.json` picks the mode.
@@ -53,7 +63,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `PackOpening`; `OddsCard` is the "prizes" tag that flips into the odds card, from
   `Machine.odds` via `GameState.machine_odds`, refilled on machine_upgraded / toys_changed /
   unlocked / tutorial_changed while open, placed on the stage's resize), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
-  `CollectionTab` (pets grid + `PetDetails`, and the `BookView`), `AdventuresTab` (adventures:
+  `CollectionTab` (pets: the `Bookcase` with its cushion of `MiniCard`s and a `ShelfPlank` per
+  rarity with a `Mound`; a plank opens the `ShelfView` with `PetDetails`; the `RoomPill`; and the
+  `BookView`), `AdventuresTab` (adventures:
   `MapView`, the place card, trip cards, and `TrailView` for watching a trip; next door's page
   is drawn by `StreetPage` (night paper, house backs whose windows are the lights, gardens coloured
   in when they're ours); upgrades: `GearView`,
@@ -123,6 +135,32 @@ looking at (`GameState.ours_shown`), keeps the colouring-in timing itself (`_col
 Unlocks with `"earn": { "called": true }` are opened only by code: `GameState.open_page(page_id)`
 fires the page's unlock (popup, announce) through the same `_open_entry` as `check_unlocks`, and
 emits `page_opened`; `UnlockRules.stale` never closes them.
+Save v25 adds the herd: `collection` is `{ pets (cards), herd, active, next_id, seen, fallen
+(palettes), fallen_n, stand_next, herd_ever }`, errands are `{ crew (card uids), herd, fill }`,
+`automation.wherd` holds workers from the herd (a party leader stays a uid slot, a stand-in's uid for
+a herd pet), and top-level `room`. Old collections load as they are (stars keep their palettes,
+the first pet with each part is marked); `load_game` ends with `collection.refold()`, which turns
+old crews and workers of uids into counts through `pets_folded`. A save from before v25 that already
+has more plain pets than the first room holds gets room for them plus data/herd.json
+`room.old_save_margin` (`Herd.room_level_for`), so box openings and box jobs keep going.
+`Collection.herd_changed(keys)` says which counts changed; the pets tab rebuilds once a frame at
+most and leaves an open shelf of another rarity alone.
+Who's resting is worked out once (`GameState._resting`: cards, herd counts minus errands, workers,
+stand-ins away or leading) until `_rest_changed()`.
+Save v26 adds new homes (C3): top-level `new_homes` `{ points, by_hand, sorted, room_was_full,
+rule { on, below, to, keep }, today { day, n } }` (`NewHomes`, data/new_homes.json), `jobs[id].join`
+and `automation.wjoin` ("new pets join here"); `jobs_auto` is gone (a v25 save with it on gets every
+open errand's switch on; a v25 save whose room is full has `room_was_full`, so the stall is there).
+`Collection.add(pets, sorter)` asks the sorter about each pet after the book counts it ("homes": it
+never joins, a star); `Collection.leave(counts, uids)` takes pets off for good (a star each, the
+stand-in looks of a count leaving never come back) and emits `pets_left(n)` (the night sky redraws).
+`GameState.send_home(rarity, n)` / `homes_pick` (the stall), `_sorter` / `_sort_pet` (the rule, box
+openings only: `open_boxes`, the machine's pet box), `_place_new(uids)` (busy paws, replaces
+`jobs_auto`; the rule's work pets go to every open errand when nothing takes them), `_room_hit()`
+(first full room: unlock `new_homes`). Unlock entries can be `"quiet": true` (no popup card) and earn
+`room: "full"` / `homes_by_hand`. UI: `NewHomesStall`, `SortingCard`, the pets page's side column in
+`CollectionTab`, `Bookcase.stall_on` / `picked` (tap picks, tap again opens), `ShelfPlank` picked
+border and "sorted today" tag.
 
 ## Testing
 

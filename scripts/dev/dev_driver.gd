@@ -36,12 +36,23 @@ extends Node
 ##   crank <n>             your pet's own machine gives n capsules right away
 ##   unlock <id>           opens that unlock id straight away (e.g. feature:packs), no popup
 ##   spots <job> <n>       n more machines (tables, parties) for a job's workers, for free
+##   others <job>          your pet has taught the other pets that job (the workers page), for free
 ##   xp <n>                you have exactly n xp
 ##   gear <id> [levels]    levels of a gear upgrade (data/gear.json), for free
 ##   tiers all | off       every box tier in the shop, map pages or not (for the 3-tier fits check)
 ##   open <page>           opens a map page the way the game's code does (GameState.open_page:
 ##                         popup and all), e.g. open next_door
 ##   visit <place> [n]     n more visits to a place (next door's lights go out, places become ours)
+##   herd <rarity> <finish> <n>  n plain pets straight into the herd (fast: for thousands or millions)
+##   room <level>          the room is at that upgrade level (data/herd.json "room")
+##   fill-room             plain commons into the herd until the room is exactly full
+##   fav <n>               the newest n cards become favourites
+##   shelf <rarity>        opens that shelf on the pets tab (collectibles)
+##   give-box <id> <n>     n boxes of that kind on your pile, for free
+##   homes <rarity> <n|all>  the new homes stall takes n pets of that rarity (like its buttons)
+##   rule on|off [below] [to] [keep]  the sorting rule (below: a rarity, to: homes | work, keep: a finish)
+##   join <job> on|off     "new pets join here" on an errand or a workers' job
+##   homes-points <n>      the new homes jar has exactly n points
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -224,6 +235,12 @@ func _step(w: PackedStringArray) -> String:
 				while GameState.automation.parties.size() < Automation.spots(GameState.automation, w[1]):
 					GameState.automation.parties.append({ "place": "", "n": 0 })
 			GameState.automation_changed.emit()
+		"others":  # others <job>: the other pets know that job (your pet needs to know it)
+			if not GameState.knows_job(w[1]):
+				return "your pet doesn't know %s" % w[1]
+			GameState.automation.others[w[1]] = true
+			GameState.automation_changed.emit()
+			GameState.changed.emit()
 		"xp":  # xp <n>: you have exactly n xp
 			GameState.xp = int(w[1])
 			GameState.changed.emit()
@@ -244,6 +261,56 @@ func _step(w: PackedStringArray) -> String:
 				return "unknown place %s" % w[1]
 			GameState.add_visits(w[1], int(w[2]) if w.size() > 2 else 1)
 			GameState.adventures_changed.emit()
+			GameState.changed.emit()
+		"herd":  # herd <rarity> <finish> <n>: n plain pets straight into a count
+			var key := Herd.key(w[1], w[2])
+			if not Herd.valid_key(GameState.catalog, key) or not Herd.plain(GameState.catalog, w[2]):
+				return "no plain count %s" % key
+			GameState.collection.add_plain(key, int(w[3]))
+			GameState.changed.emit()
+		"room":  # room <level>: the room's upgrade level
+			GameState.room = maxi(0, int(w[1]))
+			GameState.changed.emit()
+		"fill-room":  # plain commons into the herd until the room is exactly full
+			GameState.collection.add_plain(Herd.key(GameState.catalog.tiers[0].id, "normal"), GameState.room_left())
+			GameState.changed.emit()
+		"fav":  # fav <n>: the newest n cards become favourites
+			var cards := GameState.collection.pets
+			for i in mini(int(w[1]), cards.size()):
+				GameState.collection.set_fav(cards[cards.size() - 1 - i].uid, true)
+		"shelf":  # shelf <rarity>: opens that shelf on the pets tab
+			home.full_game().show_tab("collection")
+			home.full_game().collection.show_mode(0)
+			home.full_game().collection.open_shelf(w[1])
+		"give-box":  # give-box <id> <n>: boxes on your pile
+			if GameState.catalog.box(w[1]).is_empty():
+				return "unknown box %s" % w[1]
+			GameState.bag[w[1]] = GameState.in_bag(w[1]) + int(w[2])
+			GameState.changed.emit()
+		"homes":  # homes <rarity> <n|all>: the stall takes them
+			if not GameState.catalog.tiers.any(func(t): return t.id == w[1]):
+				return "unknown rarity %s" % w[1]
+			var got := GameState.send_home(w[1], -1 if w[2] == "all" else int(w[2]))
+			if int(got.n) <= 0:
+				return "no %s pets could go" % w[1]
+		"rule":  # rule on|off [below] [to] [keep]
+			GameState.set_rule("on", w[1] == "on")
+			for i in range(2, w.size()):
+				var key := "below" if GameState.catalog.tiers.any(func(t): return t.id == w[i]) else ("to" if w[i] in NewHomes.TO else "keep")
+				GameState.set_rule(key, w[i])
+		"join":  # join <job> on|off: new pets join an errand or a workers' job
+			if not GameState.catalog.job(w[1]).is_empty():
+				GameState.set_job_join(w[1], w[2] == "on")
+				if GameState.job_joins(w[1]) != (w[2] == "on"):
+					return "the %s errand isn't open" % w[1]
+			elif not Automation.job(GameState.catalog, w[1]).is_empty():
+				GameState.set_worker_join(w[1], w[2] == "on")
+				if GameState.worker_joins(w[1]) != (w[2] == "on"):
+					return "the others don't know %s" % w[1]
+			else:
+				return "unknown job %s" % w[1]
+		"homes-points":  # homes-points <n>: the jar has exactly n points
+			GameState.homes.points = clampi(int(w[1]), 0, NewHomes.box_at(GameState.catalog) - 1)
 			GameState.changed.emit()
 		"quit":
 			_finish()

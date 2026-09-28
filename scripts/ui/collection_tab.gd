@@ -1,88 +1,70 @@
 class_name CollectionTab
 extends VBoxContainer
-## Collectibles: your pets (a sortable, filterable, paged grid of stickers + the chosen pet's
-## details), your capsule toys (ToysView) and the collection book. Filters are chips and sorts are buttons, never dropdowns: a dropdown is a
-## separate OS popup window (embed_subwindows is off), which doesn't open properly on Hyprland.
+## Collectibles: your pets, your capsule toys (ToysView) and the collection book.
+## Pets are a bookcase (Bookcase): a pink cushion with your active pet, favourites and best ones on
+## top, and a plank per rarity with the newest standing and the herd piled up beside them. Tap a
+## plank to open that shelf (ShelfView: the herd's counts, the always-cards, the newest, and the
+## chosen pet's sticker). The room pill on the right (RoomPill) shows how full the room is.
+## Once the room has been full, the new homes stall stands in a side column beside the bookcase
+## (NewHomesStall: pick a plank, take its pets), and later the sorting rule card under it
+## (SortingCard). An opened shelf gets the whole width (its sticker needs it).
+## No dropdowns: a dropdown is a separate OS popup window (embed_subwindows is off), which doesn't
+## open properly on Hyprland.
+## Design: design/mockups/screens/pets-shelves.html (look A), new-homes.html (look A, the stall).
 
-const PAGE_SIZE := 24
-const SORTS := ["newest", "rarest", "a to z"]
-const FILTERS := ["common", "uncommon", "rare", "epic", "legendary", "mythic"]
+const SIDE_WIDTH := 252
 
 var _pets_view := HBoxContainer.new()
+var _left := VBoxContainer.new()
+var _side := VBoxContainer.new()
+var stall := NewHomesStall.new()
+var sorting := SortingCard.new()
+var _sorting_holder: Tilted
+var _homes_key := ""
+var _bookcase := Bookcase.new()
+var _shelf := ShelfView.new()
 var _book := BookView.new()
 var toys := ToysView.new()
-var _grid := GridContainer.new()
-var _scroll := ScrollContainer.new()
-var _details := PetDetails.new()
-var _count := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
-var _page_label := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
-var _pets_bar := HBoxContainer.new()
+var _room := RoomPill.new()
 var _mode: PanelContainer  # the pets | toys | book switch
 var _toys_button: Button
-var _filter_row := HFlowContainer.new()
-var _all_chip: Button
-var _chips := {}  # tier id or "sparkly" -> Button
-var _sort_index := 0
-var _page := 0
-var _selected_uid := ""
 var _dirty := true
+var _queued := false  # a rebuild is waiting for the end of the frame
 
 
 func _init() -> void:
-	add_theme_constant_override("separation", 8)
+	add_theme_constant_override("separation", 10)
 	size_flags_vertical = SIZE_EXPAND_FILL
 
 	var bar := HBoxContainer.new()
-	bar.add_theme_constant_override("separation", 8)
+	bar.add_theme_constant_override("separation", 10)
+	bar.custom_minimum_size = Vector2(0, 30)
 	add_child(bar)
 	_mode = UiTheme.segmented(["pets", "toys", "book"], 0, func(i): _show_mode(i))
 	bar.add_child(_mode)
-	_pets_bar.add_theme_constant_override("separation", 8)
-	_pets_bar.size_flags_horizontal = SIZE_EXPAND_FILL
-	bar.add_child(_pets_bar)
-	_pets_bar.add_child(UiTheme.segmented(SORTS, 0, func(i):
-		_sort_index = i
-		_page = 0
-		_rebuild()))
-	_pets_bar.add_child(UiTheme.spacer())
-	_pets_bar.add_child(_count)
-	_pets_bar.add_child(UiTheme.small_button("‹", func(): _turn(-1)))
-	_pets_bar.add_child(_page_label)
-	_pets_bar.add_child(UiTheme.small_button("›", func(): _turn(1)))
-
-	_filter_row.add_theme_constant_override("h_separation", 5)
-	_filter_row.add_theme_constant_override("v_separation", 5)
-	add_child(_filter_row)
-	_all_chip = UiTheme.filter_chip("all", UiTheme.PINK, true)
-	_all_chip.pressed.connect(func():
-		for id in _chips:
-			_chips[id].set_pressed_no_signal(false)
-		_all_chip.set_pressed_no_signal(true)
-		_page = 0
-		_rebuild())
-	_filter_row.add_child(_all_chip)
-	var catalog := Catalog.shared()
-	for tier_id in FILTERS:
-		_add_chip(tier_id, catalog.tier_at(catalog.rank(tier_id)).name, catalog.tier_color(tier_id))
-	_add_chip("sparkly", "sparkly", UiTheme.GOLD)
+	bar.add_child(UiTheme.spacer())
+	bar.add_child(_room)
 
 	_pets_view.size_flags_vertical = SIZE_EXPAND_FILL
 	_pets_view.add_theme_constant_override("separation", 14)
-	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_scroll.size_flags_horizontal = SIZE_EXPAND_FILL
-	_grid.columns = 5
-	_grid.size_flags_horizontal = SIZE_EXPAND_FILL
-	_grid.add_theme_constant_override("h_separation", 12)
-	_grid.add_theme_constant_override("v_separation", 12)
-	var pad := MarginContainer.new()
-	pad.size_flags_horizontal = SIZE_EXPAND_FILL
-	for side in ["left", "top", "right", "bottom"]:
-		pad.add_theme_constant_override("margin_" + side, 6)
-	pad.add_child(_grid)
-	_scroll.add_child(pad)
-	_pets_view.add_child(_scroll)
-	_pets_view.add_child(_details)
+	_left.size_flags_horizontal = SIZE_EXPAND_FILL
+	_left.size_flags_vertical = SIZE_EXPAND_FILL
+	_left.add_child(_bookcase)
+	_left.add_child(_shelf)
+	_pets_view.add_child(_left)
+	_shelf.visible = false
+	# the new homes stall and the sorting card, once they're found
+	_side.custom_minimum_size = Vector2(SIDE_WIDTH, 0)
+	_side.add_theme_constant_override("separation", 12)
+	_side.add_child(stall)
+	_sorting_holder = Tilted.new(sorting, -1.2)
+	_side.add_child(_sorting_holder)
+	_side.visible = false
+	_pets_view.add_child(_side)
 	add_child(_pets_view)
+	_bookcase.shelf_opened.connect(open_shelf)
+	_bookcase.plank_picked.connect(func(r): stall.set_rarity(r))
+	_shelf.closed.connect(close_shelf)
 	add_child(toys)
 	toys.visible = false
 	# the toys switch is locked ("???") until toys open (through adventures)
@@ -93,43 +75,58 @@ func _init() -> void:
 	add_child(_book)
 	_book.visible = false
 
-	GameState.collection.pets_added.connect(func(_p):
-		_dirty = true
-		_rebuild_if_visible())
-	GameState.collection.pet_changed.connect(func(_p):
-		_dirty = true
-		_rebuild_if_visible())
+	var c := GameState.collection
+	c.pets_added.connect(func(pets: Array[Pet]): _mark_dirty(pets.map(func(p): return p.rarity)))
+	c.pet_changed.connect(func(pet: Pet): _mark_dirty([pet.rarity]))
+	c.herd_changed.connect(func(keys: Array): _mark_dirty(keys.map(func(k): return Herd.rarity_of(k))))
+	c.pets_removed.connect(func(_u): _mark_dirty())
+	c.active_changed.connect(func(_p): _mark_dirty())
+	GameState.unlocked.connect(func(_e): _mark_dirty())
+	GameState.changed.connect(func():  # the sorting rule changed: the planks under its line change
+		if _homes_state() != _homes_key:
+			_mark_dirty())
 	GameState.new_game.connect(func():
-		_selected_uid = ""
-		_page = 0
-		_dirty = true
-		_rebuild_if_visible())
-	GameState.collection.pets_removed.connect(func(uids):
-		if _selected_uid in uids:
-			_selected_uid = ""
-		_dirty = true
-		_rebuild_if_visible())
+		close_shelf()
+		_mark_dirty())
+	GameState.room_full.connect(func(): _room.refresh())
 	visibility_changed.connect(func():
+		if not is_visible_in_tree():
+			_room.hide_card()
 		_rebuild_if_visible()
 		if is_visible_in_tree() and _pets_view.visible:
 			speak()
 		elif is_visible_in_tree() and toys.visible:
 			toys.speak())
+	_room.visible = false
 
 
-func _add_chip(id: String, text: String, color: Color) -> void:
-	var chip := UiTheme.filter_chip(text, color)
-	chip.toggled.connect(func(_on):
-		_all_chip.set_pressed_no_signal(not _chips.values().any(func(c: Button): return c.button_pressed))
-		_page = 0
-		_rebuild())
-	_chips[id] = chip
-	_filter_row.add_child(chip)
+## Something changed for these rarities ([]: anything). The rebuild waits for the end of the frame,
+## so a burst of changes (a box opened: pets added, then folded) rebuilds once. An open shelf of
+## another rarity is left alone (the bookcase rebuilds when the shelf closes).
+func _mark_dirty(rarities: Array = []) -> void:
+	if _shelf.visible and is_visible_in_tree() and not rarities.is_empty() and not _shelf.rarity in rarities:
+		return
+	_dirty = true
+	if not _queued:
+		_queued = true
+		_flush.call_deferred()
+
+
+func _flush() -> void:
+	_queued = false
+	_rebuild_if_visible()
 
 
 func speak() -> void:
-	var pets := GameState.collection.pets.size()
-	PetBubble.say_line(self, "pets" if pets > 1 else "pets_alone", { "count": pets })
+	var n := GameState.collection.count()
+	if n <= 1:
+		PetBubble.say_line(self, "pets_alone")
+	elif GameState.room_shown() and GameState.room_is_full():
+		PetBubble.say_line(self, "room_full")
+	elif GameState.room_shown() and GameState.room_is_cozy():
+		PetBubble.say_line(self, "pets_cozy")
+	else:
+		PetBubble.say_line(self, "pets", { "count": ExpandedView._thousands(n) })
 
 
 func show_book(book: bool) -> void:
@@ -139,6 +136,27 @@ func show_book(book: bool) -> void:
 ## 0 pets, 1 toys, 2 the book.
 func show_mode(mode: int) -> void:
 	(_mode.get_child(0).get_child(mode) as Button).pressed.emit()  # flips the switch too
+
+
+## Opens a rarity's shelf (`pet` chosen, or its first card).
+func open_shelf(rarity: String, pet: Pet = null) -> void:
+	if GameState.collection.count_of(rarity) <= 0:
+		return
+	_bookcase.visible = false
+	_side.visible = false  # an opened shelf takes the whole width (its sticker needs the room)
+	_shelf.visible = true
+	_shelf.open(rarity, pet)
+	if pet == null:
+		PetBubble.say_line(self, "shelf_" + rarity)
+
+
+func close_shelf() -> void:
+	_shelf.visible = false
+	_bookcase.visible = true
+	_side.visible = GameState.homes_open()
+	_shelf.rarity = ""
+	_dirty = true
+	_rebuild_if_visible()
 
 
 func _lock_toys() -> void:
@@ -157,89 +175,62 @@ func _show_mode(mode: int) -> void:
 	_book.visible = mode == 2
 	toys.visible = mode == 1
 	_pets_view.visible = mode == 0
-	_pets_bar.visible = mode == 0
-	_filter_row.visible = mode == 0
+	_room.visible = mode == 0 and GameState.room_shown()
+	_room.hide_card()
 	if mode == 2:
 		PetBubble.say_line(self, "book")
 	elif mode == 1:
 		toys.speak()
+	else:
+		_rebuild_if_visible()
 
 
-## For the tutorial: a pet to tap, or once one's picked, the button to make it active.
+## For the tutorial: a pet to tap (the cushion's first), or once a shelf is open, make active.
 func tutorial_target() -> Control:
-	if _details.visible and not _details.active_button().disabled:
-		return _details.active_button()
-	for card in _grid.get_children():
-		if card is PetCard:
-			return card
-	return null
-
-
-func _turn(step: int) -> void:
-	_page = clampi(_page + step, 0, _page_count(_filtered().size()) - 1)
-	_rebuild()
-
-
-func _page_count(n: int) -> int:
-	return maxi(1, ceili(n / float(PAGE_SIZE)))
+	if _shelf.visible and _shelf.details.visible and not _shelf.details.active_button().disabled:
+		return _shelf.details.active_button()
+	return _bookcase.first_mini()
 
 
 func _rebuild_if_visible() -> void:
-	if _dirty and is_visible_in_tree():
+	if _dirty and is_visible_in_tree() and _pets_view.visible:
 		_rebuild()
+
+
+## What the pets page's new homes part depends on (the planks show the rule's line).
+func _homes_state() -> String:
+	if not GameState.homes_open():
+		return ""
+	return "%s|%s|%s" % [str(GameState.homes.rule), str(GameState.feature_on("sorting")), str(GameState.sorted_today())]
+
+
+## The shelf the stall takes from: the one picked, else the lowest rarity you have.
+func _stall_rarity() -> String:
+	var c := GameState.collection
+	if _bookcase.picked != "" and c.count_of(_bookcase.picked) > 0:
+		return _bookcase.picked
+	for tier in GameState.catalog.tiers:
+		if c.count_of(tier.id) > 0:
+			return str(tier.id)
+	return ""
 
 
 func _rebuild() -> void:
 	_dirty = false
-	UiTheme.clear(_grid)
-	var pets := _filtered()
-	_count.text = "%d pets" % pets.size()
-	_page = clampi(_page, 0, _page_count(pets.size()) - 1)
-	_page_label.text = "page %d of %d" % [_page + 1, _page_count(pets.size())]
-	for pet in pets.slice(_page * PAGE_SIZE, (_page + 1) * PAGE_SIZE):
-		var card := PetCard.new(pet, 3, false)
-		card.pressed.connect(_select)
-		card.set_selected(pet.uid == _selected_uid)
-		_grid.add_child(card)
-	if _selected_uid == "" and not GameState.collection.pets.is_empty():
-		_select(GameState.collection.active())
-	_scroll.scroll_vertical = 0  # a new page starts at the top
-
-
-func _filtered() -> Array[Pet]:
-	var tiers: Array = FILTERS.filter(func(t): return _chips[t].button_pressed)
-	var sparkly: bool = _chips.sparkly.button_pressed
-	var out: Array[Pet] = []
-	for pet in _sorted(GameState.collection.pets):
-		if not tiers.is_empty() and not pet.rarity in tiers:
-			continue
-		if sparkly and pet.finish == "normal":
-			continue
-		out.append(pet)
-	return out
-
-
-func _select(pet: Pet) -> void:
-	if pet == null:
-		return
-	_selected_uid = pet.uid
-	for card in _grid.get_children():
-		if card is PetCard:
-			card.set_selected(card.pet.uid == pet.uid)
-	_details.show_pet(pet)
-
-
-func _sorted(pets: Array[Pet]) -> Array[Pet]:
-	var catalog := Catalog.shared()
-	var out := pets.duplicate()
-	match SORTS[_sort_index]:
-		"newest":
-			out.reverse()
-		"rarest":
-			out.sort_custom(func(a: Pet, b: Pet):
-				var ra := catalog.rank(a.rarity)
-				var rb := catalog.rank(b.rarity)
-				return ra > rb if ra != rb else catalog.finish_rank(a.finish) > catalog.finish_rank(b.finish))
-		"a to z":
-			out.sort_custom(func(a: Pet, b: Pet): return a.display_name(catalog) < b.display_name(catalog))
-	return out
+	_homes_key = _homes_state()
+	_room.visible = GameState.room_shown()
+	_room.refresh()
+	var homes := GameState.homes_open()
+	_bookcase.stall_on = homes
+	_bookcase.picked = _stall_rarity() if homes else ""
+	_sorting_holder.visible = GameState.feature_on("sorting")
+	if homes:
+		stall.set_rarity(_bookcase.picked)
+	if _shelf.visible and GameState.collection.count_of(_shelf.rarity) > 0:
+		_side.visible = false
+		_shelf.rebuild()
+	else:
+		_shelf.visible = false
+		_bookcase.visible = true
+		_side.visible = homes
+		_bookcase.rebuild()

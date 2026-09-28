@@ -102,11 +102,13 @@ func _process(_delta: float) -> void:
 		str(GameState.auto_party()), _picked, afford]
 	var pet := GameState.collection.active()
 	key += "|%d|%s|%s|%s" % [jobs.size(), run.location_id if run else "", str(GameState.can_auto_open()), pet.display_name(GameState.catalog) if pet else ""]
+	if not GameState.can_auto_open():  # the box job then shows the pile count (or the squish)
+		key += "|%d|%s" % [GameState.boxes_on_pile(), str(GameState.room_is_full())]
 	# the workers page: what's taught, bought and who's on it, and what you can afford there
 	var a: Dictionary = GameState.automation
-	key += "|%d|%s|%s|%s|%s" % [_page, str(a.others), str(a.spots), str(a.parties), str(a.workers)]
+	key += "|%d|%s|%s|%s|%s|%s|%s" % [_page, str(a.others), str(a.spots), str(a.parties), str(a.workers), str(a.get("wherd", {})), str(a.get("wjoin", {}))]
 	if _page == 1:  # changes every time a box worker opens a box: only the workers page shows it
-		key += "|%d" % GameState.resting_pets().size()
+		key += "|%d" % GameState.resting_count()
 	for j in jobs:
 		key += "1" if GameState.coins >= GameState.teach_others_cost(j.id) else "0"
 		key += "1" if GameState.coins >= int(GameState.spot_plan(j.id, 1)[1]) else "0"
@@ -253,7 +255,13 @@ static func rate_line(job: Dictionary) -> String:
 			var n: int = run.party.setting_out() if run else int(party.n)
 			return "%d %s to %s" % [n, "pet" if n == 1 else "pets", place.get("name", "somewhere")]
 		"boxes":
-			return "opening your pile" if GameState.can_auto_open() else "the pile is empty"
+			if GameState.can_auto_open():
+				return "opening your pile"
+			var boxes := GameState.boxes_on_pile()
+			if boxes <= 0:
+				return "the pile is empty"
+			var pile := "a box on your pile" if boxes == 1 else "%s boxes on your pile" % UiTheme.num(boxes)
+			return "squish! " + pile if GameState.room_is_full() else pile
 	return ""
 
 
@@ -368,7 +376,7 @@ func _buy_spot(id: String) -> void:
 
 
 func _put_workers(id: String, count: int) -> void:
-	if Automation.spots(GameState.automation, id) <= GameState.workers_of(id).size():
+	if Automation.spots(GameState.automation, id) <= GameState.workers_count(id):
 		PetBubble.say_line(self, "automation_workers_full", { "spots": Automation.job(GameState.catalog, id).get("spot", {}).get("names", "spots") })
 		return
 	if GameState.put_workers(id, count) <= 0:
@@ -429,7 +437,7 @@ func _rebuild_worker_side(job: Dictionary) -> void:
 	counts.add_theme_constant_override("h_separation", 10)
 	ErrandToolsView._add_row(counts, str(job.spot.get("names", "spots")), UiTheme.num(spots), UiTheme.TEXT)
 	ErrandToolsView._add_row(counts, "working", UiTheme.num(working), color if working > 0 else UiTheme.MUTED)
-	ErrandToolsView._add_row(counts, "resting pets", UiTheme.num(GameState.resting_pets().size()), UiTheme.MUTED)
+	ErrandToolsView._add_row(counts, "resting pets", UiTheme.num(GameState.resting_count()), UiTheme.MUTED)
 	col.add_child(counts)
 	var plan := GameState.spot_plan(id, 1)
 	var buy := UiTheme.button("+1 %s for %s" % [job.spot.get("name", "spot"), UiTheme.num(int(plan[1]))], func(): _buy_spot(id))
@@ -452,6 +460,10 @@ func _rebuild_worker_side(job: Dictionary) -> void:
 	fill.size_flags_horizontal = SIZE_EXPAND_FILL
 	row.add_child(fill)
 	col.add_child(row)
+	if id != "adventures" and GameState.spare_count() > ErrandsTab.STEPS_AFTER:  # busy paws: new pets start here
+		col.add_child(ErrandsTab.join_switch(GameState.worker_joins(id), func(on):
+			GameState.set_worker_join(id, on)
+			PetBubble.say_line(self, "join_on" if on else "join_off")))
 	_card.add_child(box)
 
 	if id == "adventures" and spots > 0:
@@ -552,9 +564,9 @@ class WorkerCard extends PanelContainer:
 		flow.mouse_filter = MOUSE_FILTER_IGNORE
 		well.add_child(flow)
 		var spots := Automation.spots(GameState.automation, _id)
-		var workers := GameState.workers_of(_id)
 		var working := GameState.workers_count(_id)
 		var shown := mini(spots, SHOWN if spots <= SHOWN else SHOWN - 1)
+		var workers := GameState.worker_faces(_id, shown) if _id != "adventures" else GameState.workers_of(_id)
 		for i in shown:
 			flow.add_child(WorkerSpot.new(_id, str(workers[i]) if i < workers.size() else "", i))
 		if spots > shown:

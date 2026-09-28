@@ -579,9 +579,7 @@ func _refresh() -> void:
 	else:
 		_set_note("adventures", "nobody's away", "send someone", false)
 
-	var boxes := 0
-	for box_id in GameState.bag:
-		boxes += GameState.in_bag(box_id)
+	var boxes := GameState.boxes_on_pile()
 	if GameState.can_auto_open() and boxes > 0:
 		_set_note("boxes", "%s is opening the pile" % _name.text, "%d left" % boxes, true)
 	else:

@@ -646,9 +646,13 @@ func open(box_id: String, count: int, force_tier := "") -> void:
 	if is_revealing():
 		return
 	_last_box = box_id
+	var before := GameState.in_bag(box_id)
 	var pulled := GameState.open_boxes(box_id, count, force_tier)
 	if pulled.is_empty():
+		if GameState.room_is_full() and GameState.in_bag(box_id) >= count:
+			PetBubble.say_line(self, "room_full")  # the room is full: the boxes wait on the pile
 		return
+	count = before - GameState.in_bag(box_id)  # the room may have taken fewer (the rest wait on the pile)
 	_stash.visible = false
 	_counter.visible = false  # the opening gets the whole height, so its light has room
 	_opening.visible = count == 1
@@ -658,7 +662,7 @@ func open(box_id: String, count: int, force_tier := "") -> void:
 		var best := BoxShop.best_first(pulled, Catalog.shared())
 		# in the tutorial the pet inside talks while you open its box
 		var talk: Array = Catalog.shared().tutorial.box_talk
-		var nth := GameState.collection.pets.size() - 1
+		var nth := GameState.collection.count() - 1
 		_opening.box_talk = talk[nth] if GameState.tutorial_active() and nth < talk.size() else []
 		_opening.play(best[0], box_id, best.slice(1))
 	else:
