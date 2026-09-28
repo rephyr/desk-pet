@@ -1,5 +1,8 @@
 # MERGE done: lanes/prices into lanes/house
 
+**Status: VERIFIED 2026-09-29** (after the review fixes below; SAVE_VERSION 26 = house v23/v24 +
+prices v25/v26, renumber again at the final merge).
+
 lanes/house (C1 the herd + C3 new homes) now also has lanes/prices: A3 (savings jar, kitchen,
 scouting) and PRICES (errand tools, boxes and your pet's box reserve priced in capsules). One
 `git merge --no-ff lanes/prices`; the conflicts were resolved keeping both sides.
