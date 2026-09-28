@@ -106,7 +106,8 @@
 		{ "id": "orchard", "title": "an orchard", "about": "an orchard full of apples over the hill", "unlocks": ["location:orchard"], "requires": [] },
 		{ "id": "well", "title": "a deep well", "about": "a really deep well behind the shed", "unlocks": ["location:well"], "requires": [] },
 		{ "id": "cellar", "title": "a little door", "about": "a little door at the bottom of the old well", "unlocks": ["location:cellar"], "requires": ["location:well"] },
-		{ "id": "below", "title": "stairs going down", "about": "some stairs that go further down than anyone's been", "unlocks": ["location:below"], "requires": ["location:cellar"] }
+		{ "id": "below", "title": "stairs going down", "about": "some stairs that go further down than anyone's been", "unlocks": ["location:below"], "requires": ["location:cellar"] },
+		{ "id": "edge", "title": "where the map stops", "about": "a spot past the orchard where the map just stops", "unlocks": ["feature:edge"], "requires": ["page:beyond", "location:orchard"] }
 	],
 	"events": [
 		{

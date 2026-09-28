@@ -265,6 +265,18 @@ economy: currency, body parts, and rewards for mechanics not designed yet. Rewar
 - Scale: 1 pet → a few with gear → 10 → hundreds → 100k+.
 - **Open:** raids (all pets as one force against a boss) as a later type.
 
+- **Past the edge (C2, built, look A: the tucked page):** once every place past the fence is open
+  (or earlier, saying yes to a rumour, "where the map stops"), the beyond map stops short with a
+  torn right edge and a crayon signpost, **"the edge"**; the next page is tucked under the tear and
+  peeks out with a big number to go ("500 to go"), no outline of what's there. Tap the signpost: a
+  card in the right column lists the shelves of resting herd pets (only counts, never cards), pick
+  one and send 1 / 10 / 100 / all ("all" stops at what's still to go). They fly off and **never
+  come back**: a night-sky star each, and a crayon scribble in their colours on the tucked page.
+  Any pet counts the same. Your pet always says "they'll draw the rest of the map!". A full page
+  opens (next door, 500 pets; later pages x50-100, data/edge.json); once every page in the data is
+  full the sheet and the signpost go and the tear stays. The torn page is redrawn narrower
+  (data/edge.json "layout").
+
 ## Errands (idle side, safe)
 
 **Decided.** The safe, steady floor under adventures: resting pets are put on jobs in the
@@ -344,6 +356,19 @@ see the memory note on the automation tab for the plan.
   everyone (machines), sharper cutters (tables).
 - **Open:** spot prices grow fast (placeholders): thousands of workers will need a later layer
   (pets buying machines, "more machines from conquered places").
+- **The little school (C2/F3, built, look A: the classroom):** a **school** page next to your pet |
+  workers, hidden until 100 pets have gone past the edge (and the tab is there). Classes of spare
+  herd pets (sizes 40, 100, 220, 450, 900, then x2; data/school.json) fill 24 desks in the class's
+  rarity mix; the chalkboard says "class 4 +3.2%" (the step this class would give). Seat them from
+  the shelves with 1 / 10 / 100 / all (never more than the seats left). A full class makes **ring
+  the bell** glow and wiggle; **you ring it**: confetti, the class stays on as teachers for good (a
+  night-sky star each, a group in the teachers row) and **every worker gets quicker** (machine
+  workers, box workers and errand crews), multiplied class by class ("every worker x1.10"). A
+  class's step: 1% + 1.4% x its average stand points (common 1, uncommon 2, rare 5, epic 12,
+  legendary 20, mythic 40; the finish doesn't count). Your pet's lines never change ("class is in!
+  everybody sit nicely.", "everyone's here! ring the bell!", "ding ding! the new teachers are so
+  proud."). **Pets a minute:** a pill at the top of the tab while box workers are really opening (boxes
+  on the pile they may open, room for the pets; a box is a pet). It hides otherwise.
 
 ## Risk and crafting
 

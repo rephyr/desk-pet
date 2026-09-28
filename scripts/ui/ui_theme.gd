@@ -486,6 +486,10 @@ const DOODLES := {
 	"gear_charm": '<g transform="scale(0.6)" stroke-width="3"><path d="M20 5 L20 10"/><path d="M12 22 Q12 11 20 11 Q28 11 28 22 L30 27 L10 27 Z"/><circle cx="20" cy="31" r="2.6"/><path d="M33 8 L33 13 M30.5 10.5 L35.5 10.5" stroke="{gold}"/></g>',
 	"gear_leaf": '<g transform="scale(0.6)" stroke-width="3"><path d="M8 32 Q6 12 30 8 Q34 30 12 32 Z"/><path d="M10 30 Q18 22 26 13" opacity=".6"/><path d="M18 19 L24 19 M21 16 L21 22" stroke="{pink}"/></g>',
 	"gear_harness": '<g transform="scale(0.6)" stroke-width="3"><path d="M7 13 Q20 7 33 13"/><path d="M6 13 Q5 29 20 32 Q35 29 34 13"/><path d="M13 11 L14 31 M27 11 L26 31" opacity=".6"/><circle cx="20" cy="21" r="3.6" stroke="{gold}"/><path d="M20 5 Q24 5 24 8 Q24 11 20 11 Q16 11 16 8 Q16 5 20 5 Z"/></g>',
+	# past the edge and the little school (C2)
+	"sign": '<path d="M12 21 L12 3.4"/><path d="M4 5.6 L16.6 5.6 L19.8 8.6 L16.6 11.6 L4 11.6 Z"/><path d="M7.4 14.4 L18 14.4 M8 21 L16 21" opacity=".6"/>',
+	"school": '<path d="M3.6 11 L12 5.6 L20.4 11"/><path d="M5.6 10 L5.6 20.4 L18.4 20.4 L18.4 10"/><path d="M10.2 20.4 L10.2 15.4 L13.8 15.4 L13.8 20.4"/><path d="M12 5.6 L12 2.6 L15 3.6 L12 4.6"/>',
+	"bell": '<path d="M6.4 16.6 Q6.6 8 12 7.6 Q17.4 8 17.6 16.6 Z"/><path d="M4.6 16.8 L19.4 16.8"/><circle cx="12" cy="19.2" r="1.6"/><path d="M12 7.6 L12 5"/>',
 	"star": '<path d="M12 2.5 L14.6 9 L21.5 9.4 L16.2 13.8 L17.9 20.6 L12 16.9 L6.1 20.6 L7.8 13.8 L2.5 9.4 L9.4 9 Z" fill="{c}"/>',
 	"bag": '<path d="M8.4 8.2 Q8.5 3.7 12 3.8 Q15.5 3.8 15.6 8.1"/><path d="M4.7 8.3 Q12 7.6 19.3 8.2 L18.7 19.6 Q12 20.5 5.3 19.7 Z"/><path d="M9.5 12.5 Q12 14.1 14.5 12.4"/>',
 	"lock": '<path d="M7.4 11 Q7 4.3 12 4.2 Q17 4.2 16.7 11"/><path d="M5 11.1 Q12 10.5 19 10.9 L18.7 19.8 Q12 20.5 5.3 19.9 Z"/><path d="M12 14.2 L12 16.4"/>',

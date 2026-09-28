@@ -36,6 +36,8 @@ var machine_tree := {}  # the machine's upgrade tree, see data/machine_tree.json
 var automation := {}  # jobs your pet does for you (the automation tab), see data/automation.json
 var gear := {}  # upgrades to adventuring bought with xp, see data/gear.json and Gear
 var herd := {}  # plain pets folded into counts, the room cap, see data/herd.json and Herd
+var edge := {}  # past the edge: the pages it fills, see data/edge.json and Edge
+var school := {}  # the little school: class sizes, stand points, steps, see data/school.json and School
 var encounter_art := {}  # event id -> its pixel art on the trail, see data/encounter_art.json
 var tier_overrides := {}  # tier id -> Color, set by the player's colour theme (see UiTheme.apply)
 
@@ -102,6 +104,8 @@ func _init() -> void:
 	automation = _load("automation.json")
 	gear = _load("gear.json")
 	herd = _load("herd.json")
+	edge = _load("edge.json")
+	school = _load("school.json")
 	_rummage_by_id = _index(rummage_spots)
 
 

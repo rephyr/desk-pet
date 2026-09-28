@@ -19,9 +19,11 @@ signal automation_changed  # a job was taught, your pet moved to another job, or
 signal pet_cranked(result: Dictionary)  # your pet's own little machine gave a capsule (see _pet_capsule)
 signal gear_changed  # a gear upgrade was bought with xp (the adventures' upgrades page)
 signal room_full  # you tried to open a box but the room is full (it waits on the pile)
+signal edge_changed  # pets went past the edge (the scribbles and the number to go changed)
+signal school_changed  # pets sat down in the school, or the bell rang
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
-const SAVE_VERSION := 23
+const SAVE_VERSION := 24
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
 const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
@@ -80,6 +82,9 @@ var last_moved := ""  # the uid of the last pet put on or taken off an errand (f
 ## Who's resting, worked out once until crews, workers, trips or the herd change (see _rest_changed)
 var _rest := {}
 var room := 0  # room upgrades bought: the room holds this many plain pets, see Herd.room_cap
+var edge := Edge.fresh()  # past the edge: pages filled, pets sent, the scribbles (see Edge, data/edge.json)
+var school := School.fresh()  # the little school: who sits in the class, the classes of teachers (see School)
+var _school_x := 1.0  # School.boost(school), kept: job_rate and workers_speed ask every frame (school_changed_boost)
 
 
 ## Turns one of your pet's jobs ("packs" or "buying") on or off, from settings or the corner panel.
@@ -143,10 +148,13 @@ func _init() -> void:
 	collection.busy = _busy_uids
 	collection.pets_folded.connect(_on_folded)
 	collection.herd_changed.connect(func(_keys): _rest_changed())
-	if not load_game():
+	var loaded := load_game()
+	if not loaded:
 		_start_tutorial()  # a brand new player
 	elif collection.count() == 0 and tutorial == "done":
 		_give_first_pet()
+	if loaded:
+		check_unlocks.call_deferred()  # an update may have new unlocks this save has earned (after the UI is up: popups)
 	collection.active_changed.connect(func(_p): _check_tutorial())
 	collection.pets_added.connect(func(_p): _check_tutorial())
 	# your active pet never works an errand; lost pets leave theirs; new pets get one
@@ -413,6 +421,8 @@ func check_unlocks() -> void:
 		_milestone(str(entry.id))
 		adventures_changed.emit()
 		changed.emit()
+	# a rumour of something that's open now has nothing left to lead to (the edge opened by itself)
+	rumours.assign(rumours.filter(func(id): return not catalog.rumour(id).get("unlocks", []).all(func(u): return is_open(str(u)))))
 
 
 func _earned(earn: Dictionary) -> bool:
@@ -435,6 +445,22 @@ func _earned(earn: Dictionary) -> bool:
 	var levels: Dictionary = earn.get("job_level", {})
 	for job_id in levels:
 		if job_level(str(job_id)) < int(levels[job_id]):
+			return false
+	if earn.has("all_places") and not all_places_open(str(earn.all_places)):
+		return false
+	if earn.has("edge") and not edge_done(str(earn.edge)):
+		return false
+	if int(edge.get("ever", 0)) < int(earn.get("edge_sent", 0)):
+		return false
+	return true
+
+
+## Whether every place on a map page is open (and the page itself).
+func all_places_open(page_id: String) -> bool:
+	if not page_open(page_id):
+		return false
+	for location in catalog.locations:
+		if str(location.get("page", "")) == page_id and not location_open(location):
 			return false
 	return true
 
@@ -465,6 +491,7 @@ func follow_lead(location_id: String) -> void:
 		return
 	spotted.erase(location_id)
 	unlocks["location:" + location_id] = true
+	check_unlocks()  # the last place of a page may open something (the edge)
 	adventures_changed.emit()
 	changed.emit()
 	save_game()
@@ -498,6 +525,7 @@ func follow_rumour(rumour_id: String) -> void:
 	rumours.erase(rumour_id)
 	for id in catalog.rumour(rumour_id).get("unlocks", []):
 		unlocks[id] = true
+	check_unlocks()
 	adventures_changed.emit()
 	changed.emit()
 	save_game()
@@ -582,6 +610,9 @@ func debug_new_game() -> void:
 	errand_tools = {}
 	gear = {}
 	room = 0
+	edge = Edge.fresh()
+	school = School.fresh()
+	school_changed_boost()
 	_crews_changed()
 	pinned.clear()
 	rummaged.clear()
@@ -951,7 +982,7 @@ func job_rate(job_id: String) -> float:
 	if not _job_tools.has(job_id):  # what the tools do to this job's speed (per frame, so kept)
 		_job_tools[job_id] = [float(catalog.errands.crew_power) + Jobs.tool_sum(catalog, job_id, "crew_power", errand_tools),
 			1.0 + Jobs.tool_sum(catalog, job_id, "speed", errand_tools) + Jobs.tool_sum(catalog, job_id, "all_speed", errand_tools)]
-	return Jobs.rate(catalog.job(job_id), size, _job_speed[job_id], _job_tools[job_id][0]) * _job_tools[job_id][1]
+	return Jobs.rate(catalog.job(job_id), size, _job_speed[job_id], _job_tools[job_id][0]) * _job_tools[job_id][1] * school_boost()
 
 
 ## What an errand's "capsules" pay is worth now (see Jobs.pay): a capsule's coins on the machine,
@@ -1828,7 +1859,7 @@ func workers_speed(id: String) -> float:
 		for k in wh:
 			sum += Automation.worker_speed(catalog, Herd.template(catalog, k)) * int(wh[k])
 		_worker_speed[id] = sum
-	return float(_worker_speed[id])
+	return float(_worker_speed[id]) * school_boost()
 
 
 ## Box workers open `count` boxes from your pile (the kinds your pet may open; they never buy any).
@@ -2038,6 +2069,176 @@ func debug_lock_all() -> void:
 	adventures_changed.emit()
 	changed.emit()
 	save_game()
+
+
+# ---- past the edge and the little school: pets spent for good (C2) ----------------------
+
+const STAR_FACES := 1000000  # school faces past this are only rolled for star colours
+const DESK_FACES := 2000000  # school faces past this sit at the desks
+
+
+## A face for the school, `n` of a count: stand-in numbers of live pets only ever count up from 0,
+## so these count down from -1 and never share a look (or a cached Pet) with one.
+static func school_face(k: String, n: int) -> String:
+	return Herd.uid(k, -1 - n)
+
+
+## Whether the beyond map has the signpost to send pets past: the edge is open and a page in
+## data/edge.json still needs pets.
+func edge_open() -> bool:
+	return feature_on("edge") and not Edge.done(catalog, edge)
+
+
+## Whether the beyond map is torn at the edge (it stays torn once every page is full).
+func edge_torn() -> bool:
+	return feature_on("edge")
+
+
+## Pets still to go before the page tucked under the edge opens.
+func edge_to_go() -> int:
+	return Edge.to_go(catalog, edge)
+
+
+## Whether the page past the edge `page_id` is full (the unlock earn key "edge").
+func edge_done(page_id: String) -> bool:
+	return Edge.page_full(catalog, edge, page_id)
+
+
+## Resting pets from the herd by rarity, the shelves the edge and the school take from: rarity ->
+## how many (rarities with none are left out).
+func resting_shelves() -> Dictionary:
+	var out := {}
+	var h := resting_herd()
+	for tier in catalog.tiers:
+		var n := 0
+		for k in h:
+			if Herd.rarity_of(k) == tier.id:
+				n += int(h[k])
+		if n > 0:
+			out[tier.id] = n
+	return out
+
+
+## Takes up to `n` resting herd pets of a rarity off the herd for good, plainest finish first.
+## Returns [count key -> how many, palettes of up to `keep` of them].
+func _take_resting(rarity: String, n: int, keep: int) -> Array:
+	var h := resting_herd()
+	var keys := h.keys().filter(func(k): return Herd.rarity_of(k) == rarity)
+	keys.sort_custom(func(a, b): return catalog.finish_rank(Herd.finish_of(a)) < catalog.finish_rank(Herd.finish_of(b)))
+	var taken := {}
+	var palettes := []
+	for k in keys:
+		if n <= 0:
+			break
+		var got := collection.take_plain(k, mini(n, int(h[k])), maxi(0, keep - palettes.size()))
+		if int(got[0]) > 0:
+			taken[k] = int(got[0])
+			n -= int(got[0])
+			palettes.append_array(got[1])
+	return [taken, palettes]
+
+
+## Sends `n` resting herd pets of a rarity past the edge (-1: as many as are still to go). They never
+## come back: a star each, a scribble on the page; a full page opens (check_unlocks). Returns how
+## many went.
+func send_past_edge(rarity: String, n: int) -> int:
+	if not edge_open():
+		return 0
+	n = edge_to_go() if n < 0 else mini(n, edge_to_go())
+	if n <= 0:
+		return 0
+	var got := _take_resting(rarity, n, int(catalog.edge.get("stars_kept_per_send", 64)))
+	var sent := Herd.total(got[0])
+	if sent <= 0:
+		return 0
+	collection.add_stars(got[1], sent)
+	Edge.add(catalog, edge, sent, got[1])
+	check_unlocks()
+	edge_changed.emit()
+	changed.emit()
+	save_game()
+	return sent
+
+
+## Whether the school page is there.
+func school_open() -> bool:
+	return feature_on("school")
+
+
+## Sits `n` resting herd pets of a rarity down in the class (-1: every seat left). They're off the
+## herd from now on. Returns how many sat down.
+func seat_in_school(rarity: String, n: int) -> int:
+	if not school_open():
+		return 0
+	var left := School.seats_left(catalog, school)
+	n = left if n < 0 else mini(n, left)
+	if n <= 0:
+		return 0
+	var got := _take_resting(rarity, n, 0)
+	var sat := School.seat(catalog, school, got[0])
+	var back: Dictionary = got[0]  # never more than the seats (School.seat stops there): the rest go back
+	for k in back:
+		var extra := int(back[k]) - int(sat.get(k, 0))
+		if extra > 0:
+			collection.add_plain(k, extra)
+	school_changed.emit()
+	changed.emit()
+	save_game()
+	return Herd.total(sat)
+
+
+func class_full() -> bool:
+	return School.full(catalog, school)
+
+
+## You ring the bell: a full class stays on as teachers for good (a star each) and every worker gets
+## quicker. Returns whether it rang.
+func ring_bell() -> bool:
+	if not class_full():
+		return false
+	var number: int = school.classes.size()
+	var faces := []
+	var keys := School.desk_keys(catalog, school.seated, 3)
+	for i in keys.size():
+		faces.append(school_face(keys[i], number * 8 + i))
+	var palettes := []
+	var keep := int(catalog.school.get("stars_kept", 64))
+	var kept := School.desk_keys(catalog, school.seated, keep)
+	for i in kept.size():
+		var face := Herd.stand_in(catalog, school_face(kept[i], STAR_FACES + number * keep + i))
+		if face:
+			palettes.append(str(face.parts.palette))
+	var size := School.seated(school)
+	School.ring(catalog, school, faces)
+	school_changed_boost()
+	collection.add_stars(palettes, size)
+	school_changed.emit()
+	automation_changed.emit()
+	jobs_changed.emit()
+	changed.emit()
+	save_game()
+	return true
+
+
+## How much quicker every worker is from the school's classes (machines, box tables, errand crews).
+## B2: this becomes one source of boost("workers").
+func school_boost() -> float:
+	return _school_x
+
+
+## Works the school's boost out again (after the classes changed: the bell, a load, a new game).
+func school_changed_boost() -> void:
+	_school_x = School.boost(school)
+
+
+## Pets a minute from box workers (a box holds one pet), or 0 when none are coming: no box workers,
+## a full room, or no boxes on the pile they may open (_workers_open).
+func pets_a_minute() -> float:
+	if workers_count("boxes") <= 0 or room_left() <= 0:
+		return 0.0
+	if not catalog.boxes.any(func(box): return not box.get("hidden", false) and pet_opens(box.id) and in_bag(box.id) > 0):
+		return 0.0
+	return workers_speed("boxes") * 60.0 / Automation.worker_seconds(catalog, automation, "boxes")
 
 
 # ---- adventures -------------------------------------------------------------
@@ -2769,6 +2970,8 @@ func save_game() -> void:
 		"errand_tools": errand_tools,
 		"gear": gear,
 		"room": room,
+		"edge": edge,
+		"school": school,
 		"automation": automation,
 		"coin_reserve": coin_reserve,
 		"saved_boxes": saved_boxes.keys(),
@@ -2880,6 +3083,12 @@ func load_game() -> bool:
 	_crews_changed()
 	gear = Gear.clean(catalog, data.get("gear", {}))  # v22 added gear: older saves start with none
 	room = maxi(0, int(data.get("room", 0)))  # v23 added the room
+	edge = Edge.clean(catalog, data.get("edge", {}))  # v24 added the edge and the school
+	school = School.clean(catalog, data.get("school", {}))
+	school_changed_boost()
+	var stood := School.trim(catalog, school)  # never more in a class than its seats: the rest go back
+	for k in stood:
+		collection.add_plain(k, int(stood[k]))
 	_load_automation(data.get("automation", {}))
 	_hold_saves = true  # no saving halfway through loading
 	_clamp_herd_places()
@@ -3096,6 +3305,7 @@ func _migrate(data: Dictionary) -> Dictionary:
 	# v23: the herd. Collection.load_from reads the old collection (stars as [uid, palette], the first
 	# pet with each part marked), and load_game folds plain pets into counts once everything that
 	# keeps pets busy has loaded: old crews and workers of uids turn into counts by themselves.
+	# v24: past the edge and the little school; older saves start with neither (Edge.clean, School.clean)
 	if version < 7:
 		# v7: dungeon places open one rumour at a time; saves that had the dungeons keep them all
 		var had: Array = data.get("unlocks", [])

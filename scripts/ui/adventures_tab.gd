@@ -43,6 +43,7 @@ var _main := HBoxContainer.new()  # the adventures page: the map (or trail) and 
 var _bar := HBoxContainer.new()
 var _mode: PanelContainer
 var _quiet := false  # the page is being flipped for you (to the trail, to a place): your pet says nothing
+var edge_card := EdgeCard.new()  # the edge's shelves, once its signpost on the map is tapped
 
 
 func _init() -> void:
@@ -92,6 +93,10 @@ func _init() -> void:
 	_map.place_picked.connect(_choose_place)
 	_map.lead_picked.connect(func(id): GameState.follow_lead(id))
 	_map.rumour_picked.connect(func(id): GameState.follow_rumour(id))
+	_map.edge_picked.connect(_pick_edge)
+	_map.page_changed.connect(func(_p): _refresh_edge_card())
+	edge_card.target = _map.edge_point
+	edge_card.fly_host = self
 	# not GameState.changed: that also fires on every passive coin
 	GameState.adventures_changed.connect(func():
 		_dirty = true
@@ -154,6 +159,31 @@ func _show_page(page: int) -> void:
 		speak()
 
 
+## The signpost at the edge was tapped: its card turns up in the right column.
+func _pick_edge() -> void:
+	_picker.visible = false
+	_refresh_edge_card()
+	PetBubble.say_line(self, "edge_cheer")
+
+
+## The edge's card shows while its signpost is picked (on its page, with pets still to go).
+func _refresh_edge_card() -> void:
+	edge_card.visible = _map.visible and _map.selected == MapView.EDGE_ID and GameState.edge_open()
+
+
+## Shows a page of the map (the dev driver's "map-page").
+func show_map_page(page_id: String) -> void:
+	if gear_view.visible:
+		show_page(0, true)
+	_show_map(true)
+	_map.show_map_page(page_id)
+
+
+## As if the signpost at the edge was tapped (the dev driver's "edge").
+func pick_edge() -> void:
+	_map.pick_edge()
+
+
 ## Opens a place's card, as if it was tapped on the map (dev flag --pick).
 func pick_place(location_id: String) -> void:
 	if gear_view.visible:
@@ -166,6 +196,7 @@ func _choose_place(location_id: String) -> void:
 	_location_id = location_id
 	_map.selected = location_id
 	_map.queue_redraw()
+	_refresh_edge_card()
 	_trim_to_party_size()
 	_show_map(false)
 	_rebuild_picker()
@@ -178,6 +209,7 @@ func _show_map(on: bool) -> void:
 	if on:
 		_map.selected = ""
 		_map.refresh()
+	_refresh_edge_card()
 
 
 ## Up close on a hands-on trip: the trail, where you click it along.
@@ -189,6 +221,7 @@ func _show_trail(run: RunState) -> void:
 	_map.visible = false
 	_picker.visible = false
 	_trail.visible = true
+	_refresh_edge_card()
 
 
 # ---- the place card ----------------------------------------------------------------
@@ -291,6 +324,8 @@ func _runs_column() -> VBoxContainer:
 	var col := VBoxContainer.new()
 	col.custom_minimum_size = Vector2(252, 0)
 	col.add_theme_constant_override("separation", 8)
+	edge_card.visible = false
+	col.add_child(edge_card)
 	col.add_child(UiTheme.title("away", 17))
 	var scroll := ScrollContainer.new()
 	scroll.size_flags_vertical = SIZE_EXPAND_FILL
@@ -638,6 +673,7 @@ func _process(delta: float) -> void:
 		_tick = 0.5
 		_refresh_runs()
 		_bar.visible = GameState.gear_page_open()
+		_refresh_edge_card()
 
 
 static func _about(minutes: float) -> String:

@@ -19,6 +19,7 @@ signal pets_removed(uids: Array[String])
 signal pet_changed(pet: Pet)  # a pet's parts changed (sewn on), or it became (or stopped being) a favourite
 signal pets_folded(uids: Array, keys: Array)  # these cards became counts in the herd (same order)
 signal herd_changed(keys: Array)  # these counts in the herd went up or down
+signal stars_added(n: int)  # pets left for good without a uid of their own (past the edge, the school)
 
 var pets: Array[Pet] = []  # the cards, in pull order
 var herd := {}  # "rarity:finish" -> how many plain pets are folded into it
@@ -121,6 +122,37 @@ func remove(uids: Array[String]) -> void:
 	pets_removed.emit(gone)
 	if not from_herd.is_empty():
 		herd_changed.emit(from_herd)
+
+
+## Takes up to `n` pets off a count for good (past the edge, into the school). Their looks never come
+## back as stand-ins. Returns [how many, palettes of up to `keep` of them] (for scribbles and stars).
+func take_plain(key: String, n: int, keep := 0) -> Array:
+	var take := mini(n, herd_count(key))
+	if take <= 0:
+		return [0, []]
+	var palettes := []
+	for uid in stand_in_uids(key, mini(take, keep)):
+		var face := Herd.stand_in(_catalog(), uid)
+		if face:
+			palettes.append(str(face.parts.palette))
+	stand_next[key] = int(stand_next.get(key, 0)) + take
+	_herd_less(key, take)
+	herd_changed.emit([key])
+	return [take, palettes]
+
+
+## `n` pets left for good (not from the cards): a star each, tinted by `palettes` as far as they go
+## (the night sky borrows colours for the rest).
+func add_stars(palettes: Array, n: int) -> void:
+	if n <= 0:
+		return
+	var keep := int(_catalog().herd.get("fallen_keep", 16384))
+	for p in palettes.slice(0, n):
+		if fallen.size() >= keep:
+			break
+		fallen.append(str(p))
+	fallen_n += n
+	stars_added.emit(n)
 
 
 ## A card by its uid, or a stand-in for a pet from a count ("h:common:normal:3", while that count

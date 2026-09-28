@@ -39,6 +39,9 @@ func _init() -> void:
 	_test_gear(catalog)
 	_test_herd(catalog)
 	_test_herd_game(catalog)
+	_test_edge(catalog)
+	_test_school(catalog)
+	_test_edge_school_game(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -336,7 +339,9 @@ func _test_voice(catalog: Catalog) -> void:
 	for r in catalog.rumours:
 		for id in r.unlocks + r.get("requires", []):
 			var bits: PackedStringArray = str(id).split(":")
-			var real: bool = (bits[0] == "type" and not catalog.adventure_type(bits[1]).is_empty()) or (bits[0] == "location" and not catalog.location(bits[1]).is_empty())
+			var real: bool = (bits[0] == "type" and not catalog.adventure_type(bits[1]).is_empty()) or (bits[0] == "location" and not catalog.location(bits[1]).is_empty()) \
+				or (bits[0] == "page" and catalog.pages.any(func(pg): return pg.id == bits[1])) \
+				or (bits[0] == "feature" and catalog.unlock_list.any(func(e): return id in e.opens))
 			_check(real, "rumour %s points at something real: %s" % [r.id, id])
 
 
@@ -661,7 +666,8 @@ func _test_unlocks(catalog: Catalog) -> void:
 		_check(entry.show in ["locked", "hidden"], "unlock %s is shown locked or hidden" % entry.id)
 		for o in entry.opens:
 			var bits := str(o).split(":")
-			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures"]) or (bits[0] == "page" and bits[1] in page_ids) \
+			var edge_pages := Edge.pages(catalog).map(func(pg): return str(pg.id))  # pages past the edge: hooks for their own step
+			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "edge", "school"]) or (bits[0] == "page" and (bits[1] in page_ids or bits[1] in edge_pages)) \
 				or (bits[0] == "job" and catalog.jobs.any(func(j): return str(j.get("needs", "")) == o))
 			_check(ok, "unlock %s opens something real (%s)" % [entry.id, o])
 		if entry.earn.has("find"):
@@ -1330,6 +1336,211 @@ func _test_herd_game(catalog: Catalog) -> void:
 	gs3.free()
 	_check(Herd.room_cap(catalog, Herd.room_level_for(catalog, 5000)) >= 5000 and Herd.room_cap(catalog, Herd.room_level_for(catalog, 5000) - 1) < 5000,
 		"the room level for 5000 pets is the smallest that holds them")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+
+## Past the edge (pure rules): pages fill with pets, "all" never overfills, scribbles stay capped,
+## the page opens once, a save's odd values are cleaned.
+func _test_edge(catalog: Catalog) -> void:
+	var e := Edge.fresh()
+	var need := Edge.need(catalog, e)
+	_check(need == 500 and Edge.to_go(catalog, e) == 500 and not Edge.done(catalog, e), "the first page past the edge needs 500 pets (%d)" % need)
+	var filled := Edge.add(catalog, e, 100, ["peach", "mint"])
+	_check(filled.is_empty() and Edge.to_go(catalog, e) == 400 and int(e.ever) == 100, "100 pets past the edge: 400 to go")
+	_check(e.marks.size() == 100 and e.marks[0] == "peach" and e.marks[1] == "mint", "a scribble per pet, in their colours (%d)" % e.marks.size())
+	filled = Edge.add(catalog, e, 1000, [])
+	_check(filled == ["next_door"] and int(e.ever) == 500 and Edge.page_full(catalog, e, "next_door"), "the rest fill the page and it opens, never past it (%s, %d)" % [filled, int(e.ever)])
+	_check(Edge.done(catalog, e) and Edge.to_go(catalog, e) == 0 and e.marks.is_empty(), "with every page full nothing is tucked under the edge")
+	_check(Edge.add(catalog, e, 50, []).is_empty() and int(e.ever) == 500, "nobody goes past a finished edge")
+	_check(Edge.marks_for(catalog, 12500, 25000) == 260 and Edge.marks_for(catalog, 25000, 25000) == int(catalog.edge.marks_max),
+		"a big page spreads its scribbles over marks_max")
+	var odd := Edge.clean(catalog, { "page": 7, "sent": -4, "ever": "lots", "marks": [1, 2] })
+	_check(Edge.done(catalog, odd) and int(odd.ever) == 0 and int(odd.sent) == 0, "a save's odd edge is cleaned (%s)" % odd)
+	var half := Edge.clean(catalog, { "page": 0, "sent": 3, "ever": 3, "marks": ["peach", "nope", 5] })
+	_check(int(half.sent) == 3 and half.marks.size() == 3 and half.marks[1] == "" and half.marks[2] == "", "unknown colours are blank (%s)" % str(half.marks))
+	var over := Edge.clean(catalog, { "page": 0, "sent": 9999, "ever": 3 })
+	_check(Edge.page_full(catalog, over, "next_door") and int(over.sent) == 0 and int(over.ever) == 9999, "a save past a page's need opens it (%s)" % over)
+	# a later build needs fewer pets a page: the page opens and the rest carry on
+	var real_pages: Array = catalog.edge.pages
+	catalog.edge.pages = [{ "id": "a", "need": 100 }, { "id": "b", "need": 300 }]
+	var lower := Edge.clean(catalog, { "page": 0, "sent": 250, "ever": 250, "marks": ["peach", "mint"] })
+	_check(Edge.page_full(catalog, lower, "a") and int(lower.page) == 1 and int(lower.sent) == 150 and lower.marks.is_empty() and int(lower.ever) == 250,
+		"a page that needs fewer pets now opens, the rest go on the next (%s)" % lower)
+	catalog.edge.pages = real_pages
+	_check(Edge.clean(catalog, null) == Edge.fresh(), "a save without an edge starts fresh")
+
+
+## The little school (pure rules): class sizes, the step from the class's mix, seats never overfill,
+## the bell only rings for a full class, classes multiply.
+func _test_school(catalog: Catalog) -> void:
+	_check(School.class_size(catalog, 0) == 40 and School.class_size(catalog, 4) == 900 and School.class_size(catalog, 5) == 1800
+		and School.class_size(catalog, 6) == 3600, "class sizes 40 .. 900, then twice the last")
+	_check(is_equal_approx(School.step(catalog, { "common:normal": 40 }), 2.4), "a class of commons: +2.4%")
+	var mix := School.step(catalog, { "common:normal": 29, "uncommon:shiny": 10, "rare:normal": 1 })
+	_check(is_equal_approx(mix, 2.9), "a mixed class steps more (+%.1f%%)" % mix)
+	_check(School.step(catalog, { "epic:normal": 40 }) > School.step(catalog, { "rare:normal": 40 }), "rarer classes step more")
+	var st := School.fresh()
+	var sat := School.seat(catalog, st, { "common:normal": 30, "rare:normal": 30 })
+	_check(School.seated(st) == 40 and int(sat.get("common:normal", 0)) == 30 and int(sat.get("rare:normal", 0)) == 10,
+		"seats stop at the class's size (%s)" % sat)
+	_check(School.seats_left(catalog, st) == 0 and School.full(catalog, st), "a full class")
+	var st2 := School.fresh()
+	School.seat(catalog, st2, { "common:normal": 12 })
+	_check(School.ring(catalog, st2, []).is_empty() and School.seated(st2) == 12, "the bell doesn't ring for a class that isn't full")
+	var done := School.ring(catalog, st, ["h:common:normal:1"])
+	_check(not done.is_empty() and st.classes.size() == 1 and School.seated(st) == 0 and School.class_size(catalog, School.class_number(st)) == 100,
+		"the bell: the class becomes teachers and class 2 starts")
+	School.seat(catalog, st, { "common:normal": 100 })
+	School.ring(catalog, st, [])
+	var x := School.boost(st)
+	_check(is_equal_approx(x, (1.0 + float(st.classes[0].step) / 100.0) * 1.024), "classes multiply (x%.4f)" % x)
+	var desks := School.desk_keys(catalog, { "common:normal": 200, "epic:normal": 1 }, 24)
+	_check(desks.size() == 24 and desks[0] == "epic:normal" and desks.count("epic:normal") == 1, "every kind in the class gets a desk, rarest first")
+	var junk := School.clean(catalog, { "seated": { "common:normal": 70, "bad:key": 3 }, "classes": [{ "size": 99999, "step": "x", "faces": ["1", "h:common:normal:4"] }, 7] })
+	_check(junk.classes.size() == 1 and int(junk.classes[0].size) == 40 and float(junk.classes[0].step) == 0.0 and junk.classes[0].faces == ["h:common:normal:4"],
+		"a save's odd classes are cleaned (%s)" % str(junk.classes))
+	var extra := School.trim(catalog, junk)
+	_check(School.seated(junk) == 100 or (School.seated(junk) == 70 and extra.is_empty()), "a class within its seats keeps everyone")
+	var over := { "seated": { "common:normal": 150 }, "classes": [] }
+	var back := School.trim(catalog, over)
+	_check(School.seated(over) == 40 and int(back.get("common:normal", 0)) == 110, "past its seats, the rest stand up again (%s)" % back)
+
+
+## Past the edge and the school in the game: when the edge shows, it only ever takes resting herd
+## pets, the page opens next door once, the school opens after the edge, classes make every worker
+## quicker, and it all saves (a v23 save loads with neither).
+func _test_edge_school_game(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped the edge and school in the game: they need a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	var roller := PetRoller.new(catalog, rng)
+	var pets := []
+	for i in 30:
+		var p := roller.roll("starter", "common")
+		p.finish = "normal"
+		p.uid = str(i + 1)
+		pets.append(p.to_dict())
+	SaveFile.write(path, { "version": 23, "coins": 100000000, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(),
+		"unlocks": ["feature:errands", "tab:errands", "page:beyond", "location:orchard"],
+		"collection": { "pets": pets, "active": "1", "next_id": 31, "herd": { "common:normal": 400, "common:shiny": 50, "rare:normal": 30 } } })
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	var c: Collection = gs.collection
+	_check(gs.edge == Edge.fresh() and gs.school == School.fresh(), "a v23 save loads with a fresh edge and school")
+	_check(not gs.edge_open() and not gs.edge_torn(), "the edge is hidden until it's earned")
+	# a rumour of it can come first
+	var can := Rumours.hearable(catalog, gs.heard, gs.is_open).map(func(r): return r.id)
+	_check("edge" in can, "the edge's rumour can be heard once the orchard is open (%s)" % str(can))
+	var popped := []
+	gs.unlocked.connect(func(entry): popped.append(str(entry.id)))
+	gs.heard["edge"] = true
+	gs.rumours.append("edge")
+	gs.follow_rumour("edge")
+	_check(gs.edge_open() and popped.is_empty() and gs.rumours.is_empty(), "saying yes to its rumour opens the edge early, quietly")
+	gs.unlocks.erase("feature:edge")
+	gs.rumours.append("edge")
+	# every place past the fence open: the edge opens (and its waiting rumour goes)
+	for id in ["well", "cellar"]:
+		gs.unlocks["location:" + id] = true
+	gs.spotted["below"] = { "by": "", "from": "" }
+	gs.follow_lead("below")
+	_check(gs.edge_open() and "edge" in popped, "the last place past the fence opens the edge (%s)" % str(popped))
+	_check(not "edge" in gs.rumours, "a rumour of the edge has nothing left to lead to")
+	# only resting pets from the herd go: never cards, never pets on errands
+	var cards := c.pets.size()
+	gs.put_on_job("coin_hunt", 300)
+	var on_job: int = gs.job_size("coin_hunt")
+	var resting_commons: int = int(gs.resting_shelves().get("common", 0))
+	var stars := c.fallen_n
+	var herd_before := c.herd_total()
+	var sent: int = gs.send_past_edge("common", -1)
+	_check(sent == resting_commons and sent > 0 and sent < 500, "\"all\" sends the resting commons (%d of %d)" % [sent, resting_commons])
+	_check(c.pets.size() == cards and gs.job_size("coin_hunt") == on_job, "cards and pets on errands stay (%d cards, %d on the job)" % [c.pets.size(), gs.job_size("coin_hunt")])
+	_check(c.fallen_n == stars + sent and c.herd_total() == herd_before - sent, "each one a star, gone from the herd")
+	_check(c.fallen.size() - 0 <= int(catalog.edge.stars_kept_per_send) + 1, "star colours kept one by one stay capped (%d)" % c.fallen.size())
+	_check(int(gs.resting_shelves().get("common", 0)) == 0 and gs.send_past_edge("common", 10) == 0, "with no resting commons nobody goes")
+	_check(gs.edge_to_go() == 500 - sent, "the number to go drops (%d)" % gs.edge_to_go())
+	# the school opens after the first 100, once the automation tab is there
+	_check(not gs.school_open(), "the school waits for the automation tab")
+	gs.unlocks["tab:automation"] = true
+	gs.check_unlocks()
+	_check(gs.school_open() and "school" in popped, "then the school opens")
+	# "all" never sends more than the page needs; a full page opens next door once
+	gs.take_off_job("coin_hunt", -1)
+	c.add_plain("common:normal", 5000)
+	sent = gs.send_past_edge("common", -1)
+	_check(gs.edge_done("next_door") and gs.is_unlocked("page:next_door") and popped.count("next_door") == 1, "a full page opens next door (%s)" % str(popped))
+	_check(int(gs.edge.ever) == 500 and not gs.edge_open() and gs.edge_torn(), "never more than the page needs (%d), the tear stays" % int(gs.edge.ever))
+	gs.check_unlocks()
+	_check(popped.count("next_door") == 1, "next door opens only once")
+	# the school: seats stop at the class, the bell only rings when it's full
+	var herd_now := c.herd_total()
+	var seated: int = gs.seat_in_school("common", 100)
+	_check(seated == 40 and c.herd_total() == herd_now - 40 and gs.class_full(), "the first class seats 40, off the herd (%d)" % seated)
+	_check(gs.seat_in_school("rare", 5) == 0, "a full class takes nobody else")
+	gs.automation.taught["machine"] = true
+	gs.automation.others["machine"] = true
+	gs.automation.spots["machine"] = 10
+	gs.put_workers("machine", -1)
+	gs.put_on_job("coin_hunt", 100)
+	var worker_before: float = gs.workers_speed("machine")
+	var rate_before: float = gs.job_rate("coin_hunt")
+	stars = c.fallen_n
+	_check(gs.ring_bell(), "you ring the bell")
+	_check(c.fallen_n == stars + 40 and gs.school.classes.size() == 1 and not gs.class_full(), "the class stays on as teachers (a star each)")
+	var x: float = gs.school_boost()
+	_check(is_equal_approx(x, 1.024) and is_equal_approx(gs.workers_speed("machine"), worker_before * x) and is_equal_approx(gs.job_rate("coin_hunt"), rate_before * x),
+		"every worker and errand crew is quicker (x%.3f)" % x)
+	_check(not gs.ring_bell(), "an empty class can't ring")
+	# the school's faces never share a number with a live stand-in (those count up from 0)
+	var face_uid: String = gs.school.classes[0].faces[0]
+	_check(Herd.is_stand_in(face_uid) and Herd.number_of(face_uid) < 0 and Herd.valid_key(catalog, Herd.key_of(face_uid)) and Herd.stand_in(catalog, face_uid) != null,
+		"a teacher's face is a stand-in no live pet can be (%s)" % face_uid)
+	# pets a minute only while box workers really open: boxes on the pile they may open, room for the pets
+	gs.automation.taught["boxes"] = true
+	gs.automation.others["boxes"] = true
+	gs.automation.spots["boxes"] = 5
+	gs.put_workers("boxes", -1)
+	gs.bag.clear()
+	var room_was: int = gs.room
+	gs.room = 30  # plenty of room
+	_check(gs.workers_count("boxes") > 0 and gs.pets_a_minute() == 0.0, "no boxes on the pile: no pets a minute (%.1f)" % gs.pets_a_minute())
+	gs.bag["starter"] = 50
+	_check(gs.pets_a_minute() > 0.0, "boxes on the pile: pets a minute (%.1f)" % gs.pets_a_minute())
+	gs.save_for_me("starter", true)
+	_check(gs.pets_a_minute() == 0.0, "boxes saved for you don't count")
+	gs.save_for_me("starter", false)
+	gs.room = 0
+	c.add_plain("common:normal", gs.room_left())
+	_check(gs.room_is_full() and gs.pets_a_minute() == 0.0, "a full room: no pets a minute")
+	gs.room = room_was
+	gs.take_off_workers("boxes", -1)
+	gs.bag.clear()
+	_check(gs.seat_in_school("common", 7) == 7 and School.seated(gs.school) == 7, "class 2 starts filling")
+	gs.save_game()
+	var gs2: Node = load("res://scripts/game_state.gd").new()
+	_check(str(gs2.edge) == str(gs.edge) and str(gs2.school) == str(gs.school), "the edge and the school save and load (%s vs %s, %s vs %s)" % [gs2.edge, gs.edge, gs2.school, gs.school])
+	_check(gs2.collection.herd_total() == c.herd_total() and gs2.collection.fallen_n == c.fallen_n, "the herd and the stars load too")
+	gs2.free()
+	# a million in the herd stay quick
+	c.add_plain("common:normal", 1000000)
+	var t0 := Time.get_ticks_msec()
+	var rings := 0
+	for i in 12:
+		gs.seat_in_school("common", -1)
+		if gs.ring_bell():
+			rings += 1
+	var took := Time.get_ticks_msec() - t0
+	_check(rings == 12 and took < 1500, "a million pets: 12 classes in %d ms" % took)
+	print("  the school with a million pets: 12 classes in %d ms, x%.3f" % [took, gs.school_boost()])
+	gs.free()
 	for f in [path, path + ".bak", path + ".tmp"]:
 		if FileAccess.file_exists(f):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))

@@ -1,0 +1,11 @@
+{
+	"_note": "The little school (C2/F3, the automation tab's school page): classes of spare herd pets. 'sizes' are the first classes' sizes, then each class is 'grow' times the last (rounded to 'round'). A class fills 'desks' desks on screen (a desk per share of the class). When a class is full you ring the bell: it becomes teachers for good (its pets never come back: a night-sky star each) and every worker (machines, box tables and errand crews) gets quicker by the class's step, multiplied with every class before. A class's step in % is step.base + step.per_point x the class's average stand points ('points' per rarity; the finish doesn't count). teachers_shown: finished classes shown in the teachers row (newest first). stars_kept: star colours kept one by one when the bell rings (the rest are only counted, like the herd's). Numbers are placeholders.",
+	"sizes": [40, 100, 220, 450, 900],
+	"grow": 2.0,
+	"round": 10,
+	"desks": 24,
+	"points": { "common": 1, "uncommon": 2, "rare": 5, "epic": 12, "legendary": 20, "mythic": 40 },
+	"step": { "base": 1.0, "per_point": 1.4 },
+	"teachers_shown": 4,
+	"stars_kept": 64
+}

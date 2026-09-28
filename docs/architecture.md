@@ -54,13 +54,17 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `CollectionTab` (pets: the `Bookcase` with its cushion of `MiniCard`s and a `ShelfPlank` per
   rarity with a `Mound`; a plank opens the `ShelfView` with `PetDetails`; the `RoomPill`; and the
   `BookView`), `AdventuresTab` (adventures:
-  `MapView`, the place card, trip cards, and `TrailView` for watching a trip; upgrades: `GearView`,
+  `MapView`, the place card, trip cards, and `TrailView` for watching a trip; past the edge: `MapView`
+  draws the torn paper, the tucked page's scribbles and the signpost, `EdgeCard` sends pets, rules in
+  `Edge`, state in `GameState.edge`; upgrades: `GearView`,
   gear bought with xp, rules in `Gear`, levels in `GameState.gear`, packed onto each trip as
   `RunState.gear`), `ErrandsTab` (jobs: the corkboard; upgrades:
   `ErrandToolsView`, the pegboard of tools bought with coins; rules in `Jobs`, levels in
   `GameState.errand_tools`), `AutomationTab` (a card per job your pet can do, `JobScene` draws each one; rules in
   `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:
-  `WorkerCard` / `WorkerSpot`, `GameState.put_workers` / `buy_spots` / `teach_others`), `InventoryTab`
+  `WorkerCard` / `WorkerSpot`, `GameState.put_workers` / `buy_spots` / `teach_others`; the school page:
+  `SchoolView`, rules in `School`, state in `GameState.school`, `GameState.school_boost()` on every
+  worker; `HerdPicker` is the shelves + 1 / 10 / 100 / all the edge and the school share), `InventoryTab`
   (the bag and sewing) and `SettingsTab` (general and video pages).
   Tabs can be locked or hidden until something opens them (`data/unlocks.json`).
 - The full game is laid out at 920x600 (`home.gd` `EXPANDED_SIZE`) and scaled to the chosen
@@ -115,6 +119,19 @@ has more plain pets than the first room holds gets room for them plus data/herd.
 most and leaves an open shelf of another rarity alone.
 Who's resting is worked out once (`GameState._resting`: cards, herd counts minus errands, workers,
 stand-ins away or leading) until `_rest_changed()`.
+Save v24 (C2, renumbered at the merge) adds `edge` (`{ page, sent, ever, marks }`, see `Edge`) and
+`school` (`{ seated: { count key: n }, classes: [{ size, step, faces }] }`, see `School`); older saves
+start with fresh ones (`Edge.clean`, `School.clean`), and a class with more pets than seats gives
+the rest back to the herd (`School.trim`). A page whose `need` dropped below a save's `sent` opens
+on load (the rest carry on to the next page); `_init` runs `check_unlocks` deferred after every
+load, so an update's new unlocks a save has already earned open (with their popups) right away.
+The school's boost is cached (`school_changed_boost()` after the bell, a load, a new game);
+`job_rate` and `workers_speed` read it every frame. Teacher, desk and star faces are
+`GameState.school_face(key, n)` = stand-in number `-1 - n`: live stand-ins count up from 0, so
+they never share a look or a cached Pet. Pets past the edge and in the school are off the herd
+(`Collection.take_plain`, stand-in numbers skip past them); stars for them come from
+`Collection.add_stars(palettes, n)` (a few colours kept, the rest counted; `stars_added` redraws
+the sky).
 
 ## Testing
 

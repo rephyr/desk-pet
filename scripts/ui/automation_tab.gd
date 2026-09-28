@@ -9,7 +9,10 @@ extends VBoxContainer
 ## Once your pet has taught the others a job, a second page appears: WORKERS. A card per job with
 ## its machines (tables, parties) and the pets working them; the side card buys more, puts resting
 ## pets on or takes them off, sets each party's place and size, and holds the workers' tools.
-## Design: design/mockups/screens/automation.html (C: cards, and ?page=workers).
+## Once the school is open (past the edge), a third page: SCHOOL (SchoolView), classes of spare
+## herd pets that make every worker quicker. A "pets a minute" pill shows once box workers exist.
+## Design: design/mockups/screens/automation.html (C: cards, and ?page=workers),
+## past-the-edge.html look A (the school).
 
 const SIDE_WIDTH := 236
 const CARD_WIDTH := 172  # three cards and the side card fit the window
@@ -22,64 +25,142 @@ var _picked := ""
 var _dirty := true
 var _last := ""
 var _scenes := {}  # job id -> JobScene, for the capsules popping out of your pet's machine
-var _page := 0  # 0 your pet, 1 workers
-var _mode: PanelContainer  # the your pet | workers switch (there once the others know a job)
+var _page := "pet"  # pet (your pet), workers or school
+var _pages: Array[String] = ["pet"]  # the pages there are now, in the switch's order
+var _mode: PanelContainer  # the your pet | workers | school switch (there once there's a second page)
+var _bar := HBoxContainer.new()
+var _body := HBoxContainer.new()
+var _pill := PanelContainer.new()  # where your pet is / how many workers
+var _pace := PanelContainer.new()  # pets a minute (once box workers exist)
+var _pace_n := UiTheme.title("", 15, UiTheme.TEXT)
+var _pace_face := PetPortrait.new(1, false)
+var school_view := SchoolView.new()
+
+const PAGE_NAMES := { "pet": "your pet", "workers": "workers", "school": "school" }
 
 
 func _init() -> void:
 	add_theme_constant_override("separation", 10)
 	size_flags_vertical = SIZE_EXPAND_FILL
 
-	var bar := HBoxContainer.new()
-	_mode = UiTheme.segmented(["your pet", "workers"], 0, func(i):
-		_page = i
-		_dirty = true
-		PetBubble.say_line(self, "automation_workers" if i == 1 else "automation"))
-	bar.add_child(_mode)
-	bar.add_child(UiTheme.spacer())
-	var pill := PanelContainer.new()
+	_bar.add_theme_constant_override("separation", 8)
+	_mode = _switch()
+	_bar.add_child(_mode)
+	_bar.add_child(UiTheme.spacer())
+	# pets a minute: a face, the number, the words
+	var psb := UiTheme.box(UiTheme.DEEP, UiTheme.LINE, 999, 2, 3)
+	psb.content_margin_left = 6
+	psb.content_margin_right = 12
+	_pace.add_theme_stylebox_override("panel", psb)
+	var prow := HBoxContainer.new()
+	prow.add_theme_constant_override("separation", 6)
+	prow.add_child(_pace_face)
+	_pace_n.size_flags_vertical = SIZE_SHRINK_CENTER
+	prow.add_child(_pace_n)
+	var words := UiTheme.label("pets a minute", UiTheme.MUTED, UiTheme.SMALL)
+	words.size_flags_vertical = SIZE_SHRINK_CENTER
+	prow.add_child(words)
+	_pace.add_child(prow)
+	_pace.visible = false
+	_bar.add_child(_pace)
 	var sb := UiTheme.box(UiTheme.DEEP, UiTheme.PINK_SEAM, 999, 2, 3)
 	sb.content_margin_left = 6
 	sb.content_margin_right = 12
-	pill.add_theme_stylebox_override("panel", sb)
+	_pill.add_theme_stylebox_override("panel", sb)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	row.add_child(_where_pet)
 	_where.add_theme_font_size_override("font_size", UiTheme.SMALL)
 	_where.size_flags_vertical = SIZE_SHRINK_CENTER
 	row.add_child(_where)
-	pill.add_child(row)
-	bar.add_child(pill)
-	add_child(bar)
+	_pill.add_child(row)
+	_bar.add_child(_pill)
+	add_child(_bar)
 
-	var body := HBoxContainer.new()
-	body.add_theme_constant_override("separation", 14)
-	body.size_flags_vertical = SIZE_EXPAND_FILL
-	add_child(body)
+	_body.add_theme_constant_override("separation", 14)
+	_body.size_flags_vertical = SIZE_EXPAND_FILL
+	add_child(_body)
+	school_view.visible = false
+	add_child(school_view)
 	_cards.add_theme_constant_override("separation", 12)
 	_cards.size_flags_horizontal = SIZE_EXPAND_FILL
 	_cards.alignment = BoxContainer.ALIGNMENT_BEGIN
-	body.add_child(_cards)
+	_body.add_child(_cards)
 	var side := PanelContainer.new()
 	side.custom_minimum_size = Vector2(SIDE_WIDTH, 0)
 	side.clip_contents = true
 	side.add_theme_stylebox_override("panel", UiTheme.sticker(UiTheme.LILAC_SEAM, 12, UiTheme.RAISED, 14))
 	_card.add_theme_constant_override("separation", 8)
 	side.add_child(_card)
-	body.add_child(side)
+	_body.add_child(side)
 
 	GameState.changed.connect(func(): _dirty = true)
 	GameState.automation_changed.connect(func(): _dirty = true)
 	GameState.unlocked.connect(func(_e): _dirty = true)
 	GameState.collection.active_changed.connect(func(_p): _dirty = true)
 	GameState.pet_cranked.connect(_on_cranked)
+	GameState.school_changed.connect(func(): _dirty = true)
 	visibility_changed.connect(func():
 		if is_visible_in_tree():
 			_dirty = true
 			speak())
 
 
+## The your pet | workers | school switch for the pages there are now.
+func _switch() -> PanelContainer:
+	var names := _pages.map(func(p): return PAGE_NAMES[p])
+	var seg := UiTheme.segmented(names, maxi(0, _pages.find(_page)), func(i): _on_page(_pages[i]))
+	# the school's button has its little house
+	var i := _pages.find("school")
+	if i >= 0:
+		var b: Button = seg.get_child(0).get_child(i)
+		b.icon = UiTheme.icon("school", 14, UiTheme.MUTED)
+		b.add_theme_constant_override("icon_max_width", 14)
+	seg.visible = _pages.size() > 1
+	return seg
+
+
+## Switches to a page (pet, workers, school), as a tap on the switch would.
+func show_page(page: String) -> void:
+	var i := _pages.find(page)
+	if i >= 0:
+		(_mode.get_child(0).get_child(i) as Button).pressed.emit()
+
+
+func _on_page(page: String) -> void:
+	_page = page
+	_dirty = true
+	match page:
+		"workers": PetBubble.say_line(self, "automation_workers")
+		"school": PetBubble.say_line(self, SchoolView.line_key())
+		_: PetBubble.say_line(self, "automation")
+
+
+## Rebuilds the switch when a page turns up (workers, the school) or goes.
+func _refresh_pages() -> void:
+	var pages: Array[String] = ["pet"]
+	if not GameState.worker_jobs().is_empty():
+		pages.append("workers")
+	if GameState.school_open():
+		pages.append("school")
+	if not _page in pages:
+		_page = "pet"
+	if pages == _pages and _mode.get_child(0).get_child_count() == pages.size():
+		_mode.visible = pages.size() > 1
+		return
+	_pages = pages
+	var at := _mode.get_index()
+	_mode.queue_free()
+	_bar.remove_child(_mode)
+	_mode = _switch()
+	_bar.add_child(_mode)
+	_bar.move_child(_mode, at)
+
+
 func speak() -> void:
+	if _page == "school":
+		PetBubble.say_line(self, SchoolView.line_key())
+		return
 	if GameState.automation.task == "" and not GameState.automation.taught.is_empty():
 		PetBubble.say_line(self, "automation_free")
 	else:
@@ -87,9 +168,19 @@ func speak() -> void:
 
 
 func _process(_delta: float) -> void:
-	if not is_visible_in_tree() or not _dirty:
+	if not is_visible_in_tree():
+		return
+	_refresh_pace()
+	if not _dirty:
 		return
 	_dirty = false
+	_refresh_pages()
+	_body.visible = _page != "school"
+	school_view.visible = _page == "school"
+	_pill.visible = _page != "school"
+	if _page == "school":
+		_last = ""
+		return
 	# coins tick up every few seconds: only rebuild when something you'd see changed
 	var jobs := GameState.auto_jobs()
 	var afford := ""
@@ -104,8 +195,8 @@ func _process(_delta: float) -> void:
 	key += "|%d|%s|%s|%s" % [jobs.size(), run.location_id if run else "", str(GameState.can_auto_open()), pet.display_name(GameState.catalog) if pet else ""]
 	# the workers page: what's taught, bought and who's on it, and what you can afford there
 	var a: Dictionary = GameState.automation
-	key += "|%d|%s|%s|%s|%s|%s" % [_page, str(a.others), str(a.spots), str(a.parties), str(a.workers), str(a.get("wherd", {}))]
-	if _page == 1:  # changes every time a box worker opens a box: only the workers page shows it
+	key += "|%s|%s|%s|%s|%s|%s" % [_page, str(a.others), str(a.spots), str(a.parties), str(a.workers), str(a.get("wherd", {}))]
+	if _page == "workers":  # changes every time a box worker opens a box: only the workers page shows it
 		key += "|%d" % GameState.resting_count()
 	for j in jobs:
 		key += "1" if GameState.coins >= GameState.teach_others_cost(j.id) else "0"
@@ -114,6 +205,19 @@ func _process(_delta: float) -> void:
 		return
 	_last = key
 	_rebuild()
+
+
+## The pets a minute pill (while box workers have boxes to open and room for the pets; a pet a box).
+func _refresh_pace() -> void:
+	var per := GameState.pets_a_minute()
+	_pace.visible = per > 0.0
+	if per > 0.0:
+		var text := UiTheme.num(per) if per >= 10.0 else str(snappedf(per, 0.1))
+		if _pace_n.text != text:
+			_pace_n.text = text
+		if _pace_face.view.pet == null:
+			var faces := GameState.worker_faces("boxes", 1)
+			_pace_face.set_pet(GameState.collection.get_pet(str(faces[0])) if not faces.is_empty() else GameState.collection.active())
 
 
 # ---- doing things ------------------------------------------------------------------
@@ -207,16 +311,12 @@ func _rebuild() -> void:
 	var pet := GameState.collection.active()
 	var who := pet.display_name(catalog) if pet else "your pet"
 	var workers := GameState.worker_jobs()
-	_mode.visible = not workers.is_empty()
-	if workers.is_empty() and _page != 0:
-		_page = 0
-		(_mode.get_child(0).get_child(0) as Button).pressed.emit()  # the switch shows "your pet" again
-	_where_pet.visible = _page == 0
+	_where_pet.visible = _page == "pet"
 	_where_pet.set_pet(pet)
 	_where.text = "%s is %s" % [who, doing(str(GameState.automation.task))]
 	UiTheme.clear(_cards)
 	_scenes.clear()
-	if _page == 1:
+	if _page == "workers":
 		var total := 0
 		for j in workers:
 			total += GameState.workers_count(j.id)
