@@ -1,0 +1,51 @@
+# Quiet paws: out on your windows your pet acts out its job with poses only. The setting (general
+# page, "out on your windows": off | big things | everything) only changes what's drawn. The pet
+# plays on a pretend desktop inside the game window (desk on), never on the real one.
+from pile_full
+paws everything              # the profile keeps its settings between runs
+view full
+tab settings
+wait 1
+expect text "out on your windows"
+expect setting paws 2
+expect fits
+shot settings
+click "big things"
+expect setting paws 1
+shot big
+click "everything"
+expect setting paws 2
+expect fits
+teach boxes
+task boxes
+give-box starter 30
+desk on
+wait 1.5                      # it drops in and lands on the window
+wait packing 0.05
+shot desk_reach
+wait packing 0.4
+shot desk_boxes
+wait packing 0.7
+shot desk_shake
+wait packing 0.02
+shot desk_hop
+desk good
+wait 1
+shot desk_hold
+wait 4
+teach machine
+task machine
+wait 1
+crank 1
+shot desk_crank
+send garden 1
+finish-trips
+wait 1
+shot desk_wait
+paws off
+wait 2
+shot desk_off
+desk off
+tab settings
+expect setting paws 0
+expect fits

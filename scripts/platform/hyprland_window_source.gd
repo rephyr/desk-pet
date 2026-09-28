@@ -186,6 +186,15 @@ func get_windows(overlay: Window) -> Array[Rect2]:
 	return result
 
 
+func home_rect(home: Window, overlay: Window) -> Rect2:
+	_poll()
+	var h = _find_own(home) if home != null else null
+	var me = _find_own(overlay) if overlay != null else null
+	if h == null or me == null:
+		return super(home, overlay)
+	return _to_local(Rect2(h.at[0], h.at[1], h.size[0], h.size[1]), me, overlay)
+
+
 func is_fullscreen_active(win: Window) -> bool:
 	_poll()
 	var me = _find_own(win)

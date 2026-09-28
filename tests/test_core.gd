@@ -38,6 +38,7 @@ func _init() -> void:
 	_test_book(catalog)
 	_test_knacks(catalog)
 	_test_care(catalog)
+	_test_paws(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -1491,6 +1492,267 @@ func _test_care(catalog: Catalog) -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 	for n in [gs, gs2]:
 		n.free()
+
+
+## Quiet paws (QuietPaws, PawsView, data/care.json "paws", Settings.paws): out on your windows your
+## pet acts out its job with poses only. The setting only changes what's drawn: never a second
+## switch for opening boxes.
+func _test_paws(catalog: Catalog) -> void:
+	var cfg: Dictionary = catalog.care.get("paws", {})
+	_check(float(cfg.get("hold", 0)) == 4.0 and (cfg.get("stint", []) as Array).size() == 2,
+		"care.json has the paws block (a good pull held 4 s, stints)")
+	# the setting: off / big things / everything, everything by default, kept in settings.json
+	var S: GDScript = load("res://scripts/settings.gd")
+	_check(S.PAWS_LEVELS == ["off", "big things", "everything"] and S.paws_from({}) == 2, "paws has 3 levels and starts at everything")
+	_check(S.paws_from({ "paws": 9 }) == 2 and S.paws_from({ "paws": -3 }) == 0 and S.paws_from({ "paws": 1 }) == 1, "paws is kept to 0..2")
+	var settings: Node = S.new()
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://profiles/test-core/"))
+	var spath := "user://profiles/test-core/paws_settings.json"
+	settings.file_path = spath
+	settings.set_value("paws", 1)
+	_check(S.paws_from(SaveFile.read(spath)) == 1, "the paws setting survives a write and a read")
+	settings.set_value("paws", 7)
+	_check(settings.paws == 2, "set_value keeps paws in range")
+	settings.free()
+	for f in [spath, spath + ".bak"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+	var GS: GDScript = load("res://scripts/game_state.gd")
+	GS.testing = true
+	var gs: Node = GS.new()
+	gs.tutorial = "done"
+	var roller := PetRoller.new(catalog)
+	var good := roller.roll("starter", "rare")
+	var plain := roller.roll("starter", "common")
+	plain.finish = "normal"
+	_check(gs.is_good_pull(good) and not gs.is_good_pull(plain), "a rare is a good pull, a plain common isn't")
+	var waiting := RunState.new()
+	waiting.status = RunState.Status.DONE
+	var paws := QuietPaws.new(gs)
+	# off: nothing, even with a good pull and a postcard waiting
+	paws.step(0.1, true, true, true, 0)
+	paws.opened(good)
+	gs.runs.append(waiting)
+	paws.step(0.1, true, true, true, 0)
+	_check(paws.pose == QuietPaws.Pose.NONE and not paws.wants_still, "off: no poses at all")
+	gs.runs.erase(waiting)
+	# big things: a good pull held up 4 s, a foot tap for a waiting adventure, no boxes routine
+	paws.step(0.1, true, true, true, 1)
+	paws.opened(good)
+	paws.step(0.1, true, false, true, 1)
+	_check(paws.pose == QuietPaws.Pose.HOLD and paws.held == good and paws.wants_still, "big things: a good pull is held up, even mid-walk")
+	for i in 37:
+		paws.step(0.1, true, true, true, 1)
+	_check(paws.pose == QuietPaws.Pose.HOLD, "still held up after 3.8 s")
+	for i in 5:
+		paws.step(0.1, true, true, true, 1)
+	_check(paws.pose != QuietPaws.Pose.HOLD and paws.held == null, "and put down after 4 s")
+	paws.opened(plain)
+	paws.step(0.1, true, true, true, 1)
+	_check(paws.pose == QuietPaws.Pose.NONE and paws.held == null, "an ordinary pull isn't held up")
+	gs.runs.append(waiting)
+	paws.step(0.1, true, true, true, 1)
+	_check(paws.pose == QuietPaws.Pose.WAIT and paws.stint_left > 0.0, "a postcard waiting: it taps its foot")
+	gs.runs.erase(waiting)
+	var sent := RunState.new()
+	sent.status = RunState.Status.DONE
+	sent.auto = true
+	gs.runs.append(sent)
+	var quiet := QuietPaws.new(gs)
+	quiet.step(0.1, true, true, true, 2)
+	_check(quiet.pose == QuietPaws.Pose.NONE, "a trip your pet sent itself doesn't wait for you")
+	gs.runs.erase(sent)
+	# the boxes job: only at everything, following the background opening
+	gs.automation.taught["boxes"] = true
+	gs.set_task("boxes")
+	for i in 20:
+		gs.debug_give_box("starter")
+	gs._pack_seen = 2.0
+	gs._pack_timer = 0.8
+	_check(gs.background_packing() >= 0.0, "the background opening is going")
+	var big := QuietPaws.new(gs)
+	big.step(0.1, true, true, true, 1)
+	_check(big.pose == QuietPaws.Pose.NONE, "big things: no boxes routine")
+	var all := QuietPaws.new(gs)
+	all.step(0.1, true, true, false, 2)
+	_check(all.pose == QuietPaws.Pose.NONE, "no stint on an edge without room for the pile")
+	all.step(0.1, true, true, true, 2)
+	_check(all.pose == QuietPaws.Pose.BOXES and all.phase == QuietPaws.Phase.REACH and all.wants_still, "everything: the boxes routine, facing the pile first")
+	gs._pack_timer = 3.5
+	all.step(0.1, true, true, true, 2)
+	_check(all.phase == QuietPaws.Phase.HOLD, "then holding the pack")
+	gs._pack_timer = 6.0
+	all.step(0.1, true, true, true, 2)
+	_check(all.phase == QuietPaws.Phase.SHAKE, "then shaking it")
+	all.opened(plain)
+	all.step(0.1, true, true, true, 2)
+	_check(all.puff > 0.0 and all.held == plain and all.hop > 0.0, "a pop: puff, and the new pet hops off")
+	gs.automation.taught["machine"] = true
+	gs.set_task("machine")
+	all.step(0.1, true, true, true, 2)
+	_check(all.pose == QuietPaws.Pose.MACHINE, "on the crank job: the tiny machine")
+	all.cranked({})
+	_check(all.bounce == 1.0, "a crank bounces the machine")
+	gs.runs.append(waiting)
+	all.step(0.1, true, true, true, 2)
+	_check(all.pose == QuietPaws.Pose.WAIT, "an adventure waiting beats the job")
+	all.show_off(good)
+	all.step(0.1, true, true, true, 2)
+	_check(all.pose == QuietPaws.Pose.HOLD, "a good pull beats the foot tap")
+	for i in 42:
+		all.step(0.1, true, true, true, 2)
+	_check(all.pose == QuietPaws.Pose.WAIT, "and after it, back to tapping")
+	all.step(0.1, false, false, true, 2)
+	_check(all.pose == QuietPaws.Pose.NONE and not all.wants_still, "dragged or falling: no poses")
+	gs.runs.erase(waiting)
+	# a hold cut short by a drag: a fresh hold on landing, unless it waited too long
+	var paused := QuietPaws.new(gs)
+	paused.show_off(good)
+	for i in 10:
+		paused.step(0.1, true, true, true, 1)
+	for i in 20:
+		paused.step(0.1, false, false, true, 1)
+	paused.step(0.1, true, true, true, 1)
+	_check(paused.pose == QuietPaws.Pose.HOLD and paused.hold_left() > 3.8, "a short drag: the good pull is held up again, 4 s from the landing")
+	for i in 120:
+		paused.step(0.1, false, false, true, 1)
+	paused.step(0.1, true, true, true, 1)
+	_check(paused.pose != QuietPaws.Pose.HOLD and paused.held == null, "a long drag: the good pull is let go (waited past hold_waits)")
+
+	# not a second switch: the background opening opens just as many packs at every level
+	var opened_at: Array[int] = []
+	for level in 3:
+		var g: Node = GS.new()
+		g.tutorial = "done"
+		g.automation.taught["boxes"] = true
+		g.set_task("boxes")
+		for i in 40:
+			g.debug_give_box("starter")
+		var p := QuietPaws.new(g)
+		var before: int = g.in_bag("starter")
+		var task_before: String = g.automation.task
+		for i in 800:
+			g._open_in_background(0.1)
+			p.step(0.1, true, true, true, level)
+		opened_at.append(before - g.in_bag("starter"))
+		_check(g.background_packing() >= 0.0 and g.packs_on and g.automation.task == task_before,
+			"level %d: the background opening keeps going (quiet paws never counts as seeing it)" % level)
+		_check(g.pinned.size() == (g.idle_log.get("good", []) as Array).size(), "level %d: every good pull still waits for the home screen" % level)
+		g.free()
+	_check(opened_at[0] > 5 and opened_at[0] == opened_at[1] and opened_at[1] == opened_at[2], "the same packs get opened at off, big things and everything (%s)" % [opened_at])
+	gs.pinned.append(good.uid)
+	var pin_before: Array[String] = gs.pinned.duplicate()
+	for level in [2, 0, 1, 2]:
+		paws.step(0.1, true, true, true, level)
+	_check(gs.automation.task == "machine" and gs.pinned == pin_before, "changing the level leaves the job and the pinned pulls alone")
+
+	# the desktop pet on a pretend desktop (stage mode, nothing on the real one)
+	gs.set_task("boxes")
+	gs._pack_seen = 2.0
+	gs._pack_timer = 1.0
+	var stage := Control.new()
+	stage.size = Vector2(920, 600)
+	var src := StageSource.new()
+	src.windows = [Rect2(100, 300, 500, 300)]
+	src.home = Rect2(700, 440, 200, 160)
+	var dp := DesktopPet.new()
+	dp.source = src
+	dp.stage = stage
+	dp.paws = QuietPaws.new(gs)
+	dp.paws_level = 2
+	stage.add_child(dp)
+	dp._ready()
+	dp.drop_at(Vector2(260, 200))
+	var frames := 0
+	while dp._state != DesktopPet.State.IDLE and frames < 200:
+		dp._process(0.05)
+		frames += 1
+	dp._process(0.05)
+	_check(is_equal_approx(dp.position.y, 300.0), "the pet lands on the window's top edge (%s)" % dp.position)
+	_check(dp.paws.pose == QuietPaws.Pose.BOXES, "and starts on its boxes routine there")
+	var x0 := dp.position.x
+	var moved := false
+	for i in 200:
+		dp._process(0.05)
+		moved = moved or absf(dp.position.x - x0) > 0.1
+	_check(not moved and dp.paws.pose == QuietPaws.Pose.BOXES, "it stays put for its work stint (10 s)")
+	dp._state = DesktopPet.State.WALK
+	dp._timer = 5.0
+	dp.paws.show_off(good)
+	dp._process(0.05)
+	dp._process(0.05)
+	var x1 := dp.position.x
+	for i in 20:
+		dp._process(0.05)
+	_check(dp.paws.pose == QuietPaws.Pose.HOLD and dp._state == DesktopPet.State.IDLE and is_equal_approx(dp.position.x, x1),
+		"a good pull stops it mid-walk to hold it up")
+	var held_on := dp.position + dp._held.position
+	_check(held_on.is_equal_approx(held_on.round()) and (dp._front.position + dp._front.held_at).is_equal_approx(held_on - dp.position),
+		"the held pet sits on whole screen pixels, with its sparkles (%s)" % held_on)
+	for i in 90:
+		dp._process(0.05)
+	gs.runs.append(waiting)
+	dp._process(0.05)
+	_check(dp.paws.pose == QuietPaws.Pose.WAIT and dp.facing() == 1, "an adventure waiting: it faces the corner panel (on its right)")
+	src.home = Rect2(0, 440, 60, 160)
+	dp._refresh_world()  # windows are read every POLL_INTERVAL
+	dp._process(0.05)
+	_check(dp.facing() == -1, "and turns when the corner panel is on its left")
+	dp.drop_at(Vector2(dp.position.x, 150))
+	dp._process(0.05)
+	_check(dp.paws.pose == QuietPaws.Pose.NONE, "picked up or falling: no poses")
+	dp.paws.show_off(good)
+	dp._process(0.05)
+	_check(dp.paws.pose == QuietPaws.Pose.NONE, "a good pull waits while it falls")
+	frames = 0
+	while dp._state == DesktopPet.State.FALL and frames < 200:
+		dp._process(0.05)
+		frames += 1
+	dp._process(0.05)
+	_check(dp.paws.pose == QuietPaws.Pose.HOLD, "and is held up once it lands")
+	gs.runs.erase(waiting)
+	dp.paws_level = 0
+	var x2 := dp.position.x
+	moved = false
+	for i in 300:
+		dp._process(0.05)
+		moved = moved or absf(dp.position.x - x2) > 1.0
+	_check(moved and dp.paws.pose == QuietPaws.Pose.NONE, "off: it walks around like before")
+	# a narrow edge: the tiny machine's handle wouldn't fit beside it, so no stint there
+	var reach_px := PawsView.widest() * 4 / 3.0
+	_check(PawsView.widest() >= PawsView.reach(QuietPaws.Pose.BOXES) and reach_px > 88.0, "the room check fits the machine's handle (%.1f px)" % reach_px)
+	gs._pack_seen = 2.0
+	gs._pack_timer = 1.0
+	var narrow := StageSource.new()
+	narrow.windows = [Rect2(300, 300, 170, 300)]
+	var dp2 := DesktopPet.new()
+	dp2.source = narrow
+	dp2.stage = stage
+	dp2.paws = QuietPaws.new(gs)
+	dp2.paws_level = 2
+	stage.add_child(dp2)
+	dp2._ready()
+	dp2.drop_at(Vector2(385, 200))
+	frames = 0
+	while dp2._state != DesktopPet.State.IDLE and frames < 200:
+		dp2._process(0.05)
+		frames += 1
+	dp2._process(0.05)
+	_check(is_equal_approx(dp2.position.y, 300.0) and dp2.paws.pose == QuietPaws.Pose.NONE,
+		"in the middle of a narrow edge (85 px each side): no pile, no machine")
+	stage.free()
+
+	# the settings row: hidden until there's something to act out (the flow clicks it)
+	var fresh: Node = GS.new()
+	fresh.tutorial = "pull"
+	_check(fresh.tutorial_active() and not QuietPaws.has_something(fresh), "the out on your windows row is hidden in the tutorial with no job")
+	fresh.automation.taught["boxes"] = true
+	_check(QuietPaws.has_something(fresh), "it shows once your pet knows a job")
+	fresh.automation.taught.clear()
+	fresh.tutorial = "done"
+	_check(QuietPaws.has_something(fresh), "and once adventures are open (after the tutorial)")
+	fresh.free()
+	gs.free()
 
 
 func _check(ok: bool, what: String) -> void:

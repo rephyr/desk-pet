@@ -15,6 +15,13 @@ func get_windows(_overlay: Window) -> Array[Rect2]:
 	return []
 
 
+## Where the home window (the corner panel or the full game) is, in the overlay's local pixels.
+func home_rect(home: Window, overlay: Window) -> Rect2:
+	if home == null or overlay == null:
+		return Rect2()
+	return Rect2(Vector2(home.position - overlay.position), Vector2(home.size))
+
+
 ## Makes the overlay cover the screen the home window is on.
 func place_overlay(home: Window, overlay: Window) -> void:
 	var screen := DisplayServer.window_get_current_screen(home.get_window_id())

@@ -48,6 +48,18 @@ func _init() -> void:
 		if is_instance_valid(boxes_switch):
 			boxes_switch.visible = GameState.knows_job("boxes")
 			boxes_switch.set_pressed_no_signal(GameState.packs_on))
+	# quiet paws: how much your pet acts out its job out on your windows (only what's drawn: it's
+	# not another switch for opening boxes). There once there's something to act out.
+	# stacked, so a wide font or a long label never pushes the half-width section past the window
+	var paws := _choice("out on your windows", Settings.PAWS_LEVELS, Settings.paws, func(i): Settings.set_value("paws", i), true)
+	paws.name = "PawsRow"
+	paws.visible = QuietPaws.has_something(GameState)
+	work.body.add_child(paws)
+	var show_paws := func():
+		if is_instance_valid(paws):
+			paws.visible = QuietPaws.has_something(GameState)
+	GameState.automation_changed.connect(show_paws)
+	GameState.tutorial_changed.connect(show_paws)
 	if GameState.feature_on("shopping"):  # once it has the piggy bank, it buys boxes too
 		work.body.add_child(_switch("buy boxes when the pile runs out", GameState.buying_on, func(on): GameState.set_job("buying", on)))
 		var kept := _slider_row(work.body, "coins %s always keeps" % who, 0, 2000, 50, GameState.coin_reserve,
@@ -124,13 +136,16 @@ func _video() -> Control:
 
 ## A label and a row of choices (no dropdown: popups open as their own window, which our
 ## always-on-top window hides on Linux). on_pick(index) runs when one is picked.
-func _choice(text: String, options: Array, current: int, on_pick: Callable) -> Control:
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 10)
+func _choice(text: String, options: Array, current: int, on_pick: Callable, stacked := false) -> Control:
+	var row: BoxContainer = VBoxContainer.new() if stacked else HBoxContainer.new()  # stacked: the label over the choices
+	row.add_theme_constant_override("separation", 6 if stacked else 10)
 	var name_label := UiTheme.label(text)
 	name_label.size_flags_horizontal = SIZE_EXPAND_FILL
 	row.add_child(name_label)
-	row.add_child(UiTheme.segmented(options, current, on_pick))
+	var picks := UiTheme.segmented(options, current, on_pick)
+	if stacked:
+		picks.size_flags_horizontal = SIZE_SHRINK_BEGIN
+	row.add_child(picks)
 	return row
 
 

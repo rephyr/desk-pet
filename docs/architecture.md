@@ -147,6 +147,17 @@ and the UI scale. The base class has plain Godot fallbacks; `HyprlandWindowSourc
 `hyprctl` (window rules can't be used because Godot sets titles after windows open, so it styles
 our windows with direct dispatches). The Windows port adds a `WindowsWindowSource` backed by a
 small GDExtension; nothing else should need to change.
+`WindowSource.home_rect()` says where the corner panel / full game window is (quiet paws faces it).
+
+`DesktopPet` (the pet out on your windows, in the overlay) owns a `QuietPaws` (scripts/pets: the
+brain; reads GameState, `step()` picks the pose NONE / BOXES / MACHINE / HOLD / WAIT and says when
+to stand still; listens to `opened_in_background` and `pet_cranked`; never opens or marks
+anything seen) and two `PawsView`s (behind and in front of the pet: pile, pack in paws, puff,
+tiny machine, sparkles, dust; own colours, and `PawsView.draw_pack` is also the corner panel's
+pile). `Settings.paws` (0..2, settings.json) picks how much shows. For tests a `DesktopPet` can run
+in stage mode (`stage` = a Control, with a `StageSource` of pretend window rects) inside the game
+window: the headless tests do that, and so does the dev-only `DeskStage` (DevDriver `desk on`).
+Neither `DesktopPet`, `QuietPaws` nor `PawsView` names an autoload, so the headless tests can load them.
 
 ## Saving
 

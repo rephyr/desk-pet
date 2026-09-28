@@ -140,6 +140,20 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
 ## Care (active side)
 
 - The desktop pet: walks on your windows, reacts to pats, can be parked at home.
+- **Quiet paws** (built, care E, `QuietPaws`, data/care.json `paws`): out on your windows your
+  pet keeps doing its one job in place, with poses only, no text. Boxes job: now and then it
+  stops on an edge with room for the biggest prop for a 20-40 s stint beside a tiny pile of 3 packs;
+  its pose follows the background opening (faces the pile, holds a pack, shakes it), a puff when
+  one opens and an ordinary pet hops off over the pile. Crank job: the same stint beside a tiny
+  capsule machine whose handle turns with the crank and which hops on each capsule. A good pull
+  opened in the background: it stops (even mid-walk) and holds the pet over its head with
+  sparkles for 4 s (after landing if it's falling or dragged; let go after 10 s); it still waits
+  for the home screen. An adventure you sent waiting (a question or a postcard): it faces the
+  corner panel and taps a foot, before any job stint. Order: hold, foot tap, job, walking.
+  Setting (general page, "your pet at work"): **out on your windows** off / big things (the hold
+  and the foot tap) / everything (default), shown once the tutorial's done or your pet knows a
+  job. It only changes what's drawn: the background opening opens exactly the same packs at
+  every level, and it never touches the boxes switch or your pet's job.
 - Needs (food, mood) are opportunities, not threats (built, data/care.json, `Care`): they only
   go down while the game is open (the full game, the corner panel or your pet out on the
   desktop), never while it's closed, and never below 20. Above 70 food is a **full tummy**

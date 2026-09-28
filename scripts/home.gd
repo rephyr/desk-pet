@@ -239,6 +239,7 @@ func _set_out(out: bool) -> void:
 	_pet = DesktopPet.new()
 	_pet.source = _source
 	_pet.overlay = _overlay
+	_pet.home = get_window()
 	_pet.pixel = roundi(4 * _scale)
 	_pet.set_pet(GameState.collection.active())
 	_pet.visible = false

@@ -12,8 +12,9 @@ extends Node
 ##   click <target>        clicks it (see _find, _click): "text", tab:<id>, Class#n, guide
 ##   key <name>            a key press: space, escape, enter
 ##   wait <seconds>        or: wait ritual | wait popup | wait text "..." | wait tutorial <step> | wait event
+##                         | wait packing <p> (your pet's background opening is between p and p + 0.1)
 ##   expect <what>         tutorial <step> | tab <id> | text "..." | no-text "..." | pile <box> <n>
-##                         | fits (the full game fits its window)
+##                         | fits (the full game fits its window) | setting <key> <value> (Settings)
 ##   shot <name>           a screenshot of the game, from inside it (works while it's off-screen)
 ##   say "<text>"          your pet says it (for testing the bubble)
 ##   answer                every adventure waiting at an event takes its first choice
@@ -49,6 +50,12 @@ extends Node
 ##   boosts                logs every boost kind's total and its parts (data/boosts.json)
 ##   dress <slot>=<id> ... [finish=<id>]   your active pet gets these parts (and finish), e.g.
 ##                         dress body=bunny eyes=cyclops finish=holo (for knacks, data/knacks.json)
+##   paws <off|big|everything>   the "out on your windows" setting (quiet paws)
+##   desk on | off | good  a pretend desktop over the game with your pet out on it (DeskStage), or
+##                         gone again; good: a rolled rare pet goes to it as if your pet had just
+##                         opened it in the background (it isn't added to your pets)
+##   give-box <id> <n>     n boxes of that kind on the pile
+##   finish-trips          every adventure that's walking arrives now (and waits for you)
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -59,6 +66,7 @@ const WAIT_LIMIT := 30.0  # a "wait until" that takes longer than this fails
 var _flow := ""
 var _log: FileAccess
 var _failed := false
+var _desk: DeskStage
 
 
 func _init(flow_path: String) -> void:
@@ -294,6 +302,35 @@ func _step(w: PackedStringArray) -> String:
 			GameState.collection.pet_changed.emit(pet)
 			GameState.collection.active_changed.emit(pet)
 			GameState.save_game()
+		"paws":  # paws <off|big|everything>: the "out on your windows" setting
+			var i := ["off", "big", "everything"].find(w[1])
+			if i < 0:
+				return "paws takes: off | big | everything"
+			Settings.set_value("paws", i)
+		"desk":  # desk on | off | good: the pretend desktop with your pet out on it
+			match w[1]:
+				"on":
+					if _desk == null:
+						_desk = DeskStage.new()
+						home.add_child(_desk)
+				"off":
+					if _desk:
+						_desk.queue_free()
+						_desk = null
+				"good":
+					if _desk == null:
+						return "no desk (desk on first)"
+					var roller := PetRoller.new(GameState.catalog)
+					_desk.pet.paws.show_off(roller.roll("starter", "rare"))
+				_:
+					return "desk takes: on | off | good"
+		"give-box":  # give-box <id> <n>: n boxes of that kind on the pile
+			if GameState.catalog.box(w[1]).is_empty():
+				return "unknown box %s" % w[1]
+			for i in int(w[2]) if w.size() > 2 else 1:
+				GameState.debug_give_box(w[1])
+		"finish-trips":  # every adventure walking arrives now
+			GameState.debug_finish_runs()
 		"quit":
 			_finish()
 		_:
@@ -316,6 +353,11 @@ func _wait(w: PackedStringArray) -> String:
 			until = func(): return _find('"%s"' % w[2]) != null
 		"tutorial":
 			until = func(): return GameState.tutorial == w[2]
+		"packing":  # packing <p>: the pack your pet opens out of sight is p (0 to 1) along
+			var p := float(w[2])
+			until = func():
+				var at := GameState.background_packing()
+				return at >= p and at < p + 0.1
 		"event":  # an adventure stopped at an event (trips are slow: this waits longer)
 			until = func(): return GameState.runs.any(func(r): return r.status == RunState.Status.WAITING)
 			limit = 180.0
@@ -344,6 +386,9 @@ func _expect(w: PackedStringArray) -> String:
 		"pile":
 			var have := GameState.in_bag(w[2])
 			return "" if have == int(w[3]) else "%d on the pile" % have
+		"setting":  # setting <key> <value>: a Settings value, as text
+			var have := str(Settings.get(w[2]))
+			return "" if have == w[3] else "%s is %s" % [w[2], have]
 		"fits":
 			# nothing on screen needs more room than the window has (it would spill past the edge)
 			var game: Control = get_parent().full_game()
