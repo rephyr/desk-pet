@@ -288,8 +288,29 @@ Nobody is ever lost on an errand, and errands never bring rare parts or new plac
 - **Scales from a couple of pets to thousands:** up to 6 on a job each get a polaroid; past that
   a pile, the count and a little crowd, and + / − move 1, 10, 100 or all.
 - **Offline:** full speed for 8 h, then half, up to the 12 h cap; the tab notes what came in.
-- **Later jobs** (ideas, **Open**): savings jar, recycling, kitchen, digging, show-off, training,
-  scouting, mapmaking, stargazing, a lab; the dark twist shows only in what jobs describe.
+- **More jobs (A3, built 2026-09-28, plan docs/plans/A3.md)**, each opened by a goal on another
+  job's level (lemonade lv 10 → the savings jar, coin hunt lv 25 → the kitchen, savings jar lv 10 →
+  scouting). Only the job that is an open job's NEXT goal shows as a waiting note / waiting shelf,
+  so there's never a row of locked notes.
+  - **Savings jar:** fills slowly (30 min with one pet) and pays one big lump (100 capsules' worth),
+    with its own crew power 0.5: one pet there beats one on the coin hunt, a crew doesn't. The note
+    says "7.4k coins when full" and "full in 24m 10s"; a full jar pops a big gold number and a coin
+    burst, never the stream. Tools: a bigger jar, a wider slot.
+  - **Kitchen:** brings nothing, every other job works faster: 0.3 x cooks / (cooks + 2) (1 cook
+    +10%, 2 +15%, 4 +20%, 10 +25%, never past 30%), capped at what those cooks would add on a real
+    job ((1 + cooks / others)^crew_power − 1), so it never beats one. Each full meter is a meal for
+    your pet (+10 food, +2 mood), but only up to 70 (`meal_upto`, `Jobs.feed`): the kitchen keeps
+    it from going hungry, filling it up is still yours to do. No tools, no level.
+  - **Scouting:** each full meter is a scout note (hold 2, a map case holds more; a full hold stops
+    the meter). A trip you send yourself to a place with something left to spot or hear takes one:
+    +0.15 on each lead's spot chance and rumours x1.5 (the note's numbers ride along on
+    `RunState.scout`, from `Jobs.scout_note`; the scouting job is whichever has a `scout` block,
+    `Jobs.scout_job`; `Intel.roll` bonus, `AdventureRunner.scouted`). Never auto parties, never dungeons (`"scout": false` on the type).
+    Chance only: the map's ? clouds stay a surprise; no odds shown. The away card gets a tiny note
+    doodle. Tools: a map case, field glasses.
+  - Share out and your pet's sharing skip the kitchen and scouting (`"share": false`).
+- **Later jobs** (ideas, **Open**): recycling, digging, show-off, training, mapmaking,
+  stargazing, a lab; the dark twist shows only in what jobs describe.
 
 ## Automation (idle side, your pet)
 
