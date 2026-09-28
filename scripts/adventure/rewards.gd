@@ -69,7 +69,7 @@ static func total(loot: Dictionary, kind: String) -> int:
 	return n
 
 
-## A random part at a rarity rolled with a box's odds, as [slot, part id]. With `slots`, mostly
+## A random part at a rarity rolled with a box's odds (only looks that box can hold), as [slot, part id]. With `slots`, mostly
 ## (3 in 4) from those slots, otherwise from any.
 static func roll_part(box_id: String, rng: RandomNumberGenerator, catalog: Catalog, slots: Array = []) -> Array:
 	var from: Array = Catalog.SLOTS
@@ -78,7 +78,7 @@ static func roll_part(box_id: String, rng: RandomNumberGenerator, catalog: Catal
 	var slot: String = from[rng.randi_range(0, from.size() - 1)]
 	var rank := catalog.rank(Weighted.pick(catalog.box(box_id).tiers, rng))
 	for r in range(rank, -1, -1):
-		var options := catalog.parts_of_tier(slot, catalog.tier_at(r).id)
+		var options := catalog.parts_in(slot, catalog.tier_at(r).id, box_id)
 		if not options.is_empty():
 			return [slot, options[rng.randi_range(0, options.size() - 1)].id]
 	return [slot, catalog.default_part(slot)]

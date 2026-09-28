@@ -20,7 +20,8 @@ signal pet_cranked(result: Dictionary)  # your pet's own little machine gave a c
 signal gear_changed  # a gear upgrade was bought with xp (the adventures' upgrades page)
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
-const SAVE_VERSION := 22
+const SAVE_VERSION := 23
+const WORKER_BOXES_MAX := 2000  # box workers open at most this many boxes in one go (every pet is rolled)
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
 const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
@@ -92,6 +93,9 @@ func set_job(job: String, on: bool) -> void:
 
 var coin_reserve := 50  # coins your pet never spends on boxes (once it may buy them)
 var saved_boxes := {}  # box id -> true: "save for me", your pet leaves these on the pile
+var boxes_bought := {}  # box id -> how many you've bought (a tier in the shop is "new!" until the first)
+var boxes_greeted := {}  # box id -> true: the boxes tab has shown this tier arriving (your pet said so)
+var debug_all_tiers := false  # debug builds: every box tier is in the shop (dev step "tiers all"), not saved
 var buying_on := true  # your pet buys more when the pile runs out (once it has the piggy bank)
 var pinned: Array[String] = []  # good pulls your pet opened, waiting for you to see them
 var rummaged := {}  # rummage spot id -> unix time it has something in it again (see data/rummage.json)
@@ -201,14 +205,52 @@ func box_price(box_id: String, count := 1) -> int:
 	return int(catalog.box(box_id).price) * count
 
 
+## The box tiers in the shop: the ones whose map page is open, cheapest first.
+func shop_boxes() -> Array[Dictionary]:
+	return BoxShop.open_tiers(catalog, page_open, debug_all_tiers and OS.is_debug_build())
+
+
+func box_in_shop(box_id: String) -> bool:
+	return shop_boxes().any(func(b): return b.id == box_id)
+
+
+## The piles on your stash: every tier in the shop, and any other box you have some of.
+func stash_boxes() -> Array[Dictionary]:
+	var out := shop_boxes()
+	for b in catalog.shop_boxes():
+		if in_bag(b.id) > 0 and not out.has(b):
+			out.append(b)
+	out.sort_custom(func(a, b): return catalog.box_rank(a.id) < catalog.box_rank(b.id))
+	return out
+
+
+## A tier that just came into the shop wears a gold "new!" tag until you buy your first one (the
+## first tier never does: it was always there).
+func box_is_new(box_id: String) -> bool:
+	return catalog.box_rank(box_id) > 0 and box_in_shop(box_id) and int(boxes_bought.get(box_id, 0)) == 0
+
+
+## Something waits in the boxes tab: boxes on the pile, or a tier that came into the shop.
+func box_news() -> bool:
+	return bag.values().any(func(n): return int(n) > 0) or shop_boxes().any(func(b): return box_is_new(b.id) and not boxes_greeted.has(b.id))
+
+
+## The boxes tab showed this tier arriving (its row popped in, your pet said so): only once.
+func greet_box(box_id: String) -> void:
+	if not boxes_greeted.has(box_id):
+		boxes_greeted[box_id] = true
+		save_game()
+
+
 ## Buys boxes: they go on your pile (the bag) to open later, by you or your pet. Returns
-## whether you could afford them.
+## whether you could afford them (and the shop sells that tier).
 func buy_boxes(box_id: String, count := 1) -> bool:
 	var price := box_price(box_id, count)
-	if count <= 0 or coins < price or catalog.box(box_id).is_empty():
+	if count <= 0 or coins < price or not box_in_shop(box_id):
 		return false
 	coins -= price
 	bag[box_id] = in_bag(box_id) + count
+	boxes_bought[box_id] = int(boxes_bought.get(box_id, 0)) + count
 	changed.emit()
 	save_game()
 	return true
@@ -225,8 +267,9 @@ func coins_short(box_id: String, count := 1) -> int:
 	return maxi(0, box_price(box_id, count) - coins)
 
 
-## Opens boxes from your pile. Returns the new pets (empty if there aren't that many on the pile).
-## `force_tier` only works in debug builds, for testing reveals.
+## Opens `count` boxes from your pile. Returns the new pets, every pet in every box (a sunset box
+## holds 2-3), box by box; empty if there aren't that many on the pile.
+## `force_tier` only works in debug builds, for testing reveals (the first pet of each box).
 ## `by_pet`: your pet opened it (doesn't count toward packs you opened yourself).
 func open_boxes(box_id: String, count := 1, force_tier := "", by_pet := false) -> Array[Pet]:
 	var pulled: Array[Pet] = []
@@ -239,7 +282,7 @@ func open_boxes(box_id: String, count := 1, force_tier := "", by_pet := false) -
 	var roll_from := TUTORIAL_BOX if tutorial_active() else box_id
 	var forced := force_tier if OS.is_debug_build() and not tutorial_active() else ""
 	for i in count:
-		pulled.append(_roller.roll(roll_from, forced))
+		pulled.append_array(_roller.roll_box(roll_from, forced))
 	collection.add(pulled)
 	if not by_pet:
 		packs_by_hand += count
@@ -531,6 +574,8 @@ func debug_new_game() -> void:
 	_worker_speed.clear()
 	visited.clear()
 	saved_boxes.clear()
+	boxes_bought.clear()
+	boxes_greeted.clear()
 	buying_on = true
 	idle_log = {}
 	runs.clear()
@@ -896,15 +941,20 @@ func save_for_me(box_id: String, on: bool) -> void:
 ## The box your pet would open next: one on the pile it's allowed to open, or, once it has the
 ## piggy bank, the cheapest one it may open that it can buy and still keep the reserve. "" if none.
 func next_pet_box() -> String:
-	for box in catalog.boxes:
-		if not box.get("hidden", false) and pet_opens(box.id) and in_bag(box.id) > 0:
-			return box.id
+	for id in pet_box_order():
+		if in_bag(id) > 0:
+			return id
 	if not (feature_on("shopping") and buying_on):
 		return ""
-	for box in catalog.boxes:
-		if not box.get("hidden", false) and pet_opens(box.id) and coins - box_price(box.id) >= coin_reserve:
+	for box in shop_boxes():
+		if pet_opens(box.id) and coins - box_price(box.id) >= coin_reserve:
 			return box.id
 	return ""
+
+
+## The kinds of box your pet (and the box workers) may open, in the order they get to them.
+func pet_box_order() -> Array:
+	return stash_boxes().filter(func(b): return pet_opens(b.id)).map(func(b): return b.id)
 
 
 ## Whether your pet may open a pack now: it's allowed to, and there's one for it.
@@ -942,8 +992,8 @@ func background_packing() -> float:
 
 
 ## Your pet opens a box from the pile, buying one first if it has to and may (the corner panel
-## calls this when its little animation pops). Returns the new pet, or null. Good pulls get
-## pinned for you to see.
+## calls this when its little animation pops). Returns the best pet in it (the one its animation
+## shows), or null. Every pet in it goes in the idle log; good pulls get pinned for you to see.
 func auto_open_pack() -> Pet:
 	if not can_auto_open():
 		return null
@@ -953,13 +1003,13 @@ func auto_open_pack() -> Pet:
 	var pulled := open_boxes(box_id, 1, "", true)
 	if pulled.is_empty():
 		return null
-	var pet := pulled[0]
 	var good: Array = []
-	if is_good_pull(pet):
-		pinned.append(pet.uid)
-		good.append(pet.display_name(catalog))
+	for pet in pulled:
+		if is_good_pull(pet):
+			pinned.append(pet.uid)
+			good.append(pet.display_name(catalog))
 	_log_idle({ "packs": 1, "good": good })
-	return pet
+	return BoxShop.best_first(pulled, catalog)[0]
 
 
 ## Rare or better, or a holo-or-better finish: worth showing you.
@@ -1372,16 +1422,16 @@ func workers_speed(id: String) -> float:
 
 
 ## Box workers open `count` boxes from your pile (the kinds your pet may open; they never buy any).
+## It counts boxes, not pets: a sunset box is one box however many pets are in it. At most
+## WORKER_BOXES_MAX at once (a long time away can't stall the load; the rest wait on the pile).
 func _workers_open(count: int) -> void:
 	var opened := 0
 	var good: Array = []
-	for box in catalog.boxes:
-		if opened >= count:
-			break
-		if box.get("hidden", false) or not pet_opens(box.id) or in_bag(box.id) <= 0:
-			continue
-		var pulled := open_boxes(box.id, mini(count - opened, in_bag(box.id)), "", true)
-		opened += pulled.size()
+	var split := BoxShop.split_open(bag, pet_box_order(), mini(count, WORKER_BOXES_MAX))
+	for box_id in split:
+		var pulled := open_boxes(box_id, int(split[box_id]), "", true)
+		if not pulled.is_empty():
+			opened += int(split[box_id])
 		for pet in pulled:
 			if is_good_pull(pet):
 				pinned.append(pet.uid)
@@ -2254,6 +2304,8 @@ func save_game() -> void:
 		"automation": automation,
 		"coin_reserve": coin_reserve,
 		"saved_boxes": saved_boxes.keys(),
+		"boxes_bought": boxes_bought,
+		"boxes_greeted": boxes_greeted.keys(),
 		"visited": visited.keys(),
 		"buying_on": buying_on,
 		"pinned": pinned,
@@ -2281,6 +2333,7 @@ func load_game() -> bool:
 		_can_save = false
 	var from_version := int(data.get("version", 1))
 	data = _migrate(data)
+	BoxShop.fix_retired(data)  # not tied to a version: lucky boxes on the pile or on a trip turn into sunset boxes
 	coins = int(data.get("coins", coins))
 	xp = int(data.get("xp", 0))
 	hunger = data.get("hunger", hunger)
@@ -2373,6 +2426,13 @@ func load_game() -> bool:
 	saved_boxes.clear()
 	for id in data.get("saved_boxes", []):
 		saved_boxes[str(id)] = true
+	boxes_bought.clear()
+	var bought: Dictionary = data.get("boxes_bought", {})
+	for id in bought:
+		boxes_bought[str(id)] = int(bought[id])
+	boxes_greeted.clear()
+	for id in data.get("boxes_greeted", []):
+		boxes_greeted[str(id)] = true
 	buying_on = bool(data.get("buying_on", true))
 	pinned.assign(data.get("pinned", []).filter(func(uid): return collection.get_pet(str(uid)) != null).map(func(uid): return str(uid)))
 	idle_log = data.get("idle_log", {})
@@ -2529,6 +2589,8 @@ func _migrate(data: Dictionary) -> Dictionary:
 			a.taught["boxes"] = true
 			a.task = "boxes" if bool(data.get("packs_on", true)) else ""
 			data.automation = a
+	# v23 added box tiers (boxes_bought, boxes_greeted) and retired the lucky box: BoxShop.fix_retired
+	# (load_game) handles both for any save, whatever its version
 	if version < 7:
 		# v7: dungeon places open one rumour at a time; saves that had the dungeons keep them all
 		var had: Array = data.get("unlocks", [])

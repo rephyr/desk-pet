@@ -47,6 +47,8 @@ var _type_by_id := {}
 var _location_by_id := {}
 var _rumour_by_id := {}
 var _job_by_id := {}
+var _box_rank := {}  # box id -> its place among the shop's boxes (see box_rank)
+var _parts_in_cache := {}  # "slot|tier|box rank" -> parts_in's answer (catalog data never changes)
 
 
 static func shared() -> Catalog:
@@ -73,6 +75,9 @@ func _init() -> void:
 	_trait_by_id = _index(traits)
 	boxes.assign(_load("boxes.json").boxes)
 	_box_by_id = _index(boxes)
+	for b in boxes:
+		if not b.get("hidden", false):
+			_box_rank[b.id] = _box_rank.size()
 	reveal = _load("reveal.json")
 	sounds = _load("sounds.json")
 	var adventures := _load("adventures.json")
@@ -136,6 +141,46 @@ func parts_of_tier(slot: String, tier_id: String) -> Array[Dictionary]:
 	for p in slots[slot]:
 		if p.rarity == tier_id:
 			out.append(p)
+	return out
+
+
+## The parts of a tier that can come out of this box: parts with a "from" box only come out of
+## that box tier or a later one (new looks to collect in the better boxes). Cached: don't change
+## the array you get back.
+func parts_in(slot: String, tier_id: String, box_id: String) -> Array[Dictionary]:
+	var rank_here := box_rank(box_id)
+	var key := "%s|%s|%d" % [slot, tier_id, rank_here]
+	if not _parts_in_cache.has(key):
+		var out: Array[Dictionary] = []
+		out.assign(parts_of_tier(slot, tier_id).filter(func(p): return not p.has("from") or rank_here >= box_rank(str(p.from))))
+		_parts_in_cache[key] = out
+	return _parts_in_cache[key]
+
+
+## Where a box sits among the boxes sold in the shop (0 = the first); hidden and unknown boxes
+## count as the first.
+func box_rank(box_id: String) -> int:
+	return _box_rank.get(box_id, 0)
+
+
+## The boxes the shop can sell, cheapest tier first (whether they're in the shop yet depends on
+## their map page, see GameState.shop_boxes).
+func shop_boxes() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for b in boxes:
+		if not b.get("hidden", false):
+			out.append(b)
+	return out
+
+
+## The parts that only come out of this box or a later one, first come in this very box (its
+## "new looks"), as { slot, id } in slot order.
+func new_looks(box_id: String) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for slot in SLOTS:
+		for p in slots[slot]:
+			if str(p.get("from", "")) == box_id:
+				out.append({ "slot": slot, "id": p.id })
 	return out
 
 

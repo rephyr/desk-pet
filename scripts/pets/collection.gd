@@ -28,6 +28,31 @@ static func finish_key(body: String, finish: String) -> String:
 	return "finish:%s:%s" % [body, finish]
 
 
+## A pet's part keys, plus its body+finish key when it has a finish (what "new" tags look at).
+static func look_keys(pet: Pet) -> Array[String]:
+	var out: Array[String] = []
+	for slot in Catalog.SLOTS:
+		out.append(part_key(slot, pet.parts[slot]))
+	if pet.finish != "normal":
+		out.append(finish_key(pet.parts.body, pet.finish))
+	return out
+
+
+## The look keys that came out of this box for the first time: call once the box's pets are in.
+## A key is new when every time it was ever seen is a pet from this box (two pets in one box
+## sharing a look you'd never had still count as new).
+func new_keys(box_pets: Array[Pet]) -> Dictionary:
+	var in_box := {}
+	for p in box_pets:
+		for key in look_keys(p):
+			in_box[key] = int(in_box.get(key, 0)) + 1
+	var out := {}
+	for key in in_box:
+		if times_seen(key) <= in_box[key]:
+			out[key] = true
+	return out
+
+
 func add(new_pets: Array[Pet]) -> void:
 	for pet in new_pets:
 		pet.uid = str(_next_id)

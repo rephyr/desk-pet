@@ -91,13 +91,13 @@
 		},
 		{
 			"id": "cellar", "type": "dungeon", "page": "beyond", "name": "the cellar", "minutes": 90,
-			"difficulty": 2.0, "danger": 1.3, "loot": 1.6, "box": "lucky",
+			"difficulty": 2.0, "danger": 1.3, "loot": 1.6, "box": "sunset",
 			"events": ["dark", "door", "rope"],
 			"map": { "x": 3.5, "y": -2.2, "doodle": "door", "note": "knock knock" }
 		},
 		{
 			"id": "below", "type": "dungeon", "page": "beyond", "name": "further down", "minutes": 120,
-			"difficulty": 2.5, "danger": 1.7, "loot": 2.4, "box": "lucky",
+			"difficulty": 2.5, "danger": 1.7, "loot": 2.4, "box": "sunset",
 			"events": ["door", "dark", "thing", "door"],
 			"map": { "x": 4.3, "y": -3.0, "doodle": "stairs", "note": "…" }
 		}

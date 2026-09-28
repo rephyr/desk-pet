@@ -28,6 +28,14 @@ knows the UI exists; state changes are announced with signals (`GameState.change
 - `PetRoller` rolls pets like card packs: the rarity is rolled once with the box odds, one
   "signature" part gets that rarity, the others roll at or below it. The finish is a separate
   roll. So the odds shown on a box are exactly what you get (checked by `tests/test_core.gd`).
+  Box tiers: `PetRoller.roll_box` rolls a box's `pets` [min, max]; parts come from
+  `Catalog.parts_in(slot, tier, box)` (a part with `from` only rolls from that shop box or a later
+  one; `Rewards.roll_part` does the same with a place's box). `BoxShop` (scripts/pets) holds the
+  tier rules tests can reach: `open_tiers` (a tier is in the shop once its map page is open),
+  `split_open` (workers open N boxes, not N pets), `best_first`, and `fix_retired` (lucky boxes).
+  `Catalog.parts_in` and `box_rank` are cached (catalog data never changes after loading);
+  box workers open at most `GameState.WORKER_BOXES_MAX` boxes at once.
+  `GameState.shop_boxes / stash_boxes / box_is_new / boxes_bought / boxes_greeted`.
 - `Collection` owns the pets, the active pet and the book counts (`part:<slot>:<id>`,
   `finish:<body>:<finish>`).
 - `PetLook` is the placeholder art (pixel maps in code). Real art replaces `PetLook` only;
@@ -93,6 +101,11 @@ saves (and the test saves) keep what their migrations gave them. Save v21 moves 
 into automation: a save with the cushion gets the automation tab and the boxes job (doing it if it was on).
 Save v22 adds `gear` (older saves start with none; loading drops unknown gear and clamps levels);
 runs save the gear they packed and the leaf's saves (`RunState.gear`, `saves_used`).
+Save v23 retires the lucky box and adds box tiers. `BoxShop.fix_retired` runs on every load,
+whatever the save's version (idempotent): lucky boxes on the pile, "save for me" and loot of runs
+still out (also pre-v5 runs' `boxes`) become sunset boxes, and unknown box ids are dropped from the
+bag. New fields `boxes_bought` (a tier is "new!" until the first) and `boxes_greeted` (its arrival
+played); a save without them counts what's on the pile as bought and greeted.
 
 ## Testing
 

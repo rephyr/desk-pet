@@ -6,6 +6,7 @@ extends RefCounted
 const DOODLE_COLORS := {
 	"house": "pink", "grass": "mint", "trees": "mint", "hill": "mint", "apple": "pink",
 	"pond": "cyan", "stream": "cyan", "hut": "cyan", "well": "lilac", "door": "lilac", "stairs": "lilac",
+	"fence": "lilac", "moon": "lilac",
 }
 
 
@@ -112,5 +113,22 @@ static func doodle(ci: CanvasItem, kind: String, at: Vector2, k: float, color: C
 				points.append(at + Vector2(-s + i * s * 0.55, -s * 0.6 + i * s * 0.45))
 				points.append(at + Vector2(-s + (i + 1) * s * 0.55, -s * 0.6 + i * s * 0.45))
 			line(ci, points, color, 3.0, seed)
+		"fence":  # beyond the fence (the sunset box's stamp)
+			for i in 3:
+				var x := (i - 1) * s * 0.66
+				line(ci, [at + Vector2(x - s * 0.22, s * 0.8), at + Vector2(x - s * 0.22, -s * 0.5), at + Vector2(x, -s * 0.8),
+					at + Vector2(x + s * 0.22, -s * 0.5), at + Vector2(x + s * 0.22, s * 0.8)], color, 3.0, seed + i)
+			for y in [-s * 0.1, s * 0.45]:
+				line(ci, [at + Vector2(-s * 1.05, y), at + Vector2(s * 1.05, y - s * 0.03)], color, 2.0, seed + 7 + int(y))
+		"moon":  # next door, at night (the midnight box's stamp)
+			var points := []
+			for i in 15:
+				var a := deg_to_rad(50.0 + 260.0 * i / 14.0)
+				points.append(at + Vector2(cos(a), sin(a)) * s * 0.8)
+			for i in 15:
+				var a := deg_to_rad(280.5 - 201.0 * i / 14.0)
+				points.append(at + Vector2(s * 0.4, 0) + Vector2(cos(a), sin(a)) * s * 0.624)
+			line(ci, points, color, 3.0, seed)
+			circle(ci, at + Vector2(s * 0.75, -s * 0.55), s * 0.1, Vector2.ONE, UiTheme.GOLD, 2.0, seed + 1)
 		_:
 			circle(ci, at, s * 0.7, Vector2.ONE, color, 3.0, seed)

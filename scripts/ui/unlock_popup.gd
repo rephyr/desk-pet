@@ -17,6 +17,7 @@ var _title := UiTheme.title("", 22)
 var _text := UiTheme.label("", UiTheme.TEXT, UiTheme.SMALL + 2)
 var _buttons := HBoxContainer.new()
 var _showing := false
+static var up := false  # a card is up (other things that pop, like a new box tier arriving, wait for it)
 
 
 func _init() -> void:
@@ -81,6 +82,7 @@ func _show(entry: Dictionary) -> void:
 	lovely.add_theme_constant_override("icon_max_width", 14)
 	_buttons.add_child(lovely)
 	_showing = true
+	up = true
 	visible = true
 	# centre the card, then pop it in
 	var holder := _card.get_parent() as Control
@@ -96,4 +98,10 @@ func _show(entry: Dictionary) -> void:
 
 func _close() -> void:
 	_showing = false
+	up = false
 	visible = false
+
+
+func _exit_tree() -> void:
+	if _showing:
+		up = false  # freed while up (a look change rebuilds the panel): the new one starts clear

@@ -11,6 +11,7 @@ var _portrait := PetPortrait.new(6, true)
 var _name := UiTheme.title("", 24)
 var _tags := HBoxContainer.new()
 var _news := HFlowContainer.new()
+var _also := HBoxContainer.new()  # "also inside": the other pets from the same box
 var _again: Button
 var _again_price := UiTheme.label("", UiTheme.CYAN, UiTheme.SMALL)
 var _active: Button
@@ -38,6 +39,9 @@ func _init() -> void:
 	_news.add_theme_constant_override("h_separation", 5)
 	_news.add_theme_constant_override("v_separation", 5)
 	col.add_child(_news)
+	_also.alignment = BoxContainer.ALIGNMENT_CENTER
+	_also.add_theme_constant_override("separation", 6)
+	col.add_child(_also)
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(0, 6)
 	col.add_child(gap)
@@ -76,7 +80,7 @@ func _two_line_button(text: String, small: Label, on_pressed: Callable) -> Butto
 	return b
 
 
-func show_pet(pet: Pet, box_id: String) -> void:
+func show_pet(pet: Pet, box_id: String, also: Array[Pet] = []) -> void:
 	_pet = pet
 	_box_id = box_id
 	var catalog := Catalog.shared()
@@ -93,7 +97,10 @@ func show_pet(pet: Pet, box_id: String) -> void:
 	if f.id != "normal":
 		_tags.add_child(UiTheme.tag(f.name, UiTheme.GOLD))
 	UiTheme.clear(_news)
-	for part in new_parts(pet):
+	var box_pets: Array[Pet] = [pet]
+	box_pets.append_array(also)
+	var fresh := GameState.collection.new_keys(box_pets)
+	for part in new_parts(pet, fresh):
 		var row := HBoxContainer.new()
 		row.add_theme_constant_override("separation", 5)
 		row.add_child(UiTheme.label("new", UiTheme.GOLD, UiTheme.SMALL))
@@ -105,20 +112,64 @@ func show_pet(pet: Pet, box_id: String) -> void:
 		t.add_theme_stylebox_override("panel", sb)
 		t.add_child(row)
 		_news.add_child(t)
+	UiTheme.clear(_also)
+	_also.visible = not also.is_empty()
+	if not also.is_empty():
+		var words := UiTheme.label("also inside", UiTheme.MUTED, UiTheme.SMALL)
+		words.size_flags_vertical = SIZE_SHRINK_CENTER
+		_also.add_child(words)
+		var shown := {}  # a new look shows once: on the best pet, else on the first other pet with it
+		for key in Collection.look_keys(pet):
+			shown[key] = true
+		for other in also:
+			var news: Array[String] = []
+			for key in Collection.look_keys(other):
+				if fresh.has(key) and not shown.has(key):
+					shown[key] = true
+					news.append(_key_name(key))
+			_also.add_child(_small_pet(other, news))
 	_refresh_buttons()
 
 
-## Names of this pet's parts (and body+finish) that had never been pulled before it.
-static func new_parts(pet: Pet) -> Array[String]:
+## A little framed portrait of another pet from the box, its name on hover. A pet bringing a look
+## you'd never had gets a gold frame, the looks listed under its name.
+func _small_pet(pet: Pet, news: Array[String] = []) -> PanelContainer:
 	var catalog := Catalog.shared()
-	var collection := GameState.collection
+	var color := catalog.tier_color(pet.rarity)
+	var frame := PanelContainer.new()
+	var edge := UiTheme.GOLD if not news.is_empty() else color.lerp(UiTheme.LINE, 0.3)
+	frame.add_theme_stylebox_override("panel", UiTheme.box(UiTheme.DEEP, edge, 8, 2, 3))
+	frame.tooltip_text = "%s (%s)" % [pet.display_name(catalog), catalog.tier_at(catalog.rank(pet.rarity)).name]
+	for n in news:
+		frame.tooltip_text += "\nnew " + n
+	frame.mouse_filter = MOUSE_FILTER_STOP
+	var portrait := PetPortrait.new(2)
+	portrait.set_pet(pet)
+	portrait.mouse_filter = MOUSE_FILTER_IGNORE
+	frame.add_child(portrait)
+	return frame
+
+
+## Names of this pet's parts (and body+finish) that had never been pulled before its box
+## (`fresh` from new_keys; left out, the pet counts as a box of its own).
+static func new_parts(pet: Pet, fresh = null) -> Array[String]:
+	var keys: Dictionary = fresh if fresh is Dictionary else GameState.collection.new_keys([pet])
 	var out: Array[String] = []
-	for slot in Catalog.SLOTS:
-		if collection.times_seen(Collection.part_key(slot, pet.parts[slot])) == 1:
-			out.append("%s %s" % [catalog.part(slot, pet.parts[slot]).name, slot])
-	if pet.finish != "normal" and collection.times_seen(Collection.finish_key(pet.parts.body, pet.finish)) == 1:
-		out.append("%s %s" % [catalog.finish(pet.finish).name, catalog.part("body", pet.parts.body).name])
+	for key in Collection.look_keys(pet):
+		if keys.has(key):
+			out.append(_key_name(key))
 	return out
+
+
+## "fox body", "holo blob": what a new key is called on the card.
+static func _key_name(key: String) -> String:
+	var catalog := Catalog.shared()
+	var bits := key.split(":")
+	if bits.size() != 3:
+		return key
+	if bits[0] == "finish":
+		return "%s %s" % [catalog.finish(bits[2]).name, catalog.part("body", bits[1]).name]
+	return "%s %s" % [catalog.part(bits[1], bits[2]).name, bits[1]]
 
 
 func _refresh_buttons() -> void:

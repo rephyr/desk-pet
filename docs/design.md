@@ -96,7 +96,19 @@ its parts and finish together.
 
 - Bought with coins, found on adventures, given as check-in rewards. Never sold for money.
   **Decided**
-- Different box types have different odds (starter box, part-focused boxes, boss boxes).
+- **Box tiers, one per map page** (B1, built): the **sunny box** (the backyard, 50 coins, 1 pet),
+  the **sunset box** (beyond the fence, 400, 2-3 pets) and the **midnight box** (next door, 3200,
+  2-3 pets; data only until that page exists). A tier comes into the shop when its map page opens,
+  pops in with a sparkle once while your pet says so, and wears a gold "new!" tag until you buy
+  one. Each tier up has better rarity odds, more traits, a finish the one below doesn't
+  (sunny: shiny, holo, ghost; sunset adds glitch; midnight adds prismatic) and **new looks**: parts
+  that only come out of that tier or a better one (sunset: fox, stars, gold; midnight: dragon,
+  halo, midnight), also on trips (a place's box decides its parts). The lucky box is retired
+  (old saves' lucky boxes are sunset boxes). The counter shows each tier's map-page stamp, its
+  new looks as tiny stickers and how many pets are inside as little shapes (the maybe-3rd one
+  fainter). One box with 2-3 pets: the ritual for the best, the others "also inside" on the
+  result card. Your pet's job card has a switch per tier (on: it opens them, off: saved for you).
+  Numbers in data/boxes.json are placeholders.
 - The odds are always visible in game.
 - **Opening one box** (the first hours are all about this moment, so it gets a real ritual).
   **Decided**

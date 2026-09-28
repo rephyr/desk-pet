@@ -137,7 +137,7 @@ func _refresh_tabs() -> void:
 	for tab_id in _tabs:
 		var news := false
 		match tab_id:
-			"boxes": news = GameState.bag.values().any(func(n): return int(n) > 0)
+			"boxes": news = GameState.box_news()
 			"adventures": news = back
 		spine.set_tab_state(tab_id, tab_id in shown and not GameState.tab_hidden(tab_id), not GameState.tab_open(tab_id), news)
 		spine.tab_button(tab_id).tooltip_text = GameState.tab_hint(tab_id)
@@ -204,7 +204,7 @@ func _refresh() -> void:
 	(_xp.find_child("Amount", true, false) as Label).text = _thousands(GameState.xp)
 	bubble.visible = GameState.collection.active() != null
 	# news dots: boxes waiting in the bag, trips waiting for you
-	spine.set_news("boxes", GameState.bag.values().any(func(n): return int(n) > 0))
+	spine.set_news("boxes", GameState.box_news())
 	spine.set_news("adventures", GameState.runs.any(func(r: RunState): return r.status != RunState.Status.WALKING))
 
 

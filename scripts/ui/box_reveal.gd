@@ -2,6 +2,7 @@ class_name BoxReveal
 extends VBoxContainer
 ## Shows what came out of the boxes. One pet: a card flip with a glow that hints at the rarity
 ## and a longer build-up for rare pulls. Many pets: cards pop in one by one, then a summary.
+## Boxes and pets are counted apart: 10 sunset boxes are 10 boxes ("open 10 more") but 25 pets.
 
 const MAX_CARDS := 60  # beyond this, the summary just counts them
 const BASE_SUSPENSE := 0.5
@@ -16,7 +17,7 @@ var _title := UiTheme.title("", 22)
 var _best := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL + 1)
 var _counts := HBoxContainer.new()
 var _actions := HBoxContainer.new()
-var _count := 0
+var _count := 0  # boxes opened this time (what "open N more" opens again)
 var _again: Button
 var _can := 0  # boxes left on the pile, for "open N more"
 var _stage: Control
@@ -50,11 +51,13 @@ func _init() -> void:
 	add_child(_actions)
 
 
-func play(pets: Array[Pet]) -> void:
+## Plays what came out of `boxes` boxes (0: one box per pet).
+func play(pets: Array[Pet], boxes := 0) -> void:
 	if _tween:
 		_tween.kill()
 	_skip = false
 	UiTheme.clear(_stage)
+	_count = boxes if boxes > 0 else pets.size()
 	if pets.size() == 1:
 		_play_single(pets[0])
 	elif not pets.is_empty():
@@ -131,8 +134,7 @@ func _play_many(pets: Array[Pet]) -> void:
 		pad.add_theme_constant_override("margin_" + side, 6)
 	pad.add_child(flow)
 	scroll.add_child(pad)
-	_count = pets.size()
-	_title.text = "opening %d boxes…" % pets.size()
+	_title.text = "opening %d boxes…" % _count
 	_best.text = ""
 	UiTheme.clear(_counts)
 	UiTheme.clear(_actions)
@@ -187,15 +189,7 @@ func set_can_open(can: int) -> void:
 
 ## Rarest first, then by finish.
 static func _best_first(pets: Array[Pet]) -> Array[Pet]:
-	var catalog := Catalog.shared()
-	var sorted := pets.duplicate()
-	sorted.sort_custom(func(a: Pet, b: Pet):
-		var ra := catalog.rank(a.rarity)
-		var rb := catalog.rank(b.rarity)
-		if ra != rb:
-			return ra > rb
-		return catalog.finish_rank(a.finish) > catalog.finish_rank(b.finish))
-	return sorted
+	return BoxShop.best_first(pets, Catalog.shared())
 
 
 func _on_stage_input(event: InputEvent) -> void:
