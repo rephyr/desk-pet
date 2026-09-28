@@ -3,6 +3,9 @@
 Built from docs/plans/C2.md, picks.md (C2/F3 in "Brainstorm 2 picks", "Look picks, round 2") and the
 mockup past-the-edge.html look A (the tucked page, the classroom). On top of C1's herd.
 
+**Status: VERIFIED 2026-09-29** (tests, balance and all flows pass; edge + school flows checked with
+`expect fits`). Save v24 on this lane, renumber at the merge.
+
 ## What was built
 
 - **The edge (adventures tab, beyond-the-fence page).** Hidden until earned: unlock `edge` opens
