@@ -29,12 +29,17 @@ extends Node
 ##   coins <n>             you have exactly n coins
 ##   tool <id> [levels]    levels of an errand tool (data/errands.json "tools"), for free
 ##   next-prize <id>       the next capsule from the machine is this prize (e.g. toy, golden)
-##   teach <job>           your pet knows an automation job (data/automation.json), for free
+##   teach <job> [others]  your pet knows an automation job (data/automation.json), for free
+##                         (others: the other pets know it too, the workers page has it)
 ##   task <job | none>     your pet does that automation job (or nothing)
 ##   auto-tool <id> [n]    levels of an automation tool, for free
 ##   crank <n>             your pet's own machine gives n capsules right away
 ##   unlock <id>           opens that unlock id straight away (e.g. feature:packs), no popup
-##   spots <job> <n>       n more machines (tables, parties) for a job's workers, for free
+##   spots <job> <n>       n more machines (tables, parties) for a job's workers, for free, past
+##                         the caps too (a save from before the caps; the whistle flow's crowd)
+##   workers <job> <n>     n more spots for a job, for free (up to what's out there), with resting
+##                         pets put on them
+##   manage <n>            the whistle checks on everyone n times right now (your pet managing)
 ##   xp <n>                you have exactly n xp
 ##   gear <id> [levels]    levels of a gear upgrade (data/gear.json), for free
 ##   quit                  done (it also quits at the end of the file)
@@ -192,10 +197,12 @@ func _step(w: PackedStringArray) -> String:
 			GameState.grant({ "bit:" + w[1]: int(w[2]) })
 		"next-prize":  # next-prize <id>: the next capsule is this prize (data/machine.json)
 			GameState.debug_next_prize = w[1]
-		"teach":  # teach <job>: your pet knows that automation job, for free
+		"teach":  # teach <job> [others]: your pet knows that automation job, for free (others: the workers too)
 			if Automation.job(GameState.catalog, w[1]).is_empty():
 				return "unknown job %s" % w[1]
 			GameState.automation.taught[w[1]] = true
+			if w.size() > 2 and w[2] == "others":
+				GameState.automation.others[w[1]] = true
 			GameState.check_unlocks()
 			GameState.automation_changed.emit()
 			GameState.changed.emit()
@@ -212,12 +219,16 @@ func _step(w: PackedStringArray) -> String:
 			GameState._pet_cranks(int(w[1]))
 		"unlock":  # unlock <id>: opens it (no popup: what earns it is skipped)
 			GameState.unlock(w[1])
-		"spots":  # spots <job> <n>: more spots for a job's workers, for free
-			GameState.automation.spots[w[1]] = Automation.spots(GameState.automation, w[1]) + int(w[2])
-			if w[1] == "adventures":
-				while GameState.automation.parties.size() < Automation.spots(GameState.automation, w[1]):
-					GameState.automation.parties.append({ "place": "", "n": 0 })
+		"spots":  # spots <job> <n>: more spots for a job's workers, for free, past the caps too (like an old save)
+			GameState._add_spots(w[1], int(w[2]))
 			GameState.automation_changed.emit()
+		"manage":  # manage <n>: the whistle checks on everyone n times now (your pet must be managing)
+			GameState._hold_saves = true
+			GameState._whistle_checks(int(w[1]))
+			GameState._release_saves()
+		"workers":  # workers <job> <n>: n more spots for a job, for free (never past the caps), and resting pets on them
+			GameState._add_spots(w[1], mini(int(w[2]), GameState.spot_room(w[1])))
+			GameState.put_workers(w[1], -1)
 		"xp":  # xp <n>: you have exactly n xp
 			GameState.xp = int(w[1])
 			GameState.changed.emit()

@@ -50,7 +50,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `ErrandToolsView`, the pegboard of tools bought with coins; rules in `Jobs`, levels in
   `GameState.errand_tools`), `AutomationTab` (a card per job your pet can do, `JobScene` draws each one; rules in
   `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:
-  `WorkerCard` / `WorkerSpot`, `GameState.put_workers` / `buy_spots` / `teach_others`), `InventoryTab`
+  `WorkerCard` / `WorkerSpot`, `GameState.put_workers` / `buy_spots` / `teach_others`; the whistle page: `Clipboard`,
+  `TodoRow`, `Tick`, `TinyCrowd`, rules in `Automation.whistle_plan` / `exist` / `checks`, applied by
+  `GameState._whistle_checks`, caps via `GameState.spot_room`), `InventoryTab`
   (the bag and sewing) and `SettingsTab` (general and video pages).
   Tabs can be locked or hidden until something opens them (`data/unlocks.json`).
 - The full game is laid out at 920x600 (`home.gd` `EXPANDED_SIZE`) and scaled to the chosen

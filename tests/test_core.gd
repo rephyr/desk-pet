@@ -32,6 +32,7 @@ func _init() -> void:
 	_test_machine(catalog)
 	_test_toys(catalog)
 	_test_automation(catalog)
+	_test_whistle(catalog)
 	_test_unlocks(catalog)
 	_test_gear(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
@@ -656,7 +657,7 @@ func _test_unlocks(catalog: Catalog) -> void:
 		_check(entry.show in ["locked", "hidden"], "unlock %s is shown locked or hidden" % entry.id)
 		for o in entry.opens:
 			var bits := str(o).split(":")
-			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures"]) or (bits[0] == "page" and bits[1] in page_ids) \
+			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "whistle"]) or (bits[0] == "page" and bits[1] in page_ids) \
 				or (bits[0] == "job" and catalog.jobs.any(func(j): return str(j.get("needs", "")) == o))
 			_check(ok, "unlock %s opens something real (%s)" % [entry.id, o])
 		if entry.earn.has("find"):
@@ -796,6 +797,127 @@ func _test_automation(catalog: Catalog) -> void:
 	_check(Automation.worker_seconds(catalog, w, "machine") < base, "grease makes the workers' machines faster")
 	_check(is_equal_approx(Automation.crank_seconds(catalog, w), Automation.crank_seconds(catalog, Automation.fresh()) / (1.0 + 0.1 * int(w.tools.get("crank", 0)))),
 		"the workers' tools don't speed up your pet")
+
+
+## The whistle (automation layer 2): spot prices flatten, how many spots exist grows with the map,
+## and your pet's checks haul spots home (never under set aside, cheapest first) and fill them.
+func _test_whistle(catalog: Catalog) -> void:
+	# flattened spot prices: the one-go sum matches adding them up, and spot 1000 is still a price
+	for id in ["machine", "boxes", "adventures"]:
+		var spot: Dictionary = Automation.job(catalog, id).spot
+		_check(spot.has("flat_at") and spot.has("grow_late"), "%s spots flatten" % id)
+		for have in [0, 5, int(spot.flat_at) - 3, int(spot.flat_at) + 10]:
+			var sum := 0.0
+			for i in 100:
+				sum += Jobs.tool_cost(spot, have + i, 1)
+			var one_go := float(Jobs.tool_cost(spot, have, 100))
+			_check(absf(one_go - sum) <= maxf(100.0, sum * 1e-9), "100 %s spots from %d cost them added up (%s vs %s)" % [id, have, one_go, sum])
+		var far := 100 if spot.has("per_place") else 1000  # parties: one per place, never thousands
+		var late := Jobs.tool_cost(spot, far, 1)
+		_check(late > 0 and late < roundi(Jobs.MAX_PRICE), "spot %d for %s has a real price (%s)" % [far, id, late])
+		var f := int(spot.flat_at)
+		_check(float(Jobs.tool_cost(spot, f + 1, 1)) / Jobs.tool_cost(spot, f, 1) < float(Jobs.tool_cost(spot, 2, 1)) / Jobs.tool_cost(spot, 1, 1),
+			"%s spots grow slower past %d" % [id, f])
+	_check(Jobs.tool_cost(Automation.job(catalog, "machine").spot, 0, 0) == 0, "no spots cost nothing")
+	# how many exist: each open page adds more; parties one per open place
+	var st := Automation.fresh()
+	var one := Automation.exist(catalog, "machine", ["backyard"], 6)
+	var two := Automation.exist(catalog, "machine", ["backyard", "beyond"], 11)
+	_check(one > 0 and two > one, "a new map page means more machines out there (%d, %d)" % [one, two])
+	_check(Automation.exist(catalog, "adventures", ["backyard"], 6) == 6 and Automation.exist(catalog, "adventures", ["backyard"], 9) == 9,
+		"one party per open place")
+	st.spots.machine = one + 5
+	_check(Automation.out_there(catalog, st, "machine", ["backyard"], 6) == 0, "a save with more than exist keeps them, none left out there")
+	st.spots.machine = 3
+	_check(Automation.out_there(catalog, st, "machine", ["backyard"], 6) == one - 3, "out there = exist - home")
+	_check(Automation.affordable(catalog, st, "machine", 1 << 60, 7) == 7, "buying as many as you can stops at what's out there")
+	var price3 := Jobs.tool_cost(Automation.job(catalog, "machine").spot, 3, 3)
+	_check(Automation.affordable(catalog, st, "machine", price3, 1000) == 3, "as many as you can afford, found by halving")
+	# checks: every check_seconds, faster with the pencil
+	var w := Automation.fresh()
+	var every := Automation.check_seconds(catalog, w)
+	_check(Automation.checks(catalog, w, every * 2.5) == 2 and Automation.checks(catalog, w, every * 0.5) == 1, "the whistle checks every %ss (and keeps the rest)" % every)
+	w.tools.pencil = 5
+	_check(Automation.check_seconds(catalog, w) < every, "a sharper pencil checks faster")
+	_check(Automation.haul_size(catalog, w) == 1, "it hauls one a check")
+	w.tools.wagon = 1
+	_check(Automation.haul_size(catalog, w) == 2, "a bigger wagon hauls two")
+	# the plan: nothing unless your pet is managing
+	w.taught = { "machine": true, "boxes": true, "whistle": true }
+	w.others = { "machine": true, "boxes": true }
+	w.spots = { "machine": 10, "boxes": 0 }
+	w.workers = { "machine": ["a", "b"] }
+	var jobs := ["machine", "boxes"]
+	var rooms := { "machine": 50, "boxes": 20 }
+	var rich := 1 << 50
+	w.task = "machine"
+	var idle := Automation.whistle_plan(catalog, w, jobs, rich, rooms, 100, 5)
+	_check(idle.buys.is_empty() and idle.fill.is_empty(), "the whistle does nothing while your pet does another job")
+	w.task = "whistle"
+	var plan := Automation.whistle_plan(catalog, w, jobs, rich, rooms, 100, 1)
+	var bought := 0
+	for id in plan.buys:
+		bought += int(plan.buys[id])
+	_check(bought == 2, "with the wagon a check hauls two home (%d)" % bought)
+	var m_next := Jobs.tool_cost(Automation.job(catalog, "machine").spot, 10, 1)
+	var t_next := Jobs.tool_cost(Automation.job(catalog, "boxes").spot, 0, 1)
+	var cheap := "machine" if m_next < t_next else "boxes"
+	var solo := Automation.whistle_plan(catalog, w.merged({ "tools": { "wagon": 0 } }), jobs, rich, rooms, 100, 1)
+	_check(solo.buys.keys() == [cheap], "the cheapest spot comes home first (%s)" % [solo.buys])
+	_check(int(plan.fill.get("machine", 0)) == 10 + int(plan.buys.get("machine", 0)) - 2, "empty machines get resting pets (%s)" % [plan.fill])
+	var keep := Automation.keep(catalog, w)
+	var tight := Automation.whistle_plan(catalog, w, jobs, keep + mini(m_next, t_next) - 1, rooms, 0, 50)
+	_check(tight.buys.is_empty() and tight.spent == 0, "the whistle never spends the coins set aside")
+	var some := keep + mini(m_next, t_next) * 3
+	var spent := Automation.whistle_plan(catalog, w, jobs, some, rooms, 0, 50)
+	_check(spent.spent > 0 and some - int(spent.spent) >= keep, "it spends down to set aside, no further")
+	w.whistle.ticks = { "machine": { "haul": false, "fill": false }, "boxes": { "haul": false, "fill": false } }
+	var off := Automation.whistle_plan(catalog, w, jobs, rich, rooms, 100, 5)
+	_check(off.buys.is_empty() and off.fill.is_empty(), "ticked off, nothing happens")
+	_check(Automation.whistle_plan(catalog, w, jobs, rich, rooms, 100, 0).buys.is_empty(), "no checks, nothing happens")
+	w.whistle.ticks = {}
+	_check(Automation.whistle_plan(catalog, w, jobs, rich, { "machine": 0, "boxes": 0 }, 0, 5).buys.is_empty(), "nothing left out there, nothing hauled")
+	# set aside steps
+	var k := Automation.fresh()
+	var start := Automation.keep(catalog, k)
+	k.whistle.keep = Automation.keep_step(catalog, k, 1)
+	_check(Automation.keep(catalog, k) > start, "+ sets more aside")
+	k.whistle.keep = Automation.keep_step(catalog, k, -1)
+	_check(Automation.keep(catalog, k) == start, "− goes back a step")
+	k.whistle.keep = 0
+	_check(Automation.keep_step(catalog, k, -1) == 0, "set aside never goes under 0")
+	# the whistle turns up at the old well once you have enough workers, and only once
+	var well := catalog.location("well")
+	var e: Dictionary = catalog.events.get("well_whistle", {})
+	_check(e.get("find", "") == "whistle" and int(e.get("after_workers", 0)) > 0, "the whistle is a find that waits for workers")
+	var need := int(e.get("after_workers", 0))
+	_check(not "well_whistle" in AdventureRunner.pick_events(well, 1, {}, catalog, {}, need - 1), "no whistle with %d workers" % (need - 1))
+	_check("well_whistle" in AdventureRunner.pick_events(well, 1, {}, catalog, {}, need), "the whistle with %d workers" % need)
+	_check(not "well_whistle" in AdventureRunner.pick_events(well, 1, { "whistle": true }, catalog, {}, need), "found once, gone")
+	_check(Automation.job(catalog, "whistle").get("id", "") == "whistle" and Automation.tool(catalog, "wagon").get("job", "") == "whistle",
+		"the whistle is a job with its own tools")
+	_check(Automation.tool_block(Automation.fresh(), Automation.tool(catalog, "pencil")) == "closed", "its tools wait for the whistle")
+	# parties get their pets set aside before the machines take everyone
+	var p := Automation.fresh()
+	p.task = "whistle"
+	p.taught = { "machine": true, "adventures": true, "whistle": true }
+	p.others = { "machine": true, "adventures": true }
+	p.spots = { "machine": 60, "adventures": 2 }
+	p.workers = { "machine": [], "adventures": ["", ""] }
+	var size := int(Automation.job(catalog, "adventures").get("party", 3))
+	var pjobs := ["machine", "adventures"]
+	var fill := Automation.whistle_plan(catalog, p, pjobs, 0, { "machine": 0, "adventures": 0 }, 40, 1)
+	_check(int(fill.fill.get("adventures", 0)) == 2 and int(fill.fill.get("machine", 0)) == 40 - 2 - 2 * size,
+		"empty parties get leaders and their pets stay free (%s)" % [fill.fill])
+	_check(fill.fill.keys()[0] == "adventures", "parties are filled first")
+	var out := Automation.whistle_plan(catalog, p.merged({ "workers": { "machine": [], "adventures": ["a", "b"] } }, true), pjobs, 0, { "machine": 0, "adventures": 0 }, 40, 1, 2)
+	_check(int(out.fill.get("machine", 0)) == 40, "parties that are out took their pets already (%s)" % [out.fill])
+	p.spots = { "machine": 0, "adventures": 0 }
+	p.workers = { "adventures": [] }
+	var few := Automation.whistle_plan(catalog, p.merged({ "tools": { "wagon": 0 } }, true), ["adventures"], rich, { "adventures": 5 }, size, 1)
+	_check(few.buys.is_empty(), "no party hauled home without pets to lead it and go (%s)" % [few.buys])
+	var enough := Automation.whistle_plan(catalog, p.merged({ "tools": { "wagon": 0 } }, true), ["adventures"], rich, { "adventures": 5 }, size + 1, 1)
+	_check(int(enough.buys.get("adventures", 0)) == 1, "a party comes home when there's a leader and a crew")
 
 
 ## Allowed difference between expected and rolled odds (about 4 standard deviations).

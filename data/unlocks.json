@@ -1,5 +1,5 @@
 {
-	"_note": "Everything past the basics is opened through adventures. Each unlock has 'earn': every condition must be met ('find': a special item a pet brought home from a trip, see 'finds' and the events that give them; 'first': the first of something, 'part' or 'toy'; 'trips': adventures welcomed back; 'machine': a node on the machine's tree is fixed; 'packs_opened': packs you opened yourself; 'open': another unlock id that must be open already, e.g. 'feature:parts'; 'taught': a job your pet has been taught in the automation tab (data/automation.json); 'job_level': { job id: level } an errand's level, see data/errands.json). 'show' is how it looks until then: 'locked' (a tab with a padlock and the 'hint') or 'hidden' (not there at all). 'opens' is what it turns on: 'tab:<name>', 'feature:<id>' (errands, packs = the automation tab's open boxes job, auto_adventures = its run adventures job, shopping = your pet buys more boxes when the pile runs out, parties) 'page:<id>' (a map page) or 'job:<id>' (an errand, see its 'needs'). 'pet_job': a pet comes with it and starts on that errand. 'announce' is what your active pet says when it opens. 'popup' is the card that pops up then: its 'title', a line of 'text' on what it does, and 'go', the tab its show me button opens (none: just lovely).",
+	"_note": "Everything past the basics is opened through adventures. Each unlock has 'earn': every condition must be met ('find': a special item a pet brought home from a trip, see 'finds' and the events that give them; 'first': the first of something, 'part' or 'toy'; 'trips': adventures welcomed back; 'machine': a node on the machine's tree is fixed; 'packs_opened': packs you opened yourself; 'open': another unlock id that must be open already, e.g. 'feature:parts'; 'taught': a job your pet has been taught in the automation tab (data/automation.json); 'job_level': { job id: level } an errand's level, see data/errands.json). 'show' is how it looks until then: 'locked' (a tab with a padlock and the 'hint') or 'hidden' (not there at all). 'opens' is what it turns on: 'tab:<name>', 'feature:<id>' (errands, packs = the automation tab's open boxes job, auto_adventures = its run adventures job, shopping = your pet buys more boxes when the pile runs out, parties, whistle = your pet manages the workers) 'page:<id>' (a map page) or 'job:<id>' (an errand, see its 'needs'). 'pet_job': a pet comes with it and starts on that errand. 'announce' is what your active pet says when it opens. 'popup' is the card that pops up then: its 'title', a line of 'text' on what it does, and 'go', the tab its show me button opens (none: just lovely).",
 	"unlocks": [
 		{ "id": "boxes", "opens": ["tab:boxes"], "show": "locked", "hint": "something's rusted shut in the capsule machine…",
 			"popup": { "title": "new: boxes!", "text": "boxes have pets inside! buy them with coins and rip them open. your pile of boxes lives here too.", "go": "boxes" },
@@ -45,7 +45,10 @@
 			"earn": { "find": "cushion", "packs_opened": 200, "open": "tab:automation" }, "announce": "a comfy cushion! i could sit here and open boxes for you!" },
 		{ "id": "shopping", "opens": ["feature:shopping"], "show": "hidden",
 			"popup": { "title": "new: your pet buys boxes!", "text": "with the piggy bank, your pet buys more boxes when the pile runs out. it always keeps the coins you set aside.", "go": "boxes" },
-			"earn": { "find": "piggy", "packs_opened": 500 }, "announce": "a piggy bank! now i can buy boxes when the pile runs out! i'll always keep some coins for you ♪" }
+			"earn": { "find": "piggy", "packs_opened": 500 }, "announce": "a piggy bank! now i can buy boxes when the pile runs out! i'll always keep some coins for you ♪" },
+		{ "id": "whistle", "opens": ["feature:whistle"], "show": "hidden",
+			"popup": { "title": "new: the whistle!", "text": "with the whistle, your pet manages the workers: it hauls old machines and tables home from places you've taken, and keeps them full. it always keeps the coins you set aside.", "go": "automation" },
+			"earn": { "find": "whistle", "open": "tab:automation" }, "announce": "tweet! everyone, line up!" }
 	],
 	"finds": [
 		{ "id": "basket", "name": "a little basket" },
@@ -55,7 +58,8 @@
 		{ "id": "hay_wagon", "name": "a hay wagon" },
 		{ "id": "cushion", "name": "a comfy cushion" },
 		{ "id": "piggy", "name": "a piggy bank" },
-		{ "id": "tiny_machine", "name": "a tiny capsule machine" }
+		{ "id": "tiny_machine", "name": "a tiny capsule machine" },
+		{ "id": "whistle", "name": "a tiny whistle" }
 	],
 	"pages": [
 		{ "id": "backyard", "name": "the backyard", "start": true },

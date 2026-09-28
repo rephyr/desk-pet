@@ -325,8 +325,25 @@ see the memory note on the automation tab for the plan.
   party). Workers keep going while the game is closed as long as your pet's stool lets it. Going on
   an adventure or becoming your active pet takes a pet off its spot. Worker tools: grease for
   everyone (machines), sharper cutters (tables).
-- **Open:** spot prices grow fast (placeholders): thousands of workers will need a later layer
-  (pets buying machines, "more machines from conquered places").
+- **The whistle (layer 2, built):** a tiny whistle turns up at the old well once you have 30
+  workers (event `well_whistle`, `after_workers`). It adds a third button, **your pet | workers |
+  whistle**. Managing is your pet's one job (no teach price: the find is enough). Its page is a
+  to-do list on a clipboard (mockup automation-layers.html look A): a row per job taught to the
+  others with how many are home and still out there, a tiny crowd, and two ticks: **haul them
+  home** (parties: **start new ones**) and **keep them full**. Every 10 s your pet checks: it buys
+  the cheapest next spot among the ticked jobs (1 a check, the wagon adds more), never spending
+  under **set aside** (− / +, 250k to start), and puts the best resting pets on empty spots. Parties
+  come first: empty ones get a leader and enough resting pets stay free to go with them before the
+  machines and tables take the rest; a new party goes to an open place that has none, and is only
+  hauled home while someone is free to lead it and go. Tools: a sharper pencil
+  (checks faster), a bigger wagon (hauls more). It keeps checking while the game is closed as long
+  as the stool lets it, after that time's income. The side card says what it did "since you
+  looked".
+- **Lore and caps:** machines and tables are old ones left in places you've taken: each open map
+  page adds how many exist (`spot.exist`, placeholders: backyard 60 / 20, beyond 600 / 200);
+  parties one per open place. Buying by hand stops at the cap too (the +1 button is gone); a save
+  with more keeps them. **Prices flatten** past `flat_at` (each spot grows by `grow_late` instead),
+  so thousands of workers are possible.
 
 ## Risk and crafting
 
