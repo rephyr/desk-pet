@@ -1,0 +1,122 @@
+{
+	"_note": "Sounds, by moment. Files live in assets/sounds/. volume_db: 0 is as made, -6 about half as loud. Pack opening ('pack'): the tear is a recording that follows your hand; everything else is made in LMMS by tools/music/pack_sounds.py (already at the right loudness, so volumes start at 0). 'loops' are the layers PackMusic stacks, in order: air and hum from the rip, then one per rarity step (uncommon..mythic), then 'hold' while you pull the pet out. 'steps' are the chimes for each step up (1 = uncommon), 'reveal' the fanfare per rarity, 'finish' the sparkle for a special finish. The capsule machine ('machine', see MachineTab): made by tools/music/machine_sounds.py (mechanical sounds in numpy, musical ones in LMMS, at the right loudness already). 'tick' is one ratchet notch (pitched up per notch), 'clunk' the lever hitting the bottom, 'spring' it springing back, 'rattle' the capsules in the globe, 'plonk' a capsule dropping out, 'pop' it opening, 'coin' each coin landing on the counter, 'light' a lucky light coming on (pitched up per light), 'prize' a part or xp, 'jackpot' a golden capsule or a box, 'fever' all the lights lit, 'fever_loop' the tune during fever (Music bus).",
+	"pack": {
+		"tear": {
+			"file": "pack/tear.ogg",
+			"volume_db": -2.0
+		},
+		"loops_db": 0.0,
+		"loops": [
+			"pack/loop_air.ogg",
+			"pack/loop_hum.ogg",
+			"pack/loop_uncommon.ogg",
+			"pack/loop_rare.ogg",
+			"pack/loop_epic.ogg",
+			"pack/loop_legendary.ogg",
+			"pack/loop_mythic.ogg",
+			"pack/loop_hold.ogg"
+		],
+		"steps": [
+			{
+				"file": "pack/step_1.ogg",
+				"volume_db": 0.0
+			},
+			{
+				"file": "pack/step_2.ogg",
+				"volume_db": 0.0
+			},
+			{
+				"file": "pack/step_3.ogg",
+				"volume_db": 0.0
+			},
+			{
+				"file": "pack/step_4.ogg",
+				"volume_db": 0.0
+			},
+			{
+				"file": "pack/step_5.ogg",
+				"volume_db": 0.0
+			}
+		],
+		"finish": {
+			"file": "pack/finish.ogg",
+			"volume_db": 0.0
+		},
+		"reveal": {
+			"common": {
+				"file": "pack/reveal_common.ogg",
+				"volume_db": 0.0
+			},
+			"uncommon": {
+				"file": "pack/reveal_uncommon.ogg",
+				"volume_db": 0.0
+			},
+			"rare": {
+				"file": "pack/reveal_rare.ogg",
+				"volume_db": 0.0
+			},
+			"epic": {
+				"file": "pack/reveal_epic.ogg",
+				"volume_db": 0.0
+			},
+			"legendary": {
+				"file": "pack/reveal_legendary.ogg",
+				"volume_db": 0.0
+			},
+			"mythic": {
+				"file": "pack/reveal_mythic.ogg",
+				"volume_db": 0.0
+			}
+		}
+	},
+	"machine": {
+		"tick": {
+			"file": "machine/tick.ogg",
+			"volume_db": 0.0
+		},
+		"clunk": {
+			"file": "machine/clunk.ogg",
+			"volume_db": 0.0
+		},
+		"spring": {
+			"file": "machine/spring.ogg",
+			"volume_db": 0.0
+		},
+		"rattle": {
+			"file": "machine/rattle.ogg",
+			"volume_db": 0.0
+		},
+		"plonk": {
+			"file": "machine/plonk.ogg",
+			"volume_db": 0.0
+		},
+		"pop": {
+			"file": "machine/pop.ogg",
+			"volume_db": 0.0
+		},
+		"coin": {
+			"file": "machine/coin.ogg",
+			"volume_db": 0.0
+		},
+		"light": {
+			"file": "machine/light.ogg",
+			"volume_db": 0.0
+		},
+		"prize": {
+			"file": "machine/prize.ogg",
+			"volume_db": 0.0
+		},
+		"jackpot": {
+			"file": "machine/jackpot.ogg",
+			"volume_db": 0.0
+		},
+		"fever": {
+			"file": "machine/fever.ogg",
+			"volume_db": 0.0
+		},
+		"fever_loop": {
+			"file": "machine/fever_loop.ogg",
+			"volume_db": 0.0
+		}
+	}
+}

@@ -13,3 +13,8 @@ build/
 # local assistant notes
 CLAUDE.md
 .claude
+
+# sound work files: downloaded packs, previews, candidates, render scraps (tools/music rebuilds them)
+assets/sounds/_*/
+tools/music/**/_work/
+__pycache__/

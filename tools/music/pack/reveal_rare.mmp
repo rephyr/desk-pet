@@ -1,0 +1,97 @@
+<?xml version="1.0"?>
+<!DOCTYPE lmms-project>
+<lmms-project version="1.0" creator="LMMS" creatorversion="1.2.2" type="song">
+  <head bpm="100" timesig_numerator="4" timesig_denominator="4" mastervol="100" masterpitch="0"/>
+  <song>
+    <trackcontainer type="song" visible="1" x="5" y="5" width="600" height="300" maximized="0" minimized="0">
+    <track type="0" name="harp" muted="0" solo="0">
+      <instrumenttrack vol="70" pan="0" pitch="0" pitchrange="1" basenote="57" usemasterpitch="1" fxch="0">
+        <instrument name="sf2player">
+          <sf2player src="/usr/share/soundfonts/FluidR3_GM.sf2" bank="0" patch="46" gain="1" reverbOn="1" reverbLevel="0.6" reverbRoomSize="0.75" reverbDamping="0.35" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+        </instrument>
+        <chordcreator chord="0" chordrange="1" chord-enabled="0"/>
+        <arpeggiator arp-enabled="0" arp="0" arprange="1" arptime="100" arpgate="100" arpdir="0" arpmode="0" syncmode="0" arptime_numerator="4" arptime_denominator="4"/>
+        <fxchain enabled="0" numofeffects="0"/>
+      </instrumenttrack>
+      <pattern type="1" name="harp" pos="0" len="768" muted="0" steps="16">
+        <note pan="0" key="53" vol="60" pos="0" len="48"/>
+        <note pan="0" key="55" vol="62" pos="6" len="48"/>
+        <note pan="0" key="57" vol="64" pos="12" len="48"/>
+        <note pan="0" key="58" vol="66" pos="18" len="48"/>
+        <note pan="0" key="60" vol="68" pos="24" len="48"/>
+        <note pan="0" key="62" vol="70" pos="30" len="48"/>
+        <note pan="0" key="64" vol="72" pos="36" len="48"/>
+        <note pan="0" key="65" vol="74" pos="42" len="48"/>
+        <note pan="0" key="67" vol="76" pos="48" len="48"/>
+        <note pan="0" key="69" vol="78" pos="54" len="48"/>
+        <note pan="0" key="70" vol="80" pos="60" len="48"/>
+        <note pan="0" key="72" vol="82" pos="66" len="48"/>
+        <note pan="0" key="74" vol="84" pos="72" len="48"/>
+        <note pan="0" key="76" vol="86" pos="78" len="48"/>
+        <note pan="0" key="77" vol="88" pos="84" len="48"/>
+      </pattern>
+    </track>
+    <track type="0" name="strings" muted="0" solo="0">
+      <instrumenttrack vol="60" pan="0" pitch="0" pitchrange="1" basenote="57" usemasterpitch="1" fxch="0">
+        <instrument name="sf2player">
+          <sf2player src="/usr/share/soundfonts/FluidR3_GM.sf2" bank="0" patch="48" gain="1" reverbOn="1" reverbLevel="0.6" reverbRoomSize="0.75" reverbDamping="0.35" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+        </instrument>
+        <chordcreator chord="0" chordrange="1" chord-enabled="0"/>
+        <arpeggiator arp-enabled="0" arp="0" arprange="1" arptime="100" arpgate="100" arpdir="0" arpmode="0" syncmode="0" arptime_numerator="4" arptime_denominator="4"/>
+        <fxchain enabled="0" numofeffects="0"/>
+      </instrumenttrack>
+      <pattern type="1" name="strings" pos="0" len="768" muted="0" steps="16">
+        <note pan="0" key="41" vol="80" pos="90" len="240"/>
+        <note pan="0" key="48" vol="80" pos="90" len="240"/>
+        <note pan="0" key="53" vol="80" pos="90" len="240"/>
+        <note pan="0" key="57" vol="80" pos="90" len="240"/>
+        <note pan="0" key="60" vol="80" pos="90" len="240"/>
+      </pattern>
+    </track>
+    <track type="0" name="celesta" muted="0" solo="0">
+      <instrumenttrack vol="56" pan="0" pitch="0" pitchrange="1" basenote="57" usemasterpitch="1" fxch="0">
+        <instrument name="sf2player">
+          <sf2player src="/usr/share/soundfonts/FluidR3_GM.sf2" bank="0" patch="8" gain="1" reverbOn="1" reverbLevel="0.7" reverbRoomSize="0.75" reverbDamping="0.35" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+        </instrument>
+        <chordcreator chord="0" chordrange="1" chord-enabled="0"/>
+        <arpeggiator arp-enabled="0" arp="0" arprange="1" arptime="100" arpgate="100" arpdir="0" arpmode="0" syncmode="0" arptime_numerator="4" arptime_denominator="4"/>
+        <fxchain enabled="0" numofeffects="0"/>
+      </instrumenttrack>
+      <pattern type="1" name="celesta" pos="0" len="768" muted="0" steps="16">
+        <note pan="0" key="65" vol="76" pos="90" len="96"/>
+        <note pan="0" key="69" vol="76" pos="90" len="96"/>
+        <note pan="0" key="72" vol="76" pos="90" len="96"/>
+        <note pan="0" key="77" vol="76" pos="90" len="96"/>
+      </pattern>
+    </track>
+    <track type="0" name="timpani" muted="0" solo="0">
+      <instrumenttrack vol="70" pan="0" pitch="0" pitchrange="1" basenote="57" usemasterpitch="1" fxch="0">
+        <instrument name="sf2player">
+          <sf2player src="/usr/share/soundfonts/FluidR3_GM.sf2" bank="0" patch="47" gain="1" reverbOn="1" reverbLevel="0.5" reverbRoomSize="0.75" reverbDamping="0.35" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+        </instrument>
+        <chordcreator chord="0" chordrange="1" chord-enabled="0"/>
+        <arpeggiator arp-enabled="0" arp="0" arprange="1" arptime="100" arpgate="100" arpdir="0" arpmode="0" syncmode="0" arptime_numerator="4" arptime_denominator="4"/>
+        <fxchain enabled="0" numofeffects="0"/>
+      </instrumenttrack>
+      <pattern type="1" name="timpani" pos="0" len="768" muted="0" steps="16">
+        <note pan="0" key="29" vol="90" pos="90" len="48"/>
+      </pattern>
+    </track>
+    <track type="0" name="bell" muted="0" solo="0">
+      <instrumenttrack vol="48" pan="0" pitch="0" pitchrange="1" basenote="57" usemasterpitch="1" fxch="0">
+        <instrument name="sf2player">
+          <sf2player src="/usr/share/soundfonts/FluidR3_GM.sf2" bank="0" patch="14" gain="1" reverbOn="1" reverbLevel="0.8" reverbRoomSize="0.75" reverbDamping="0.35" reverbWidth="1" chorusOn="0" chorusNum="3" chorusLevel="2" chorusSpeed="0.3" chorusDepth="8"/>
+        </instrument>
+        <chordcreator chord="0" chordrange="1" chord-enabled="0"/>
+        <arpeggiator arp-enabled="0" arp="0" arprange="1" arptime="100" arpgate="100" arpdir="0" arpmode="0" syncmode="0" arptime_numerator="4" arptime_denominator="4"/>
+        <fxchain enabled="0" numofeffects="0"/>
+      </instrumenttrack>
+      <pattern type="1" name="bell" pos="0" len="768" muted="0" steps="16">
+        <note pan="0" key="65" vol="70" pos="90" len="192"/>
+      </pattern>
+    </track>
+    </trackcontainer>
+    <timeline lpstate="0" lp0pos="0" lp1pos="768"/>
+    <controllers/>
+  </song>
+</lmms-project>
