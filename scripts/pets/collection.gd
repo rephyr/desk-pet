@@ -123,6 +123,23 @@ func remove(uids: Array[String]) -> void:
 		herd_changed.emit(from_herd)
 
 
+## Takes `n` pets out of a count for good all at once (the dungeon's army lost them), a star each.
+## Returns how many left (at most what the count has).
+func lose_plain(key: String, n: int) -> int:
+	n = mini(n, int(herd.get(key, 0)))
+	if n <= 0:
+		return 0
+	var palettes: Array[String] = []  # a few faces' colours for the stars, taken round and round
+	for uid in stand_in_uids(key, mini(n, 16)):
+		var face := Herd.stand_in(_catalog(), uid)
+		palettes.append(str(face.parts.palette) if face else "")
+	_herd_less(key, n)
+	stand_next[key] = int(stand_next.get(key, 0)) + n
+	_stars(palettes, n)
+	herd_changed.emit([key])
+	return n
+
+
 ## A card by its uid, or a stand-in for a pet from a count ("h:common:normal:3", while that count
 ## has anyone in it). null if there's no such pet.
 func get_pet(uid: String) -> Pet:
@@ -347,6 +364,14 @@ func _star(palette: String) -> void:
 	fallen_n += 1
 	if fallen.size() < int(_catalog().herd.get("fallen_keep", 16384)):
 		fallen.append(palette)
+
+
+## `n` stars at once, their colours taken round and round `palettes` (only up to fallen_keep kept).
+func _stars(palettes: Array[String], n: int) -> void:
+	fallen_n += n
+	var room := mini(n, int(_catalog().herd.get("fallen_keep", 16384)) - fallen.size())
+	for i in room:
+		fallen.append(palettes[i % palettes.size()] if not palettes.is_empty() else "")
 
 
 func _recount() -> void:

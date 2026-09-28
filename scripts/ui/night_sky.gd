@@ -16,6 +16,7 @@ func _init() -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
 	resized.connect(queue_redraw)
 	GameState.collection.pets_removed.connect(func(_uids): queue_redraw())
+	GameState.dungeon_changed.connect(queue_redraw)  # the army's lost herd pets are stars too
 	GameState.new_game.connect(queue_redraw)
 
 

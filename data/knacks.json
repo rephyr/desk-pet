@@ -1,5 +1,5 @@
 {
-	"_note": "Knacks (scripts/pets/knacks.gd): every part has a named knack. Its size n (a %) = the kind's step x rarity_x[part rarity] x finish_x[pet finish], rounded; it multiplies by 1 + n/100. Knacks of the same kind on one pet add up. Your ACTIVE pet's knacks are the 'knacks' boost source (data/boosts.json kinds; 'all' counts for every kind marked all there). Other pets' knacks count 'own' of their size on their own errands, worker jobs and trips. A knack only shows (and counts) when the whole system is open ('opens'), its kind is a boost kind (or 'all'), and its kind's own 'opens' is open: 'adventures', 'machine:<tree node>', or an unlock id (feature:, tab:, location:). 'power' is not a boost kind yet (fights), so the demon horns' knack stays hidden. 'text': {n} is the size. 'icon' is a UiTheme doodle. Numbers are placeholders.",
+	"_note": "Knacks (scripts/pets/knacks.gd): every part has a named knack. Its size n (a %) = the kind's step x rarity_x[part rarity] x finish_x[pet finish], rounded; it multiplies by 1 + n/100. Knacks of the same kind on one pet add up. Your ACTIVE pet's knacks are the 'knacks' boost source (data/boosts.json kinds; 'all' counts for every kind marked all there). Other pets' knacks count 'own' of their size on their own errands, worker jobs and trips. A knack only shows (and counts) when the whole system is open ('opens'), its kind is a boost kind (or 'all'), and its kind's own 'opens' is open: 'adventures', 'machine:<tree node>', or an unlock id (feature:, tab:, location:). 'power' counts for the dungeon's army (a boost kind, opens with feature:dungeon), so the demon horns' knack shows once the old well's dungeon is open. 'text': {n} is the size. 'icon' is a UiTheme doodle. Numbers are placeholders.",
 	"opens": "feature:parts",
 	"rarity_x": { "common": 1, "uncommon": 2, "rare": 3, "epic": 5, "legendary": 8, "mythic": 12 },
 	"finish_x": { "normal": 1, "shiny": 1.25, "holo": 1.5, "ghost": 1.75, "glitch": 2, "prismatic": 2.5 },
@@ -26,7 +26,7 @@
 		"rummage": { "step": 5, "text": "+{n}% rummaging", "icon": "knack_rummage" },
 		"shiny": { "step": 4, "text": "+{n}% shiny capsules", "icon": "knack_shiny", "opens": "machine:shiny" },
 		"pet_boxes": { "step": 5, "text": "+{n}% pet boxes", "icon": "knack_pet_boxes" },
-		"power": { "step": 5, "text": "+{n}% power", "icon": "knack_power" }
+		"power": { "step": 5, "text": "+{n}% power", "icon": "knack_power", "opens": "feature:dungeon" }
 	},
 	"parts": {
 		"body:blob": { "name": "squishy", "kind": "tough" },

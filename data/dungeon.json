@@ -1,0 +1,32 @@
+{
+	"_note": "The first dungeon: the old well, all the way down (scripts/dungeon/dungeon.gd, GameState's dungeon part, the adventures tab's dungeon page). It opens with feature:dungeon (the rope find at the well). An ARMY goes down floor by floor: the card pets you add (the best 'front_row' by power fight in front, the rest walk behind) and plain pets from the herd picked by shelf. 'entrance.start' is how many pets fit through at once (later widened with wisps, 'entrance' level in the save). A pet's POWER = its power stat (traits count) x power.rarity_x x power.finish_x x its own power knack; the herd's pets use their rarity's average stats. Pets walking behind (herd, and cards past the front row) count 'herd_x' of theirs, injured ones 'injured_x'; the whole army x the power boost (your active pet's knacks, data/boosts.json). A floor's STRENGTH = strength.base x strength.grow ^ floor (guard floors x guard_x). BANDS: 'rope' floors only let the front row fight; 'doors' floors: 'tiny' floors only let pets of 'tiny_from' rarity and up through, 'knock' floors roll luck first (knock_luck: base + per_luck x the front row's average luck stat, x the luck boost, at most max; a miss sends the army home with no pay for that floor); 'stairs' floors have a guard every 'guard_every'. A band shows on the well once the army has stood at its top (or an old save had its place open). LOSSES per floor: injure / ratio and lose / ratio^2 of the army (ratio = power / strength), each at most max_share; a floor below 'stuck' ratio can't be passed (its losses happen, no pay, everyone turns back). Losses take injured pets first, then anyone, until the first line of 'first' is earned (the deepest floor reaches first.earn_floor): then 'who goes first' picks (plain ones = the herd, anyone, the front row = cards). PAY for each cleared floor: pay.base x pay.grow ^ floor x pets SENT (at most the entrance), rounded, at least 1; never per pet lost. 'seconds_per_floor' is how long a floor takes; 'target_ahead' how far past the deepest floor the orders may aim. 'home_at' are the steps of 'come home when X% are gone'. 'words' are the feeling words for a floor: the first whose ratio the army reaches, with a heat ('' quiet, 'mid', 'hot'); strength is never shown as a number. 'firsts' happen the first time a floor is cleared: a part of 'tier', or a find (the key on 20 stays hidden until then; 'say' is your pet's one quiet line). 'currency' is the darker currency's word and colour role. Every number is a placeholder.",
+	"strength": { "base": 100, "grow": 1.2 },
+	"entrance": { "start": 300 },
+	"front_row": 20,
+	"herd_x": 0.5,
+	"injured_x": 0.5,
+	"stuck": 0.4,
+	"power": {
+		"rarity_x": { "common": 1, "uncommon": 1.5, "rare": 2.5, "epic": 4, "legendary": 6, "mythic": 10 },
+		"finish_x": { "normal": 1, "shiny": 1.1, "holo": 1.25, "ghost": 1.4, "glitch": 1.6, "prismatic": 2 }
+	},
+	"bands": [
+		{ "id": "well", "name": "the well", "from": 1, "to": 10, "kind": "rope", "place": "well" },
+		{ "id": "cellar", "name": "the cellar", "from": 11, "to": 20, "kind": "doors", "place": "cellar",
+			"tiny": [13, 17], "tiny_from": "rare", "knock": [15, 19], "knock_luck": { "base": 0.55, "per_luck": 0.01, "max": 0.95 } },
+		{ "id": "below", "name": "further down", "from": 21, "kind": "stairs", "place": "below", "guard_every": 10, "guard_x": 2.0 }
+	],
+	"losses": { "lose": 0.03, "injure": 0.05, "max_share": 0.25 },
+	"pay": { "base": 0.01, "grow": 1.15 },
+	"seconds_per_floor": 20,
+	"target_ahead": 5,
+	"home_at": [10, 20, 30, 40, 50, 60, 70, 80, 90],
+	"home_at_start": 30,
+	"first": { "lines": ["plain ones", "anyone", "the front row"], "earn_floor": 11 },
+	"words": [[4, "easy peasy", ""], [2, "a stroll", ""], [1.3, "comfy", ""], [0.95, "spooky", "mid"], [0.7, "tricky", "mid"], [0.5, "so tough", "hot"], [0, "brr!", "hot"]],
+	"firsts": {
+		"10": { "part": "epic" },
+		"20": { "find": "little_key", "say": "there was a tiny key on floor 20. i'm keeping it safe for us." }
+	},
+	"currency": { "word": "wisps", "color": "wisp" }
+}

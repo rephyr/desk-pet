@@ -45,6 +45,7 @@ func _init() -> void:
 				coins / TRIPS / minutes, parts / TRIPS, boxes / TRIPS, 100.0 * lost / TRIPS])
 	_errands(catalog, rng)
 	_rummage(catalog)
+	_dungeon(catalog, rng)
 	quit()
 
 
@@ -112,3 +113,35 @@ func _pick(style: String, run: RunState, location: Dictionary, catalog: Catalog)
 		if picked.get("failure", {}).has("hurt") and location.get("go_home", false):
 			return options.size() - 1  # go home with the bag
 	return best
+
+
+## The old well's dungeon (data/dungeon.json): armies of a front row of 20 cards and 280 from the
+## herd (average stats for their rarity), sent to floor 40, coming home when half are gone, the
+## herd first. How deep they get, what a run pays and costs, and wisps an hour of runs back to back.
+func _dungeon(catalog: Catalog, rng: RandomNumberGenerator) -> void:
+	const RUNS := 300
+	print("\nthe old well: 20 cards in front + 280 from the herd, down to floor 40, home when 50%% are gone, the herd first. %d runs each." % RUNS)
+	print("%-20s %8s %8s %8s %8s %10s" % ["army", "floor", "deepest", "wisps", "lost", "wisps/h"])
+	for mix in [["common", "common"], ["uncommon", "common"], ["rare", "uncommon"], ["epic", "rare"], ["legendary", "epic"]]:
+		var front := Herd.template(catalog, Herd.key(mix[0], "normal"))
+		var cards: Array = []
+		for i in 20:
+			cards.append({ "uid": str(i), "power": Dungeon.pet_power(catalog, front), "rank": catalog.rank(mix[0]) })
+		var k := Herd.key(mix[1], "normal")
+		var army := { "cards": cards, "herd": { k: { "n": 280, "power": Dungeon.pet_power(catalog, Herd.template(catalog, k)), "rank": catalog.rank(mix[1]) } },
+			"luck": Dungeon.knock_chance(catalog, float(front.stats.luck)), "boost": 1.0 }
+		var floors := 0.0
+		var deepest := 0
+		var wisps := 0.0
+		var lost := 0.0
+		var seconds := 0.0
+		for r in RUNS:
+			var run := Dungeon.simulate(catalog, army, { "target": 40, "home_at": 50, "first": "plain ones" }, rng)
+			var to := Dungeon.cleared_to(run)
+			floors += to
+			deepest = maxi(deepest, to)
+			wisps += Dungeon.run_pay(run)
+			var gone := Dungeon.run_lost(run)
+			lost += gone[0].size() + Herd.total(gone[1])
+			seconds += Dungeon.run_seconds(catalog, run)
+		print("%-20s %8.1f %8d %8.0f %8.0f %10.0f" % ["%s + %s" % mix, floors / RUNS, deepest, wisps / RUNS, lost / RUNS, wisps / (seconds / 3600.0)])

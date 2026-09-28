@@ -29,6 +29,7 @@ static var LILAC_SEAM := Color("6f588c")
 static var CYAN := Color("8be9fd")  # coins, always
 static var GOLD := Color("ffe08a")  # xp and sparkles, always
 static var MINT := Color("8fe8c0")  # healing and growth
+static var WISP := Color("ff9e7d")  # the darker currency (wisps: lanterns from the dungeon), candy floss coral
 static var SHADOW := Color(0.02, 0.01, 0.05, 0.6)
 static var DARK := true  # the theme is a dark one
 # older names for the same roles
@@ -65,7 +66,7 @@ static func apply() -> void:
 	LOCKED = _c(c, "locked", LOCKED)
 	PINK = _c(c, "pink", PINK); PINK_SEAM = _c(c, "pink_seam", PINK_SEAM); PINK_PRESSED = _c(c, "pink_pressed", PINK_PRESSED)
 	LILAC = _c(c, "lilac", LILAC); LILAC_SEAM = _c(c, "lilac_seam", LILAC_SEAM)
-	CYAN = _c(c, "cyan", CYAN); GOLD = _c(c, "gold", GOLD); MINT = _c(c, "mint", MINT); SHADOW = _c(c, "shadow", SHADOW)
+	CYAN = _c(c, "cyan", CYAN); GOLD = _c(c, "gold", GOLD); MINT = _c(c, "mint", MINT); WISP = _c(c, "wisp", WISP); SHADOW = _c(c, "shadow", SHADOW)
 	DARK = str(t.get("kind", "dark")) == "dark"
 	BG = PAGE; BG_DEEP = DEEP; BG_RAISED = RAISED
 	var tiers := {}
@@ -405,6 +406,7 @@ static func named_color(color_name: String) -> Color:
 		"lilac": return LILAC
 		"mint": return MINT
 		"gold": return GOLD
+		"wisp": return WISP
 	return PINK
 
 
@@ -457,6 +459,8 @@ const DOODLES := {
 	"tree_chute": '<path d="M5 6 L10 6 L10 18 L5 18 Z M14 6 L19 6 L19 18 L14 18 Z"/>',
 	"tree_balls": '<circle cx="9" cy="13" r="4.5"/><circle cx="15.5" cy="10" r="4.5"/>',
 	"tree_shiny": '<circle cx="11" cy="13" r="5.5"/><path d="M18 3 L18.8 5.2 L21 6 L18.8 6.8 L18 9 L17.2 6.8 L15 6 L17.2 5.2 Z"/>',
+	# the darker currency: a little lantern with a flame (wisps)
+	"lantern": '<path d="M9.2 5.6 Q12 2.4 14.8 5.6"/><path d="M7.6 7.2 L16.4 7.2"/><path d="M8.6 7.6 Q6.9 13 8.4 18.4 L15.6 18.4 Q17.1 13 15.4 7.6"/><path d="M7.6 20.4 L16.4 20.4"/><path d="M12 16.2 Q9.9 14.3 12 11.2 Q14.1 14.3 12 16.2 Z" fill="{c}" stroke="none"/>',
 	"errands": '<path d="M7.2 10.2 Q7.6 3.6 12 3.7 Q16.4 3.7 16.8 10.1"/><path d="M3.6 10.4 Q12 9.7 20.4 10.3 L18.6 19.7 Q12 20.6 5.4 19.8 Z"/><path d="M5 14.3 Q12 13.7 19.3 14.2 M9 10.5 L9.6 19.8 M15 10.4 L14.5 19.9" opacity=".7"/>',
 	# errand doodles (drawn on a 40 grid, scaled down)
 	"job_coins": '<g transform="scale(0.6)" stroke-width="3.2"><path d="M6 26 Q6 16 20 16 Q34 16 34 26 Q34 32 20 32 Q6 32 6 26 Z"/><path d="M11 20 Q20 23 29 20" opacity=".6"/><path d="M26 7 L31 12 L26 17 L21 12 Z" stroke="{cyan}"/><path d="M11 10 L13 7 M8 12 L5 11" opacity=".7"/></g>',
@@ -528,6 +532,7 @@ const PIXELS := {
 	"machine": ["..ooooo..", ".o.....o.", ".o.o...o.", ".o.....o.", "..ooooo.o", ".ooooooo.", ".o.....oo", ".o.ooo.o.", ".ooooooo."],
 	"errands": ["...ooo...", "..o...o..", ".o.....o.", "ooooooooo", "o.o.o.o.o", ".ooooooo.", ".o.o.o.o.", ".ooooooo.", "........."],
 	"bag": ["...ooo...", "..o...o..", ".ooooooo.", "o.......o", "o..ooo..o", "o.......o", "o.......o", "o.......o", ".ooooooo."],
+	"lantern": ["...ooo...", "..o...o..", ".ooooooo.", ".o.....o.", ".o..o..o.", ".o.ooo.o.", ".o.ooo.o.", ".ooooooo.", "ooooooooo"],
 	"lock": [".........", "...ooo...", "..o...o..", "..o...o..", ".ooooooo.", ".ooo.ooo.", ".ooo.ooo.", ".ooooooo.", "........."],
 	"automation": ["....o....", ".o.ooo.o.", "..o...o..", ".o..o..o.", "oo.ooo.oo", ".o..o..o.", "..o...o..", ".o.ooo.o.", "....o...."],
 	"settings": ["...o.o...", ".ooooooo.", ".o.....o.", "oo..o..oo", "o..ooo..o", "oo..o..oo", ".o.....o.", ".ooooooo.", "...o.o..."],

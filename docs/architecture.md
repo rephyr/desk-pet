@@ -11,6 +11,7 @@ scripts/pets/        pet rules and pet visuals (Pet, PetRoller, Collection, Knac
 scripts/adventure/   adventure rules: runs, events, parties, rewards, rumours, the pet's voice
 scripts/idle/        errands (Jobs) and automation (Automation): pure rules for idle jobs, see data/errands.json, data/automation.json
 scripts/machine/     the capsule machine (Machine) and capsule toys (Toys): pure rules, see data/machine.json, data/toys.json
+scripts/dungeon/     the old well's dungeon (Dungeon): floors, power, a whole run worked out at once, pay; pure rules, see data/dungeon.json
 scripts/dev/         debug-only: launch flags, test profiles, scripted test flows (DevDriver)
 scripts/game_state   the player's progress + saving (autoload "GameState")
 scripts/ui/          screens and widgets; they read GameState and call its functions
@@ -101,7 +102,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `ErrandToolsView`, the pegboard of tools bought with coins; rules in `Jobs`, levels in
   `GameState.errand_tools`), `AutomationTab` (a card per job your pet can do, `JobScene` draws each one; rules in
   `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:
-  `WorkerCard` / `WorkerSpot`, `GameState.put_workers` / `buy_spots` / `teach_others`), `InventoryTab`
+  `WorkerCard` / `WorkerSpot`, `GameState.put_workers` / `buy_spots` / `teach_others`); the adventures tab's
+  dungeon page is `DungeonView` (`WellColumn` draws the well's cross-section, `FrontRow` the front
+  row; rules in `Dungeon`, state in `GameState.dungeon` and `GameState.wisps`), `InventoryTab`
   (the bag and sewing) and `SettingsTab` (general and video pages).
   Tabs can be locked or hidden until something opens them (`data/unlocks.json`).
 - The full game is laid out at 920x600 (`home.gd` `EXPANDED_SIZE`) and scaled to the chosen
@@ -155,7 +158,16 @@ has more plain pets than the first room holds gets room for them plus data/herd.
 `Collection.herd_changed(keys)` says which counts changed; the pets tab rebuilds once a frame at
 most and leaves an open shelf of another rarity alone.
 Who's resting is worked out once (`GameState._resting`: cards, herd counts minus errands, workers,
-stand-ins away or leading) until `_rest_changed()`.
+stand-ins away or leading, and the dungeon's army) until `_rest_changed()`.
+Save v24 adds the dungeon: `wisps` and `dungeon` = `{ deep, bands, target, home_at, first, cards
+(uids), herd ({ rarity: n } picks), run ({} or { at, floors: [{ f, cleared, lost_cards, lost_herd,
+pay }], why, turned, cards, herd ({ count key: n }), sent, target }), last, firsts, entrance }`.
+Army cards count as busy (`GameState._out()` = away + the army), the army's herd picks are spread
+over counts after everyone else's (`_army_herd`). A run is simulated when it sets off; the 1-second
+tick finishes it (`_finish_dungeon_run`: `Collection.remove` / `lose_plain` add stars). The v24
+migration turns an old save's open cellar/below places into bands, drops rumours about them and moves
+parties going there to the well. Band places have `"band"` in data/adventures.json and are never
+open (`location_open`); retired rumours are never heard (`Rumours.hearable`).
 
 ## Testing
 
