@@ -54,13 +54,14 @@ static func newly_full(catalog: Catalog, collection: Collection, stickers: Array
 	return out
 
 
-## What the open stickers multiply one kind by (1.0 with none); different pages multiply.
-static func multiplier(catalog: Catalog, stickers: Array, kind: String) -> float:
-	var x := 1.0
+## The open stickers boosting one kind: the `book` boost source, one part per page (see Boosts;
+## different pages multiply).
+static func parts(catalog: Catalog, stickers: Array, kind: String) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
 	for p in pages(catalog):
 		if stickers.has(str(p.id)) and str(p.kind) == kind:
-			x *= float(p.x)
-	return x
+			out.append(Boosts.part("book", str(p.id), float(p.x)))
+	return out
 
 
 ## The line under a sticker's name, e.g. "+10% coins" (built from its x, so it always matches).

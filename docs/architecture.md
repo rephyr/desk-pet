@@ -6,8 +6,8 @@ How the code is laid out and where new things go. Game design lives in `design.m
 
 ```
 data/*.json          what exists: parts, rarities, finishes, traits, boxes (tune here, not in code)
-scripts/core/        generic helpers with no game rules (Catalog loads data/, Weighted picks)
-scripts/pets/        pet rules and pet visuals (Pet, PetRoller, Collection, PetLook, PetView)
+scripts/core/        generic helpers with no game rules (Catalog loads data/, Weighted picks, Boosts: the boost kind table and its arithmetic)
+scripts/pets/        pet rules and pet visuals (Pet, PetRoller, Collection, Knacks, PetLook, PetView)
 scripts/adventure/   adventure rules: runs, events, parties, rewards, rumours, the pet's voice
 scripts/idle/        errands (Jobs) and automation (Automation): pure rules for idle jobs, see data/errands.json, data/automation.json
 scripts/machine/     the capsule machine (Machine) and capsule toys (Toys): pure rules, see data/machine.json, data/toys.json
@@ -22,6 +22,48 @@ Dependencies only point downwards: UI → GameState → pets → core → data. 
 knows the UI exists; state changes are announced with signals (`GameState.changed`,
 `Collection.pets_added`, `Collection.active_changed`).
 
+## Boosts
+
+- One plumbing for every multiplier: `GameState.boost(kind)` (the total) and
+  `GameState.boost_parts(kind)` (what makes it: `{ source, id, x }`). Kinds are in
+  `data/boosts.json`. `Boosts` (core) is only the kind table (`kind`, `is_kind`, `kinds`,
+  `all_covers`), `part()` and `total()` (the product, 1.0 with none); it imports no game system.
+- `GameState.boost_parts` gathers the sources, since it holds their state: it checks the kind
+  (`[]` and an error for an unknown one), then appends `Toys.parts(toys, catalog, kind, now)` (one
+  part per edition working now), `Book.parts(catalog, stickers, kind)` (one per open sticker),
+  `Knacks.parts(...)` (your active pet) and, for "errands" only, the kitchen
+  (`Boosts.part("kitchen", "kitchen", 1 + kitchen_bonus())`; `job_rate` divides it back out for
+  the kitchen itself). A new source appends its own `X.parts(...)` there, and calls
+  `_boosts_changed()` whenever its state changes (`check_book`, `_kitchen_changed`).
+- `boost()` is called every frame (errand meters, the machine), so totals are kept in `_boosts` and
+  cleared by `_boosts_changed()`: on `toys_changed`, a new game, a load, and the once-a-second tick
+  (plays run out). `boost_parts()` is never cached (the `boosts` dev step, the receipt later).
+- Game code only ever calls `boost()`; no source has its own multiplier call.
+- Knacks (D1) are the second source: `Knacks` (scripts/pets/knacks.gd, static, pure: a gate
+  Callable goes in) works a pet's knacks out of its parts and finish; nothing is saved. `of` /
+  `best` build display rows (the UI only). Totals (`total`, `parts`, `own`, `party_all`) take the
+  lean path: `counting(kind)` makes a lookup table once (slot -> part id -> size before the
+  finish, only parts whose knack kind counts and is open), `sum_in` / `own_in` then add a pet up
+  with no rows or strings (about 2.5 us a pet a kind). `GameState.boost_parts` appends
+  `Knacks.parts(catalog, collection.active(), kind, knack_gate)`. `knack_gate(gate)` answers
+  "adventures", "machine:<node>" and unlock ids. `GameState.knack_own(pet, kind)` keeps each
+  pet's own share by uid (`_knack_own`, tables in `_knack_steps`). `_knacks_changed()` (a pet's
+  parts, a new game, a load, a regate) clears boosts, those and the errand and worker speeds;
+  `_knack_gates_changed()` (unlock, unlocked, machine_upgraded, tutorial_changed, debug lock-all,
+  the `fix` dev step) clears boosts and the knack caches, clears the errand / worker speeds only
+  when the tables for "errands" / "automation" changed, bumps `knack_version` and emits
+  `knacks_changed` (the collection grid redraws its badges only when the open kinds differ from
+  its last draw). active_changed only clears boosts (your active pet never works). Other pets:
+  `_pet_speed` (errand speed x `knack_own(.., "errands")`, used to pick who goes on and who comes
+  off), `workers_speed` x `knack_own(.., "automation")`. The adventures tab keeps
+  `trip_knacks(pets)` by a key of place, picks, gear, active pet, trip boosts and `knack_version`,
+  so a big swarm isn't walked on every click. Trips pack `RunState.knacks` when they set off
+  (`GameState.trip_knacks`: boost x party share for trip, tough, safe, spots, finds, pickups,
+  treats; loot is the party share only), read with `run.knack(kind)` (1.0 when missing):
+  `AdventureRunner.walk_of` (boots then / trip), hurt and injured counts / tough, lost / safe,
+  `Intel.roll(.., x)` lead chance x spots, trail pickups, treat zoom, extra bits and parts in
+  `_boost_trip_loot`.
+
 ## Pets
 
 - `Pet` is plain data (parts, finish, traits, stats, rarity) with `to_dict` / `from_dict`.
@@ -33,8 +75,7 @@ knows the UI exists; state changes are announced with signals (`GameState.change
 - `Book` (scripts/pets/book.gd, pure rules, data/book.json) says which book page is full and what
   its reward sticker multiplies. `GameState.stickers` keeps the opened ones for good,
   `check_book()` opens new ones (`sticker_opened`, shown by `UnlockPopup`), and
-  `GameState.boost(kind)` = `toy_boost(kind)` x `book_x(kind)` is what coins and luck read;
-  errands speed (`job_rate`) and automation (crank, workers, boxes out of sight) take `book_x` too.
+  its stickers are the `book` boost source (coins, luck, errands, automation; see Boosts).
 - `PetLook` is the placeholder art (pixel maps in code). Real art replaces `PetLook` only;
   `PetView` (draws a pet, blinking, squash, finish shader) and everything above stay the same.
 - Finish effects are one shader, `shaders/finish.gdshader`; `finishes.json` picks the mode.
@@ -54,7 +95,7 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `RunState.gear`), `ErrandsTab` (jobs: the corkboard; upgrades:
   `ErrandToolsView`, the pegboard of tools bought with coins; rules in `Jobs`, levels in
   `GameState.errand_tools`; tool and box prices are in capsules x `GameState.capsule_value()`
-  (`Jobs.tool_cost(tool, have, n, value)`, `GameState.box_price` / static `box_cost`); the kitchen speeds every other job via `GameState.kitchen_bonus()` (its line: `Jobs.faster_words`),
+  (`Jobs.tool_cost(tool, have, n, value)`, `GameState.box_price` / static `box_cost`); the kitchen speeds every other job via `GameState.kitchen_bonus()`, the `kitchen` source of the "errands" boost (its line: `Jobs.faster_words`),
   scouting fills `GameState.scout_notes` and `send_on_adventure` packs one onto `RunState.scout`,
   read by `Intel.roll` and `AdventureRunner`), `AutomationTab` (a card per job your pet can do, `JobScene` draws each one; rules in
   `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:

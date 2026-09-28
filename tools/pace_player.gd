@@ -150,17 +150,17 @@ func _passive() -> void:
 func _automation() -> void:
 	var a: Dictionary = gs.automation
 	if a.task == "machine":
-		var pulls := Automation.crank(catalog, a, 1.0, gs.book_x("automation"))  # the book's automation stickers
+		var pulls := Automation.crank(catalog, a, gs.boost("automation"))  # automation speed: the book's stickers, toys, knacks
 		if pulls > 0:
 			var c0: int = gs.coins
 			gs._pet_cranks(pulls, false)
 			_earn("pet crank", gs.coins - c0)
-	var wp := Automation.work(catalog, a, "machine", gs.workers_speed("machine"), 1.0)
+	var wp := Automation.work(catalog, a, "machine", gs.workers_speed("machine"), gs.boost("automation"))
 	if wp > 0:
 		var c0: int = gs.coins
 		gs._pet_cranks(wp, false)
 		_earn("workers", gs.coins - c0)
-	var wb := Automation.work(catalog, a, "boxes", gs.workers_speed("boxes"), 1.0)
+	var wb := Automation.work(catalog, a, "boxes", gs.workers_speed("boxes"), gs.boost("automation"))
 	if wb > 0:
 		gs._workers_open(wb)
 	if a.task == "boxes":
@@ -589,7 +589,7 @@ func _candidates() -> Array[Dictionary]:
 		out.append({ "kind": "auto_tool", "id": "crank", "cost": gs.auto_tool_cost("crank"), "gain": gain, "name": "crank" })
 	if gs.knows_others("machine") and gs.auto_tool_block("grease") == "":
 		var ev := _capsule_ev(gs.machine)
-		var speed: float = gs.workers_speed("machine")
+		var speed: float = gs.workers_speed("machine") * gs.boost("automation")
 		var what: Dictionary = gs.automation.duplicate(true)
 		what.tools["grease"] = Automation.tool_level(what, "grease") + 1
 		var gain := speed * 60.0 * (1.0 / Automation.worker_seconds(catalog, what, "machine") - 1.0 / Automation.worker_seconds(catalog, gs.automation, "machine")) * ev
@@ -637,7 +637,7 @@ func _crank_per_min(m: Dictionary) -> float:
 	var pulls := 0.0
 	if gs.automation.task == "machine":
 		pulls += 60.0 / Automation.crank_seconds(catalog, gs.automation)
-	pulls += gs.workers_speed("machine") * 60.0 / Automation.worker_seconds(catalog, gs.automation, "machine")
+	pulls += gs.workers_speed("machine") * gs.boost("automation") * 60.0 / Automation.worker_seconds(catalog, gs.automation, "machine")
 	return pulls * _capsule_ev(m)
 
 

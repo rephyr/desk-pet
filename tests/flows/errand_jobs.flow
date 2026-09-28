@@ -48,6 +48,7 @@ shot kitchen_empty
 scroll 0
 job kitchen 2
 wait 1
+boosts                              # the log shows the kitchen source on errands
 expect text "every job 1*"
 expect text "a meal every*"
 scroll 400

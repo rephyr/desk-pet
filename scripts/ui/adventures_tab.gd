@@ -35,6 +35,8 @@ var _run_rows: Array[Dictionary] = []  # { run, bar, time } or { run, countdown 
 var _postcard := Postcard.new()  # what a trip brought home, after "welcome back"
 var _dirty := true
 var _estimate_key := ""  # which picks the cached estimate is for
+var _knacks_key := ""  # which picks (and knacks) the cached trip knacks are for (see _trip_key)
+var _knacks := {}  # what the picked pets would pack (GameState.trip_knacks), kept for big swarms
 var _estimate := 1.0
 var _tick := 0.0
 var _voice_rng := RandomNumberGenerator.new()
@@ -461,7 +463,14 @@ func _refresh_send() -> void:
 	var most := _max_party()
 	_why.visible = most > 1
 	UiTheme.clear(_facts)
-	var walk := Gear.value(catalog, GameState.trip_gear(_location_id), "walk")
+	var packed := GameState.trip_gear(_location_id)
+	# what they'd pack: your active pet's knacks and their own (walking big swarms is slow, so kept)
+	var key := _trip_key(packed)
+	if key != _knacks_key:
+		_knacks_key = key
+		_knacks = GameState.trip_knacks(pets)
+	var knacks := _knacks
+	var walk := AdventureRunner.walk_of(catalog, packed, knacks)
 	_facts.add_child(UiTheme.tag(_about(float(d.minutes) * (1.0 - walk))))
 	_facts.add_child(UiTheme.tag("1 pet" if most == 1 else ("as many as you like" if most > 999 else "up to %d pets" % most)))
 	var bit := MapView.bit_of(d)
@@ -482,7 +491,6 @@ func _refresh_send() -> void:
 	if pets.is_empty():
 		_odds.text = "tap a pet to pick it"
 		return
-	var packed := GameState.trip_gear(_location_id)
 	var time := _duration(AdventureRunner.duration(d, Party.make(pets, catalog), walk))
 	match Chooser.kind_for(pets.size()):
 		"player":
@@ -491,11 +499,20 @@ func _refresh_send() -> void:
 			_odds.text = "about %s there and back. they'll ask you along the way." % time
 		_:
 			# trial runs are slow for big swarms: only redo them when the picks change
-			var key := _location_id + ":" + ",".join(_picked.keys()) + str(packed)
 			if key != _estimate_key:
 				_estimate_key = key
-				_estimate = AdventureRunner.estimate_return(_location_id, pets, catalog, 30, packed)
+				_estimate = AdventureRunner.estimate_return(_location_id, pets, catalog, 30, packed, knacks)
 			_odds.text = "about %s there and back. about %d%% come home." % [time, roundi(_estimate * 100.0)]
+
+
+## What the trip preview depends on, without working any knacks out: the place, the picks, the
+## packed gear, your active pet, the boosts on trip kinds and the knack version.
+func _trip_key(packed: Dictionary) -> String:
+	var boosts: Array[String] = []
+	for kind: String in GameState.TRIP_KNACKS:
+		boosts.append(str(GameState.boost(kind)))
+	return "%s:%s:%s:%s:%s:%d" % [_location_id, ",".join(_picked.keys()), str(packed), GameState.collection.active_uid,
+		",".join(boosts), GameState.knack_version]
 
 
 func _rebuild_runs() -> void:

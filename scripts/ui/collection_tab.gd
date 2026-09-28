@@ -26,6 +26,7 @@ var _sort_index := 0
 var _page := 0
 var _selected_uid := ""
 var _dirty := true
+var _knacks_seen := ""  # which knack kinds showed when the grid was last drawn (see _knacks_key)
 
 
 func _init() -> void:
@@ -78,6 +79,8 @@ func _init() -> void:
 	pad.size_flags_horizontal = SIZE_EXPAND_FILL
 	for side in ["left", "top", "right", "bottom"]:
 		pad.add_theme_constant_override("margin_" + side, 6)
+	pad.add_theme_constant_override("margin_top", 12)  # room for the knack badges on the top row's corners
+	pad.add_theme_constant_override("margin_right", 10)
 	pad.add_child(_grid)
 	_scroll.add_child(pad)
 	_pets_view.add_child(_scroll)
@@ -109,6 +112,11 @@ func _init() -> void:
 			_selected_uid = ""
 		_dirty = true
 		_rebuild_if_visible())
+	# knacks showing up (parts open, a machine fix, the tutorial moving on) redraw the badges
+	GameState.knacks_changed.connect(func():
+		if _knacks_key() != _knacks_seen:
+			_dirty = true
+			_rebuild_if_visible())
 	visibility_changed.connect(func():
 		_rebuild_if_visible()
 		if is_visible_in_tree() and _pets_view.visible:
@@ -197,19 +205,34 @@ func _rebuild_if_visible() -> void:
 
 func _rebuild() -> void:
 	_dirty = false
+	_knacks_seen = _knacks_key()
 	UiTheme.clear(_grid)
 	var pets := _filtered()
 	_count.text = "%d pets" % pets.size()
 	_page = clampi(_page, 0, _page_count(pets.size()) - 1)
 	_page_label.text = "page %d of %d" % [_page + 1, _page_count(pets.size())]
 	for pet in pets.slice(_page * PAGE_SIZE, (_page + 1) * PAGE_SIZE):
-		var card := PetCard.new(pet, 3, false)
+		var card := PetCard.new(pet, 3, false, true)
 		card.pressed.connect(_select)
 		card.set_selected(pet.uid == _selected_uid)
 		_grid.add_child(card)
 	if _selected_uid == "" and not GameState.collection.pets.is_empty():
 		_select(GameState.collection.active())
+	elif GameState.collection.get_pet(_selected_uid) != null:
+		_details.show_pet(GameState.collection.get_pet(_selected_uid))  # its knacks may have changed
 	_scroll.scroll_vertical = 0  # a new page starts at the top
+
+
+## Which knack kinds show right now, as a word ("" while knacks are shut).
+func _knacks_key() -> String:
+	var catalog := GameState.catalog
+	if not Knacks.system_open(catalog, GameState.knack_gate):
+		return ""
+	var on: Array[String] = []
+	for kind: String in catalog.knacks.kinds:
+		if Knacks.kind_open(catalog, kind, GameState.knack_gate):
+			on.append(kind)
+	return ",".join(on)
 
 
 func _filtered() -> Array[Pet]:

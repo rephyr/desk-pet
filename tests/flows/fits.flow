@@ -38,6 +38,17 @@ expect fits
 click PetCard#10
 expect fits
 shot pets
+unlock feature:parts                # knacks: badges on the details and the cards' corners
+unlock tab:automation
+fix wires
+wait 1.5
+click PetCard#1
+expect fits
+click PetCard#2
+expect fits
+click PetCard#3
+expect fits
+shot pets_knacks
 tab adventures
 expect fits
 tab inventory

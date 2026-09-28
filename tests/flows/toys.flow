@@ -22,6 +22,7 @@ shot toys
 click "a quick play (10 min)"
 wait 0.4
 shot playing
+boosts
 click "workbench →"
 wait 0.4
 expect tab inventory

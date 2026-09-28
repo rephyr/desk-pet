@@ -147,11 +147,10 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   accessories a little wardrobe errands, blob finishes a glitter jar coins; all x1.10,
   placeholders). `Book` (scripts/pets/book.gd, pure rules), `GameState.stickers` (save v24, kept
   for good even when a page gains parts later) / `check_book()` (on pets_added and after load:
-  old saves open already-full pages with their popups) / `sticker_opened` / `boost(kind)` =
-  toy_boost x `book_x(kind)`. Coins + luck: every `toy_boost` call site for them is `boost` now
-  (grant, errands pay, machine, workers' machine, trip loot, UI lines). Errands: `job_rate`'s
-  speed x book errands (offline too). Automation: your pet's crank (`Automation.crank(..., x)`),
-  `workers_speed`, box opening out of sight; not auto adventures. Book: the reward tile ends each
+  old saves open already-full pages with their popups) / `sticker_opened`; the stickers are the `book`
+  source of the B2 boosts (`Book.parts`): coins and luck everywhere `boost()` is read, errand
+  speed (`job_rate`, offline too), automation speed (your pet's crank, the workers, box opening;
+  not auto adventures). Book: the reward tile ends each
   sticker page (dashed gift spot with no words, then the gold sticker tilted 2 degrees), popup "<page> page
   full!" with "show me" (opens that spread) / "lovely". Dev steps `book <page> [left]` and
   `stickers off` (big `pets` steps fill random pages: errands_crowd, errand_jobs, workers, fits use it); flow book;
@@ -182,6 +181,12 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
 ### B2. Multipliers  (partly decided)
 - Book page boosts (A4, decided), knacks from the active pet's parts (D1, decided: knacks),
   toys (built), finds. Income must keep growing. **Prep:** where the player sees them all.
+- **Built (lane b2-d1, merged):** B2 boost plumbing: `GameState.boost(kind)` /
+  `boost_parts(kind)`, `Boosts` + data/boosts.json kind table, `toy_boost` removed. Sources: toys,
+  the book's stickers, your active pet's knacks, the kitchen (errand speed; it multiplies now
+  instead of adding to the tools' speed, so it's worth more with lots of tools). Kind `automation`
+  = automation speed (crank, box opening, workers; not adventures). Receipt UI by the coin pill
+  still waits for its look.
 
 ### B3. Automation layer 2: pets restock and buy spots  (needs prep)
 - **Emilia:** workers can open boxes but not buy them, machines must be bought and filled by hand
@@ -245,6 +250,13 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   whose size scales with rarity; your active pet's knacks boost everything.
 - **Prep:** the knack list per slot, how it's shown.
 - Grafting (sewing onto your active pet, can fail) exists; the workbench shows it.
+- **Built (lane b2-d1, merged, look C):** data/knacks.json (35 knacks, one per part, sizes step x
+  rarity x finish), `Knacks` (scripts/pets/knacks.gd), your active pet's knacks are the `knacks`
+  boost source, other pets' count a quarter on their own errands, worker jobs and trips (packed as
+  `RunState.knacks`), 11 knack-only boost kinds (spots, trip, tough, safe, finds, pickups, treats,
+  away, rummage, shiny, pet_boxes). Hidden until parts open and until each kind's system opens;
+  power waits for fights (E1). Badges on the pet details (tap to read), the best badge on grid
+  cards' corners. Numbers are placeholders. No save change.
 
 ---
 

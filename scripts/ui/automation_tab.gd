@@ -245,7 +245,7 @@ static func rate_line(job: Dictionary) -> String:
 		return "nobody here"
 	match str(job.id):
 		"machine":
-			return "a pull every %ds" % roundi(Automation.crank_seconds(catalog, GameState.automation, GameState.book_x("automation")))
+			return "a pull every %ds" % roundi(Automation.crank_seconds(catalog, GameState.automation) / GameState.boost("automation"))
 		"adventures":
 			var run := GameState.auto_run()
 			var party := GameState.auto_party()
@@ -715,7 +715,7 @@ class JobScene extends Control:
 
 	## Seconds a turn of the crank takes on screen: slow when the machine is slow, never frantic.
 	func _turn() -> float:
-		return clampf(Automation.crank_seconds(GameState.catalog, GameState.automation, GameState.book_x("automation")) / 14.0, 1.4, 4.0)
+		return clampf(Automation.crank_seconds(GameState.catalog, GameState.automation) / GameState.boost("automation") / 14.0, 1.4, 4.0)
 
 	func _draw() -> void:
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2(zoom, zoom))
