@@ -122,6 +122,17 @@ already-full pages, with their popups, right after loading).
   several copies run at once.
 - `godot --headless -s tools/balance.gd` - what every place pays per minute, and errands for
   crews of 1 to 1000.
+- `godot --headless -s tools/pace.gd -- --profile=test-sim [--minutes=240] [--runs=5]
+  [--style=steady|casual] [--treats] [--tweak=<path>=<value>]` - the pacing sim (A1): pretend
+  players (`tools/pace_player.gd`) play a fresh game on their own `GameState` instance (never in the
+  tree, saving off, the sim's own clock: trips, fever and rummage timestamps are moved onto it) and
+  call the tabs' real functions. Prints milestones (median minute), coins a minute by source every
+  10 minutes, how long each gate waited on bits and on coins, and what coins went on. `--tweak`
+  changes a catalog value in memory (by id or index in a list) to try a suggestion without touching
+  data/. It refuses to run without `--profile`. Kept in step by hand: `pace_player.gd` copies
+  `GameState._work_for_automation`, `_zoom_runs` and the coin/decay part of `_process`, so re-check
+  those when they change. Report: docs/reports/pace.md. `tools/machine_pace.gd` is the older
+  tree-only check.
 - `python3 tools/play.py <flow>` - plays `tests/flows/<flow>.flow` in a test profile (its own save
   and settings, window parked off-screen), prints the log and saves screenshots. Steps are listed
   in `DevDriver`; `expect fits` checks the full game fits its window. Test saves: `tests/saves/`.
