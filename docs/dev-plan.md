@@ -59,7 +59,7 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   prices for data/automation.json.
 - **Done when:** a report Emilia can read, with suggested numbers (not applied until she says).
 
-### A2. Gear: xp upgrades  (BUILT 2026-09-28)
+### A2. Gear: xp upgrades  (BUILT + VERIFIED 2026-09-28)
 - **Emilia:** an "upgrades" page INSIDE the adventures tab (adventures | upgrades, like machine |
   upgrades), not its own tab. Look: gear.html's crayon path of gear stickers, words not numbers.
   Opens with the first xp. First upgrades: **walk speed** (shorter trips), **bigger bags** (more
@@ -102,6 +102,9 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   **Open questions for Emilia:** see docs/plans/A2.md (leaf only saves from "hurt"; harness shows
   with the wheelbarrow; gear packed at set-off; the charm's card shows +4%; prices placeholders
   until A1).
+- **Verified (2026-09-28):** flow gear passes (`expect fits` on the page), tests pass; fixes from
+  the check: sticker rows taller (an effect that wraps to 3 lines kept its price inside the window),
+  the tote's "bought" line says coins (it only boosts coins).
 
 ### A3. More errand jobs  (DECIDED 2026-09-28, BUILT)
 - **Emilia picked:** savings jar (fills slowly, pays one big chunk), kitchen (brings nothing,
