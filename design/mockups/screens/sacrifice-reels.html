@@ -1,0 +1,796 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plushie Machine</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* F1/F2: the sacrifice machine with reels ("the plushie machine" here, working name).
+     Pick the keeper, feed pets into the hopper, one reel per part. Each reel lands on an upgrade,
+     a blank or a crack. Bank a reel (it stops) or hold it for a double next spin; a crack takes a
+     held one away. Misses puff stuffing, stuffing buys nudges and holds. Three looks to pick from. */
+
+  /* the page around the frames (not the game) */
+  body { display: block; padding: 24px 24px 60px; }
+  .sheet { width: 920px; margin: 0 auto; }
+  .sheet h1 { font: var(--display-weight) 28px/1 var(--display); color: var(--pink); margin: 0 0 6px; }
+  .sheet .lede { color: var(--muted); margin: 0 0 16px; max-width: 80ch; }
+  .sheet h2 { font: var(--display-weight) 20px/1 var(--display); color: var(--lilac); margin: 34px 0 4px; }
+  .sheet h2 + p { color: var(--muted); margin: 0 0 12px; }
+  .choices { display: grid; grid-template-columns: 1fr 250px; gap: 14px; }
+  .choices .box { padding: 12px 14px; }
+  .choices h3 { margin: 0 0 8px; font: var(--display-weight) 15px/1 var(--display); color: var(--lilac); }
+  .names { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .nm { display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 8px 6px 7px; text-align: center; background: var(--deep); border: 2px solid var(--line); border-radius: var(--r-lg); cursor: pointer; color: var(--text); font: inherit; }
+  .nm:hover { border-color: var(--pink-seam); }
+  .nm.on { border: 2px dashed var(--pink); transform: rotate(-2deg); background: var(--raised); }
+  .nm b { font: var(--display-weight) 15px/1 var(--display); color: var(--pink); font-weight: 400; }
+  .nm span { font-size: 11px; color: var(--muted); line-height: 1.3; }
+  .nm .row5 { display: flex; gap: 2px; margin: 2px 0; }
+  .swatches { display: flex; flex-direction: column; gap: 6px; }
+  .sw { display: flex; align-items: center; gap: 8px; padding: 5px 8px; background: var(--deep); border: 2px solid var(--line); border-radius: var(--r-md); cursor: pointer; color: var(--text); font: inherit; font-size: 12px; text-align: left; }
+  .sw:hover { border-color: var(--pink-seam); }
+  .sw.on { border: 2px dashed var(--pink); }
+  .sw i { width: 18px; height: 18px; border-radius: 50%; background: var(--c); flex: none; }
+  .sw small { color: var(--muted); font-size: 11px; margin-left: auto; }
+  .look-label { display: flex; align-items: baseline; gap: 10px; }
+
+  /* the darker currency's colour: a new role (one of the swatches above) */
+  :root { --stuff: #ff9e7d; }
+  [data-stuff="coral"] { --stuff: #ff9e7d; }
+  [data-stuff="periwinkle"] { --stuff: #9db4ff; }
+  [data-stuff="cream"] { --stuff: #ffe9cf; }
+
+  /* ---------- shared game bits ---------- */
+  .app { margin: 0 auto; }
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+  .mc { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; user-select: none; }
+  .bar { display: flex; align-items: center; gap: 10px; }
+  .fluffchip { margin-left: auto; display: flex; align-items: center; gap: 8px; padding: 2px 14px 2px 8px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--stuff) 40%, var(--line)); }
+  .fluffchip b { font: 400 18px/1 var(--display); color: var(--stuff); font-variant-numeric: tabular-nums; }
+  .fluffchip.bump b { animation: bump .5s var(--ease-out); }
+  @keyframes bump { 30% { transform: scale(1.25); color: var(--text); } }
+  .muted { color: var(--muted); }
+  .sym { display: block; flex: none; }
+  .ttl { font: 400 15px/1 var(--display); color: var(--lilac); margin: 0; }
+  .tier { color: var(--tc); font-size: 11px; }
+  .odds { display: flex; gap: 6px; justify-content: center; font-size: 10px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .odds span { display: inline-flex; align-items: center; gap: 2px; white-space: nowrap; }
+  .odds .u { color: var(--pink); }
+  .odds .b { color: var(--muted); }
+  .odds .c { color: var(--text); }
+  .marks { display: flex; gap: 3px; justify-content: center; }
+  .marks i { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--line); }
+  .marks i.on { background: var(--pink); border-color: var(--pink); }
+  .marks i.held { border: 2px dashed var(--pink); animation: twinkle 1.2s ease-in-out infinite; }
+  @keyframes twinkle { 50% { transform: scale(1.25); } }
+  .pill-btns { display: flex; gap: 4px; justify-content: center; }
+  .sb { padding: 2px 7px; font-size: 11px; border-radius: 7px; }
+  .sb.on { background: var(--pink-pressed); border-color: var(--pink); color: var(--text); }
+  .sb.kept { border-color: transparent; background: none; color: var(--pink); cursor: default; }
+  .sb.ghost { visibility: hidden; }
+  .pdots { display: inline-flex; gap: 3px; vertical-align: middle; }
+  .pdots i { width: 8px; height: 8px; border-radius: 50%; background: var(--c, var(--pink)); }
+  .pdots i.off { background: none; border: 2px solid var(--line); }
+  .count { font-variant-numeric: tabular-nums; }
+  .buy { display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px; font-size: 11px; color: var(--stuff); border-radius: 7px; }
+  .buy:disabled { color: var(--muted); }
+
+  /* a reel cell and the rolling strip */
+  .cell { display: grid; place-items: center; }
+  .roll { animation: rollv .16s linear infinite; }
+  @keyframes rollv { from { transform: translateY(-50%); } to { transform: translateY(0); } }
+  .rollh { animation: rollh .16s linear infinite; }
+  @keyframes rollh { from { transform: translateX(-50%); } to { transform: translateX(0); } }
+  .landed { animation: land .3s cubic-bezier(.3, 1.6, .5, 1); }
+  @keyframes land { 0% { transform: translateY(-8px); } }
+  .rip { animation: rip .35s ease-in-out; }
+  @keyframes rip { 25% { transform: translateX(-3px) rotate(-2deg); } 60% { transform: translateX(3px) rotate(2deg); } }
+  .nudge { position: absolute; z-index: 2; display: grid; place-items: center; width: 22px; height: 16px; padding: 0; border-radius: 0 0 8px 8px; border: 2px solid var(--lilac); border-top: 0; background: var(--deep); color: var(--lilac); cursor: pointer; font-size: 10px; line-height: 1; }
+  .nudge:hover { background: var(--pink-pressed); }
+
+  /* effects layer: stuffing puffs, sparkles, floating numbers */
+  .fx { position: absolute; inset: 0; pointer-events: none; z-index: 20; overflow: hidden; }
+  .puff { position: absolute; width: 12px; height: 12px; border-radius: 50%; background: var(--stuff); opacity: .9; animation: puff 1s var(--ease-out) forwards; }
+  .puff::before, .puff::after { content: ""; position: absolute; border-radius: 50%; background: inherit; }
+  .puff::before { width: 9px; height: 9px; left: -5px; top: 4px; }
+  .puff::after { width: 8px; height: 8px; left: 7px; top: 5px; }
+  @keyframes puff { from { transform: translate(0, 0) scale(.4); } 30% { opacity: .95; } to { transform: translate(var(--dx), var(--dy)) scale(1.1); opacity: 0; } }
+  .bit { position: absolute; width: 6px; height: 6px; border-radius: 2px; background: var(--pink); animation: bit .7s var(--ease-out) forwards; }
+  @keyframes bit { to { transform: translate(var(--dx), var(--dy)) rotate(180deg); opacity: 0; } }
+  .float { position: absolute; font: 400 15px/1 var(--display); color: var(--c); white-space: nowrap; transform: translateX(-50%); animation: up 1.1s var(--ease-out) forwards; text-shadow: 0 2px 0 var(--deep); display: flex; align-items: center; gap: 3px; }
+  @keyframes up { to { transform: translate(-50%, -34px); opacity: 0; } }
+
+  /* ---------- Look A: the cabinet ---------- */
+  .a-body { display: grid; grid-template-columns: 1fr 232px; grid-template-rows: minmax(0, 1fr); gap: 14px; flex: 1; min-height: 0; }
+  .a-stage { position: relative; border-radius: var(--r-panel); background: var(--paper); border: 2px solid var(--line); min-height: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; padding: 10px 0 0; }
+  .cab { position: relative; width: 468px; }
+  .hop { position: relative; margin: 0 auto -6px; width: 186px; height: 70px; }
+  .hop svg { position: absolute; inset: 0; }
+  .hop img { position: absolute; left: 50%; top: 2px; width: 48px; height: 54px; margin-left: -24px; animation: hopbob 1.4s ease-in-out infinite; }
+  @keyframes hopbob { 50% { transform: translateY(-3px) rotate(3deg); } }
+  .hop .who { position: absolute; left: 196px; top: 8px; width: 150px; font-size: 11px; line-height: 1.35; }
+  .hop .who b { display: block; font-weight: 400; font-size: 12px; }
+  .hop .spins { position: absolute; right: 196px; top: 10px; width: 120px; text-align: right; font-size: 11px; color: var(--muted); line-height: 1.6; }
+  .cabbox { position: relative; padding: 12px 14px 12px; background: color-mix(in srgb, var(--pink) 16%, var(--page)); border: 3px solid var(--pink); border-radius: 28px 28px 18px 18px; box-shadow: var(--lift); }
+  .bulbs { display: flex; justify-content: space-between; padding: 0 16px 8px; }
+  .bulbs i { width: 8px; height: 8px; border-radius: 50%; background: var(--lilac-seam); }
+  .bulbs.on i:nth-child(2n) { background: var(--pink); }
+  .bulbs.on i:nth-child(2n+1) { background: var(--lilac); animation: blink .5s steps(1) infinite; }
+  @keyframes blink { 50% { background: var(--lilac-seam); } }
+  .a-heads, .a-win, .a-under { display: grid; grid-template-columns: repeat(5, 76px); gap: 8px; justify-content: center; }
+  .a-heads div { text-align: center; line-height: 1.15; }
+  .a-heads small { display: block; font-size: 10px; color: var(--muted); }
+  .a-heads b { font-weight: 400; font-size: 12px; }
+  .a-win { position: relative; margin-top: 4px; padding: 8px; background: var(--deep); border: 2px solid var(--pink-seam); border-radius: 14px; grid-template-columns: repeat(5, 76px); }
+  .a-win::before, .a-win::after { content: ""; position: absolute; top: 50%; width: 0; height: 0; border: 7px solid transparent; margin-top: -7px; }
+  .a-win::before { left: -2px; border-left-color: var(--pink); }
+  .a-win::after { right: -2px; border-right-color: var(--pink); }
+  .a-reel { position: relative; height: 132px; overflow: hidden; border-radius: 10px; background: color-mix(in srgb, var(--text) 5%, var(--raised)); border: 2px solid var(--line); }
+  .a-reel .strip { display: flex; flex-direction: column; }
+  .a-reel .cell { height: 42px; }
+  .a-reel .cell.side { opacity: .35; }
+  .a-reel.full { border-color: var(--pink-seam); }
+  .a-reel.banked { border: 2px dashed var(--pink); }
+  .a-reel.banked .cell.side { opacity: .12; }
+  .a-reel .nudge { top: 0; left: 50%; margin-left: -11px; }
+  .a-reel .fullmark { position: absolute; inset: 0; display: grid; place-items: center; }
+  .a-under { margin-top: 8px; }
+  .a-under > div { display: flex; flex-direction: column; gap: 5px; align-items: center; }
+  .a-under .odds { flex-direction: column; gap: 2px; align-items: flex-start; }
+  .lever { position: absolute; right: -42px; top: 120px; width: 40px; height: 150px; cursor: pointer; }
+  .lever .mount { position: absolute; left: -6px; bottom: 22px; width: 30px; height: 42px; border-radius: 10px; background: var(--raised); border: 3px solid var(--lilac-seam); }
+  .lever .arm { position: absolute; left: 11px; bottom: 43px; width: 5px; height: 96px; margin-left: -2px; border-radius: 3px; background: var(--lilac); transform-origin: 50% 100%; transition: transform .18s var(--ease-out); }
+  .lever .arm::after { content: ""; position: absolute; left: 50%; top: -14px; width: 24px; height: 24px; margin-left: -12px; border-radius: 50%; background: var(--pink); border: 2px solid var(--deep); }
+  .lever:hover .arm::after { background: color-mix(in srgb, var(--pink) 80%, var(--text)); }
+  .lever.pulled .arm { transform: scaleY(-.55); }
+  .a-go { position: relative; z-index: 1; margin-top: 12px; display: flex; align-items: center; gap: 12px; }
+  .spin { min-width: 140px; padding: 7px 20px; font: 400 17px/1 var(--display); border-color: var(--pink-seam); }
+  .spin img { width: 32px; height: 36px; margin: -8px 0; }
+  .a-side { display: flex; flex-direction: column; gap: 9px; padding: 12px 14px; min-height: 0; }
+  .keeper { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; align-items: center; }
+  .keeper .pic { grid-row: span 3; position: relative; width: 72px; height: 80px; display: grid; place-items: center; border-radius: 16px; background: var(--deep); border: 2px solid var(--tc); transform: rotate(-3deg); }
+  .keeper .pic img { width: 64px; height: 72px; }
+  .keeper b { font: 400 16px/1.05 var(--display); color: var(--pink); font-weight: 400; }
+  .keeper .tot { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+  .flip { display: flex; gap: 4px; }
+  .flip .btn { padding: 0 8px; font-size: 12px; }
+  .hoprows { display: flex; flex-direction: column; gap: 3px; }
+  .hr { display: grid; grid-template-columns: 32px 1fr auto auto; gap: 6px; align-items: center; font-size: 12px; }
+  .hr .tier { line-height: 1.15; }
+  .hr .tier small { display: block; font-size: 10px; color: var(--muted); }
+  .hr img { width: 32px; height: 36px; margin: -4px 0; }
+  .hr .n { color: var(--text); font-variant-numeric: tabular-nums; text-align: right; min-width: 22px; }
+  .hr .btn { padding: 0 8px; font-size: 12px; }
+  .pool { display: grid; grid-template-columns: 1fr auto; gap: 6px 8px; align-items: center; font-size: 12px; }
+  .pool > span { display: flex; align-items: center; gap: 6px; }
+  .fluffbig { display: flex; align-items: center; gap: 8px; }
+  .fluffbig b { font: 400 20px/1 var(--display); color: var(--stuff); font-variant-numeric: tabular-nums; }
+
+  /* ---------- Look B: sewing rows ---------- */
+  .b-body { display: grid; grid-template-columns: 172px 1fr; grid-template-rows: minmax(0, 1fr) auto; gap: 10px 12px; flex: 1; min-height: 0; }
+  .b-keep { grid-row: span 2; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 12px 12px; text-align: center; min-height: 0; position: relative; }
+  .b-keep::before { content: ""; position: absolute; inset: 5px; border: 2px dashed var(--line); border-radius: 8px; pointer-events: none; }
+  .b-keep .pic { width: 104px; height: 116px; display: grid; place-items: center; border-radius: 20px; background: var(--deep); border: 2px solid var(--tc); transform: rotate(-3deg); }
+  .b-keep .pic img { width: 96px; height: 108px; }
+  .b-keep b { font: 400 17px/1.05 var(--display); color: var(--pink); font-weight: 400; margin-top: 4px; }
+  .b-keep .tot { display: flex; align-items: center; gap: 4px; font-size: 12px; }
+  .b-keep .grow { flex: 1; }
+  .b-keep .pool { width: 100%; text-align: left; font-size: 11px; }
+  .b-rows { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+  .b-row { position: relative; flex: 1; display: grid; grid-template-columns: 96px 78px 118px 132px 1fr; align-items: center; gap: 10px; padding: 0 8px 0 14px; background: var(--raised); border: 2px solid var(--lilac-seam); border-radius: 10px; box-shadow: var(--lift); }
+  .b-row::before { content: ""; position: absolute; left: 5px; top: 7px; bottom: 7px; width: 2px; background: repeating-linear-gradient(to bottom, var(--pink-seam) 0 5px, transparent 5px 9px); }
+  .b-row.banked { border: 2px dashed var(--pink); }
+  .b-row.full { border-color: var(--pink-seam); }
+  .b-row .pn small { display: block; font-size: 10px; color: var(--muted); line-height: 1.1; }
+  .b-row .pn b { display: block; font: 400 14px/1.1 var(--display); font-weight: 400; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .b-row .marks { justify-content: flex-start; gap: 3px; }
+  .b-row .marks i { width: 13px; height: 13px; }
+  .obar { display: flex; flex-direction: column; gap: 4px; }
+  .obar .seg3 { display: flex; height: 10px; border-radius: 999px; overflow: hidden; background: var(--deep); border: 2px solid var(--line); }
+  .obar .seg3 i { display: block; height: 100%; }
+  .obar .seg3 .u { background: var(--pink); }
+  .obar .seg3 .b { background: color-mix(in srgb, var(--muted) 35%, var(--deep)); }
+  .obar .seg3 .c { background: color-mix(in srgb, var(--text) 70%, var(--deep)); }
+  .obar .odds { justify-content: space-between; }
+  .b-reel { position: relative; height: 46px; width: 132px; overflow: hidden; border-radius: 10px; background: var(--deep); border: 2px solid var(--pink-seam); }
+  .b-reel .strip { display: flex; height: 100%; }
+  .b-reel .cell { width: 42px; flex: none; height: 100%; }
+  .b-reel .cell.mid { background: color-mix(in srgb, var(--text) 6%, var(--raised)); border-left: 2px solid var(--pink-seam); border-right: 2px solid var(--pink-seam); }
+  .b-reel .cell.side { opacity: .35; }
+  .b-reel .nudge { left: 0; top: 50%; margin-top: -11px; width: 16px; height: 22px; border-radius: 0 8px 8px 0; border: 2px solid var(--lilac); border-left: 0; }
+  .b-row .acts { display: flex; gap: 5px; justify-content: flex-end; }
+  .b-row .acts .sb { padding: 4px 10px; font-size: 12px; }
+  .b-tray { display: grid; grid-template-columns: 200px 1fr auto; gap: 12px; align-items: center; padding: 8px 12px; border-radius: var(--r-panel); background: color-mix(in srgb, var(--lilac) 5%, var(--paper)); border: 2px solid var(--line); }
+  .basket { position: relative; display: flex; align-items: center; gap: 10px; }
+  .basket .bk { position: relative; width: 60px; height: 50px; flex: none; }
+  .basket .bk img { position: absolute; left: 6px; top: -6px; width: 48px; height: 54px; animation: hopbob 1.4s ease-in-out infinite; }
+  .basket .bk::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 24px; border-radius: 6px 6px 16px 16px; background: color-mix(in srgb, var(--lilac) 14%, var(--deep)); border: 2px solid var(--lilac-seam); }
+  .basket .who { font-size: 11px; line-height: 1.4; }
+  .basket .who b { display: block; font-weight: 400; font-size: 12px; }
+  .queue { display: flex; gap: 6px; align-items: flex-end; justify-content: center; }
+  .q { position: relative; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 6px 3px; border-radius: 9px; background: var(--raised); border: 2px solid color-mix(in srgb, var(--tc) 60%, var(--line)); cursor: pointer; color: var(--text); font: inherit; }
+  .q:hover { border-color: var(--tc); transform: translateY(-2px); }
+  .q img { width: 32px; height: 36px; }
+  .q .n { font-size: 11px; font-variant-numeric: tabular-nums; }
+  .q .plus { position: absolute; top: -7px; right: -7px; width: 16px; height: 16px; border-radius: 50%; background: var(--deep); border: 2px solid var(--tc); color: var(--tc); font-size: 11px; line-height: 11px; text-align: center; }
+  .q.empty img { opacity: .3; }
+
+  /* ---------- Look C: spools on the playmat ---------- */
+  .c-stage { position: relative; flex: 1; min-height: 0; border-radius: var(--r-panel); border: 2px solid var(--line); overflow: hidden;
+    background-color: color-mix(in srgb, var(--lilac) 3%, var(--paper));
+    background-image: radial-gradient(circle, color-mix(in srgb, var(--pink) 10%, transparent) 1.2px, transparent 1.8px); background-size: 18px 18px; }
+  .c-threads { position: absolute; inset: 0; pointer-events: none; }
+  .c-threads path { fill: none; stroke: var(--pink-seam); stroke-width: 2.5; stroke-dasharray: 6 6; stroke-linecap: round; }
+  .c-threads path.kept { stroke: var(--pink); stroke-dasharray: none; }
+  .c-threads path.tight { stroke: var(--pink); animation: march .6s linear infinite; }
+  @keyframes march { to { stroke-dashoffset: -12; } }
+  .spool { position: absolute; width: 124px; margin-left: -62px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+  .spool .pn { text-align: center; line-height: 1.1; }
+  .spool .pn small { display: block; font-size: 10px; color: var(--muted); }
+  .spool .pn b { font-weight: 400; font-size: 12px; }
+  .spool .body { position: relative; display: flex; flex-direction: column; align-items: center; }
+  .spool .fl { width: 104px; height: 11px; border-radius: 6px; background: color-mix(in srgb, var(--lilac) 22%, var(--raised)); border: 2px solid var(--lilac-seam); position: relative; z-index: 1; }
+  .spool .wind { position: relative; width: 84px; height: 76px; margin: -2px 0; display: grid; place-items: center;
+    background: repeating-linear-gradient(to bottom, color-mix(in srgb, var(--tc) 55%, var(--page)) 0 3px, color-mix(in srgb, var(--tc) 35%, var(--page)) 3px 6px); }
+  .spool .win { position: relative; width: 58px; height: 70px; overflow: hidden; border-radius: 12px; background: var(--deep); border: 2px solid var(--pink-seam); }
+  .spool .win .strip { display: flex; flex-direction: column; margin-top: -24px; }
+  .spool .win .cell { height: 40px; }
+  .spool .win .cell.side { opacity: .3; }
+  .spool .win .nudge { top: 0; left: 50%; margin-left: -11px; }
+  .spool.banked .win { border: 2px dashed var(--pink); }
+  .spool.full .wind { background: repeating-linear-gradient(to bottom, color-mix(in srgb, var(--pink) 55%, var(--page)) 0 3px, color-mix(in srgb, var(--pink) 35%, var(--page)) 3px 6px); }
+  .spool .marks { margin-top: 2px; }
+  .spool .marks i { width: 9px; height: 9px; }
+  .spool.spinning .wind { animation: wobble .2s linear infinite; }
+  @keyframes wobble { 50% { transform: translateY(1px); } }
+  .c-keeper { position: absolute; left: 50%; top: 188px; width: 190px; margin-left: -95px; display: flex; flex-direction: column; align-items: center; }
+  .c-keeper img { position: relative; z-index: 1; width: 128px; height: 144px; }
+  .c-keeper .cushion { width: 176px; height: 34px; margin-top: -26px; border-radius: 50%; background: color-mix(in srgb, var(--pink) 22%, var(--page)); border: 3px solid var(--pink-seam); }
+  .c-keeper .name { margin-top: 4px; display: flex; align-items: center; gap: 8px; }
+  .c-keeper .name b { font: 400 16px/1 var(--display); color: var(--pink); font-weight: 400; }
+  .c-keeper .name .btn { padding: 0 7px; font-size: 12px; }
+  .c-keeper .tot { display: flex; align-items: center; gap: 4px; font-size: 12px; margin-top: 3px; }
+  .c-foot { position: absolute; left: 10px; right: 10px; bottom: 8px; display: grid; grid-template-columns: 1fr auto 1fr; gap: 12px; align-items: end; }
+  .chute { display: flex; align-items: flex-end; gap: 8px; }
+  .chute .box { position: relative; width: 64px; height: 58px; flex: none; }
+  .chute .box img { position: absolute; left: 8px; top: -4px; width: 48px; height: 54px; animation: hopbob 1.4s ease-in-out infinite; }
+  .chute .box::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 26px; border-radius: 4px 4px 12px 12px; background: color-mix(in srgb, var(--lilac) 16%, var(--deep)); border: 2px solid var(--lilac-seam); }
+  .chute .who { font-size: 11px; line-height: 1.4; }
+  .chute .who b { display: block; font-size: 12px; font-weight: 400; }
+  .chute .mini { display: flex; gap: 4px; margin-top: 3px; }
+  .chute .mini .q { padding: 1px 5px; flex-direction: row; gap: 3px; font-size: 11px; }
+  .chute .mini .q { align-items: center; }
+  .chute .mini .tdot { width: 8px; height: 8px; border-radius: 50%; background: var(--tc); }
+  .c-shop { display: grid; grid-template-columns: auto auto; gap: 4px 8px; align-items: center; justify-content: end; font-size: 11px; }
+  .c-shop > span { display: flex; align-items: center; gap: 6px; }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <h1>the plushie machine</h1>
+  <p class="lede">F1/F2 mockup. Pick the keeper, feed pets into the hopper, spin: one reel per part, each lands on an upgrade, a blank or a crack. Bank a reel to keep what it holds (that reel stops), or hold it: the next upgrade on it counts double, a crack takes the held ones away. Misses puff stuffing, stuffing buys nudges (the little tab on a reel pulls the one above down) and holds. Every frame is playable: pull the lever or press spin. The fed pet's rarity = spins, its finish = nudges, "lucky" = fewer cracks. Numbers are placeholders.</p>
+
+  <div class="choices">
+    <div class="box sticker">
+      <h3>what's the upgrade called? (not "star")</h3>
+      <div class="names" id="names"></div>
+    </div>
+    <div class="box sticker">
+      <h3>stuffing's colour</h3>
+      <div class="swatches" id="swatches"></div>
+    </div>
+  </div>
+
+  <h2>Look A: the cabinet</h2>
+  <p>A chunky toy slot machine with a hopper on top and a lever; the keeper, hopper and stuffing sit on a card beside it.</p>
+  <div class="app" data-tab="inventory" data-look="a"></div>
+
+  <h2>Look B: sewing rows</h2>
+  <p>One stitched row per part, with an odds bar and a sideways reel; the keeper stands tall on the left, fed pets wait in a tray below.</p>
+  <div class="app" data-tab="inventory" data-look="b"></div>
+
+  <h2>Look C: spools on the playmat</h2>
+  <p>The keeper sits on a cushion in the middle; each reel is a thread spool tied to it, so you watch the pet itself while you play.</p>
+  <div class="app" data-tab="inventory" data-look="c"></div>
+</div>
+
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  // ---------- the game's tabs today (machine, automation; the plushie machine lives in the workbench) ----------
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+  TABS.forEach(t => { t.news = false; });
+
+  // mountFrame() only builds the first .app, so this builds the same frame into each one
+  function mountApp(app) {
+    const active = app.dataset.tab;
+    const tab = t => `<a class="tab${t.id === active ? " on" : ""}" href="${t.id}.html"><span data-icon="${t.icon}"></span>${t.label}</a>`;
+    app.innerHTML = `
+      <nav class="spine">
+        <svg class="sky" width="80" height="600" aria-hidden="true">${stars()}</svg>
+        <div class="moon" title="lilac blob, your active pet"><img class="px" src="../assets/pets/lilac-blob.png" alt="lilac blob"></div>
+        ${TABS.map(tab).join("")}
+        <div class="grow"></div>
+        ${tab({ id: "settings", label: "", icon: "settings" })}
+      </nav>
+      <main class="page dots">
+        <div class="top">
+          <div class="bubble"></div>
+          <span class="chip coins"><span data-icon="coin"></span>4.2M</span>
+          <span class="chip xp"><span data-icon="xp"></span>18.6k</span>
+          <div class="winbtns"><button title="shrink">▾</button><button title="close">✕</button></div>
+        </div>
+        <div class="content" style="flex: 1; min-height: 0;"></div>
+      </main>
+      <div class="fx"></div>`;
+    return app.querySelector(".content");
+  }
+
+  // ---------- names and colours (page-level choices) ----------
+  const NAMES = {
+    button:  { one: "button",  many: "buttons",  why: "plushie button eyes, sewn on one by one" },
+    stitch:  { one: "stitch",  many: "stitches", why: "matches grafting and the stitch marks" },
+    pip:     { one: "pip",     many: "pips",     why: "small and plain, like dice pips" },
+    sparkle: { one: "sparkle", many: "sparkles", why: "pretty, but gold sparkles already mean xp" },
+  };
+  let NAME = "button";
+  const STUFF = [
+    ["coral", "#ff9e7d", "candy floss coral", "warm, new"],
+    ["periwinkle", "#9db4ff", "periwinkle fluff", "near blueberry's lilac"],
+    ["cream", "#ffe9cf", "cotton cream", "near the text colour"],
+  ];
+
+  // upgrade / blank / crack art, 24px. the upgrade changes with the name
+  function symSvg(kind, size = 24) {
+    let inner;
+    if (kind === "up") inner = {
+      button: `<circle cx="12" cy="12" r="8.4" fill="color-mix(in srgb, var(--pink) 40%, var(--page))" stroke="var(--pink)" stroke-width="2.2"/><circle cx="12" cy="12" r="5.2" fill="none" stroke="var(--pink)" stroke-width="1.2" opacity=".6"/><circle cx="10" cy="10" r="1.3" fill="var(--deep)"/><circle cx="14" cy="10" r="1.3" fill="var(--deep)"/><circle cx="10" cy="14" r="1.3" fill="var(--deep)"/><circle cx="14" cy="14" r="1.3" fill="var(--deep)"/>`,
+      stitch: `<path d="M6 6 L18 18 M18 6 L6 18" stroke="var(--pink)" stroke-width="3.6" stroke-linecap="round"/><path d="M7.5 7.5 L10 10" stroke="var(--text)" stroke-width="1.2" stroke-linecap="round" opacity=".6"/>`,
+      pip: `<circle cx="12" cy="12" r="7.4" fill="var(--pink)"/><circle cx="9.6" cy="9.4" r="2" fill="var(--text)" opacity=".55"/>`,
+      sparkle: `<path d="M12 2.8 Q13.2 10.6 21 12 Q13.2 13.4 12 21.2 Q10.8 13.4 3 12 Q10.8 10.6 12 2.8 Z" fill="var(--pink)" stroke="var(--pink)" stroke-width="1.4" stroke-linejoin="round"/>`,
+    }[NAME];
+    else if (kind === "crack") inner = `<path d="M4.5 13 L8 9.5 L11 13.5 L14 9 L17 13 L19.5 10.5" fill="none" stroke="var(--text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="11" cy="16.6" r="2.6" fill="var(--stuff)"/><circle cx="13.6" cy="17.4" r="2" fill="var(--stuff)"/><circle cx="9" cy="17.6" r="1.7" fill="var(--stuff)"/>`;
+    else if (kind === "fluff") inner = `<circle cx="9" cy="13.5" r="5" fill="var(--stuff)"/><circle cx="14.5" cy="11" r="5.6" fill="var(--stuff)"/><circle cx="17.5" cy="15.4" r="3.8" fill="var(--stuff)"/><path d="M6 17.8 Q12 19.6 20 17.6" fill="none" stroke="var(--page)" stroke-width="1.2" stroke-linecap="round" opacity=".5"/>`;
+    else inner = `<path d="M8 12.4 Q12 11.2 16 12.4" fill="none" stroke="var(--muted)" stroke-width="2.4" stroke-linecap="round" opacity=".7"/>`;
+    return `<svg class="sym" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${inner}</svg>`;
+  }
+
+  // ---------- rules (placeholders; in the game these live in data/*.json) ----------
+  const TIERS = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
+  const SPINS = { common: 1, uncommon: 2, rare: 3, epic: 4, legendary: 5, mythic: 6 };
+  const NUDGES = { "": 0, shiny: 1, holo: 2, ghost: 3 };
+  const PUFF = { common: 1, uncommon: 4, rare: 12, epic: 40, legendary: 300, mythic: 10000 };
+  const UP = [34, 26, 18, 11, 5], CRACK = [8, 11, 15, 19, 24];
+  const SAMPLE = { common: "peach-cat", uncommon: "mint-bear", rare: "sky-bunny", epic: "bubblegum-fox", legendary: "gold-dragon", mythic: "abyss-void" };
+  const SAMPLE_NAME = { common: "peach cat", uncommon: "mint bear", rare: "sky bunny", epic: "bubblegum fox", legendary: "gold dragon", mythic: "abyss void" };
+  const SLOTS = ["body", "palette", "pattern", "eyes", "accessory"];
+  const KEEPERS = [
+    { id: "lilac-blob", name: "lilac blob", tier: "rare", parts: ["blob", "lilac", "plain", "sleepy", "headphones"], ups: [2, 1, 3, 0, 1] },
+    { id: "gold-dragon", name: "gold dragon", tier: "legendary", parts: ["dragon", "gold", "circuit", "sparkle", "crown"], ups: [4, 2, 1, 3, 5] },
+    { id: "toxic-cat", name: "toxic cat", tier: "epic", parts: ["cat", "toxic", "spots", "cyclops", "horns"], ups: [0, 0, 1, 0, 0] },
+  ];
+  const tc = t => `var(--tier-${t})`;
+  const num = n => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(n >= 1e5 ? 0 : 1) + "k" : Math.round(n).toLocaleString("en");
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+
+  const CHEER = ["wheee!", "go go go!!", "round and round!", "spin spin spin!", "ooh, here it comes!"];
+  const YAY = n => [`a new ${n}!! so pretty!`, `ooh! ooh! a ${n}! look!`, `another ${n}! best day ever!`];
+  const FLUFF = ["oops, a bit of fluff! so soft!", "fluff everywhere, like snow!", "it's just stuffing! it's fine!"];
+  const KEPT = ["sewn on tight!", "that one's staying forever!", "all snug now!"];
+
+  class Machine {
+    constructor(app) {
+      this.app = app;
+      this.root = mountApp(app);
+      this.look = app.dataset.look;
+      this.keepers = KEEPERS.map(k => ({ ...k, ups: [...k.ups] }));
+      this.ki = 0;
+      this.hopper = { common: 12, uncommon: 4, rare: 2, epic: 0 };
+      this.herd = { common: 48210, uncommon: 9312, rare: 1204, epic: 61 };
+      this.fed = { tier: "epic", finish: "shiny", trait: "lucky" };
+      this.spins = 2; this.spinsMax = 4;
+      this.nudges = 1; this.holds = 2;
+      this.stuffing = 1240;
+      this.nudgeCost = 60; this.holdCost = 400;
+      this.rolling = new Set();
+      this.pulled = false;
+      // mid-try: one spin done, so every state shows
+      const R = (a, c, b, o = {}) => ({ strip: [a, c, b], held: 0, before: 0, wasHold: false, hold: false, banked: false, fresh: true, ...o });
+      this.reels = [
+        R("blank", "up", "crack", { held: 1 }),
+        R("up", "blank", "blank"),
+        R("blank", "crack", "up"),
+        R("crack", "up", "blank", { held: 1, hold: true }),
+        R("blank", "up", "blank", { banked: true, fresh: false }),
+      ];
+      this.keeper.ups[4] = 2;
+      app.addEventListener("click", e => this.onClick(e));
+      this.say(`${this.fedName()} hops in! wheee!`);
+      this.render();
+    }
+    get keeper() { return this.keepers[this.ki]; }
+    fedName() { return this.fed ? SAMPLE_NAME[this.fed.tier] : ""; }
+    say(t) { this.app.querySelector(".top .bubble").textContent = t; }
+    odds(i) {
+      const lv = this.keeper.ups[i];
+      const up = UP[Math.min(lv, 4)], crack = Math.max(2, CRACK[Math.min(lv, 4)] - (this.fed && this.fed.trait === "lucky" ? 3 : 0));
+      return { up, crack, blank: 100 - up - crack };
+    }
+    roll(i) {
+      const o = this.odds(i), r = Math.random() * 100;
+      return r < o.up ? "up" : r < o.up + o.crack ? "crack" : "blank";
+    }
+    full(i) { return this.keeper.ups[i] >= 5; }
+    active(i) { const r = this.reels[i]; return !r.banked && !this.full(i); }
+    busy() { return this.rolling.size > 0; }
+    anyHeld() { return this.reels.some(r => r.held > 0); }
+    holdsUsed() { return this.reels.filter(r => r.hold).length; }
+    resolve(i) {
+      const r = this.reels[i], c = r.strip[1];
+      let h = r.before;
+      if (c === "up") h = r.before + (r.wasHold && r.before > 0 ? 2 : 1);
+      else if (c === "crack") h = 0;
+      r.held = Math.min(h, 5 - this.keeper.ups[i]);
+      if (r.held === 0) r.hold = false;
+    }
+
+    onClick(e) {
+      const b = e.target.closest("[data-act]");
+      if (!b || !this.app.contains(b) || b.disabled) return;
+      const [act, arg] = b.dataset.act.split(":");
+      const i = Number(arg);
+      if (act === "spin") this.spin();
+      else if (act === "bank") this.bank(i);
+      else if (act === "hold") { const r = this.reels[i]; if (r.hold || this.holdsUsed() < this.holds) r.hold = !r.hold; this.render(); }
+      else if (act === "nudge") this.nudge(i);
+      else if (act === "keeper") { if (this.anyHeld() || this.busy()) return; this.ki = (this.ki + Number(arg) + this.keepers.length) % this.keepers.length; this.reels.forEach(r => { r.banked = false; r.fresh = false; r.held = 0; r.hold = false; }); this.say(pick(["can i help? i'll hold the thread!", "ooh, this one's so cuddly!", "we'll make it the fluffiest!"])); this.render(); }
+      else if (act === "feed") { if (this.herd[arg] > 0) { this.herd[arg]--; this.hopper[arg]++; this.render(); } }
+      else if (act === "buy") {
+        if (arg === "nudge" && this.stuffing >= this.nudgeCost) { this.stuffing -= this.nudgeCost; this.nudges++; this.nudgeCost = Math.round(this.nudgeCost * 1.3); }
+        if (arg === "hold" && this.stuffing >= this.holdCost) { this.stuffing -= this.holdCost; this.holds++; this.holdCost = Math.round(this.holdCost * 2.5); }
+        this.render(); this.bumpChip();
+      }
+    }
+
+    bank(i, quiet) {
+      const r = this.reels[i];
+      if (r.held <= 0) return;
+      const got = r.held;
+      this.keeper.ups[i] = Math.min(5, this.keeper.ups[i] + got);
+      r.held = 0; r.hold = false; r.banked = true; r.fresh = false;
+      if (!quiet) { this.render(); this.sparks(i, got); this.say(pick(KEPT)); }
+      else this.pendingSparks.push([i, got]);
+    }
+
+    nudge(i) {
+      const r = this.reels[i];
+      if (!r.fresh || !this.active(i) || this.nudges <= 0 || this.busy()) return;
+      this.nudges--;
+      r.strip = [this.roll(i), r.strip[0], r.strip[1]];
+      this.resolve(i);
+      this.lastLand = new Set([i]);
+      this.render();
+      if (r.strip[1] === "up") { this.sparks(i, 0); this.say(pick(YAY(NAMES[NAME].one))); }
+      this.lastLand = null;
+    }
+
+    spin() {
+      if (this.busy() || !this.fed) return;
+      this.pulled = true; setTimeout(() => { this.pulled = false; this.render(); }, 260);
+      this.pendingSparks = [];
+      if (this.spins === 0) return this.next();
+      this.reels.forEach((r, i) => { if (!r.banked && r.held > 0 && !r.hold) this.bank(i, true); });
+      const act = this.reels.map((r, i) => i).filter(i => this.active(i));
+      if (!act.length) { this.spins = 0; this.render(); return; }
+      act.forEach(i => { const r = this.reels[i]; r.before = r.held; r.wasHold = r.hold; r.hold = false; r.fresh = false; this.rolling.add(i); });
+      this.spins--;
+      this.say(pick(CHEER));
+      this.render();
+      this.pendingSparks.forEach(([i, n]) => this.sparks(i, n));
+      let misses = 0, ups = 0;
+      act.forEach((i, k) => setTimeout(() => {
+        const r = this.reels[i], s = this.roll(i);
+        r.strip = [this.roll(i), s, this.roll(i)];
+        r.fresh = true;
+        this.resolve(i);
+        this.rolling.delete(i);
+        this.lastLand = new Set([i]);
+        this.render();
+        this.lastLand = null;
+        if (s === "up") { ups++; this.sparks(i, 0); }
+        else { misses++; this.puffs(i, s === "crack"); }
+        if (!this.busy()) {
+          if (ups) this.say(pick(YAY(NAMES[NAME].one)));
+          else if (misses) this.say(pick(FLUFF));
+        }
+      }, 380 + k * 170));
+    }
+
+    next() {
+      // spins used up: whatever is still held gets sewn on, the next pet hops in
+      this.reels.forEach((r, i) => { if (r.held > 0) this.bank(i, true); });
+      this.reels.forEach(r => { r.banked = false; r.fresh = false; r.hold = false; r.before = 0; r.wasHold = false; });
+      const t = [...TIERS].reverse().find(t => this.hopper[t] > 0);
+      if (!t) { this.fed = null; this.render(); this.say("all done! that was the best!"); return; }
+      this.hopper[t]--;
+      const finish = pick(["", "", "", "shiny", "holo"]);
+      this.fed = { tier: t, finish, trait: pick(["lucky", "sleepy", "curious", "brave"]) };
+      this.spins = this.spinsMax = SPINS[t];
+      this.nudges += NUDGES[finish];
+      this.render();
+      this.pendingSparks.forEach(([i, n]) => this.sparks(i, n));
+      this.say(`${this.fedName()} hops in! wheee!`);
+    }
+
+    // ---- effects ----
+    at(i) {
+      const el = this.app.querySelector(`[data-reel="${i}"]`);
+      const a = this.app.getBoundingClientRect(), r = el.getBoundingClientRect();
+      return { x: r.left - a.left + r.width / 2, y: r.top - a.top + r.height / 2 };
+    }
+    fx(html, x, y, cls, vars = {}) {
+      const d = document.createElement("div");
+      d.className = cls; d.innerHTML = html;
+      d.style.left = x + "px"; d.style.top = y + "px";
+      for (const k in vars) d.style.setProperty(k, vars[k]);
+      this.app.querySelector(".fx").appendChild(d);
+      setTimeout(() => d.remove(), 1300);
+    }
+    puffs(i, crack) {
+      const p = this.at(i), n = PUFF[this.fed.tier] * (crack ? 2 : 1);
+      for (let k = 0; k < 7; k++) {
+        const a = -Math.PI / 2 + (Math.random() - .5) * 2.4, d = 22 + Math.random() * 30;
+        this.fx("", p.x - 6, p.y - 6, "puff", { "--dx": Math.cos(a) * d + "px", "--dy": Math.sin(a) * d + "px" });
+      }
+      this.fx(`${symSvg("fluff", 14)}+${num(n)}`, p.x, p.y - 30, "float", { "--c": "var(--stuff)" });
+      this.stuffing += n;
+      const el = this.app.querySelector(`[data-reel="${i}"]`);
+      if (crack && el) el.classList.add("rip");
+      this.renderChips();
+    }
+    sparks(i, got) {
+      const p = this.at(i);
+      for (let k = 0; k < 10; k++) {
+        const a = Math.random() * Math.PI * 2, d = 18 + Math.random() * 30;
+        this.fx("", p.x - 3, p.y - 3, "bit", { "--dx": Math.cos(a) * d + "px", "--dy": Math.sin(a) * d + "px" });
+      }
+      if (got) this.fx(`+${got} ${symSvg("up", 14)}`, p.x, p.y - 34, "float", { "--c": "var(--pink)" });
+    }
+    bumpChip() { const c = this.app.querySelector(".fluffchip"); if (c) { c.classList.remove("bump"); void c.offsetWidth; c.classList.add("bump"); } }
+    renderChips() { this.app.querySelectorAll("[data-stuffing]").forEach(el => el.textContent = num(this.stuffing)); this.bumpChip(); }
+
+    // ---- shared pieces ----
+    total() { return this.keeper.ups.reduce((a, b) => a + b, 0); }
+    marks(i) {
+      const lv = this.keeper.ups[i], h = this.reels[i].held;
+      return `<div class="marks">${[0, 1, 2, 3, 4].map(k => `<i class="${k < lv ? "on" : k < lv + h ? "held" : ""}"></i>`).join("")}</div>`;
+    }
+    oddsHtml(i) {
+      if (this.full(i)) return `<div class="odds"><span class="u">full!</span></div>`;
+      const o = this.odds(i);
+      return `<div class="odds"><span class="u">${symSvg("up", 11)}${o.up}%</span><span class="b">${symSvg("blank", 11)}${o.blank}%</span><span class="c">${symSvg("crack", 11)}${o.crack}%</span></div>`;
+    }
+    cells(i, size, horiz) {
+      const r = this.reels[i];
+      if (this.rolling.has(i)) {
+        const seq = ["up", "blank", "crack", "blank", "blank", "up", "blank", "crack"];
+        return `<div class="strip ${horiz ? "rollh" : "roll"}">${[...seq, ...seq].map(s => `<div class="cell side" style="opacity:.8">${symSvg(s, size)}</div>`).join("")}</div>`;
+      }
+      if (this.full(i)) return `<div class="strip"><div class="cell side"></div><div class="cell mid">${symSvg("up", size + 6)}</div><div class="cell side"></div></div>`;
+      const land = this.lastLand && this.lastLand.has(i) ? " landed" : "";
+      return `<div class="strip${land}">${r.strip.map((s, k) => `<div class="cell ${k === 1 ? "mid" : "side"}">${symSvg(s, k === 1 ? size + 6 : size)}</div>`).join("")}</div>`;
+    }
+    nudgeBtn(i, glyph = "▼") {
+      const r = this.reels[i];
+      return r.fresh && this.active(i) && this.nudges > 0 && !this.busy() && this.fed ? `<button class="nudge" data-act="nudge:${i}" title="nudge">${glyph}</button>` : "";
+    }
+    acts(i) {
+      const r = this.reels[i];
+      if (this.full(i)) return `<div class="pill-btns"><span class="sb btn kept">${symSvg("up", 12)}</span></div>`;
+      if (r.banked) return `<div class="pill-btns"><span class="sb btn kept">kept!</span></div>`;
+      const can = r.held > 0 && !this.busy();
+      const canHold = can && this.spins > 0 && (r.hold || this.holdsUsed() < this.holds);
+      return `<div class="pill-btns">
+        <button class="btn sb ${can ? "" : "ghost"}" data-act="bank:${i}">bank</button>
+        <button class="btn sb ${r.hold ? "on" : ""} ${can ? "" : "ghost"}" data-act="hold:${i}" ${canHold ? "" : "disabled"}>hold</button></div>`;
+    }
+    spinBtn(extra = "") {
+      if (!this.fed) return `<button class="btn spin ${extra}" disabled>empty!</button>`;
+      if (this.spins === 0) {
+        const t = [...TIERS].reverse().find(t => this.hopper[t] > 0);
+        return `<button class="btn spin primary ${extra}" data-act="spin" ${this.busy() ? "disabled" : ""}>next!${t ? `<img class="px" src="../assets/pets/${SAMPLE[t]}.png" alt="">` : ""}</button>`;
+      }
+      return `<button class="btn spin primary ${extra}" data-act="spin" ${this.busy() ? "disabled" : ""}>spin!</button>`;
+    }
+    spinDots() { return `<span class="pdots">${Array.from({ length: this.spinsMax }, (_, k) => `<i class="${k < this.spins ? "" : "off"}"></i>`).join("")}</span>`; }
+    poolDots(n, max, c) { return `<span class="pdots" style="--c:${c}">${Array.from({ length: Math.max(n, max) }, (_, k) => `<i class="${k < n ? "" : "off"}"></i>`).join("")}</span>`; }
+    fluffChip() { return `<span class="fluffchip">${symSvg("fluff", 20)}<b data-stuffing>${num(this.stuffing)}</b></span>`; }
+    barHtml() { return `<div class="bar"><div class="seg"><button>toys</button><button class="on">plushie machine</button></div>${this.fluffChip()}</div>`; }
+    fedWho() {
+      if (!this.fed) return `<b class="muted">…</b>`;
+      return `<b>${this.fedName()}</b><span class="tier" style="--tc:${tc(this.fed.tier)}">${this.fed.tier}${this.fed.finish ? ` ${this.fed.finish}` : ""}</span> <span class="muted">${this.fed.trait}</span>`;
+    }
+    shopRows() {
+      return `
+        <span>nudges ${this.poolDots(this.nudges, 0, "var(--lilac)")}</span><button class="btn buy" data-act="buy:nudge" ${this.stuffing < this.nudgeCost ? "disabled" : ""}>+ ${symSvg("fluff", 13)}${num(this.nudgeCost)}</button>
+        <span>holds ${this.poolDots(this.holds, 0, "var(--pink)")}</span><button class="btn buy" data-act="buy:hold" ${this.stuffing < this.holdCost ? "disabled" : ""}>+ ${symSvg("fluff", 13)}${num(this.holdCost)}</button>`;
+    }
+    keeperFlip() { const off = this.anyHeld() || this.busy(); return `<div class="flip"><button class="btn" data-act="keeper:-1" ${off ? "disabled" : ""}>‹</button><button class="btn" data-act="keeper:1" ${off ? "disabled" : ""}>›</button></div>`; }
+    tot() { return `<span class="tot">${symSvg("up", 14)}<span class="count">${this.total()}</span> ${NAMES[NAME].many}</span>`; }
+
+    render() {
+      ({ a: renderA, b: renderB, c: renderC })[this.look].call(this);
+      paintIcons(this.app);
+    }
+  }
+
+  // ---------- Look A: the cabinet ----------
+  function renderA() {
+    const k = this.keeper;
+    const hopRows = ["common", "uncommon", "rare", "epic"].map(t => `
+      <div class="hr" style="--tc:${tc(t)}"><img class="px" src="../assets/pets/${SAMPLE[t]}.png" alt=""><span class="tier">${t}<small>${num(this.herd[t])}</small></span><span class="n">${this.hopper[t]}</span><button class="btn" data-act="feed:${t}" ${this.herd[t] ? "" : "disabled"}>+</button></div>`).join("");
+    this.root.innerHTML = `<div class="mc">${this.barHtml()}
+      <div class="a-body">
+        <div class="a-stage">
+          <div class="cab">
+            <div class="hop">
+              <svg width="186" height="70" viewBox="0 0 186 70" aria-hidden="true"><path d="M8 10 Q93 2 178 10 L128 64 L58 64 Z" fill="color-mix(in srgb, var(--lilac) 14%, var(--page))" stroke="var(--lilac-seam)" stroke-width="3" stroke-linejoin="round"/></svg>
+              ${this.fed ? `<img class="px" src="../assets/pets/${SAMPLE[this.fed.tier]}.png" alt="">` : ""}
+              <div class="spins">spins ${this.spinDots()}<br>nudges ${this.poolDots(this.nudges, 0, "var(--lilac)")}</div>
+              <div class="who">${this.fedWho()}</div>
+            </div>
+            <div class="cabbox">
+              <div class="bulbs ${this.busy() ? "on" : ""}">${"<i></i>".repeat(18)}</div>
+              <div class="a-heads">${SLOTS.map((s, i) => `<div><small>${s}</small><b>${k.parts[i]}</b></div>`).join("")}</div>
+              <div class="a-win">${SLOTS.map((s, i) => `<div class="a-reel ${this.reels[i].banked ? "banked" : ""} ${this.full(i) ? "full" : ""}" data-reel="${i}">${this.nudgeBtn(i)}${this.cells(i, 26)}</div>`).join("")}</div>
+              <div class="a-under">${SLOTS.map((s, i) => `<div>${this.marks(i)}${this.oddsHtml(i)}${this.acts(i)}</div>`).join("")}</div>
+            </div>
+            <div class="lever ${this.pulled ? "pulled" : ""}" data-act="spin" title="spin"><div class="arm"></div><div class="mount"></div></div>
+          </div>
+          <div class="a-go">${this.spinBtn()}</div>
+        </div>
+        <div class="a-side sticker">
+          <p class="ttl">keeper</p>
+          <div class="keeper" style="--tc:${tc(k.tier)}">
+            <div class="pic"><img class="px" src="../assets/pets/${k.id}.png" alt=""></div>
+            <b>${k.name}</b>
+            ${this.tot()}
+            ${this.keeperFlip()}
+          </div>
+          <hr class="stitch-line">
+          <p class="ttl">hopper</p>
+          <div class="hoprows">${hopRows}</div>
+          <hr class="stitch-line">
+          <div class="fluffbig">${symSvg("fluff", 22)}<b data-stuffing>${num(this.stuffing)}</b></div>
+          <div class="pool">${this.shopRows()}</div>
+        </div>
+      </div></div>`;
+    this.root.querySelector(".fluffchip").remove(); // A shows stuffing on the side card
+  }
+
+  // ---------- Look B: sewing rows ----------
+  function renderB() {
+    const k = this.keeper;
+    const rows = SLOTS.map((s, i) => {
+      const o = this.odds(i);
+      const bar = this.full(i) ? `<div class="obar"><div class="seg3"><i class="u" style="width:100%"></i></div>${this.oddsHtml(i)}</div>`
+        : `<div class="obar"><div class="seg3"><i class="u" style="width:${o.up}%"></i><i class="b" style="width:${o.blank}%"></i><i class="c" style="width:${o.crack}%"></i></div>${this.oddsHtml(i)}</div>`;
+      return `<div class="b-row ${this.reels[i].banked ? "banked" : ""} ${this.full(i) ? "full" : ""}">
+        <div class="pn"><small>${s}</small><b>${k.parts[i]}</b></div>
+        ${this.marks(i)}
+        ${bar}
+        <div class="b-reel" data-reel="${i}">${this.nudgeBtn(i, "▶")}${this.cells(i, 24, true)}</div>
+        <div class="acts">${this.acts(i)}</div>
+      </div>`;
+    }).join("");
+    const queue = ["common", "uncommon", "rare", "epic"].map(t => `
+      <button class="q ${this.hopper[t] ? "" : "empty"}" style="--tc:${tc(t)}" data-act="feed:${t}" title="${num(this.herd[t])} on the shelf"><img class="px" src="../assets/pets/${SAMPLE[t]}.png" alt=""><span class="n">${this.hopper[t]}</span><span class="plus">+</span></button>`).join("");
+    this.root.innerHTML = `<div class="mc">${this.barHtml()}
+      <div class="b-body">
+        <div class="b-keep sticker" style="--tc:${tc(k.tier)}">
+          <div class="pic"><img class="px" src="../assets/pets/${k.id}.png" alt=""></div>
+          <b>${k.name}</b>
+          <span class="tier">${k.tier}</span>
+          ${this.tot()}
+          ${this.keeperFlip()}
+          <div class="grow"></div>
+          <hr class="stitch-line" style="width:100%">
+          <div class="fluffbig">${symSvg("fluff", 22)}<b data-stuffing>${num(this.stuffing)}</b></div>
+          <div class="pool">${this.shopRows()}</div>
+        </div>
+        <div class="b-rows">${rows}</div>
+        <div class="b-tray">
+          <div class="basket"><div class="bk">${this.fed ? `<img class="px" src="../assets/pets/${SAMPLE[this.fed.tier]}.png" alt="">` : ""}</div><div class="who">${this.fedWho()}<br>${this.spinDots()}</div></div>
+          <div class="queue">${queue}</div>
+          ${this.spinBtn()}
+        </div>
+      </div></div>`;
+    this.root.querySelector(".fluffchip").remove(); // B shows stuffing on the keeper card
+  }
+
+  // ---------- Look C: spools on the playmat ----------
+  const C_POS = [[150, 6], [403, 6], [656, 6], [86, 196], [720, 196]];
+  const C_TO = [[380, 262], [403, 236], [426, 262], [352, 300], [454, 300]];
+  function renderC() {
+    const k = this.keeper;
+    const threads = C_POS.map(([x, y], i) => {
+      // tied on at the side of the spool facing the keeper (the middle one from under its buttons)
+      const from = [x + (x <= 403 ? 44 : -44), y + 88];
+      const to = C_TO[i];
+      const r = this.reels[i];
+      const cls = r.banked || this.full(i) ? "kept" : r.held > 0 ? "tight" : "";
+      const mid = i === 1 ? `${x + 104} ${y + 176}` : `${(from[0] + to[0]) / 2} ${Math.max(from[1], to[1]) + 20}`;
+      return `<path class="${cls}" d="M${from[0]} ${from[1]} Q${mid} ${to[0]} ${to[1]}"/>`;
+    }).join("");
+    const spools = C_POS.map(([x, y], i) => `
+      <div class="spool ${this.reels[i].banked ? "banked" : ""} ${this.full(i) ? "full" : ""} ${this.rolling.has(i) ? "spinning" : ""}" style="left:${x}px; top:${y}px; --tc:${["var(--lilac)", "var(--stuff)", "var(--pink-seam)", "var(--lilac-seam)", "var(--pink)"][i]}">
+        <div class="pn"><small>${SLOTS[i]}</small><b>${k.parts[i]}</b></div>
+        <div class="body"><div class="fl"></div><div class="wind"><div class="win" data-reel="${i}">${this.nudgeBtn(i)}${this.cells(i, 24)}</div></div><div class="fl"></div></div>
+        ${this.marks(i)}${this.oddsHtml(i)}${this.acts(i)}
+      </div>`).join("");
+    const mini = ["common", "uncommon", "rare", "epic"].map(t => `<button class="q" style="--tc:${tc(t)}" data-act="feed:${t}" title="${num(this.herd[t])} on the shelf"><i class="tdot"></i><span class="n">${this.hopper[t]}</span></button>`).join("");
+    this.root.innerHTML = `<div class="mc">${this.barHtml()}
+      <div class="c-stage">
+        <svg class="c-threads" width="806" height="480" aria-hidden="true">${threads}</svg>
+        ${spools}
+        <div class="c-keeper" style="--tc:${tc(k.tier)}">
+          <img class="px" src="../assets/pets/${k.id}.png" alt="">
+          <div class="cushion"></div>
+          <div class="name"><button class="btn" data-act="keeper:-1" ${this.anyHeld() || this.busy() ? "disabled" : ""}>‹</button><b>${k.name}</b><button class="btn" data-act="keeper:1" ${this.anyHeld() || this.busy() ? "disabled" : ""}>›</button></div>
+          ${this.tot()}
+        </div>
+        <div class="c-foot">
+          <div class="chute"><div class="box">${this.fed ? `<img class="px" src="../assets/pets/${SAMPLE[this.fed.tier]}.png" alt="">` : ""}</div><div class="who">${this.fedWho()}<br>${this.spinDots()}<div class="mini">${mini}</div></div></div>
+          ${this.spinBtn()}
+          <div class="c-shop">${this.shopRows()}</div>
+        </div>
+      </div></div>`;
+  }
+
+  // ---------- page-level choices ----------
+  const machines = [...document.querySelectorAll(".app")].map(app => new Machine(app));
+  // each candidate shows its own symbol, whichever one is picked
+  function renderChoices() {
+    const keep = NAME;
+    document.getElementById("names").innerHTML = Object.entries(NAMES).map(([id, n]) => {
+      NAME = id;
+      const s = [0, 1, 2].map(() => symSvg("up", 18)).join("");
+      return `<button class="nm ${id === keep ? "on" : ""}" data-name="${id}"><span class="row5">${s}</span><b>${n.many}</b><span>eyes: 3 ${n.many}</span><span>${n.why}</span></button>`;
+    }).join("");
+    NAME = keep;
+  }
+  document.getElementById("names").addEventListener("click", e => {
+    const b = e.target.closest("[data-name]"); if (!b) return;
+    NAME = b.dataset.name;
+    renderChoices(); machines.forEach(m => m.render());
+  });
+  let stuffPick = "coral";
+  function renderSwatches() {
+    document.getElementById("swatches").innerHTML = STUFF.map(([id, c, name, note]) => `<button class="sw ${id === stuffPick ? "on" : ""}" data-sw="${id}" style="--c:${c}"><i></i>${name}<small>${note}</small></button>`).join("");
+    document.documentElement.dataset.stuff = stuffPick;
+  }
+  document.getElementById("swatches").addEventListener("click", e => {
+    const b = e.target.closest("[data-sw]"); if (!b) return;
+    stuffPick = b.dataset.sw; renderSwatches();
+  });
+  renderChoices(); renderSwatches();
+  applyLook(loadLook());
+</script>
+</body>
+</html>

@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>New Homes</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* C3: the "new homes" stand on the pets tab (take pets by the shelf, pays in boxes)
+     and the sorting rule card (off by default, a "sorted today" number on the shelf).
+     Three looks stacked, each its own game window. */
+  body { display: block; padding: 28px 16px 60px; }
+  .looks { display: flex; flex-direction: column; align-items: center; gap: 44px; }
+  .intro { width: 920px; max-width: 100%; }
+  .intro h1 { margin: 0 0 4px; font: var(--display-weight) 26px/1.1 var(--display); color: var(--pink); }
+  .intro p { margin: 0; color: var(--muted); font-size: 12px; }
+  .look { display: flex; flex-direction: column; gap: 10px; }
+  .look > header { display: flex; align-items: baseline; gap: 12px; width: 920px; max-width: 100%; }
+  .look > header b { font: var(--display-weight) 20px/1 var(--display); color: var(--pink); white-space: nowrap; }
+  .look > header span { color: var(--muted); font-size: 12px; }
+  .content { flex: 1; min-height: 0; }
+
+  /* the full tab row of this stage: squeeze the spine a little so settings still fits */
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+  .sky .fresh { animation: twinkle-in 1.4s ease-out; }
+  @keyframes twinkle-in { 0% { opacity: 0; } 30% { opacity: 1; } }
+
+  /* ---------- shared bits ---------- */
+  .page2 { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+  .bar { display: flex; align-items: center; gap: 10px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 11px; }
+  .room { margin-left: auto; display: flex; align-items: center; gap: 8px; padding: 3px 12px 3px 10px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); font-size: 11px; color: var(--muted); }
+  .room b { font: 400 15px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+  .room.full { border-color: var(--pink-seam); }
+  .room.full b { color: var(--pink); }
+  .room .fill { width: 54px; height: 8px; border-radius: 999px; background: var(--page); border: 2px solid var(--line); position: relative; overflow: hidden; }
+  .room .fill i { position: absolute; inset: 0 auto 0 0; width: var(--f); background: var(--lilac); border-radius: 999px; }
+  .room.full .fill i { background: var(--pink); }
+  .ico { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .tname { color: var(--tc); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* take buttons: 1, 10, 100, all */
+  .takes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .takes .btn { padding: 5px 0; }
+  .takes .btn.all { border-color: var(--pink-seam); }
+
+  /* the box jar: fills toward a starter box */
+  .jar { display: grid; grid-template-columns: 34px 1fr auto; align-items: center; gap: 8px; }
+  .jar .boxd { color: var(--lilac); display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--deep); border: 2px solid var(--line); position: relative; }
+  .jar .boxd.pop { animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); }
+  @keyframes pop { 35% { transform: scale(1.3, .8) rotate(-6deg); } }
+  .meter { position: relative; height: 12px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--lilac) 45%, var(--line)); }
+  .meter i { position: absolute; inset: 0 auto 0 0; width: calc(var(--f) * 100%); background: var(--lilac); border-radius: 999px; transition: width .35s var(--ease-out); }
+  .jar .frac { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .pile { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .pile .stack { position: relative; width: 44px; height: 30px; }
+  .pile .stack span { position: absolute; color: var(--lilac); }
+  .pile b { font: 400 18px/1 var(--display); color: var(--text); }
+  .rise { position: absolute; pointer-events: none; font: 400 14px/1 var(--display); color: var(--pink); white-space: nowrap; animation: rise 1.2s var(--ease-out) forwards; z-index: 9; }
+  @keyframes rise { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, -34px); opacity: 0; } }
+  .flyer { position: absolute; width: 24px; height: 27px; z-index: 8; pointer-events: none; transition: transform .75s cubic-bezier(.5, -0.3, .6, 1), opacity .75s ease-in; }
+
+  /* the sorting rule: steppers, never dropdowns */
+  .rule { display: flex; flex-direction: column; gap: 8px; }
+  .rule .rhead { display: flex; align-items: center; gap: 8px; }
+  .rule .rhead b { font: 400 16px/1 var(--display); color: var(--lilac); flex: 1; white-space: nowrap; }
+  .rule .seg button { padding: 2px 10px; font-size: 11px; }
+  .rule .line { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 12px; }
+  .step { display: inline-flex; align-items: center; gap: 2px; background: var(--deep); border: 2px solid var(--line); border-radius: var(--r-md); padding: 1px; }
+  .step button { width: 20px; height: 22px; border: 0; background: none; color: var(--muted); border-radius: 6px; cursor: pointer; padding: 0; line-height: 1; }
+  .step button:hover { color: var(--pink); background: var(--raised); }
+  .step output { min-width: 78px; text-align: center; font-size: 12px; color: var(--tc, var(--text)); white-space: nowrap; }
+  .rule.off .line, .rule.off .keeps { opacity: .55; }
+  .keeps { display: flex; gap: 5px; flex-wrap: wrap; }
+  .keep { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px 1px 6px; border-radius: 999px; font-size: 11px; background: var(--deep); border: 2px solid var(--line); color: var(--text); white-space: nowrap; }
+  .keep svg { width: 12px; height: 12px; }
+  .sorted { display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; font-size: 10px; color: var(--muted); background: var(--deep); border: 2px dashed color-mix(in srgb, var(--lilac) 40%, var(--line)); white-space: nowrap; }
+  .sorted b { color: var(--lilac); font-weight: 400; font-variant-numeric: tabular-nums; }
+  .sorted.bump b { animation: bump .4s var(--ease-out); }
+  @keyframes bump { 40% { color: var(--text); } }
+
+  /* shelves (C1's automatic rarity shelves, simple here) */
+  .shelf { position: relative; display: grid; align-items: end; cursor: pointer; }
+  .shelf .who { display: flex; align-items: flex-end; gap: 0; min-width: 0; overflow: hidden; }
+  .shelf .who img { width: 32px; height: 36px; margin-right: -4px; flex: none; }
+  .shelf .who .more { align-self: center; margin-left: 10px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .shelf .label { display: flex; flex-direction: column; gap: 1px; }
+  .shelf .label b { font: 400 20px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+  .shelf .label span { font-size: 11px; color: var(--tc); }
+  .shelf.hop .who img:nth-child(odd) { animation: hop .4s var(--ease-out); }
+  @keyframes hop { 40% { transform: translateY(-5px); } }
+
+  /* ---------- LOOK A: the stall in the side column ---------- */
+  .a-body { display: grid; grid-template-columns: 1fr 252px; gap: 14px; flex: 1; min-height: 0; }
+  .a-shelves { border-radius: var(--r-panel); border: 2px solid var(--line); background: var(--paper); padding: 6px 14px 10px; display: flex; flex-direction: column; justify-content: space-around; min-height: 0; }
+  .a-shelves .shelf { grid-template-columns: 96px 1fr auto; gap: 10px; padding: 8px 8px 0; border: 2px solid transparent; border-radius: 10px; }
+  .a-shelves .shelf::after { content: ""; position: absolute; left: 100px; right: 8px; bottom: 0; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--tc) 30%, var(--lilac-seam)); }
+  .a-shelves .shelf .who { padding-bottom: 6px; }
+  .a-shelves .shelf .label { padding-bottom: 8px; }
+  .a-shelves .shelf .aside { padding-bottom: 12px; }
+  .a-shelves .shelf:hover { border-color: var(--line); }
+  .a-shelves .shelf.on { border: 2px dashed var(--pink); background: color-mix(in srgb, var(--raised) 60%, transparent); }
+  .a-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .stall { position: relative; padding: 0 12px 12px; display: flex; flex-direction: column; gap: 9px; overflow: hidden; }
+  .awning { margin: 0 -12px 2px; height: 30px; position: relative;
+    background: repeating-linear-gradient(to right, var(--pink-seam) 0 21px, color-mix(in srgb, var(--text) 70%, var(--raised)) 21px 42px); }
+  .awning::after { content: ""; position: absolute; left: 0; right: 0; bottom: -10px; height: 10px;
+    background: radial-gradient(circle at 10.5px 0, var(--pink-seam) 10px, transparent 10.5px) 0 0 / 42px 10px repeat-x,
+                radial-gradient(circle at 10.5px 0, color-mix(in srgb, var(--text) 70%, var(--raised)) 10px, transparent 10.5px) 21px 0 / 42px 10px repeat-x; }
+  .stall h2 { margin: 10px 0 0; font: 400 20px/1 var(--display); color: var(--pink); display: flex; align-items: center; gap: 8px; }
+  .stall h2 svg { color: var(--mint); }
+  .from { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 10px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--tc) 45%, var(--line)); }
+  .from img { width: 24px; height: 27px; }
+  .from span { font-size: 12px; color: var(--tc); flex: 1; }
+  .from b { font: 400 16px/1 var(--display); font-variant-numeric: tabular-nums; }
+  .card-rule { padding: 10px 12px 12px; transform: rotate(-1.2deg); border-top: 6px solid color-mix(in srgb, var(--lilac) 45%, var(--line)); }
+  .card-rule .rline { flex-direction: column; align-items: flex-start; gap: 4px; }
+  .card-rule .rline > div { display: flex; align-items: center; gap: 6px; }
+  .card-rule .rline em { font-style: normal; width: 44px; white-space: nowrap; color: var(--muted); font-size: 11px; }
+
+  /* ---------- LOOK B: take row on every shelf, a cart under them, the rule on a clipboard ---------- */
+  .b-body { display: grid; grid-template-columns: 1fr 232px; gap: 14px; flex: 1; min-height: 0; }
+  .b-left { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .b-shelves { flex: 1; display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+  .b-shelves .shelf { grid-template-columns: 86px 1fr auto; align-items: center; gap: 10px; padding: 3px 8px 3px 10px; border-radius: 10px; background: var(--raised); border: 2px solid color-mix(in srgb, var(--tc) 40%, var(--line)); box-shadow: var(--lift); cursor: default; flex: 1; min-height: 0; }
+  .b-shelves .shelf .who img { width: 24px; height: 27px; margin-right: -3px; }
+  .b-shelves .shelf .label b { font-size: 17px; }
+  .b-shelves .shelf .right { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+  .minitakes { display: flex; gap: 3px; }
+  .minitakes .btn { padding: 1px 0; width: 38px; font-size: 11px; }
+  .cart { position: relative; height: 128px; flex: none; border-radius: var(--r-panel); border: 2px solid var(--line); background: var(--paper); overflow: hidden; display: grid; grid-template-columns: 1fr 210px; }
+  .cart svg.scene { position: absolute; inset: 0; }
+  .cart .riders { position: absolute; left: 120px; top: 36px; display: flex; gap: 0; }
+  .cart .riders img { width: 24px; height: 27px; margin-right: -6px; }
+  .cart .sign { position: absolute; left: 14px; top: 10px; font: 400 15px/1 var(--display); color: var(--pink); padding: 4px 10px 3px; border-radius: 6px; background: var(--raised); border: 2px solid var(--pink-seam); transform: rotate(-3deg); box-shadow: var(--lift); }
+  .cart .pay { grid-column: 2; padding: 12px 12px 10px; display: flex; flex-direction: column; justify-content: center; gap: 10px; position: relative; z-index: 1; background: color-mix(in srgb, var(--page) 70%, transparent); border-left: 2px dashed var(--line); }
+  .clip { position: relative; padding: 22px 12px 12px; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .clip::before { content: ""; position: absolute; top: -8px; left: 50%; width: 70px; height: 18px; margin-left: -35px; border-radius: 6px; background: var(--deep); border: 2px solid var(--lilac-seam); }
+  .clip .rule .line { flex-direction: column; align-items: stretch; gap: 3px; }
+  .clip .rule .line em { font-style: normal; font-size: 11px; color: var(--muted); }
+  .clip .rule .step { justify-content: space-between; }
+  .clip .rule .step output { flex: 1; }
+  .clip .today { margin-top: auto; text-align: center; padding: 10px 6px 4px; border-top: 2px dashed var(--line); }
+  .clip .today b { display: block; font: 400 30px/1 var(--display); color: var(--lilac); font-variant-numeric: tabular-nums; }
+  .clip .today span { font-size: 11px; color: var(--muted); }
+  .clip .rule.off ~ .today { opacity: .55; }
+
+  /* ---------- LOOK C: the garden gate, its own page on the pets tab ---------- */
+  .c-body { display: grid; grid-template-columns: 1fr 232px; gap: 14px; flex: 1; min-height: 0; }
+  .c-left { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .garden { position: relative; flex: 1; min-height: 0; border-radius: var(--r-panel); border: 2px solid var(--line); background: var(--paper); overflow: hidden; }
+  .garden svg.scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .garden .queue { position: absolute; left: 18px; bottom: 26px; display: flex; align-items: flex-end; }
+  .garden .queue img { width: 32px; height: 36px; margin-right: -6px; }
+  .garden .gsign { position: absolute; left: 50%; top: 22px; transform: translateX(-120px) rotate(-3deg); font: 400 16px/1 var(--display); color: var(--pink); padding: 5px 11px 4px; border-radius: 6px; background: var(--raised); border: 2px solid var(--pink-seam); box-shadow: var(--lift); }
+  .garden .happy { position: absolute; right: 34px; bottom: 96px; display: flex; gap: 14px; }
+  .garden .happy img { width: 24px; height: 27px; animation: bounce 1.8s ease-in-out infinite; }
+  .garden .happy img:nth-child(2) { animation-delay: .4s; }
+  .garden .happy img:nth-child(3) { animation-delay: .9s; }
+  @keyframes bounce { 50% { transform: translateY(-4px); } }
+  .c-picker { display: flex; gap: 6px; }
+  .chipshelf { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 4px 5px; border-radius: 10px; background: var(--raised); border: 2px solid color-mix(in srgb, var(--tc) 45%, var(--line)); box-shadow: var(--lift); cursor: pointer; position: relative; min-width: 0; }
+  .chipshelf img { width: 24px; height: 27px; }
+  .chipshelf b { font: 400 15px/1 var(--display); font-variant-numeric: tabular-nums; }
+  .chipshelf span { font-size: 10px; color: var(--tc); }
+  .chipshelf.on { border: 2px dashed var(--pink); transform: rotate(-2deg); }
+  .chipshelf .sorted { position: absolute; top: -10px; right: -4px; padding: 0 6px; }
+  .c-take { display: grid; grid-template-columns: 1fr 1.1fr; gap: 14px; align-items: center; padding: 10px 12px; }
+  .c-side { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .post { position: relative; padding: 12px; display: flex; flex-direction: column; gap: 10px; }
+  .post::before { content: ""; position: absolute; top: -6px; left: 18px; width: 12px; height: 12px; border-radius: 50%; background: var(--pink); box-shadow: 0 2px 3px rgba(6, 2, 12, .5); }
+  .post.rule .line { flex-direction: column; align-items: stretch; gap: 3px; }
+  .post.rule .line em { font-style: normal; font-size: 11px; color: var(--muted); }
+  .post.rule .step { justify-content: space-between; }
+  .post.rule .step output { flex: 1; }
+  .boxes-card { padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+  .boxes-card h3 { margin: 0; font: 400 15px/1 var(--display); color: var(--lilac); }
+</style>
+</head>
+<body>
+<div class="looks">
+  <div class="intro">
+    <h1>new homes + the sorting rule</h1>
+    <p>C3 on the pets tab. Click a shelf, take 1 / 10 / 100 / all, switch the rule on and watch "sorted today". Numbers are placeholders.</p>
+  </div>
+
+  <section class="look">
+    <header><b>Look A: the stall</b><span>shelves on the left; the stand is a striped stall in the side column, pick a shelf then take; the rule is an index card under it.</span></header>
+    <div class="frame" data-look="A" data-tab="pets" data-say="they'll have a big garden!"></div>
+  </section>
+
+  <section class="look">
+    <header><b>Look B: the cart</b><span>every shelf has its own take buttons (no picking); pets ride off in a cart under the shelves; the rule is a tall clipboard with a big "sorted today".</span></header>
+    <div class="frame" data-look="B" data-tab="pets" data-say="so many friends! the common shelf is getting squished."></div>
+  </section>
+
+  <section class="look">
+    <header><b>Look C: the garden gate</b><span>new homes is its own page on the pets tab (shelves | new homes): a drawn garden, pets walk out through the gate; shelves as chips.</span></header>
+    <div class="frame" data-look="C" data-tab="pets" data-say="they'll have a big garden!"></div>
+  </section>
+</div>
+
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  // the game's tabs at this stage (as in automation.html)
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "boxes").news = false;
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+
+  // ---------------- placeholder numbers (would live in data/*.json) ----------------
+  const ROOM = 500;                     // plain pets the shelves hold
+  const BOX_AT = 25;                    // a starter box's worth
+  const TIERS = [                       // worth toward a box: always less than one box per pet
+    { id: "common",    worth: 1,  pets: ["mint-blob", "peach-cat", "lilac-cat"] },
+    { id: "uncommon",  worth: 2,  pets: ["mint-bear", "peach-bear"] },
+    { id: "rare",      worth: 5,  pets: ["sky-bunny", "midnight-bear", "lilac-blob"] },
+    { id: "epic",      worth: 12, pets: ["bubblegum-fox", "toxic-cat"] },
+    { id: "legendary", worth: 20, pets: ["gold-dragon"] },
+  ];
+  const START = { common: 318, uncommon: 117, rare: 44, epic: 7, legendary: 1 };
+  const ARRIVE = [60, 26, 10, 3, 1];     // what a new pet out of a box is, roughly
+  const LINES = ["uncommon", "rare", "epic", "legendary"];   // "below ..."
+  const DESTS = ["new homes", "work"];                       // the machine joins once it's earned
+  const KEEPS = ["shiny", "holo", "ghost", "glitch"];        // "... and up"
+  const TINT = { "mint-blob": "#8fe8c0", "peach-cat": "#ffb59a", "lilac-cat": "#c9a0ff", "mint-bear": "#8fe8c0", "peach-bear": "#ffb59a",
+    "sky-bunny": "#8cc8ff", "midnight-bear": "#8c8cff", "lilac-blob": "#c9a0ff", "bubblegum-fox": "#ff8fc8", "toxic-cat": "#b8ff6b", "gold-dragon": "#ffe08a" };
+  const CHEER = "they'll have a big garden!";   // never changes
+
+  const tc = id => `var(--tier-${id})`;
+  const pet = (id, cls = "") => `<img class="px ${cls}" src="../assets/pets/${id}.png" alt="">`;
+  const fmt = n => n.toLocaleString("en");
+  const BOX = (s = 22) => `<svg class="ico" width="${s}" height="${s}" viewBox="0 0 24 24" style="width:${s}px;height:${s}px">${DOODLES.boxes}</svg>`;
+  const HOUSE = `<svg class="ico" viewBox="0 0 24 24"><path d="M3.8 11.6 L12 4.1 L20.3 11.2"/><path d="M6 10.2 Q5.8 15 6.3 19.6 Q12 20.4 17.8 19.4 Q18.3 14.8 18 10.1"/><path d="M10.2 19.5 L10.4 15.2 Q12.1 13.7 13.9 15.1 L13.9 19.4"/><path d="M19.5 20 Q20 16.5 21.6 15.6 M2.6 20 Q3 17 4.4 16.4" stroke="var(--mint)"/></svg>`;
+  const HEART = `<svg viewBox="0 0 24 24"><path d="M12 20.1 Q3.4 13.6 4.3 8.4 Q5.4 4.2 9.3 5.1 Q11.2 5.7 12 8 Q12.9 5.6 14.8 5.1 Q18.7 4.3 19.7 8.4 Q20.6 13.5 12 20.1 Z" fill="var(--pink)"/></svg>`;
+  const SPARK = `<svg viewBox="0 0 24 24"><path d="M12 2.6 Q13.1 10 21.4 12 Q13.1 14 12 21.4 Q10.9 14 2.6 12 Q10.9 10 12 2.6 Z" fill="var(--gold)"/></svg>`;
+  const PART = `<svg viewBox="0 0 24 24" fill="none" stroke="var(--lilac)" stroke-width="2.4" stroke-linecap="round"><path d="M5 9 L5 5 L9 5 M15 5 L19 5 L19 9 M19 15 L19 19 L15 19 M9 19 L5 19 L5 15"/><circle cx="12" cy="12" r="2.5"/></svg>`;
+
+  // every frame mounts the shared game frame (mountFrame takes the first .app, so the others step aside)
+  function mountAt(el) {
+    const others = [...document.querySelectorAll(".app")];
+    others.forEach(a => a.classList.remove("app"));
+    el.classList.add("app");
+    const c = mountFrame();
+    c.removeAttribute("id"); c.classList.add("content");
+    others.forEach(a => a.classList.add("app"));
+    return c;
+  }
+
+  // ---------------- one look = one little game state ----------------
+  function makeLook(frame) {
+    const look = frame.dataset.look;
+    const content = mountAt(frame);
+    const S = { counts: { ...START }, pick: "common", jar: 14, boxes: 2, rule: { on: look === "B", line: 1, dest: 0, keep: 1 }, sorted: look === "B" ? 1204 : 0, page: "homes" };
+    const say = t => { frame.querySelector(".top .bubble").textContent = t; };
+    const total = () => Object.values(S.counts).reduce((a, b) => a + b, 0);
+    const tier = id => TIERS.find(t => t.id === id);
+    const below = id => S.rule.on && TIERS.findIndex(t => t.id === id) < TIERS.findIndex(t => t.id === LINES[S.rule.line]);
+
+    const roomPill = () => { const n = total(), full = n >= ROOM;
+      return `<div class="room${full ? " full" : ""}"><span>room</span><b>${fmt(n)}</b><span>of ${ROOM}</span><span class="fill" style="--f:${Math.min(100, n / ROOM * 100)}%"><i></i></span></div>`; };
+    const sortedTag = id => below(id) ? `<span class="sorted" data-sorted>sorted today <b>${fmt(S.sorted)}</b></span>` : "";
+    const whoRow = (t, max) => { const n = S.counts[t.id], show = Math.min(n, max);
+      return Array.from({ length: show }, (_, i) => pet(t.pets[i % t.pets.length])).join("") + (n > show ? `<span class="more">+${fmt(n - show)}</span>` : ""); };
+    const jar = () => `<div class="jar"><span class="boxd" data-boxd>${BOX(24)}</span><div class="meter"><i style="--f:${S.jar / BOX_AT}"></i></div><span class="frac num">${S.jar}/${BOX_AT}</span></div>`;
+    const pile = () => `<div class="pile"><span class="stack"><span style="left:0;top:4px">${BOX(22)}</span><span style="left:12px;top:0">${BOX(22)}</span><span style="left:22px;top:6px">${BOX(22)}</span></span><b class="num">${S.boxes}</b><span class="muted">starter boxes</span></div>`;
+    const step = (key, list, colour) => { const v = list[S.rule[key]];
+      return `<span class="step"><button data-step="${key}" data-d="-1" title="less">‹</button><output style="${colour ? `--tc:${tc(v)}` : ""}">${v}</output><button data-step="${key}" data-d="1" title="more">›</button></span>`; };
+    const onOff = () => `<div class="seg"><button data-rule="off" class="${S.rule.on ? "" : "on"}">off</button><button data-rule="on" class="${S.rule.on ? "on" : ""}">on</button></div>`;
+    const keeps = () => `<div class="keeps"><span class="keep">${SPARK}${step("keep", KEEPS)}<span>and up</span></span><span class="keep">${PART}new parts</span><span class="keep">${HEART}favourites</span></div>`;
+    const bar = extra => `<div class="bar"><div class="seg"><button class="on">pets</button><button>toys</button><button>book</button></div>${extra || ""}${roomPill()}</div>`;
+
+    // ---------- A ----------
+    function renderA() {
+      const t = tier(S.pick);
+      content.innerHTML = `<div class="page2">${bar()}<div class="a-body">
+        <div class="a-shelves">${TIERS.map(x => `<div class="shelf${x.id === S.pick ? " on" : ""}" data-shelf="${x.id}" style="--tc:${tc(x.id)}">
+          <div class="label"><b>${fmt(S.counts[x.id])}</b><span>${x.id}</span></div><div class="who">${whoRow(x, 9)}</div><div class="aside">${sortedTag(x.id)}</div></div>`).join("")}</div>
+        <div class="a-side">
+          <div class="stall sticker" data-target>
+            <div class="awning"></div>
+            <h2>${HOUSE}new homes</h2>
+            <div class="from" style="--tc:${tc(t.id)}">${pet(t.pets[0])}<span>${t.id}</span><b>${fmt(S.counts[t.id])}</b></div>
+            <div class="takes">${[1, 10, 100, "all"].map(n => `<button class="btn${n === "all" ? " all" : ""}" data-take="${n}" ${S.counts[t.id] ? "" : "disabled"}>${n}</button>`).join("")}</div>
+            ${jar()}${pile()}
+          </div>
+          <div class="card-rule sticker rule${S.rule.on ? "" : " off"}">
+            <div class="rhead"><b>sorting</b>${onOff()}</div>
+            <div class="line rline"><div><em>new pets</em></div><div><em>below</em>${step("line", LINES, true)}</div><div><em>go to</em>${step("dest", DESTS)}</div></div>
+            ${keeps()}
+          </div>
+        </div></div></div>`;
+    }
+
+    // ---------- B ----------
+    function renderB() {
+      content.innerHTML = `<div class="page2">${bar()}<div class="b-body">
+        <div class="b-left">
+          <div class="b-shelves">${TIERS.map(x => `<div class="shelf" data-shelf="${x.id}" style="--tc:${tc(x.id)}">
+            <div class="label"><b>${fmt(S.counts[x.id])}</b><span>${x.id}</span></div><div class="who">${whoRow(x, 10)}</div>
+            <div class="right"><div class="minitakes">${[1, 10, 100, "all"].map(n => `<button class="btn" data-take="${n}" data-from="${x.id}" ${S.counts[x.id] ? "" : "disabled"}>${n}</button>`).join("")}</div>${sortedTag(x.id)}</div></div>`).join("")}</div>
+          <div class="cart" data-target>
+            <svg class="scene" viewBox="0 0 560 124" preserveAspectRatio="xMinYMid slice" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M0 104 Q140 96 280 104 T560 100" stroke="var(--mint)" stroke-width="2.5" opacity=".55"/>
+              <path d="M300 104 Q360 60 430 80 Q470 50 540 70" stroke="var(--mint)" stroke-width="2.5" opacity=".35"/>
+              <path d="M110 64 L230 64 L222 94 L118 94 Z" stroke="var(--lilac)" stroke-width="2.6" fill="var(--raised)"/>
+              <path d="M124 74 L216 74" stroke="var(--lilac-seam)" stroke-width="2"/>
+              <circle cx="138" cy="100" r="9" stroke="var(--lilac)" stroke-width="2.6" fill="var(--deep)"/><circle cx="204" cy="100" r="9" stroke="var(--lilac)" stroke-width="2.6" fill="var(--deep)"/>
+              <path d="M230 68 L262 56" stroke="var(--lilac)" stroke-width="2.6"/>
+              <path d="M80 36 L80 98 M80 36 L100 42 L80 48" stroke="var(--pink)" stroke-width="2.4"/>
+              <path d="M300 30 L304 26 L308 30 M330 18 L333 15 L336 18" stroke="var(--gold)" stroke-width="2" opacity=".7"/>
+            </svg>
+            <span class="sign">new homes</span>
+            <div class="riders">${pet("mint-blob")}${pet("peach-cat")}${pet("lilac-cat")}</div>
+            <div class="pay">${jar()}${pile()}</div>
+          </div>
+        </div>
+        <div class="clip sticker">
+          <div class="rule${S.rule.on ? "" : " off"}">
+            <div class="rhead"><b>sorting</b>${onOff()}</div>
+            <div class="line"><em>new pets below</em>${step("line", LINES, true)}</div>
+            <div class="line"><em>go to</em>${step("dest", DESTS)}</div>
+            <div class="line"><em>keeps</em></div>${keeps()}
+          </div>
+          <div class="today"><b class="num" data-sortedbig>${fmt(S.sorted)}</b><span>sorted today</span></div>
+        </div>
+      </div></div>`;
+    }
+
+    // ---------- C ----------
+    function renderC() {
+      const t = tier(S.pick);
+      content.innerHTML = `<div class="page2">${bar(`<div class="seg"><button>shelves</button><button class="on">new homes</button></div>`)}<div class="c-body">
+        <div class="c-left">
+          <div class="garden" data-target>
+            <svg class="scene" viewBox="0 0 560 250" preserveAspectRatio="xMidYMax slice" fill="none" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M-40 212 L300 212 Q380 120 460 140 Q520 110 600 130 L600 250 L-40 250 Z" fill="color-mix(in srgb, var(--mint) 9%, var(--paper))" stroke="none"/><path d="M300 212 Q380 120 460 140 Q520 110 600 130" stroke="var(--mint)" stroke-width="2.5" opacity=".9"/>
+              <path d="M330 140 L345 108 L360 140 Z M500 124 L516 88 L532 124 Z" stroke="var(--mint)" stroke-width="2.4"/>
+              <path d="M345 140 L345 150 M516 124 L516 134" stroke="var(--mint)" stroke-width="2.4"/>
+              <circle cx="420" cy="160" r="3" fill="var(--pink)" stroke="none"/><circle cx="470" cy="150" r="3" fill="var(--gold)" stroke="none"/><circle cx="540" cy="160" r="3" fill="var(--pink)" stroke="none"/><circle cx="390" cy="176" r="2.5" fill="var(--lilac)" stroke="none"/>
+              <path d="M0 212 Q150 204 300 212" stroke="var(--lilac-seam)" stroke-width="2.5"/>
+              <path d="M40 222 Q180 214 270 196 Q300 190 330 186" stroke="var(--line)" stroke-width="14" opacity=".9"/>
+              <g stroke="var(--lilac)" stroke-width="2.5">
+                <path d="M200 212 L200 150 M206 150 L194 150 M300 212 L300 150"/>
+                <path d="M160 212 L160 170 M180 212 L180 170 M140 212 L140 170 M320 212 L320 170 M340 212 L340 170 M150 184 L200 184 M150 200 L200 200 M300 184 L350 184 M300 200 L350 200" opacity=".7"/>
+                <path d="M210 212 L210 160 Q250 130 290 160 L290 212"/>
+                <path d="M226 212 L226 164 M242 212 L242 150 M258 212 L258 150 M274 212 L274 164" opacity=".6"/>
+              </g>
+              <path d="M420 40 L423 34 L426 40 M470 26 L472 22 L474 26 M110 50 L112 46 L114 50" stroke="var(--gold)" stroke-width="2" opacity=".6"/>
+            </svg>
+            <span class="gsign">new homes</span>
+            <div class="queue">${whoRow(t, 5).replace(/<span class="more">.*<\/span>/, "")}</div>
+            <div class="happy">${pet("peach-bear")}${pet("lilac-cat")}${pet("mint-blob")}</div>
+          </div>
+          <div class="c-picker">${TIERS.map(x => `<div class="chipshelf${x.id === S.pick ? " on" : ""}" data-shelf="${x.id}" style="--tc:${tc(x.id)}">${pet(x.pets[0])}<b>${fmt(S.counts[x.id])}</b><span>${x.id}</span>${below(x.id) ? `<span class="sorted" data-sorted><b>${fmt(S.sorted)}</b></span>` : ""}</div>`).join("")}</div>
+          <div class="c-take sticker"><div class="takes">${[1, 10, 100, "all"].map(n => `<button class="btn${n === "all" ? " all" : ""}" data-take="${n}" ${S.counts[t.id] ? "" : "disabled"}>${n}</button>`).join("")}</div>${jar()}</div>
+        </div>
+        <div class="c-side">
+          <div class="post sticker rule${S.rule.on ? "" : " off"}">
+            <div class="rhead"><b>sorting</b>${onOff()}</div>
+            <div class="line"><em>new pets below</em>${step("line", LINES, true)}</div>
+            <div class="line"><em>go to</em>${step("dest", DESTS)}</div>
+            ${keeps()}
+            <span class="sorted" data-sorted style="align-self:flex-start">sorted today <b>${fmt(S.sorted)}</b></span>
+          </div>
+          <div class="boxes-card sticker"><h3>the box pile</h3>${pile()}</div>
+        </div>
+      </div></div>`;
+    }
+
+    const render = () => { ({ A: renderA, B: renderB, C: renderC })[look](); paintIcons(frame); wire(); };
+
+    // a pet leaving adds a star to the night sky, never explained
+    let seed = 99 + look.charCodeAt(0);
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    function addStars(ids) {
+      const sky = frame.querySelector(".sky");
+      ids.forEach(id => {
+        const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        r.setAttribute("x", Math.floor(rnd() * 74) + 2); r.setAttribute("y", Math.floor(rnd() * 590) + 4);
+        r.setAttribute("width", 1); r.setAttribute("height", 1); r.setAttribute("fill", TINT[id] || "#f5dcec");
+        r.setAttribute("opacity", (0.3 + rnd() * 0.35).toFixed(2)); r.classList.add("fresh"); sky.appendChild(r);
+      });
+    }
+
+    // pets hop from the shelf to the stand
+    function fly(fromEl, ids) {
+      const target = content.querySelector("[data-target]");
+      if (!fromEl || !target) return;
+      const fr = frame.getBoundingClientRect(), a = fromEl.getBoundingClientRect(), b = target.getBoundingClientRect();
+      ids.slice(0, 8).forEach((id, i) => {
+        const img = document.createElement("img");
+        img.className = "px flyer"; img.src = `../assets/pets/${id}.png`;
+        img.style.left = `${a.left - fr.left + 40 + i * 14}px`; img.style.top = `${a.top - fr.top + a.height / 2 - 14}px`;
+        frame.appendChild(img);
+        const dx = b.left - a.left + b.width / 2 - 40 - i * 14 + (i - 4) * 6, dy = b.top - a.top + b.height * .55 - a.height / 2;
+        setTimeout(() => { img.style.transform = `translate(${dx}px, ${dy}px) scale(.7)`; img.style.opacity = "0"; }, 30 + i * 70);
+        setTimeout(() => img.remove(), 1000 + i * 70);
+      });
+    }
+
+    function rise(text) {
+      const el = content.querySelector("[data-boxd]"); if (!el) return;
+      const fr = frame.getBoundingClientRect(), r = el.getBoundingClientRect();
+      const p = document.createElement("span"); p.className = "rise"; p.textContent = text;
+      p.style.left = `${r.left - fr.left + r.width / 2}px`; p.style.top = `${r.top - fr.top - 6}px`;
+      frame.appendChild(p); setTimeout(() => p.remove(), 1300);
+    }
+
+    function pay(worth) {
+      S.jar += worth;
+      const got = Math.floor(S.jar / BOX_AT);
+      S.jar -= got * BOX_AT; S.boxes += got;
+      return got;
+    }
+
+    function take(from, n) {
+      const t = tier(from), have = S.counts[from];
+      const k = n === "all" ? have : Math.min(have, Number(n));
+      if (!k) return;
+      const shelfEl = content.querySelector(`[data-shelf="${from}"]`);
+      const ids = Array.from({ length: Math.min(k, 8) }, (_, i) => t.pets[i % t.pets.length]);
+      fly(shelfEl, ids);
+      S.counts[from] -= k;
+      const got = pay(k * t.worth);
+      addStars(Array.from({ length: Math.min(k, 40) }, (_, i) => t.pets[i % t.pets.length]));
+      say(CHEER);
+      setTimeout(() => { render(); if (got) { rise(`+${got}`); content.querySelector("[data-boxd]")?.classList.add("pop"); } }, 520);
+    }
+
+    function wire() {
+      content.querySelectorAll("[data-shelf]").forEach(el => el.addEventListener("click", e => {
+        if (e.target.closest("button") || look === "B") return;
+        S.pick = el.dataset.shelf; render();
+      }));
+      content.querySelectorAll("[data-take]").forEach(b => b.addEventListener("click", () => take(b.dataset.from || S.pick, b.dataset.take)));
+      content.querySelectorAll("[data-rule]").forEach(b => b.addEventListener("click", () => { S.rule.on = b.dataset.rule === "on"; render(); }));
+      content.querySelectorAll("[data-step]").forEach(b => b.addEventListener("click", () => {
+        const key = b.dataset.step, list = { line: LINES, dest: DESTS, keep: KEEPS }[key];
+        S.rule[key] = Math.max(0, Math.min(list.length - 1, S.rule[key] + Number(b.dataset.d))); render();
+      }));
+    }
+
+    // new pets keep coming out of the boxes: the rule sorts the ones pulled after it's on
+    function arrive() {
+      let r = rnd() * 100, i = 0;
+      while (r > ARRIVE[i] && i < ARRIVE.length - 1) { r -= ARRIVE[i]; i++; }
+      const t = TIERS[i];
+      const kept = rnd() < .04;                      // holo and up, a new part or a favourite stays
+      if (below(t.id) && !kept) {
+        S.sorted++;
+        if (DESTS[S.rule.dest] === "new homes") { const got = pay(t.worth); addStars([t.pets[0]]); if (got) { render(); rise(`+${got}`); return; } }
+        content.querySelectorAll("[data-sorted] b, [data-sortedbig]").forEach(b => b.textContent = fmt(S.sorted));
+        content.querySelectorAll("[data-sorted]").forEach(s => { s.classList.remove("bump"); void s.offsetWidth; s.classList.add("bump"); });
+        const m = content.querySelector(".jar .meter i"); if (m) m.style.setProperty("--f", S.jar / BOX_AT);
+        const f = content.querySelector(".jar .frac"); if (f) f.textContent = `${S.jar}/${BOX_AT}`;
+        return;
+      }
+      if (total() >= ROOM) return;                  // the room is full: box tables wait
+      S.counts[t.id]++; render();
+      content.querySelector(`[data-shelf="${t.id}"]`)?.classList.add("hop");
+    }
+
+    render();
+    setInterval(arrive, look === "B" ? 900 : 1600);
+  }
+
+  document.querySelectorAll(".frame").forEach(makeLook);
+  applyLook(loadLook());
+</script>
+</body>
+</html>

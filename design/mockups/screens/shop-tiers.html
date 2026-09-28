@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shop Tiers</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* B1 pack tiers per map page: a new tier of boxes shows up in the boxes tab when its map page opens.
+     This page shows three looks side by side (stacked), plus tier name ideas. Mockup chrome is outside the frames. */
+  body.sheet { display: block; padding: 0 0 70px; }
+  .wrap { width: 920px; margin: 0 auto; }
+  .intro { padding: 30px 0 10px; }
+  .intro h1 { margin: 0 0 6px; font: 400 28px/1 var(--display); color: var(--pink); }
+  .intro p { margin: 0; color: var(--muted); max-width: 72ch; }
+  .tools { position: sticky; top: 0; z-index: 20; background: var(--backdrop); padding: 10px 0; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; border-bottom: 2px solid var(--line); }
+  .tools .grp { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .tools .pill { padding: 3px 12px; border-radius: 999px; color: var(--muted); border: 2px solid var(--line); background: var(--deep); cursor: pointer; font-size: 12px; }
+  .tools .pill:hover { color: var(--pink); }
+  .tools .pill.on { color: var(--pink); border-color: var(--pink); }
+  h2.look { margin: 34px 0 4px; font: 400 20px/1 var(--display); color: var(--lilac); }
+  p.what { margin: 0 0 12px; color: var(--muted); }
+  .names { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 12px; }
+  .nameset { text-align: left; padding: 10px 12px 12px; cursor: pointer; background: var(--raised); border: 2px solid var(--lilac-seam); border-radius: var(--r-xl); box-shadow: var(--lift); color: var(--text); font: inherit; transition: transform .15s var(--ease-out), border-color .12s; }
+  .nameset:hover { border-color: var(--pink); transform: translateY(-2px); }
+  .nameset.on { border: 2px dashed var(--pink); transform: rotate(-1deg); }
+  .nameset .lbl { font-size: 11px; color: var(--muted); }
+  .nameset ol { margin: 6px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 3px; }
+  .nameset li { display: flex; align-items: center; gap: 8px; font: 400 14px/1.1 var(--display); color: var(--pink); }
+  .nameset li svg { flex: none; }
+
+  /* the frame, mounted per look */
+  .app + .app { margin-top: 0; }
+  .content { flex: 1; min-height: 0; }
+  .muted { color: var(--muted); }
+  .small { font-size: 11px; }
+  .price { display: inline-flex; align-items: center; gap: 4px; color: var(--cyan); font-variant-numeric: tabular-nums; }
+  .pchip { display: inline-flex; align-items: center; gap: 5px; padding: 2px 10px 2px 7px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); color: var(--cyan); font-variant-numeric: tabular-nums; }
+  .pack-art { display: block; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .35)); }
+  .newtag { display: inline-block; padding: 1px 7px; border-radius: 999px; background: var(--gold); color: var(--deep); font-size: 11px; line-height: 1.35; transform: rotate(-6deg); white-space: nowrap; }
+  .inside { display: flex; align-items: flex-end; gap: 2px; }
+  .inside img { width: 24px; height: 27px; filter: brightness(0) invert(1); opacity: .32; }
+  .looks { display: flex; gap: 5px; }
+  .part { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; background: var(--deep); border: 2px solid var(--line); color: var(--text); transform: rotate(var(--t, 0deg)); }
+  .part svg { width: 20px; height: 20px; }
+  .row { display: flex; align-items: center; gap: 8px; }
+  .lbl2 { font-size: 11px; color: var(--muted); min-width: 64px; }
+  .seg button { font-size: 12px; }
+  .stepper { display: inline-flex; align-items: center; }
+  .stepper .btn { padding: 1px 8px; }
+  .stepper b { min-width: 30px; text-align: center; font-weight: 400; font-variant-numeric: tabular-nums; }
+  .buy { flex-direction: column; gap: 0; line-height: 1.2; }
+  .buy small { color: var(--cyan); font-size: 11px; display: inline-flex; align-items: center; gap: 3px; }
+  .btn.primary:disabled small { color: var(--muted); }
+  .plank { height: 4px; border-radius: 2px; background: var(--pink-seam); }
+
+  /* a pile of boxes you own */
+  .pile { position: relative; width: 74px; height: 70px; cursor: pointer; }
+  .pile .pack-art { position: absolute; bottom: 0; }
+  .pile .n { position: absolute; right: -6px; top: -4px; padding: 1px 7px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); font-size: 11px; font-variant-numeric: tabular-nums; }
+  .pile.none .spot { position: absolute; left: 14px; bottom: 0; width: 46px; height: 58px; border: 2px dashed var(--line); border-radius: 8px; }
+
+  /* the odds, printed on the back of the pack */
+  .odds { font-size: 11px; display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+  .odds dl { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 1px 8px; align-content: start; }
+  .odds dt { white-space: nowrap; }
+  .odds dd { margin: 0; text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .odds .head { grid-column: 1 / -1; color: var(--muted); margin-bottom: 2px; }
+  .odds .fresh { color: var(--gold); }
+
+  /* a new tier arriving: drops in with a squash and a gold glow */
+  .arrive { animation: arrive .7s cubic-bezier(.3, 1.5, .5, 1) both; }
+  @keyframes arrive { 0% { transform: translateY(-40px) scale(.9); opacity: 0; } 60% { transform: translateY(0) scale(1.04, .94); opacity: 1; } 100% { transform: none; } }
+  .glow .pack-art { filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .35)) drop-shadow(0 0 10px color-mix(in srgb, var(--gold) 55%, transparent)); }
+  .spark { position: absolute; width: 6px; height: 6px; border-radius: 2px; background: var(--gold); pointer-events: none; animation: fly .9s var(--ease-out) forwards; z-index: 6; }
+  @keyframes fly { to { transform: translate(var(--dx), var(--dy)) rotate(180deg); opacity: 0; } }
+  .pop { animation: pop .35s cubic-bezier(.3, 1.6, .5, 1); }
+  @keyframes pop { 35% { transform: scale(1.12, .9); } }
+
+  /* ---------- Look A: shelves ---------- */
+  .A { display: grid; grid-template-columns: minmax(0, 1fr) 236px; gap: 14px; height: 100%; min-height: 0; }
+  .case { position: relative; border-radius: var(--r-panel); border: 2px solid var(--line); padding: 10px 16px 14px; display: flex; flex-direction: column-reverse; gap: 10px; min-height: 0; overflow: hidden;
+    background-color: color-mix(in srgb, var(--lilac) 3%, var(--paper)); }
+  .shelf { position: relative; display: flex; flex-direction: column; gap: 0; cursor: pointer; }
+  .shelf .sign { align-self: flex-start; display: inline-flex; align-items: center; gap: 6px; font: 400 14px/1 var(--display); color: var(--lilac); padding: 4px 10px 3px 7px; border-radius: 6px; background: var(--raised); border: 2px solid var(--lilac-seam); transform: rotate(var(--t, -1.5deg)); box-shadow: var(--lift); position: relative; z-index: 1; margin-left: 4px; }
+  .shelf.on .sign { border: 2px dashed var(--pink); color: var(--pink); }
+  .shelf .sign .newtag { margin-left: 4px; }
+  .shelf .goods { display: flex; align-items: flex-end; gap: 18px; padding: 8px 14px 4px; }
+  .shelf .forsale { display: flex; align-items: flex-end; gap: 10px; width: 206px; }
+  .shelf .forsale .pack-art { transform: rotate(-4deg); transition: transform .2s var(--ease-out); }
+  .shelf:hover .forsale .pack-art { transform: rotate(-1deg) translateY(-3px); }
+  .shelf .tag { position: relative; padding: 5px 9px 6px; border-radius: 6px 6px 6px 14px; background: var(--raised); border: 2px solid var(--lilac-seam); margin-bottom: 14px; transform: rotate(3deg); box-shadow: var(--lift); }
+  .shelf .tag::before { content: ""; position: absolute; left: -12px; top: 10px; width: 12px; height: 2px; background: var(--lilac-seam); }
+  .shelf .tag b { display: block; font: 400 13px/1.15 var(--display); color: var(--pink); max-width: 120px; }
+  .shelf .tag .price { font-size: 12px; margin-top: 3px; }
+  .shelf .yours { display: flex; align-items: flex-end; gap: 12px; padding-left: 16px; border-left: 2px dashed var(--line); margin-left: auto; }
+  .shelf .yours .opens { display: flex; flex-direction: column; gap: 5px; }
+  .shelf .yours .btn { padding: 3px 10px; font-size: 12px; }
+  .A .side { display: flex; flex-direction: column; gap: 9px; padding: 14px 14px 12px; min-height: 0; position: relative; }
+  .A .side .flip, .B .flip { position: absolute; top: 10px; right: 12px; font-size: 11px; color: var(--muted); background: none; border: 0; cursor: pointer; padding: 0; }
+  .A .side .flip:hover, .B .flip:hover { color: var(--pink); }
+  .A .side .hero { display: flex; justify-content: center; padding: 4px 0 0; }
+  .A .side .hero .pack-art { transform: rotate(-4deg); }
+  .A .side h3 { margin: 0; text-align: center; font: 400 18px/1.1 var(--display); color: var(--pink); }
+  .A .side .facts { display: flex; flex-direction: column; gap: 9px; padding: 8px 10px; border-radius: 10px; background: var(--deep); border: 2px solid var(--line); }
+  .A .side .facts .part { background: var(--raised); }
+  .A .side .buyrow { margin-top: auto; display: flex; flex-direction: column; gap: 7px; }
+  .A .side .buyrow .btn.buy { width: 100%; padding: 6px; }
+  .A .side .odds { margin-top: 2px; }
+
+  /* ---------- Look B: a page per map page ---------- */
+  .B { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+  .B .itabs { display: flex; gap: 6px; padding-left: 14px; position: relative; z-index: 1; }
+  .B .itab { position: relative; display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px 8px 10px; border-radius: 12px 12px 0 0; background: var(--deep); border: 2px solid var(--line); border-bottom: 0; color: var(--muted); cursor: pointer; font: 400 14px/1 var(--display); margin-bottom: -2px; }
+  .B .itab:hover { color: var(--pink); }
+  .B .itab.on { background: var(--raised); color: var(--pink); border: 2px dashed var(--pink); border-bottom: 0; padding-bottom: 10px; margin-top: -2px; }
+  .B .itab .dot { position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--gold); }
+  .B .board { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 224px; gap: 14px; padding: 14px; border-radius: 4px var(--r-panel) var(--r-panel) var(--r-panel); background: var(--raised); border: 2px solid var(--lilac-seam); box-shadow: var(--lift); }
+  .B .shop { position: relative; display: grid; grid-template-columns: 170px 1fr; grid-template-rows: 1fr auto; gap: 12px 16px; padding: 14px; border-radius: var(--r-xl); background: var(--page); border: 2px solid var(--line); min-height: 0; }
+  .B .shop .hero { display: grid; place-items: center; }
+  .B .shop .hero .pack-art { transform: rotate(-5deg); }
+  .B .shop .info { display: flex; flex-direction: column; gap: 14px; justify-content: center; min-width: 0; }
+  .B .shop h3 { margin: 0; font: 400 22px/1.05 var(--display); color: var(--pink); }
+  .B .shop .buyrow { grid-column: 1 / -1; display: flex; align-items: center; gap: 10px; padding-top: 12px; border-top: 2px dashed var(--line); }
+  .B .shop .buyrow .btn.buy { margin-left: auto; min-width: 118px; padding: 5px 10px; }
+  .B .shop .odds { grid-column: 2; align-self: center; }
+  .B .shelfbox { display: flex; flex-direction: column; padding: 12px 14px 12px; border-radius: var(--r-xl); background: var(--paper); border: 2px solid var(--line); min-height: 0; }
+  .B .shelfbox h4, .C h4 { margin: 0; font: 400 16px/1 var(--display); color: var(--lilac); }
+  .B .shelfbox .spotw { flex: 1; display: flex; flex-direction: column; align-items: stretch; justify-content: center; }
+  .B .shelfbox .spotw .pile { align-self: center; }
+  .B .shop .inside img { width: 32px; height: 36px; }
+  .B .shop .part { width: 36px; height: 36px; }
+  .B .shop .part svg { width: 24px; height: 24px; }
+  .B .shop h3 .newtag { margin-left: 8px; vertical-align: 4px; }
+  .B .shelfbox .pile { width: 110px; height: 110px; }
+  .B .shelfbox .opens { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; margin-top: 10px; }
+  .B .shelfbox .opens .btn:first-child { grid-column: 1 / -1; }
+  .B .shelfbox .opens .btn { padding: 4px 2px; font-size: 12px; white-space: nowrap; }
+  .B .shelfbox .plank { margin-top: 2px; }
+
+  /* ---------- Look C: today's counter, a row per tier ---------- */
+  .C { display: grid; grid-template-columns: minmax(0, 1fr) 232px; gap: 14px; height: 100%; min-height: 0; }
+  .C .left { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .C .offer { display: grid; grid-template-columns: 30px 44px 1fr auto; align-items: center; gap: 10px; padding: 7px 12px 7px 10px; }
+  .C .offer .stamp { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 50%; border: 2px dashed var(--lilac-seam); color: var(--lilac); transform: rotate(-8deg); }
+  .C .offer .stamp svg { width: 18px; height: 18px; }
+  .C .offer .pack-art { transform: rotate(-4deg); }
+  .C .offer .mid { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .C .offer .mid .nm { display: flex; align-items: center; gap: 8px; }
+  .C .offer .mid b { font: 400 16px/1 var(--display); color: var(--pink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .C .offer .quick { display: flex; align-items: center; gap: 5px; }
+  .C .fchip { padding: 1px 9px; border-radius: 999px; font-size: 11px; cursor: pointer; background: none; color: var(--muted); border: 2px solid var(--line); }
+  .C .fchip.on { color: var(--pink); border-color: var(--pink); background: color-mix(in srgb, var(--pink) 12%, var(--deep)); }
+  .C .offer .right { display: flex; align-items: center; gap: 8px; }
+  .C .offer .btn.buy { min-width: 96px; padding: 4px 10px; }
+  .C .offer.glow { box-shadow: var(--lift), 0 0 16px color-mix(in srgb, var(--gold) 40%, transparent); }
+  .C .stash { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 12px 14px 12px; border-radius: var(--r-panel); background: var(--paper); border: 2px solid var(--line); }
+  .C .piles { flex: 1; display: flex; align-items: flex-end; justify-content: space-around; gap: 10px; }
+  .C .pcol { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .C .pcol .nm { font: 400 13px/1 var(--display); color: var(--pink); white-space: nowrap; }
+  .C .pcol .opens { display: flex; align-items: center; gap: 4px; }
+  .C .pcol .opens > span { font-size: 11px; color: var(--muted); margin-right: 1px; }
+  .C .pcol .opens .btn { padding: 2px 8px; font-size: 11px; white-space: nowrap; }
+  .C .stash .plank { margin-top: 10px; }
+  .C .side { display: flex; flex-direction: column; gap: 10px; padding: 12px 12px; min-height: 0; align-self: start; }
+  .C .petrow { display: flex; align-items: center; gap: 10px; }
+  .C .cushion { position: relative; width: 64px; height: 60px; display: grid; place-items: end center; }
+  .C .cushion::before { content: ""; position: absolute; left: 2px; right: 2px; bottom: 0; height: 16px; border-radius: 50%; background: color-mix(in srgb, var(--pink) 30%, var(--deep)); border: 2px solid var(--pink-seam); }
+  .C .cushion img { position: relative; width: 48px; height: 54px; margin-bottom: 6px; }
+  .C .side .opensrow { display: flex; flex-direction: column; gap: 6px; padding: 8px 10px; border-radius: 10px; background: var(--deep); border: 2px solid var(--line); }
+  .C .toggle { display: flex; align-items: center; gap: 8px; font-size: 12px; cursor: pointer; }
+  .C .toggle i { width: 26px; height: 14px; border-radius: 999px; border: 2px solid var(--line); position: relative; flex: none; }
+  .C .toggle i::after { content: ""; position: absolute; top: 1px; left: 1px; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: left .15s var(--ease-out); }
+  .C .toggle.on i { border-color: var(--pink-seam); background: var(--pink-pressed); }
+  .C .toggle.on i::after { left: 13px; background: var(--pink); }
+  .C .toggle svg { width: 16px; height: 16px; color: var(--lilac); flex: none; }
+  .C .toggle span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+</style>
+</head>
+<body class="sheet">
+<div class="wrap">
+  <header class="intro">
+    <h1>pack tiers: the shop</h1>
+    <p>A new tier of boxes shows up in the boxes tab when its map page opens: the backyard is tier 1, beyond the fence tier 2, zone 3 tier 3. Higher tiers cost about x8, hold more pets, better odds, and finishes and looks the lower ones don't have. Prices and odds are placeholders. "open" here only counts down; the real opening is the one in boxes.html.</p>
+  </header>
+  <h2 class="look" style="margin-top: 18px">tier names (pick one)</h2>
+  <p class="what">Click a set: every look below uses it.</p>
+  <div class="names" id="names"></div>
+  <div class="tools" id="tools" style="margin-top: 18px"></div>
+
+  <h2 class="look">Look A: shelves</h2>
+  <p class="what">One shelf per map page, stacked upward; the boxes you own pile up on the same shelf, and the side card buys.</p>
+  <div class="app" id="lookA"></div>
+
+  <h2 class="look">Look B: a page per map page</h2>
+  <p class="what">Index tabs named after the map pages; one tier at a time, big, with your pile of it beside.</p>
+  <div class="app" id="lookB"></div>
+
+  <h2 class="look">Look C: today's counter, a row per tier</h2>
+  <p class="what">Closest to what's built: the counter gets one row per tier and the stash one pile per tier.</p>
+  <div class="app" id="lookC"></div>
+</div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script src="../shared/pack.js"></script>
+<script>
+  // ---------------- the game's tabs at this point ----------------
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  const GAME_TABS = [
+    { id: "home", label: "home", icon: "home" },
+    { id: "machine", label: "machine", icon: "capsule" },
+    { id: "boxes", label: "boxes", icon: "boxes" },
+    { id: "pets", label: "collectibles", icon: "collection" },
+    { id: "trips", label: "adventures", icon: "adventures" },
+    { id: "errands", label: "errands", icon: "errands" },
+    { id: "inventory", label: "workbench", icon: "inventory" },
+  ];
+
+  // the window, built into any .app (frame.js's mountFrame only does the first one on a page)
+  function mountAt(app, say) {
+    const tab = t => `<a class="tab${t.id === "boxes" ? " on" : ""}" href="#"><span data-icon="${t.icon}"></span>${t.label}</a>`;
+    app.innerHTML = `
+      <nav class="spine">
+        <svg class="sky" width="80" height="600" aria-hidden="true">${stars()}</svg>
+        <div class="moon"><img class="px" src="../assets/pets/lilac-blob.png" alt="lilac blob"></div>
+        ${GAME_TABS.map(tab).join("")}
+        <div class="grow"></div>
+        <a class="tab" href="#"><span data-icon="settings"></span></a>
+      </nav>
+      <main class="page dots">
+        <div class="top">
+          <div class="bubble">${say}</div>
+          <span class="chip coins"><span data-icon="coin"></span><span class="cv">0</span></span>
+          <span class="chip xp"><span data-icon="xp"></span>72</span>
+          <div class="winbtns"><button title="shrink">▾</button><button title="close">✕</button></div>
+        </div>
+        <div class="content"></div>
+      </main>`;
+    return app.querySelector(".content");
+  }
+
+  // ---------------- the tiers (placeholder numbers) ----------------
+  const TIERS = [
+    { id: "t1", page: "the backyard", doodle: "house", price: 50, pets: 1, stars: 1, have: 12,
+      art: { body: "#ffc46b", dark: "#c98a2e", light: "#fff0c9", emblem: "#ff5f9e" },
+      tiers: { common: "60%", uncommon: "25%", rare: "11%", epic: "3.2%", legendary: "0.70%", mythic: "0.10%" },
+      finishes: { shiny: "15%", holo: "3.8%", ghost: "0.90%" }, fresh: [], looks: [] },
+    { id: "t2", page: "beyond the fence", doodle: "fence", price: 400, pets: 2, stars: 2, have: 3,
+      art: { body: "#ff9f8a", dark: "#b8553f", light: "#ffe0d6", emblem: "#b77dff" },
+      tiers: { common: "38%", uncommon: "31%", rare: "20%", epic: "8%", legendary: "2.4%", mythic: "0.60%" },
+      finishes: { shiny: "20%", holo: "6%", ghost: "1.8%", glitch: "0.50%" }, fresh: ["glitch"], looks: ["ears", "stripes", "sunset"] },
+    { id: "t3", page: "zone 3", doodle: "hills", price: 3200, pets: 3, stars: 3, have: 0,
+      art: { body: "#4b4690", dark: "#241f55", light: "#c3beff", emblem: "#ffe08a" },
+      tiers: { common: "18%", uncommon: "30%", rare: "28%", epic: "16%", legendary: "6%", mythic: "2%" },
+      finishes: { shiny: "28%", holo: "11%", ghost: "3.5%", glitch: "1.2%", prismatic: "0.30%" }, fresh: ["prismatic"], looks: ["wings", "halo", "midnight"] },
+  ];
+  const NAMES = [
+    { id: "sky", label: "time of day (the packs get darker)", n: ["sunny box", "sunset box", "midnight box"] },
+    { id: "places", label: "where they come from", n: ["backyard box", "over-the-fence box", "faraway box"] },
+    { id: "fancy", label: "fancier and fancier", n: ["starter box", "fancy box", "fanciest box"] },
+    { id: "sweets", label: "sweets", n: ["cookie box", "cupcake box", "big cake box"] },
+    { id: "stars", label: "stars on the pack", n: ["one-star box", "two-star box", "three-star box"] },
+    { id: "wrap", label: "wrapping", n: ["paper bag", "gift box", "treasure chest"] },
+  ];
+  const TIER_WORD = { common: "common", uncommon: "uncommon", rare: "rare", epic: "epic", legendary: "legendary", mythic: "mythic" };
+
+  const params = new URLSearchParams(location.search);
+  let stage = Number(params.get("stage") || 3);        // how many map pages are open (1-3)
+  let names = NAMES.find(s => s.id === params.get("names")) || NAMES[0];
+  let coins = 14380;
+  let arriving = null;                                   // the tier that just showed up (animates once)
+  const nameOf = t => names.n[TIERS.indexOf(t)];
+  const open = () => TIERS.slice(0, stage);
+  const num = n => n.toLocaleString("en");
+  const COIN = `<span data-icon="coin" data-px="1.1"></span>`;
+
+  // page doodles (24px crayon lines): the backyard house, the fence, zone 3's hills
+  const PAGE_ART = {
+    house: `<path d="M4 12 L11 5.5 L18 12"/><path d="M5.8 11 L6 19.4 L16.2 19.4 L16.1 11"/><path d="M9.8 19.3 L9.9 15 L12.3 15 L12.3 19.3"/><path d="M20.5 19.4 L20.4 14.6 M18.3 15.4 Q20.4 9.6 22 15.1 Q20.6 16.4 18.3 15.4" opacity=".8"/>`,
+    fence: `<path d="M4 20 L4 8 L6 5.5 L8 8 L8 20 M10 20 L10 8 L12 5.5 L14 8 L14 20 M16 20 L16 8 L18 5.5 L20 8 L20 20"/><path d="M2.5 11.5 L21.5 11.2 M2.5 16.4 L21.5 16.2" opacity=".8"/>`,
+    hills: `<path d="M2.5 19.5 Q7 9.5 11.5 14 Q15.5 5 21.5 19.5 Z"/><path d="M15 8.2 L15 3.5 L18.4 4.8 L15 6.1" /><path d="M5 19.4 Q8 17.6 11 19.3" opacity=".6"/>`,
+  };
+  const pageArt = (k, s = 18) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${PAGE_ART[k]}</svg>`;
+
+  // new looks that only come in this box (parts and palettes): tiny stickers, named on hover
+  const PART_ART = {
+    ears: [`fox ears`, `<path d="M4 18 L6.5 4.5 L11 12 M20 18 L17.5 4.5 L13 12"/><path d="M5 18 Q12 13 19 18" opacity=".7"/>`],
+    stripes: [`stripes`, `<circle cx="12" cy="12" r="8"/><path d="M7 7.5 Q10 10 7.5 13.5 M12 4.5 Q15 8 12 12 Q9 15.5 12 19.5 M17 10 Q14 13 16.8 16.5"/>`],
+    sunset: [`sunset palette`, `<circle cx="7.5" cy="12" r="4" fill="#ff9f8a" stroke="none"/><circle cx="12" cy="8" r="4" fill="#ffd27a" stroke="none"/><circle cx="16.5" cy="13" r="4" fill="#ff79c6" stroke="none"/>`],
+    wings: [`dragon wings`, `<path d="M12 14 Q7 4 2.5 6 Q4.5 9 3.5 12 Q6 11.5 7 14 Q9 12.5 12 14 Z"/><path d="M12 14 Q17 4 21.5 6 Q19.5 9 20.5 12 Q18 11.5 17 14 Q15 12.5 12 14 Z"/>`],
+    halo: [`halo`, `<ellipse cx="12" cy="7" rx="7" ry="2.6"/><path d="M8 14 Q12 11 16 14 Q16 19 12 19.5 Q8 19 8 14 Z" opacity=".7"/>`],
+    midnight: [`midnight palette`, `<circle cx="7.5" cy="12" r="4" fill="#4b4690" stroke="none"/><circle cx="12" cy="8" r="4" fill="#c3beff" stroke="none"/><circle cx="16.5" cy="13" r="4" fill="#ffe08a" stroke="none"/>`],
+  };
+  const part = (k, i) => `<span class="part" style="--t:${[-5, 3, -2][i]}deg" title="${PART_ART[k][0]}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${PART_ART[k][1]}</svg></span>`;
+  const looksRow = t => t.looks.map(part).join("");
+  const insideRow = t => ["peach-cat", "sky-bunny", "mint-bear"].slice(0, t.pets).map(p => `<img class="px" src="../assets/pets/${p}.png" alt="">`).join("");
+
+  // the pack art from pack.js, with 1-3 little stars printed on the front
+  function pack(t, w) {
+    const star = (x, y) => `<path transform="translate(${x} ${y}) scale(.55)" d="M0 -9 L2.6 -2.8 L9 -2.6 L4 1.6 L5.6 8 L0 4.4 L-5.6 8 L-4 1.6 L-9 -2.6 L-2.6 -2.8 Z" fill="${t.art.light}" stroke="${t.art.dark}" stroke-width="2"/>`;
+    const s = Array.from({ length: t.stars }, (_, i) => star(50 + (i - (t.stars - 1) / 2) * 13, 37)).join("");
+    return packSvg(t.art, w).replace("</svg>", `${s}</svg>`);
+  }
+
+  function pileArt(t, big = false) {
+    const w = big ? 64 : 46, n = Math.min(t.have, 4);
+    if (!t.have) return `<div class="pile none" data-open="${t.id}"><div class="spot" style="${big ? "left:29px; width:52px; height:66px" : ""}"></div><span class="n" style="${big ? "right:18px" : ""}">0</span></div>`;
+    const packs = Array.from({ length: n }, (_, i) => `<div style="position:absolute; left:${(big ? 20 : 10) + [0, 10, -6, 6][i]}px; bottom:${i * 4}px; transform:rotate(${[-6, 5, -2, 8][i]}deg)">${pack(t, w)}</div>`).join("");
+    return `<div class="pile" data-open="${t.id}">${packs}<span class="n">${t.have}</span></div>`;
+  }
+
+  function odds(t) {
+    const prev = TIERS[TIERS.indexOf(t) - 1];
+    return `<div class="odds">
+      <dl><dt class="head">rarity</dt>${Object.entries(t.tiers).map(([k, v]) => `<dt style="color:var(--tier-${k})">${TIER_WORD[k]}</dt><dd>${v}</dd>`).join("")}</dl>
+      <dl><dt class="head">finish</dt>${Object.entries(t.finishes).map(([k, v]) => `<dt class="${prev && !prev.finishes[k] ? "fresh" : ""}">${k}</dt><dd>${v}</dd>`).join("")}</dl>
+    </div>`;
+  }
+
+  // ---------------- per-look state ----------------
+  const LOOKS = {
+    A: { el: document.getElementById("lookA"), picked: TIERS[stage - 1].id, amount: 1, back: false },
+    B: { el: document.getElementById("lookB"), picked: TIERS[stage - 1].id, amount: 1, back: false },
+    C: { el: document.getElementById("lookC"), amounts: { t1: 1, t2: 1, t3: 1 }, lets: { t1: true, t2: true, t3: false } },
+  };
+  const SAY = {
+    1: "boxes! i can hear something wiggling in that one.",
+    2: "new boxes! they came all the way from beyond the fence. they smell like adventure.",
+    3: "these ones are so heavy. i think a whole family is in there!",
+  };
+  for (const k in LOOKS) { LOOKS[k].content = mountAt(LOOKS[k].el, SAY[stage]); }
+  const sayIn = (k, t) => { LOOKS[k].el.querySelector(".bubble").textContent = t; };
+  const cost = (t, n) => t.price * n;
+
+  // ---------------- Look A: shelves ----------------
+  function renderA() {
+    const L = LOOKS.A, t = TIERS.find(x => x.id === L.picked) || TIERS[0];
+    const shelf = (s, i) => `
+      <div class="shelf${s.id === t.id ? " on" : ""}${s === arriving ? " arrive glow" : ""}" data-pick="${s.id}">
+        <div class="sign" style="--t:${[-1.5, 1.2, -1][i]}deg">${pageArt(s.doodle)}${s.page}${s === TIERS[stage - 1] && stage > 1 ? `<span class="newtag">new!</span>` : ""}</div>
+        <div class="goods">
+          <div class="forsale">${pack(s, 62)}<div class="tag"><b>${nameOf(s)}</b><span class="price">${COIN}${num(s.price)}</span></div></div>
+          <div class="yours">${pileArt(s)}<div class="opens"><button class="btn" data-open="${s.id}" ${s.have ? "" : "disabled"}>open 1</button><button class="btn" data-open10="${s.id}" ${s.have ? "" : "disabled"}>open 10</button></div></div>
+        </div>
+        <div class="plank"></div>
+      </div>`;
+    const n = L.amount, c = cost(t, n);
+    L.content.innerHTML = `<div class="A">
+      <div class="case">${open().map(shelf).join("")}</div>
+      <div class="side sticker">
+        <button class="flip" data-flip>${L.back ? "front" : "back"}</button>
+        <div class="hero">${pack(t, 96)}</div>
+        <h3>${nameOf(t)}</h3>
+        ${L.back ? odds(t) : `<div class="facts">
+          <div class="row"><span class="lbl2">inside</span><div class="inside">${insideRow(t)}</div></div>
+          ${t.looks.length ? `<div class="row"><span class="lbl2">new looks</span><div class="looks">${looksRow(t)}</div></div>` : ""}
+          <div class="row"><span class="lbl2">on the shelf</span><span>${t.have}</span></div>
+        </div>`}
+        <div class="buyrow">
+          <div class="row" style="justify-content:space-between"><div class="seg">${[1, 10, 50].map(q => `<button data-n="${q}" class="${q === n ? "on" : ""}">${q}</button>`).join("")}</div>
+            <div class="stepper"><button class="btn" data-step="-1">−</button><b>${n}</b><button class="btn" data-step="1">+</button></div></div>
+          <button class="btn primary buy" data-buy ${c > coins ? "disabled" : ""}>buy ${n}<small>${COIN}${num(c)}</small></button>
+        </div>
+      </div></div>`;
+  }
+
+  // ---------------- Look B: a page per map page ----------------
+  function renderB() {
+    const L = LOOKS.B;
+    if (!open().some(x => x.id === L.picked)) L.picked = "t1";
+    const t = TIERS.find(x => x.id === L.picked);
+    const n = L.amount, c = cost(t, n);
+    L.content.innerHTML = `<div class="B">
+      <div class="itabs">${open().map(s => `<button class="itab${s.id === t.id ? " on" : ""}${s === arriving ? " arrive" : ""}" data-pick="${s.id}">${pageArt(s.doodle)}${s.page}${s === TIERS[stage - 1] && stage > 1 && s.id !== t.id ? `<span class="dot"></span>` : ""}</button>`).join("")}</div>
+      <div class="board">
+        <div class="shop${t === arriving ? " glow" : ""}">
+          <button class="flip" data-flip>${L.back ? "front" : "back"}</button>
+          <div class="hero">${pack(t, 140)}</div>
+          ${L.back ? `<div class="info"><h3>${nameOf(t)}</h3>${odds(t)}</div>` : `<div class="info">
+            <h3>${nameOf(t)}${t === TIERS[stage - 1] && stage > 1 ? `<span class="newtag">new!</span>` : ""}</h3>
+            <div class="row"><span class="lbl2">inside</span><div class="inside">${insideRow(t)}</div></div>
+            ${t.looks.length ? `<div class="row"><span class="lbl2">new looks</span><div class="looks">${looksRow(t)}</div></div>` : ""}
+            <div class="row"><span class="pchip">${COIN}${num(t.price)}</span></div>
+          </div>`}
+          <div class="buyrow">
+            <div class="seg">${[1, 10, 50].map(q => `<button data-n="${q}" class="${q === n ? "on" : ""}">${q}</button>`).join("")}</div>
+            <div class="stepper"><button class="btn" data-step="-1">−</button><b>${n}</b><button class="btn" data-step="1">+</button></div>
+            <button class="btn primary buy" data-buy ${c > coins ? "disabled" : ""}>buy ${n}<small>${COIN}${num(c)}</small></button>
+          </div>
+        </div>
+        <div class="shelfbox">
+          <h4>your pile</h4>
+          <div class="spotw">${pileArt(t, true)}<div class="plank"></div></div>
+          <div class="opens"><button class="btn" data-open="${t.id}" ${t.have ? "" : "disabled"}>open 1</button><button class="btn" data-open10="${t.id}" ${t.have ? "" : "disabled"}>open 10</button><button class="btn" data-openall="${t.id}" ${t.have ? "" : "disabled"}>open all</button></div>
+        </div>
+      </div></div>`;
+  }
+
+  // ---------------- Look C: today's counter ----------------
+  function renderC() {
+    const L = LOOKS.C;
+    const offer = s => {
+      const n = L.amounts[s.id], c = cost(s, n);
+      return `<div class="offer sticker${s === arriving ? " arrive glow" : ""}" title="${Object.entries(s.tiers).map(([k, v]) => `${k} ${v}`).join("\n")}">
+        <span class="stamp" title="${s.page}">${pageArt(s.doodle)}</span>
+        ${pack(s, 40)}
+        <div class="mid"><div class="nm"><b>${nameOf(s)}</b>${s === TIERS[stage - 1] && stage > 1 ? `<span class="newtag">new!</span>` : ""}</div>
+          <div class="quick"><span class="pchip" style="font-size:12px">${COIN}${num(s.price)}</span>${[1, 10, 50].map(q => `<button class="fchip${q === n ? " on" : ""}" data-cn="${s.id}:${q}">${q}</button>`).join("")}</div></div>
+        <div class="right"><div class="stepper"><button class="btn" data-cstep="${s.id}:-1">−</button><b>${n}</b><button class="btn" data-cstep="${s.id}:1">+</button></div>
+          <button class="btn primary buy" data-cbuy="${s.id}" ${c > coins ? "disabled" : ""}>buy ${n}<small>${COIN}${num(c)}</small></button></div>
+      </div>`;
+    };
+    L.content.innerHTML = `<div class="C">
+      <div class="left">
+        ${open().map(offer).join("")}
+        <div class="stash">
+          <h4>your stash</h4>
+          <div class="piles">${open().map(s => `<div class="pcol">${pileArt(s)}<span class="nm">${nameOf(s)}</span>
+            <div class="opens"><span>open</span><button class="btn" data-open="${s.id}" ${s.have ? "" : "disabled"}>1</button><button class="btn" data-open10="${s.id}" ${s.have ? "" : "disabled"}>10</button><button class="btn" data-openall="${s.id}" ${s.have ? "" : "disabled"}>all</button></div></div>`).join("")}</div>
+          <div class="plank"></div>
+        </div>
+      </div>
+      <div class="side sticker">
+        <div class="petrow"><div class="cushion"><img class="px" src="../assets/pets/lilac-blob.png" alt=""></div><div><h4 style="color:var(--pink)">lilac blob</h4><div class="small muted">opening boxes</div></div></div>
+        <div class="opensrow">${open().map(s => `<div class="toggle${L.lets[s.id] ? " on" : ""}" data-let="${s.id}"><i></i>${pageArt(s.doodle)}<span>${nameOf(s)}</span></div>`).join("")}</div>
+      </div></div>`;
+  }
+
+  // ---------------- wiring ----------------
+  const RENDER = { A: renderA, B: renderB, C: renderC };
+  const LINES = ["on the pile! i'll guard them. i won't peek. much.", "more boxes! my favourite sound is the thump.", "we're rich! in boxes!"];
+  function burst(k, el) {
+    const r = el.getBoundingClientRect(), base = LOOKS[k].el.getBoundingClientRect();
+    for (let i = 0; i < 14; i++) {
+      const s = document.createElement("i"); s.className = "spark";
+      const a = Math.random() * Math.PI * 2, d = 30 + Math.random() * 50;
+      s.style.left = (r.left - base.left + r.width / 2) + "px"; s.style.top = (r.top - base.top + r.height / 2) + "px";
+      s.style.setProperty("--dx", Math.cos(a) * d + "px"); s.style.setProperty("--dy", Math.sin(a) * d + "px");
+      LOOKS[k].el.appendChild(s); setTimeout(() => s.remove(), 1000);
+    }
+  }
+  function buyIn(k, t, n) {
+    const c = cost(t, n);
+    if (c > coins) { sayIn(k, "we need a few more coins for that many."); return; }
+    coins -= c; t.have += n;
+    renderAll();
+    sayIn(k, LINES[Math.floor(Math.random() * LINES.length)]);
+    const pile = LOOKS[k].el.querySelector(`.pile[data-open="${t.id}"]`);
+    if (pile) { pile.classList.add("pop"); }
+  }
+  function openIn(k, t, n) {
+    if (!t.have) return;
+    t.have -= Math.min(n, t.have);
+    renderAll();
+    sayIn(k, n === 1 ? "rip! ooh, who's in there?" : "rip rip rip! so many new friends!");
+  }
+  function wire(k) {
+    const L = LOOKS[k], root = L.content;
+    const T = id => TIERS.find(t => t.id === id);
+    root.querySelectorAll("[data-pick]").forEach(el => el.addEventListener("click", () => { if (L.picked !== el.dataset.pick) { L.picked = el.dataset.pick; L.back = false; RENDER[k](); paintIcons(root); wire(k); } }));
+    root.querySelectorAll("[data-flip]").forEach(el => el.addEventListener("click", () => { L.back = !L.back; RENDER[k](); paintIcons(root); wire(k); }));
+    root.querySelectorAll("[data-n]").forEach(el => el.addEventListener("click", () => { L.amount = Number(el.dataset.n); RENDER[k](); paintIcons(root); wire(k); }));
+    root.querySelectorAll("[data-step]").forEach(el => el.addEventListener("click", () => { L.amount = Math.max(1, Math.min(999, L.amount + Number(el.dataset.step))); RENDER[k](); paintIcons(root); wire(k); }));
+    root.querySelectorAll("[data-buy]").forEach(el => el.addEventListener("click", e => { e.stopPropagation(); buyIn(k, T(L.picked), L.amount); }));
+    root.querySelectorAll("[data-cn]").forEach(el => el.addEventListener("click", () => { const [id, q] = el.dataset.cn.split(":"); L.amounts[id] = Number(q); RENDER[k](); paintIcons(root); wire(k); }));
+    root.querySelectorAll("[data-cstep]").forEach(el => el.addEventListener("click", () => { const [id, d] = el.dataset.cstep.split(":"); L.amounts[id] = Math.max(1, Math.min(999, L.amounts[id] + Number(d))); RENDER[k](); paintIcons(root); wire(k); }));
+    root.querySelectorAll("[data-cbuy]").forEach(el => el.addEventListener("click", () => buyIn(k, T(el.dataset.cbuy), L.amounts[el.dataset.cbuy])));
+    root.querySelectorAll("[data-let]").forEach(el => el.addEventListener("click", () => { L.lets[el.dataset.let] = !L.lets[el.dataset.let]; RENDER[k](); paintIcons(root); wire(k); }));
+    root.querySelectorAll("button[data-open]").forEach(el => el.addEventListener("click", e => { e.stopPropagation(); openIn(k, T(el.dataset.open), 1); }));
+    root.querySelectorAll(".pile[data-open]").forEach(el => el.addEventListener("click", e => { e.stopPropagation(); openIn(k, T(el.dataset.open), 1); }));
+    root.querySelectorAll("[data-open10]").forEach(el => el.addEventListener("click", e => { e.stopPropagation(); openIn(k, T(el.dataset.open10), 10); }));
+    root.querySelectorAll("[data-openall]").forEach(el => el.addEventListener("click", e => { e.stopPropagation(); const t = T(el.dataset.openall); openIn(k, t, t.have); }));
+  }
+  function renderAll() {
+    for (const k in LOOKS) {
+      RENDER[k](); paintIcons(LOOKS[k].content); wire(k);
+      LOOKS[k].el.querySelector(".cv").textContent = num(coins);
+    }
+  }
+
+  // the name sets and the mockup controls (outside the game frames)
+  function renderNames() {
+    const el = document.getElementById("names");
+    el.innerHTML = NAMES.map(s => `<button class="nameset${s === names ? " on" : ""}" data-set="${s.id}"><span class="lbl">${s.label}</span>
+      <ol>${s.n.map((nm, i) => `<li>${pack(TIERS[i], 18)}${nm}</li>`).join("")}</ol></button>`).join("");
+    el.querySelectorAll("[data-set]").forEach(b => b.addEventListener("click", () => { names = NAMES.find(s => s.id === b.dataset.set); arriving = null; renderNames(); renderAll(); }));
+  }
+  function renderTools() {
+    const el = document.getElementById("tools");
+    el.innerHTML = `<div class="grp">map pages open:
+      ${["the backyard", "+ beyond the fence", "+ zone 3"].map((l, i) => `<button class="pill${stage === i + 1 ? " on" : ""}" data-stage="${i + 1}">${l}</button>`).join("")}</div>
+      <div class="grp">names: <b style="color:var(--pink); font-weight:400">${names.n.join(", ")}</b></div>`;
+    el.querySelectorAll("[data-stage]").forEach(b => b.addEventListener("click", () => {
+      const s = Number(b.dataset.stage), grew = s > stage;
+      stage = s; arriving = grew ? TIERS[stage - 1] : null;
+      if (grew) { LOOKS.A.picked = LOOKS.B.picked = TIERS[stage - 1].id; LOOKS.A.back = LOOKS.B.back = false; }
+      renderTools(); renderAll();
+      for (const k in LOOKS) sayIn(k, SAY[stage]);
+      if (grew) for (const k in LOOKS) { const n = LOOKS[k].content.querySelector(".arrive"); if (n) setTimeout(() => burst(k, n), 350); }
+      arriving = null;
+    }));
+  }
+
+  if (params.get("pick")) LOOKS.A.picked = LOOKS.B.picked = params.get("pick");
+  if (params.get("back")) LOOKS.A.back = LOOKS.B.back = true;
+  renderNames(); renderTools(); renderAll();
+  applyLook(loadLook());
+</script>
+</body>
+</html>

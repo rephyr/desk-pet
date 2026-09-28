@@ -1,0 +1,418 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Knacks</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* D1 knacks: every part has a named knack, its size set by the part's rarity; your active pet's
+     knacks boost everything. The proposal list first, then three looks of the pet details. */
+  body { display: block; min-height: 0; padding: 22px 24px 48px; }
+  .sheet { width: 920px; margin: 0 auto; }
+  h1 { font: var(--display-weight) 26px/1 var(--display); color: var(--pink); margin: 0 0 6px; }
+  .lede { color: var(--muted); margin: 0 0 16px; max-width: 760px; }
+  .sheet > h2 { font: var(--display-weight) 19px/1 var(--display); color: var(--gold); margin: 30px 0 4px; }
+  .sheet > h2 + p { color: var(--muted); margin: 0 0 12px; }
+  .content { flex: 1; min-height: 0; }
+  /* 8 tabs in the spine, as in automation.html */
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+  /* "collectibles" is the widest label; give the tabs the spine's full width so it fits when on */
+  .spine .tab { width: 70px; letter-spacing: -.5px; }
+  .spine .tab.on { letter-spacing: -.9px; }
+  /* the worked example beside the accessory list */
+  .sum { padding: 12px 14px; font-size: 12px; align-self: start; }
+  .sum h3 { margin: 0 0 4px; font: var(--display-weight) 17px/1 var(--display); color: var(--lilac); }
+  .sum p { margin: 0 0 8px; color: var(--muted); }
+  .sum .row { display: grid; grid-template-columns: 20px 1fr auto; gap: 8px; align-items: center; padding: 3px 0; border-top: 2px dashed var(--line); }
+  .sum .row:first-of-type { border-top: 0; }
+  .sum .row span { color: var(--muted); }
+  .sum .row b { font-weight: 400; color: var(--mint); white-space: nowrap; }
+
+  /* ---------- the proposal ---------- */
+  .scale { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 0 0 14px; font-size: 12px; color: var(--muted); }
+  .scale span { padding: 1px 9px; border-radius: 999px; border: 2px solid color-mix(in srgb, var(--tc) 55%, transparent); color: var(--tc); white-space: nowrap; }
+  .slots { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .slot { padding: 12px 12px 8px; }
+  .slot h3 { margin: 0; font: var(--display-weight) 17px/1 var(--display); color: var(--lilac); display: flex; align-items: baseline; gap: 8px; }
+  .slot h3 small { font: 11px var(--body); color: var(--muted); }
+  .slot table { width: 100%; table-layout: fixed; border-collapse: collapse; margin-top: 8px; font-size: 12px; }
+  .slot td { padding: 3px 4px; vertical-align: middle; border-top: 2px dashed var(--line); }
+  .slot tr:first-child td { border-top: 0; }
+  .slot col.c1 { width: 42px; } .slot col.c2 { width: 118px; } .slot col.c3 { width: 30px; }
+  .thumb { width: 32px; height: 36px; border-radius: 6px; background: var(--deep); border: 2px solid var(--tc); display: grid; place-items: end center; overflow: hidden; }
+  .thumb img { width: 32px; height: 36px; }
+  .slot .pn { color: var(--text); }
+  .slot .pn small { display: block; color: var(--tc); font-size: 11px; }
+  .slot .kn { color: var(--pink); font-family: var(--display); font-size: 13px; white-space: nowrap; }
+  .slot .kd { color: var(--mint); font-size: 11px; }
+  .slot .kd.none { color: var(--muted); }
+  .slot .ki { width: 26px; color: var(--text); }
+  .kinds { margin-top: 14px; padding: 12px 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px 26px; font-size: 12px; }
+  .kinds h3 { grid-column: 1 / -1; margin: 0 0 4px; font: var(--display-weight) 16px/1 var(--display); color: var(--lilac); }
+  .kinds div { display: grid; grid-template-columns: 20px 62px 1fr; gap: 0 8px; align-items: start; line-height: 1.3; }
+  .kinds div .ico { grid-row: span 2; margin-top: 1px; }
+  .kinds b { font-weight: 400; color: var(--text); white-space: nowrap; }
+  .kinds span { color: var(--muted); }
+  .kinds em { grid-column: 3; font-style: normal; color: var(--lilac); font-size: 11px; }
+  .ico { width: 20px; height: 20px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+
+  .look-label { display: flex; align-items: baseline; gap: 10px; margin: 30px 0 8px; }
+  .look-label b { white-space: nowrap; font: var(--display-weight) 19px/1 var(--display); color: var(--gold); font-weight: 400; }
+  .look-label span { color: var(--muted); }
+
+  /* ---------- shared pieces in the game frames ---------- */
+  .coll { display: grid; grid-template-columns: 1fr 248px; gap: 16px; height: 100%; min-height: 0; }
+  .coll-main { display: flex; flex-direction: column; min-height: 0; }
+  .pgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 12px; padding: 4px 6px 14px 4px; align-content: start; min-height: 0; overflow: hidden; }
+  .pc { position: relative; display: flex; flex-direction: column; align-items: center; padding: 8px 4px 7px; background: var(--raised); border: 2px solid var(--tier); border-radius: var(--r-lg); box-shadow: var(--lift); cursor: pointer; transition: transform .15s var(--ease-out); }
+  .pc:hover { transform: translateY(-3px) rotate(-1deg); }
+  .pc.on { outline: 2px solid var(--pink); outline-offset: 3px; }
+  .pc.glow { box-shadow: var(--lift), 0 0 16px color-mix(in srgb, var(--tier) 45%, transparent); }
+  .pc img { width: 48px; height: 54px; }
+  .pc .name { margin-top: 5px; font-size: 11px; text-align: center; line-height: 1.25; }
+  .pc .tier { font-size: 11px; color: var(--tier); }
+  .pc .heart { position: absolute; top: 5px; left: 6px; }
+
+  .det { position: relative; display: flex; flex-direction: column; align-items: center; padding: 14px 16px 12px; min-height: 0; }
+  .det::before { content: ""; position: absolute; inset: 5px; border: 2px dashed var(--line); border-radius: 8px; pointer-events: none; }
+  .det > * { position: relative; }
+  .det h2 { font: var(--display-weight) 20px/1.1 var(--display); color: var(--pink); margin: 6px 0 3px; }
+  .det .tags { display: flex; gap: 6px; }
+  .det .tagp { font-size: 11px; padding: 0 8px; border-radius: 999px; border: 2px solid color-mix(in srgb, var(--tc) 60%, transparent); color: var(--tc); }
+  .det .btn { margin-top: auto; width: 100%; }
+  .det .sub { align-self: stretch; margin: 10px 0 4px; font: var(--display-weight) 13px/1 var(--display); color: var(--lilac); }
+  .det dl { width: 100%; display: grid; grid-template-columns: auto 1fr; gap: 1px 12px; margin: 8px 0 10px; font-size: 11px; }
+  .det dt { color: var(--muted); }
+  .det dd { margin: 0; }
+  .det dd small { display: block; color: var(--muted); font-size: 11px; }
+  .stats { display: flex; gap: 6px; width: 100%; margin-bottom: 10px; }
+  .stats span { flex: 1; text-align: center; font-size: 11px; color: var(--muted); padding: 2px 0; border-radius: 8px; background: var(--deep); border: 2px solid var(--line); }
+  .stats b { font-weight: 400; color: var(--text); margin-left: 4px; }
+
+  /* ---------- look A: a knack list in the details ---------- */
+  .klist { width: 100%; display: flex; flex-direction: column; gap: 5px; }
+  .krow { display: flex; align-items: center; gap: 9px; }
+  .kic { flex: none; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: color-mix(in srgb, var(--tc) 12%, var(--deep)); border: 2px solid var(--tc); color: var(--text); }
+  .kic.sewn { border-style: dashed; }
+  .krow .tx { flex: 1; min-width: 0; line-height: 1.25; }
+  .krow .tx b { display: flex; justify-content: space-between; gap: 6px; font-weight: 400; font-size: 12px; }
+  .krow .tx b i { font-style: normal; color: var(--muted); font-size: 11px; }
+  .krow .tx span { display: block; color: var(--mint); font-size: 11px; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* ---------- look B: tags pegged on a string ---------- */
+  .line-wrap { position: relative; width: 100%; margin-top: 6px; }
+  .line-wrap svg.str { position: absolute; left: -6px; width: calc(100% + 12px); height: 16px; overflow: visible; }
+  .line-wrap svg.str path { fill: none; stroke: var(--lilac-seam); stroke-width: 2; stroke-linecap: round; }
+  .trow { position: relative; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding-top: 10px; margin-bottom: 4px; }
+  .trow.one { grid-template-columns: 1fr; justify-items: center; }
+  .trow.one .htag { width: calc(50% - 4px); }
+  .htag { position: relative; padding: 9px 5px 5px 7px; border-radius: 6px 6px 10px 10px; background: var(--deep); border: 2px solid var(--tc); transform: rotate(var(--t)); transform-origin: 50% -8px; box-shadow: var(--lift); line-height: 1.2; min-width: 0; transition: transform .25s var(--ease-out); }
+  .htag:hover { transform: rotate(0deg); }
+  .htag::before { content: ""; position: absolute; top: -11px; left: 50%; width: 6px; height: 13px; margin-left: -3px; border-radius: 2px; background: var(--pc, var(--lilac)); }
+  .htag.sewn { border-style: dashed; }
+  .htag b { display: block; font: var(--display-weight) 12px/1.15 var(--display); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .htag span { display: block; margin-top: 2px; font-size: 10px; line-height: 1.25; color: var(--mint); }
+  .pc .best { margin-top: 5px; max-width: calc(100% - 6px); padding: 1px 5px; text-align: center; border-radius: 4px 4px 7px 7px; border: 2px solid color-mix(in srgb, var(--tc) 70%, transparent); font-size: 10px; line-height: 1.2; color: var(--text); transform: rotate(-2deg); }
+
+  /* ---------- look C: embroidered badges ---------- */
+  .badges { display: flex; gap: 6px; justify-content: center; margin: 10px 0 6px; }
+  .badge { position: relative; width: 36px; height: 36px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--tc) 14%, var(--deep)); border: 3px solid var(--tc); color: var(--text); cursor: pointer; transition: transform .2s var(--ease-out); padding: 0; }
+  .badge::after { content: ""; position: absolute; inset: 2px; border-radius: 50%; border: 1.5px dashed color-mix(in srgb, var(--tc) 55%, transparent); }
+  .badge:hover { transform: translateY(-2px); }
+  .badge.on { transform: rotate(-8deg) scale(1.12); box-shadow: 0 0 0 3px var(--raised), 0 0 0 5px var(--pink); }
+  .badge .ico { width: 18px; height: 18px; }
+  .bcard { width: 100%; padding: 8px 10px; border-radius: 10px; background: var(--deep); border: 2px solid var(--line); text-align: center; }
+  .bcard b { display: block; font: var(--display-weight) 15px/1.1 var(--display); color: var(--pink); font-weight: 400; }
+  .bcard span { display: block; color: var(--mint); font-size: 12px; margin-top: 2px; }
+  .bcard small { display: block; color: var(--muted); font-size: 11px; margin-top: 1px; }
+  .pgrid.c { padding: 10px 10px 14px 4px; }
+  .pc .cbadge { position: absolute; top: -8px; right: -8px; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: color-mix(in srgb, var(--tc) 14%, var(--deep)); border: 2px solid var(--tc); color: var(--text); transform: rotate(10deg); box-shadow: var(--lift); }
+  .pc .cbadge .ico { width: 14px; height: 14px; }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <h1>knacks</h1>
+  <p class="lede">D1: every part has a named knack. Its size comes from the part's rarity, and your active pet's knacks boost everything. First the proposed list (all 35 parts from data/parts.json), then three looks of how knacks show in the collectibles tab. Numbers are placeholders for data/knacks.json.</p>
+
+  <h2>the proposal</h2>
+  <p>Each slot leans one way, and each part has its own knack. Size = the knack's step x the rarity:</p>
+  <div class="scale" id="scale"></div>
+  <div class="slots" id="slots"></div>
+  <div class="kinds sticker" id="kinds"></div>
+
+  <div class="look-label"><b>Look A</b><span>a knack list: the details sticker lists each part with its knack and number, the grid cards stay as they are</span></div>
+  <div class="app win" data-tab="pets" data-say="my new eyes make everything sparkly! even the capsules."></div>
+
+  <div class="look-label"><b>Look B</b><span>tags on a string: knacks hang on a line of pegged tags under the pet, and each grid card wears its best knack as a little tag</span></div>
+  <div class="app win" data-tab="pets" data-say="i've got a tag for everything i'm good at. that's a lot of tags!"></div>
+
+  <div class="look-label"><b>Look C</b><span>badges: knacks are round sewn-on badges, tap one to read it, the parts list stays, grid cards get their best badge in the corner</span></div>
+  <div class="app win" data-tab="pets" data-say="i got a new badge! i'm going to wear it forever."></div>
+</div>
+
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  // the game's current tabs (as in automation.html)
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+
+  // ---------- the knack data (proposal) ----------
+  const FACTOR = { common: 1, uncommon: 2, rare: 3, epic: 5, legendary: 8, mythic: 12 };
+  // what a knack can do: its step (size at common), the words, and what it reuses in the game
+  const KINDS = {
+    coins:   { step: 5, text: n => `+${n}% coins`, what: "everything pays more coins", uses: "toy kind coins" },
+    xp:      { step: 5, text: n => `+${n}% xp`, what: "more xp from adventures", uses: "toy kind xp" },
+    luck:    { step: 4, text: n => `+${n}% luck`, what: "the machine and extra adventure drops", uses: "toy kind luck" },
+    all:     { step: 2, text: n => `+${n}% coins, xp and luck`, what: "a bit of everything", uses: "toy kind all" },
+    capsule: { step: 4, text: n => `capsules ${n}% faster`, what: "capsules open faster", uses: "toy kind speed" },
+    fever:   { step: 6, text: n => `fever ${n}% longer`, what: "fever lasts longer", uses: "toy kind fever" },
+    toys:    { step: 5, text: n => `+${n}% toys`, what: "toys come out more often", uses: "toy kind toys" },
+    loot:    { step: 5, text: n => `+${n}% adventure loot`, what: "adventures bring more home", uses: "toy kind loot" },
+    spots:   { step: 4, text: n => `+${n}% spotting`, what: "trips spot places and rumours more", uses: "new (like scouting)" },
+    trip:    { step: 3, text: n => `adventures ${n}% shorter`, what: "trips go quicker", uses: "new (like comfy boots)" },
+    hurt:    { step: 3, text: n => `${n}% fewer bumps`, what: "pets get hurt less on adventures", uses: "new (like the harness)" },
+    safe:    { step: 3, text: n => `+${n}% safe home`, what: "more pets make it home", uses: "new (like the harness)" },
+    errands: { step: 5, text: n => `errands ${n}% faster`, what: "every errand job goes faster", uses: "new" },
+    workers: { step: 5, text: n => `workers ${n}% faster`, what: "automation workers go faster", uses: "new" },
+    away:    { step: 6, text: n => `+${n}% while away`, what: "earns more while you're away", uses: "new" },
+    finds:   { step: 5, text: n => `+${n}% bits and parts`, what: "more machine bits and parts", uses: "new" },
+    pickups: { step: 5, text: n => `+${n}% trail pickups`, what: "trail pickups are worth more", uses: "new (like sticky paws)" },
+    treats:  { step: 5, text: n => `treats ${n}% longer`, what: "a tossed treat lasts longer", uses: "new (like the treat pouch)" },
+    rummage: { step: 5, text: n => `+${n}% rummaging`, what: "rummage spots give more", uses: "new" },
+    shiny:   { step: 4, text: n => `+${n}% shiny capsules`, what: "more shiny capsules", uses: "new (machine shiny branch)" },
+    boxes:   { step: 5, text: n => `+${n}% pet boxes`, what: "pet boxes turn up more", uses: "new (machine pet_box)" },
+    power:   { step: 5, text: n => `+${n}% power`, what: "stronger in fights", uses: "later (dungeons, E1)" },
+  };
+  const ICO = {
+    coins: `<path d="M12 3 L19.6 10.4 L12 21.2 L4.4 10.4 Z" fill="var(--cyan)" stroke="var(--cyan)"/><path d="M5 10.4 L19 10.4 M9.2 10.4 L12 4.2 L14.8 10.4 L12 19.8 L9.2 10.4" stroke="var(--page)" stroke-width="1.1"/>`,
+    xp: `<path d="M12 2.6 Q13.1 10 21.4 12 Q13.1 14 12 21.4 Q10.9 14 2.6 12 Q10.9 10 12 2.6 Z" fill="var(--gold)" stroke="var(--gold)"/>`,
+    luck: `<circle cx="8.8" cy="8.6" r="3.3"/><circle cx="15.2" cy="8.8" r="3.3"/><circle cx="8.7" cy="14.8" r="3.3"/><circle cx="15.1" cy="15" r="3.3"/><path d="M12.2 12.2 Q15.6 17 19.4 20.8"/>`,
+    all: `<path d="M12 3.8 L14.1 9.4 L19.8 9.8 L15.4 13.5 L16.8 19.2 L12 16 L7.2 19.2 L8.6 13.5 L4.2 9.8 L9.9 9.4 Z"/>`,
+    capsule: `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`,
+    fever: `<path d="M12 21 Q6 20.4 6.1 14.6 Q6.3 10.2 10 7.2 Q10.2 10 12.1 11 Q11.8 6 15 3.2 Q15.2 8 17.6 11 Q19.2 13.6 18.1 16.6 Q16.8 20.6 12 21 Z"/>`,
+    toys: `<circle cx="12" cy="13.4" r="6.2"/><circle cx="6.8" cy="6.9" r="2.5"/><circle cx="17.2" cy="6.9" r="2.5"/><path d="M10.2 15.6 Q12 17 13.8 15.6"/>`,
+    loot: `<path d="M9.2 5.6 L14.8 5.6 L13.4 8.4 Q19.2 10.8 19.2 15.8 Q19.2 20.6 12 20.5 Q4.8 20.6 4.8 15.8 Q4.8 10.8 10.6 8.4 Z"/><path d="M10.4 8.5 L13.6 8.5"/>`,
+    spots: `<path d="M8.4 20.4 Q4.8 12.4 7 3.8 Q10.4 4.6 11.2 12 Q11.4 17 10.4 20.4"/><path d="M13.8 20.4 Q12.8 17 13 12 Q13.8 4.6 17.2 3.8 Q19.4 12.4 15.8 20.4"/>`,
+    trip: `<path d="M8.1 3.7 L13.4 3.8 L13.6 11.9 Q19.4 12.5 19.8 16.9 L19.7 19.7 L6.8 19.8 Q5.8 15.1 7.8 12.1 Z"/><path d="M6.9 17.1 L19.7 17.2"/>`,
+    hurt: `<path d="M12 20.1 Q3.4 13.6 4.3 8.4 Q5.4 4.2 9.3 5.1 Q11.2 5.7 12 8 Q12.9 5.6 14.8 5.1 Q18.7 4.3 19.7 8.4 Q20.6 13.5 12 20.1 Z"/><path d="M8.8 11.2 L15.2 13.4"/>`,
+    safe: `<path d="M3.8 11.6 L12 4.1 L20.3 11.2"/><path d="M6 10.2 Q5.8 15 6.3 19.6 Q12 20.4 17.8 19.4 Q18.3 14.8 18 10.1"/><path d="M12 17.4 Q8.6 15 9.4 13.2 Q10.6 11.6 12 13.4 Q13.4 11.6 14.6 13.2 Q15.4 15 12 17.4 Z"/>`,
+    errands: `<path d="M6.2 5.4 L17.8 5.3 L17.6 20.4 L6.4 20.5 Z"/><path d="M9.6 5.3 L9.8 3.6 L14.3 3.6 L14.4 5.3"/><path d="M9 10.2 L15 10.1 M9 14 L14 14"/>`,
+    workers: `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12"/>`,
+    away: `<path d="M14.6 4 Q8 5.2 8.1 12 Q8.2 18.8 14.8 20 Q9.4 21.6 6 17.6 Q3 13.2 5.4 8.2 Q8.4 3.6 14.6 4 Z"/><path d="M17.4 7.4 L17.4 10.6 M15.8 9 L19 9"/>`,
+    finds: `<path d="M12 3.6 L19.4 7.8 L19.3 16.2 L12 20.4 L4.6 16.1 L4.7 7.8 Z"/><circle cx="12" cy="12" r="3.1"/>`,
+    pickups: `<circle cx="6.8" cy="10.2" r="1.8"/><circle cx="10.4" cy="6.6" r="1.8"/><circle cx="14.4" cy="6.6" r="1.8"/><circle cx="17.8" cy="10.2" r="1.8"/><path d="M8 17 Q8.1 12.2 12.3 12.1 Q16.6 12.2 16.8 17 Q16.8 20.2 12.4 19.6 Q8 20.2 8 17 Z"/>`,
+    treats: `<path d="M8.2 12 Q8.2 8 12 8 Q15.8 8 15.8 12 Q15.8 16 12 16 Q8.2 16 8.2 12 Z"/><path d="M8.2 12 L4 8.8 L4.2 15.2 Z M15.8 12 L20 8.8 L19.8 15.2 Z"/>`,
+    rummage: `<circle cx="10.4" cy="10.4" r="5.6"/><path d="M14.6 14.6 L20 20.2"/>`,
+    shiny: `<path d="M11 3 Q12 10 19.6 11.2 Q12 12.4 11 20 Q10 12.4 2.8 11.2 Q10 10 11 3 Z"/><path d="M18.6 3.2 L18.6 7 M16.7 5.1 L20.5 5.1"/>`,
+    boxes: `<path d="M4.6 10.8 Q4.4 15.5 5 19.8 Q12 20.6 19.2 19.7 Q19.7 15 19.5 10.5"/><path d="M3.4 7.4 Q12 6.8 20.5 7.1 L20.4 10.5 Q12 11 3.6 10.7 Z"/><path d="M12 7.3 L12.1 20.1"/>`,
+    power: `<path d="M12 3.6 L19 6.2 Q19.2 15 12 20.6 Q4.8 15 5 6.2 Z"/><path d="M9 11.6 L11.4 14 L15.2 9.6"/>`,
+  };
+  const ico = (k, cls = "ico") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICO[k]}</svg>`;
+
+  // per slot: what it leans towards, then [part id, name, rarity, knack name, kind] from data/parts.json
+  const SLOTS = [
+    { id: "body", lean: "getting around: adventures", parts: [
+      ["blob", "blob", "common", "squishy", "hurt"],
+      ["cat", "cat", "common", "lucky paws", "luck"],
+      ["bear", "bear", "uncommon", "bear hug", "loot"],
+      ["bunny", "bunny", "rare", "big ears", "spots"],
+      ["fox", "fox", "epic", "fox trot", "trip"],
+      ["dragon", "dragon", "legendary", "dragon's hoard", "loot"],
+      ["void", "void", "mythic", "the hum", "all"] ] },
+    { id: "palette", lean: "the colours: coins and the machine", parts: [
+      ["lilac", "lilac", "common", "lilac glow", "toys"],
+      ["mint", "mint", "common", "minty fresh", "errands"],
+      ["peach", "peach", "common", "peachy", "coins"],
+      ["sky", "sky", "uncommon", "sky high", "xp"],
+      ["bubblegum", "bubblegum", "uncommon", "bubble pop", "capsule"],
+      ["midnight", "midnight", "rare", "night owl", "away"],
+      ["toxic", "toxic", "epic", "glow in the dark", "fever"],
+      ["gold", "gold", "legendary", "golden touch", "coins"],
+      ["abyss", "abyss", "mythic", "bottomless", "luck"] ] },
+    { id: "pattern", lean: "what it attracts: finds", parts: [
+      ["plain", "plain", "common", "neat and tidy", "rummage"],
+      ["spots", "spots", "common", "polka dots", "pickups"],
+      ["stripes", "stripes", "uncommon", "racing stripes", "treats"],
+      ["checker", "checker", "rare", "game night", "finds"],
+      ["stars", "stars", "epic", "wishing star", "luck"],
+      ["circuit", "circuit", "legendary", "wired", "capsule"] ] },
+    { id: "eyes", lean: "what it sees: spotting and sparkles", parts: [
+      ["round", "round", "common", "wide-eyed", "spots"],
+      ["sleepy", "sleepy", "common", "power nap", "away"],
+      ["happy", "happy", "uncommon", "sunny side", "xp"],
+      ["sparkle", "sparkle", "rare", "sparkle eyes", "shiny"],
+      ["cyclops", "cyclops", "epic", "one big eye", "spots"],
+      ["x", "x-eyes", "legendary", "seen it all", "hurt"] ] },
+    { id: "accessory", lean: "what it wears: helping hands", parts: [
+      ["none", "no accessory", "common", "", ""],
+      ["bow", "bow", "common", "gift bow", "boxes"],
+      ["leaf", "leaf", "uncommon", "fresh air", "trip"],
+      ["headphones", "headphones", "rare", "in the groove", "errands"],
+      ["halo", "halo", "epic", "guardian", "safe"],
+      ["crown", "crown", "legendary", "royal", "workers"],
+      ["horns", "demon horns", "mythic", "little horns", "power"] ] },
+  ];
+  const KNACK = {};
+  for (const s of SLOTS) for (const [id, name, tier, kn, kind] of s.parts) {
+    const n = kind ? KINDS[kind].step * FACTOR[tier] : 0;
+    KNACK[`${s.id}:${id}`] = { slot: s.id, id, part: name, tier, name: kn, kind, n, text: kind ? KINDS[kind].text(n) : "" };
+  }
+  const tc = t => `var(--tier-${t})`;
+  const book = (slot, id) => `<img class="px" src="../assets/book/${slot}-${id}.png" alt="">`;
+
+  // ---------- proposal on the page ----------
+  document.getElementById("scale").innerHTML = Object.entries(FACTOR).map(([t, f]) => `<span style="--tc: ${tc(t)}">${t} x${f}</span>`).join("");
+  document.getElementById("slots").innerHTML = SLOTS.map(s => `
+    <div class="slot sticker">
+      <h3>${s.id}<small>${s.lean}</small></h3>
+      <table><colgroup><col class="c1"><col class="c2"><col class="c3"><col></colgroup>${s.parts.map(([id]) => {
+        const k = KNACK[`${s.id}:${id}`];
+        return `<tr style="--tc: ${tc(k.tier)}">
+          <td class="th"><div class="thumb">${book(s.id, id)}</div></td>
+          <td class="pn">${k.part}<small>${k.tier}</small></td>
+          <td class="ki">${k.kind ? ico(k.kind) : ""}</td>
+          <td>${k.kind ? `<div class="kn">${k.name}</div><div class="kd">${k.text}</div>` : `<div class="kd none">no knack</div>`}</td>
+        </tr>`;
+      }).join("")}</table>
+    </div>`).join("");
+  // a worked example: the lilac blob in the frames, then the same pet with better parts
+  const sumBox = (title, parts) => {
+    const ks = Object.entries(parts).map(([sl, id]) => KNACK[`${sl}:${id}`]).filter(k => k.kind);
+    return `<h3>${title}</h3>` + ks.map(k => `<div class="row" style="--tc: ${tc(k.tier)}">${ico(k.kind)}<span>${k.name} <i style="font-style:normal;color:var(--tc)">${k.tier}</i></span><b>${k.text}</b></div>`).join("");
+  };
+  document.getElementById("slots").insertAdjacentHTML("beforeend", `<div class="sum sticker">
+    <p>Only your active pet's knacks count. Two of the same kind add up.</p>
+    ${sumBox("lilac blob (rare)", { body: "blob", palette: "lilac", pattern: "plain", eyes: "sparkle", accessory: "headphones" })}
+    <div style="height:10px"></div>
+    ${sumBox("after a graft or two", { body: "bunny", palette: "gold", pattern: "stars", eyes: "cyclops", accessory: "crown" })}
+    <p style="margin:8px 0 0">big ears + one big eye: +32% spotting</p>
+  </div>`);
+  document.getElementById("kinds").innerHTML = `<h3>what knacks can do</h3>` + Object.entries(KINDS).map(([k, v]) =>
+    `<div>${ico(k)}<b>${k}</b><span>${v.what}</span><em>${v.uses}</em></div>`).join("");
+
+  // ---------- the pets in the frames ----------
+  const ACTIVE = { img: "lilac-blob-sparkle-sewn", name: "lilac blob", tier: "rare", active: true, sewn: ["eyes"],
+    parts: { body: "blob", palette: "lilac", pattern: "plain", eyes: "sparkle", accessory: "headphones" },
+    trait: "greedy", does: "earns more coins", stats: [10, 9, 5] };
+  const GRID = [ACTIVE, ...PETS.filter(p => !p.active).slice(0, 9).map(p => ({ ...p, img: p.id }))];
+  const knacksOf = p => Object.entries(p.parts).map(([s, id]) => KNACK[`${s}:${id}`]).filter(k => k.kind);
+  const bestOf = p => knacksOf(p).sort((a, b) => FACTOR[b.tier] - FACTOR[a.tier])[0];
+
+  function card(p, i, extra = "") {
+    return `<div class="pc${i === 0 ? " on" : ""}${p.glow ? " glow" : ""}" style="--tier: ${tc(p.tier)}">
+      ${p.active ? `<span class="heart" data-icon="heart" data-px="1"></span>` : ""}
+      <img class="px" src="../assets/pets/${p.img}.png" alt="">
+      <div class="name">${p.name}</div><div class="tier">${p.tier}</div>${extra}
+    </div>`;
+  }
+  function shell(grid, detail, cls = "") {
+    return `<div class="coll">
+      <div class="coll-main">
+        <div class="coll-bar">
+          <div class="seg"><button class="on">pets</button><button>toys</button><button>book</button></div>
+          <div class="seg"><button class="on">newest</button><button>rarest</button><button>a to z</button></div>
+          <span class="count">52 pets</span>
+        </div>
+        <div class="filters">${["all", "common", "uncommon", "rare", "epic", "legendary", "mythic"].map((t, i) =>
+          `<button class="fchip${i === 0 ? " on" : ""}" style="--tier: ${i ? tc(t) : "var(--pink)"}">${t}</button>`).join("")}</div>
+        <div class="pgrid${cls}">${grid}</div>
+      </div>
+      <div class="det sticker">${detail}</div>
+    </div>`;
+  }
+  const head = (p, scale) => `
+    <img class="px" src="../assets/pets/${p.img}.png" width="${16 * scale}" height="${18 * scale}" alt="">
+    <h2>${p.name}</h2>
+    <div class="tags"><span class="tagp" style="--tc: ${tc(p.tier)}">${p.tier}</span></div>`;
+  const statsRow = p => `<div class="stats"><span>power<b>${p.stats[0]}</b></span><span>luck<b>${p.stats[1]}</b></span><span>speed<b>${p.stats[2]}</b></span></div>`;
+  const activeBtn = `<button class="btn primary">your active pet <span data-icon="heart" data-px="1.5"></span></button>`;
+  const partsDl = p => `<dl>${Object.entries(p.parts).map(([s, id]) => `<dt>${s}</dt><dd>${KNACK[`${s}:${id}`].part}</dd>`).join("")}
+    <dt>trait</dt><dd>${p.trait}<small>${p.does}</small></dd></dl>`;
+
+  // look A: the knack list
+  function lookA(c) {
+    const p = ACTIVE;
+    const rows = Object.entries(p.parts).map(([s, id]) => {
+      const k = KNACK[`${s}:${id}`];
+      return `<div class="krow" style="--tc: ${tc(k.tier)}">
+        <div class="kic${p.sewn.includes(s) ? " sewn" : ""}">${ico(k.kind)}</div>
+        <div class="tx"><b>${k.name}<i>${s}</i></b><span>${k.text}</span></div>
+      </div>`;
+    }).join("");
+    c.innerHTML = shell(GRID.map((q, i) => card(q, i)).join(""), `
+      ${head(p, 5)}
+      <div class="sub">knacks</div>
+      <div class="klist">${rows}</div>
+      <dl><dt>trait</dt><dd>${p.trait}<small>${p.does}</small></dd></dl>
+      ${statsRow(p)}
+      ${activeBtn}`);
+  }
+
+  // look B: tags on a string
+  function lookB(c) {
+    const p = ACTIVE, ks = Object.entries(p.parts).map(([s, id]) => [s, KNACK[`${s}:${id}`]]);
+    const tilts = [-4, 3, 2, -3, 3];
+    const tag = ([s, k], i) => `<div class="htag${p.sewn.includes(s) ? " sewn" : ""}" style="--tc: ${tc(k.tier)}; --t: ${tilts[i]}deg"><b>${k.name}</b><span>${k.text}</span></div>`;
+    const str = `<svg class="str" viewBox="0 0 228 16" preserveAspectRatio="none"><path d="M2 3 Q114 16 226 3"/></svg>`;
+    const rows = [ks.slice(0, 2), ks.slice(2, 4), ks.slice(4)];
+    let n = 0;
+    const lines = rows.map(r => `<div class="line-wrap">${str}<div class="trow${r.length === 1 ? " one" : ""}">${r.map(x => tag(x, n++)).join("")}</div></div>`).join("");
+    c.innerHTML = shell(GRID.map((q, i) => { const b = bestOf(q); return card(q, i, b ? `<div class="best" style="--tc: ${tc(b.tier)}">${b.name}</div>` : ""); }).join(""), `
+      ${head(p, 5)}
+      ${lines}
+      <dl><dt>trait</dt><dd>${p.trait}<small>${p.does}</small></dd></dl>
+      ${statsRow(p)}
+      ${activeBtn}`);
+  }
+
+  // look C: badges
+  function lookC(c) {
+    const p = ACTIVE, ks = knacksOf(p);
+    let picked = "eyes";
+    const draw = () => {
+      const k = ks.find(x => x.slot === picked);
+      c.innerHTML = shell(GRID.map((q, i) => { const b = bestOf(q); return card(q, i, b ? `<span class="cbadge" style="--tc: ${tc(b.tier)}">${ico(b.kind)}</span>` : ""); }).join(""), `
+        ${head(p, 5)}
+        <div class="badges">${ks.map(x => `<button class="badge${x.slot === picked ? " on" : ""}" data-s="${x.slot}" style="--tc: ${tc(x.tier)}" title="${x.name}">${ico(x.kind)}</button>`).join("")}</div>
+        <div class="bcard"><b>${k.name}</b><span>${k.text}</span><small>${k.slot}: ${k.part}</small></div>
+        ${partsDl(p)}
+        ${statsRow(p)}
+        ${activeBtn}`, " c");
+      c.querySelectorAll(".badge").forEach(b => b.addEventListener("click", () => { picked = b.dataset.s; draw(); paintIcons(c); }));
+      paintIcons(c);
+    };
+    draw();
+  }
+
+  // mount one game window per look (mountFrame builds the first .app it finds)
+  const wins = [...document.querySelectorAll(".win")];
+  wins.forEach(w => w.classList.remove("app"));
+  const contents = wins.map(w => {
+    w.classList.add("app");
+    const c = mountFrame();
+    c.removeAttribute("id"); c.className = "content";
+    w.classList.remove("app");
+    return c;
+  });
+  wins.forEach(w => w.classList.add("app"));
+  lookA(contents[0]); lookB(contents[1]); lookC(contents[2]);
+  applyLook(loadLook());
+</script>
+</body>
+</html>
