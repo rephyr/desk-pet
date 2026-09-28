@@ -1172,6 +1172,29 @@ func _test_herd(catalog: Catalog) -> void:
 	var again := Collection.from_dict(JSON.parse_string(text))
 	_check(again.count() == 1000000 and text.length() < 2000, "a million plain pets fit in a tiny save (%d bytes)" % text.length())
 	_check(Time.get_ticks_msec() - t0 < 200, "a million plain pets save and load quickly (%d ms)" % (Time.get_ticks_msec() - t0))
+	# lots of holo cards (always cards) don't slow adding plain pets down: refold only looks at plain cards
+	var shiny_pile := Collection.new()
+	shiny_pile.auto_active = false
+	var pile_roller := PetRoller.new(catalog)
+	var holos: Array[Pet] = []
+	for i in 10000:
+		var h := pile_roller.roll("starter", "common")
+		h.finish = "holo"
+		holos.append(h)
+	shiny_pile.add(holos)
+	var plains: Array[Pet] = []
+	for i in 100:
+		var p := pile_roller.roll("starter", "common")
+		p.finish = "normal"
+		plains.append(p)
+	t0 = Time.get_ticks_msec()
+	for p in plains:
+		var one: Array[Pet] = [p]
+		shiny_pile.add(one)
+	var t_adds := Time.get_ticks_msec() - t0
+	_check(shiny_pile.pets.size() == 10000 + int(catalog.herd.keep_cards) + shiny_pile.pets.filter(func(p): return p.new_part and p.finish == "normal").size(),
+		"with 10k holo cards the plain ones still fold (%d cards)" % shiny_pile.pets.size())
+	_check(t_adds < 500, "100 adds next to 10k holo cards stay quick (%d ms)" % t_adds)
 
 
 func _plain_pet(catalog: Catalog, rarity: String, finish: String, seed_n: int, parts_like: Pet = null) -> Pet:

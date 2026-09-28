@@ -135,7 +135,14 @@ func hide_card() -> void:
 func _fill_card() -> void:
 	_card_sizes.text = "%s → %s" % [UiTheme.num(GameState.room_cap()), UiTheme.num(Herd.room_cap(GameState.catalog, GameState.room + 1))]
 	_card_price.text = UiTheme.num(GameState.room_price())
-	_card_price.disabled = GameState.coins < GameState.room_price()
+	# stays tappable when you're short: your pet says so (room_poor) instead of a dead button
+	var poor := GameState.coins < GameState.room_price()
+	_card_price.icon = UiTheme.icon("coin", 14, UiTheme.LOCKED if poor else UiTheme.CYAN)
+	for state in ["font_color", "font_hover_color", "font_pressed_color"]:
+		if poor:
+			_card_price.add_theme_color_override(state, UiTheme.LOCKED)
+		else:
+			_card_price.remove_theme_color_override(state)
 
 
 func _buy() -> void:

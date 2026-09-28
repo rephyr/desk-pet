@@ -42,6 +42,10 @@ var _of_rarity := {}  # rarity -> pets (cards and herd)
 var _shiny_of := {}  # rarity -> shiny pets (cards and herd)
 var _plain := 0  # pets with a plain finish (cards and herd): what the room holds
 var _herd_total := 0
+## The plain-finish cards, in pull order: all refold() ever needs to look at, so a pile of holo
+## cards (always cards) costs it nothing.
+var _plain_cards: Array[Pet] = []
+var _plain_finish := {}  # finish id -> plain (Herd.plain, worked out once per finish)
 
 
 static func part_key(slot: String, id: String) -> String:
@@ -58,6 +62,8 @@ func add(new_pets: Array[Pet]) -> void:
 		_next_id += 1
 		pets.append(pet)
 		_by_uid[pet.uid] = pet
+		if _is_plain(pet.finish):
+			_plain_cards.append(pet)
 		var first := false
 		for slot in Catalog.SLOTS:
 			var key := part_key(slot, pet.parts[slot])
@@ -108,6 +114,7 @@ func remove(uids: Array[String]) -> void:
 			if pet == null:
 				continue
 			pets.erase(pet)
+			_plain_cards.erase(pet)
 			_by_uid.erase(uid)
 			_tally(pet.rarity, pet.finish, -1)
 			palette = str(pet.parts.palette)
@@ -162,16 +169,22 @@ func times_seen(key: String) -> int:
 ## Whether a pet always stays a card, whatever else happens.
 func always_card(pet: Pet) -> bool:
 	# F2: pets with buttons sewn on will stay cards too
-	return pet.fav or pet.new_part or pet.uid == active_uid or not Herd.plain(_catalog(), pet.finish)
+	return pet.fav or pet.new_part or pet.uid == active_uid or not _is_plain(pet.finish)
 
 
 ## Folds the oldest plain cards of every shelf that has more than keep_cards of them that may fold.
 func refold() -> void:
 	var keep := int(_catalog().herd.get("keep_cards", 20))
+	# a shelf with no more than keep plain cards has nothing to fold: skip the busy check then
+	var plain_of := {}
+	for pet in _plain_cards:
+		plain_of[pet.rarity] = int(plain_of.get(pet.rarity, 0)) + 1
+	if not plain_of.values().any(func(n): return n > keep):
+		return
 	var busy_now: Dictionary = busy.call() if busy.is_valid() else {}
 	var free := {}  # rarity -> cards that may fold, oldest first
-	for pet in pets:
-		if not always_card(pet) and not busy_now.has(pet.uid):
+	for pet in _plain_cards:
+		if int(plain_of[pet.rarity]) > keep and not always_card(pet) and not busy_now.has(pet.uid):
 			if not free.has(pet.rarity):
 				free[pet.rarity] = []
 			free[pet.rarity].append(pet)
@@ -185,7 +198,7 @@ func refold() -> void:
 	var uids: Array = []
 	var keys: Array = []
 	var kept: Array[Pet] = []
-	for pet in pets:
+	for pet in _plain_cards:  # pull order, like pets
 		if not gone.has(pet.uid):
 			kept.append(pet)
 			continue
@@ -195,7 +208,16 @@ func refold() -> void:
 		_by_uid.erase(pet.uid)
 		uids.append(pet.uid)
 		keys.append(key)
-	pets = kept
+	_plain_cards = kept
+	if gone.size() <= 64:
+		for uid in uids:
+			pets.erase(gone[uid])  # a few: erase is a native loop, quicker than a rebuild
+	else:
+		var cards: Array[Pet] = []
+		for pet in pets:
+			if not gone.has(pet.uid):
+				cards.append(pet)
+		pets = cards
 	herd_ever = true
 	pets_folded.emit(uids, keys)
 	herd_changed.emit(keys)
@@ -267,6 +289,7 @@ func to_dict() -> Dictionary:
 ## everything that keeps pets busy has loaded).
 func load_from(d: Dictionary) -> void:
 	pets.clear()
+	_plain_cards.clear()
 	_by_uid.clear()
 	_seen.clear()
 	herd.clear()
@@ -274,6 +297,8 @@ func load_from(d: Dictionary) -> void:
 		var pet := Pet.from_dict(raw)
 		pets.append(pet)
 		_by_uid[pet.uid] = pet
+		if _is_plain(pet.finish):
+			_plain_cards.append(pet)
 	herd.merge(Herd.clean_counts(_catalog(), d.get("herd", {})))  # in place: the dictionary stays the same one
 	active_uid = str(d.get("active", ""))
 	if not _by_uid.has(active_uid):
@@ -329,7 +354,7 @@ func _tally(rarity: String, finish: String, n: int) -> void:
 	_of_rarity[rarity] = int(_of_rarity.get(rarity, 0)) + n
 	if finish == "shiny":
 		_shiny_of[rarity] = int(_shiny_of.get(rarity, 0)) + n
-	if Herd.plain(_catalog(), finish):
+	if _is_plain(finish):
 		_plain += n
 
 
@@ -371,6 +396,12 @@ func _mark_new_parts() -> void:
 			if not seen.has(key):
 				seen[key] = true
 				pet.new_part = true
+
+
+func _is_plain(finish: String) -> bool:
+	if not _plain_finish.has(finish):
+		_plain_finish[finish] = Herd.plain(_catalog(), finish)
+	return _plain_finish[finish]
 
 
 func _valid_key(key: String) -> bool:

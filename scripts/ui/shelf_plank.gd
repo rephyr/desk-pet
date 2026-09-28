@@ -10,6 +10,7 @@ signal opened(rarity: String)
 const TILTS := [-2.0, 1.5, -1.0, 2.0, -1.5, 1.0]
 const TAG_WIDTH := 118
 const PLANK_H := 7.0
+const MIN_H := 48.0
 
 var rarity := ""
 var _hover := false
@@ -22,7 +23,7 @@ func _init(p_rarity: String, index: int) -> void:
 	var color := catalog.tier_color(rarity)
 	mouse_filter = MOUSE_FILTER_STOP
 	mouse_default_cursor_shape = CURSOR_POINTING_HAND
-	size_flags_vertical = SIZE_EXPAND_FILL
+	size_flags_vertical = SIZE_FILL  # Bookcase sets the height
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 12)
 	row.mouse_filter = MOUSE_FILTER_IGNORE
@@ -108,7 +109,7 @@ func _init(p_rarity: String, index: int) -> void:
 		var sh := UiTheme.label("✦ " + ExpandedView._thousands(shiny), UiTheme.GOLD, UiTheme.SMALL)
 		sh.size_flags_vertical = SIZE_SHRINK_CENTER
 		stand.add_child(sh)
-	custom_minimum_size = Vector2(0, 48)
+	custom_minimum_size = Vector2(0, MIN_H)
 	mouse_entered.connect(func():
 		_hover = true
 		queue_redraw())

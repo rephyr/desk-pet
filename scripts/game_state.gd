@@ -775,19 +775,28 @@ func herd_faces(counts: Dictionary, n: int, salt := 0) -> Array:
 func shelf_split(rarity: String) -> Array:
 	var busy := _busy_uids()
 	var cards := collection.cards_of(rarity)
-	var ranked := []  # [rank, uid number, pet]: each rank worked out once
+	# only a few different ranks: bucket by rank, newest first inside each (no sort over thousands)
+	var by_rank := {}  # rank -> pets, newest first
 	var newest: Array[Pet] = []
+	var finish_ranks := {}
 	for i in range(cards.size() - 1, -1, -1):
 		var pet := cards[i]
 		if collection.always_card(pet) or busy.has(pet.uid):
-			ranked.append([(1000 if pet.uid == collection.active_uid else 0) + (500 if pet.fav else 0)
-				+ catalog.finish_rank(pet.finish) * 10 + (1 if pet.new_part else 0), int(pet.uid), pet])
+			if not finish_ranks.has(pet.finish):
+				finish_ranks[pet.finish] = catalog.finish_rank(pet.finish)
+			var r: int = (1000 if pet.uid == collection.active_uid else 0) + (500 if pet.fav else 0) \
+				+ int(finish_ranks[pet.finish]) * 10 + (1 if pet.new_part else 0)
+			if not by_rank.has(r):
+				by_rank[r] = []
+			by_rank[r].append(pet)
 		else:
 			newest.append(pet)
-	ranked.sort_custom(func(a, b): return a[0] > b[0] if a[0] != b[0] else a[1] > b[1])
+	var ranks := by_rank.keys()
+	ranks.sort()
+	ranks.reverse()
 	var always: Array[Pet] = []
-	for r in ranked:
-		always.append(r[2])
+	for r in ranks:
+		always.append_array(by_rank[r])
 	return [always, newest]
 
 
@@ -1317,6 +1326,14 @@ func next_pet_box() -> String:
 		if not box.get("hidden", false) and pet_opens(box.id) and coins - box_price(box.id) >= coin_reserve:
 			return box.id
 	return ""
+
+
+## How many boxes wait on your pile, all kinds together.
+func boxes_on_pile() -> int:
+	var n := 0
+	for box_id in bag:
+		n += in_bag(box_id)
+	return n
 
 
 ## Whether your pet may open a pack now: it's allowed to, there's one for it, and there's room.

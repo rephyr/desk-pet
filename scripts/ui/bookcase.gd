@@ -12,6 +12,10 @@ var _cushion_row := HBoxContainer.new()
 var _case := PanelContainer.new()
 var _planks := VBoxContainer.new()
 
+## A plank never gets taller than this: with only a shelf or two the bookcase stays short
+## instead of stretching one plank over the whole page.
+const PLANK_MAX := 76.0
+
 
 func _init() -> void:
 	add_theme_constant_override("separation", 10)
@@ -40,10 +44,27 @@ func _init() -> void:
 	case_sb.content_margin_top = 4
 	case_sb.content_margin_bottom = 10
 	_case.add_theme_stylebox_override("panel", case_sb)
-	_case.size_flags_vertical = SIZE_EXPAND_FILL
+	_case.size_flags_vertical = SIZE_SHRINK_BEGIN
 	_planks.add_theme_constant_override("separation", 0)
 	_case.add_child(_planks)
 	add_child(_case)
+	resized.connect(_fit_planks)
+	_cushion.resized.connect(_fit_planks)
+
+
+## Shares the page's height out between the planks, each at most PLANK_MAX.
+func _fit_planks() -> void:
+	var n := _planks.get_child_count()
+	if n == 0:
+		return
+	var sb := _case.get_theme_stylebox("panel")
+	var avail := size.y - (sb.get_minimum_size().y if sb else 0.0)
+	if _cushion.visible:
+		avail -= _cushion.size.y + get_theme_constant("separation")
+	var h := clampf(floorf(avail / n), ShelfPlank.MIN_H, PLANK_MAX)
+	for plank in _planks.get_children():
+		if not plank.is_queued_for_deletion():
+			plank.custom_minimum_size.y = h
 
 
 func rebuild() -> void:
@@ -67,6 +88,7 @@ func rebuild() -> void:
 		plank.opened.connect(func(r): shelf_opened.emit(r, null))
 		_planks.add_child(plank)
 		i += 1
+	_fit_planks.call_deferred()
 
 
 ## The pets on the cushion (data/herd.json "cushion" at most): your active pet, favourites (newest

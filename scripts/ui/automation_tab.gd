@@ -102,6 +102,8 @@ func _process(_delta: float) -> void:
 		str(GameState.auto_party()), _picked, afford]
 	var pet := GameState.collection.active()
 	key += "|%d|%s|%s|%s" % [jobs.size(), run.location_id if run else "", str(GameState.can_auto_open()), pet.display_name(GameState.catalog) if pet else ""]
+	if not GameState.can_auto_open():  # the box job then shows the pile count (or the squish)
+		key += "|%d|%s" % [GameState.boxes_on_pile(), str(GameState.room_is_full())]
 	# the workers page: what's taught, bought and who's on it, and what you can afford there
 	var a: Dictionary = GameState.automation
 	key += "|%d|%s|%s|%s|%s|%s" % [_page, str(a.others), str(a.spots), str(a.parties), str(a.workers), str(a.get("wherd", {}))]
@@ -253,7 +255,13 @@ static func rate_line(job: Dictionary) -> String:
 			var n: int = run.party.setting_out() if run else int(party.n)
 			return "%d %s to %s" % [n, "pet" if n == 1 else "pets", place.get("name", "somewhere")]
 		"boxes":
-			return "opening your pile" if GameState.can_auto_open() else "the pile is empty"
+			if GameState.can_auto_open():
+				return "opening your pile"
+			var boxes := GameState.boxes_on_pile()
+			if boxes <= 0:
+				return "the pile is empty"
+			var pile := "a box on your pile" if boxes == 1 else "%s boxes on your pile" % UiTheme.num(boxes)
+			return "squish! " + pile if GameState.room_is_full() else pile
 	return ""
 
 
