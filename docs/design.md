@@ -108,6 +108,8 @@ its parts and finish together.
   new looks as tiny stickers and how many pets are inside as little shapes (the maybe-3rd one
   fainter). One box with 2-3 pets: the ritual for the best, the others "also inside" on the
   result card. Your pet's job card has a switch per tier (on: it opens them, off: saved for you).
+  With the room: boxes open one at a time while the room has space for one more pet, and all of
+  a box's pets come in (a sunset box can take the room over by a pet or two).
   Numbers in data/boxes.json are placeholders.
 - The odds are always visible in game.
 - **Opening one box** (the first hours are all about this moment, so it gets a real ritual).
@@ -397,8 +399,29 @@ see the memory note on the automation tab for the plan.
   party). Workers keep going while the game is closed as long as your pet's stool lets it. Going on
   an adventure or becoming your active pet takes a pet off its spot. Worker tools: grease for
   everyone (machines), sharper cutters (tables).
-- **Open:** spot prices grow fast (placeholders): thousands of workers will need a later layer
-  (pets buying machines, "more machines from conquered places").
+- **The whistle (layer 2, built):** a tiny whistle turns up at the old well once you have 30
+  workers (event `well_whistle`, `after_workers`). It adds a third button, **your pet | workers |
+  whistle**. Managing is your pet's one job (no teach price: the find is enough). Its page is a
+  to-do list on a clipboard (mockup automation-layers.html look A): a row per job taught to the
+  others with how many are home and still out there, a tiny crowd, and two ticks: **haul them
+  home** (parties: **start new ones**) and **keep them full**. Every 10 s your pet checks: it buys
+  the cheapest next spot among the ticked jobs (1 a check, the wagon adds more), never spending
+  under **set aside** (− / +, 250k to start), and puts the best resting pets on empty spots. Parties
+  come first: empty ones get a leader and enough resting pets stay free to go with them before the
+  machines and tables take the rest; a new party goes to an open place that has none (never a
+  dungeon or a risky place that isn't ours yet: pets get lost only where you send them), and is only
+  hauled home while someone is free to lead it and go. Tools: a sharper pencil
+  (checks faster), a bigger wagon (hauls more). It keeps checking while the game is closed as long
+  as the stool lets it, after that time's income. The side card says what it did "since you
+  looked". With the herd, the pets it puts to work can be counts (a crowd of
+  thousands), and next door's places count as party places too, except the risky ones until
+  they're ours (next door adds no machines or tables yet).
+- **Lore and caps:** machines and tables are old ones left in places you've taken: each open map
+  page adds how many exist (`spot.exist`, placeholders: backyard 60 / 20, beyond 600 / 200);
+  parties one per party place (open places without dungeons and risky places that aren't ours;
+  `GameState.party_places`). Buying by hand stops at the cap too (the +1 button is gone); a save
+  with more keeps them. **Prices flatten** past `flat_at` (each spot grows by `grow_late` instead),
+  so thousands of workers are possible.
 
 ## Risk and crafting
 

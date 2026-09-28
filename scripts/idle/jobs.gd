@@ -152,12 +152,42 @@ static func tool(catalog: Catalog, id: String) -> Dictionary:
 	return catalog.get_meta("errand_tools_by_id").get(id, {})
 
 
-## What the next `n` levels of a tool cost, with `have` levels already.
+## What the next `n` levels of a tool cost, with `have` levels already. Level i costs coins x grow^i;
+## with "flat_at" (worker spots), past that many each one grows by "grow_late" instead, so
+## thousands stay reachable. Worked out in one go (geometric sums), not level by level.
 static func tool_cost(tool: Dictionary, have: int, n := 1) -> int:
+	if n <= 0:
+		return 0
+	var grow := float(tool.get("grow", 1.0))
+	var flat := int(tool.get("flat_at", 1 << 40))
+	var late := float(tool.get("grow_late", grow))
 	var total := 0.0
-	for i in n:
-		total += float(tool.coins) * pow(float(tool.get("grow", 1.0)), have + i)
-	return roundi(minf(total, MAX_PRICE))
+	var a := have
+	var b := have + n  # levels a .. b-1
+	if n <= 64:  # a few levels: one by one (exactly the prices you'd pay buying them one at a time)
+		for i in range(a, b):
+			total += float(tool.coins) * (pow(grow, i) if i < flat else pow(grow, flat) * pow(late, i - flat))
+		return roundi(MAX_PRICE) if is_nan(total) or is_inf(total) or total > MAX_PRICE else roundi(total)
+	if a < flat:
+		total += _geo(grow, a, mini(b, flat))
+	if b > flat:
+		total += pow(grow, flat) * _geo(late, maxi(a, flat) - flat, b - flat)
+	total *= float(tool.coins)
+	if is_nan(total) or is_inf(total) or total > MAX_PRICE:
+		return roundi(MAX_PRICE)
+	return roundi(total)
+
+
+## r^a + r^(a+1) + ... + r^(b-1).
+static func _geo(r: float, a: int, b: int) -> float:
+	if b <= a:
+		return 0.0
+	if is_equal_approx(r, 1.0):
+		return float(b - a)
+	var hi := pow(r, b)
+	if is_inf(hi):
+		return INF
+	return (hi - pow(r, a)) / (r - 1.0)
 
 
 const MAX_PRICE := 4.0e18  # prices stop here: past about 9.2e18 a whole number wraps round to negative

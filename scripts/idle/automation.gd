@@ -11,20 +11,41 @@ extends RefCounted
 ##     (a party per bought party spot, led by the worker in the same place), wfill: { job id: 0..1 },
 ##     wherd: { job id: { count key: pets from the herd working there } } (not adventures: a party's
 ##     leader keeps its slot, as a stand-in's uid), wjoin: { job id: true } (new pets start working
-##     there while it has empty spots: "new pets join here"; never adventures) }
+##     there while it has empty spots: "new pets join here"; never adventures),
+##     whistle: { ticks: { job id: { haul, fill } } (missing = on), keep: coins set aside (-1: the
+##     data's), wait: 0..1 (the next check) } }
+## The whistle (layer 2): managing is your pet's one job (task "whistle"). It checks on everyone
+## every so often: hauls machines, tables and parties home (buys spots, never going under what's
+## set aside) and keeps them full (puts resting pets on). How many exist grows with the map pages.
 ## GameState keeps the state and hands out what the jobs bring.
 
 
 static func fresh() -> Dictionary:
 	return { "task": "", "taught": {}, "tools": {}, "party": { "place": "", "n": 0 }, "fill": 0.0,
-		"others": {}, "spots": {}, "workers": {}, "parties": [], "wfill": {}, "wherd": {}, "wjoin": {} }
+		"others": {}, "spots": {}, "workers": {}, "parties": [], "wfill": {}, "wherd": {}, "wjoin": {},
+		"whistle": whistle_fresh() }
 
 
+static func whistle_fresh() -> Dictionary:
+	return { "ticks": {}, "keep": -1, "wait": 0.0 }
+
+
+## A job by id; "whistle" is the whistle (your pet's managing job, not a card on the your pet page).
 static func job(catalog: Catalog, id: String) -> Dictionary:
+	if id == WHISTLE:
+		var w: Dictionary = catalog.automation.get("whistle", {})
+		if w.is_empty():
+			return {}
+		if not w.has("id"):
+			w.id = WHISTLE
+		return w
 	for j in catalog.automation.get("jobs", []):
 		if j.id == id:
 			return j
 	return {}
+
+
+const WHISTLE := "whistle"
 
 
 static func taught(state: Dictionary, id: String) -> bool:
@@ -38,7 +59,7 @@ static func all_tools(catalog: Catalog) -> Array[Dictionary]:
 	if catalog.has_meta("auto_tools"):  # worked out once per catalog
 		return catalog.get_meta("auto_tools")
 	var out: Array[Dictionary] = []
-	for j in catalog.automation.get("jobs", []):
+	for j in catalog.automation.get("jobs", []) + [job(catalog, WHISTLE)]:
 		for key in ["tools", "worker_tools"]:
 			for t in j.get(key, []):
 				var t2: Dictionary = t.duplicate()
@@ -173,3 +194,158 @@ static func work(catalog: Catalog, state: Dictionary, id: String, speed_sum: flo
 	wfill[id] = fill - n
 	state.wfill = wfill
 	return n
+
+
+# ---- spots: how many exist (old machines and tables in places you've taken) ---------------
+
+## How many machines (tables, parties) there are for a job: each open map page adds its "exist",
+## parties one per open place ("per_place"). A big number when the job has no cap.
+static func exist(catalog: Catalog, id: String, pages: Array, places: int) -> int:
+	var spot: Dictionary = job(catalog, id).get("spot", {})
+	if spot.has("per_place"):
+		return int(spot.per_place) * places
+	if not spot.has("exist"):
+		return 1 << 30
+	var n := 0
+	for page in pages:
+		n += int(spot.exist.get(str(page), 0))
+	return n
+
+
+## How many are still out there to haul home (never below 0: old saves keep ones past the cap).
+static func out_there(catalog: Catalog, state: Dictionary, id: String, pages: Array, places: int) -> int:
+	return maxi(0, exist(catalog, id, pages, places) - spots(state, id))
+
+
+## How many of the next spots fit in `coins` (up to `room`), found by halving: prices only go up.
+static func affordable(catalog: Catalog, state: Dictionary, id: String, coins: int, room: int) -> int:
+	var spot: Dictionary = job(catalog, id).get("spot", {})
+	if spot.is_empty():
+		return 0
+	var have := spots(state, id)
+	var lo := 0
+	var hi := mini(room, 1 << 20)
+	while lo < hi:
+		var mid := (lo + hi + 1) / 2
+		if Jobs.tool_cost(spot, have, mid) <= coins:
+			lo = mid
+		else:
+			hi = mid - 1
+	return lo
+
+
+# ---- the whistle: your pet manages the workers ---------------------------------------------
+
+## Whether a tick on the whistle's list is on (`key` "haul" or "fill"); everything starts on.
+static func tick(state: Dictionary, id: String, key: String) -> bool:
+	return bool(state.get("whistle", {}).get("ticks", {}).get(id, {}).get(key, true))
+
+
+## Coins the whistle never spends.
+static func keep(catalog: Catalog, state: Dictionary) -> int:
+	var k := int(state.get("whistle", {}).get("keep", -1))
+	return k if k >= 0 else int(job(catalog, WHISTLE).get("keep", 0))
+
+
+## Set aside one step up (d 1) or down (d -1) the data's steps.
+static func keep_step(catalog: Catalog, state: Dictionary, d: int) -> int:
+	var steps: Array = job(catalog, WHISTLE).get("keep_steps", [0])
+	var now := keep(catalog, state)
+	var i := 0
+	for s in steps.size():  # the step it's on, or the one just under it
+		if int(steps[s]) <= now:
+			i = s
+	if d < 0 and int(steps[i]) < now:
+		return int(steps[i])
+	return int(steps[clampi(i + d, 0, steps.size() - 1)])
+
+
+## Seconds between two checks (the pencil makes it quicker).
+static func check_seconds(catalog: Catalog, state: Dictionary) -> float:
+	return float(job(catalog, WHISTLE).get("check_seconds", 10)) / (1.0 + tool_sum(catalog, state, WHISTLE, "check_speed"))
+
+
+## How many it hauls home a check (the wagon adds more).
+static func haul_size(catalog: Catalog, state: Dictionary) -> int:
+	return int(job(catalog, WHISTLE).get("haul", 1)) + roundi(tool_sum(catalog, state, WHISTLE, "haul"))
+
+
+## Your pet manages for `seconds`: how many checks that makes (whistle.wait keeps the rest).
+static func checks(catalog: Catalog, state: Dictionary, seconds: float) -> int:
+	var w: Dictionary = state.get("whistle", whistle_fresh())
+	var fill := float(w.get("wait", 0.0)) + maxf(0.0, seconds) / check_seconds(catalog, state)
+	var n := floori(fill)
+	w.wait = fill - n
+	state.whistle = w
+	return n
+
+
+static func _working(state: Dictionary, id: String) -> int:
+	var n := Herd.total(state.get("wherd", {}).get(id, {}))  # workers from the herd
+	for uid in state.get("workers", {}).get(id, []):
+		if str(uid) != "":
+			n += 1
+	return n
+
+
+## What `checks` checks do, worked out without changing anything: { buys: { job id: spots },
+## spent: coins, fill: { job id: pets to put on } }. `jobs` are the jobs taught to the others, in
+## order; `rooms` { job id: how many are still out there }; `resting` pets free to work; `away` how
+## many of the workers' parties are out right now (their pets aren't resting). Hauls go to the
+## cheapest next spot among the ticked jobs and never take coins under what's set aside; a party is
+## only hauled home while there's a resting pet to lead it and some to go with it. Parties are
+## filled first and their pets set aside, then the other jobs get what's left. Nothing at all unless
+## your pet is managing.
+static func whistle_plan(catalog: Catalog, state: Dictionary, jobs: Array, coins: int, rooms: Dictionary, resting: int, checks_n: int, away := 0) -> Dictionary:
+	var plan := { "buys": {}, "spent": 0, "fill": {} }
+	if str(state.get("task", "")) != WHISTLE or checks_n <= 0:
+		return plan
+	var floor_coins := keep(catalog, state)
+	var budget := checks_n * haul_size(catalog, state)
+	var spent := 0
+	var buys := {}
+	while budget > 0:
+		var best := ""
+		var best_cost := 0
+		for id in jobs:
+			var spot: Dictionary = job(catalog, id).get("spot", {})
+			if spot.is_empty() or not tick(state, id, "haul") or not others(state, id) or int(rooms.get(id, 0)) - int(buys.get(id, 0)) <= 0:
+				continue
+			if spot.has("per_place") and (_empty(state, id, buys) + 1) * (1 + _party_size(catalog, id)) > resting:
+				continue  # nobody free to lead it (and go with it)
+			var cost := Jobs.tool_cost(spot, spots(state, id) + int(buys.get(id, 0)), 1)
+			if best == "" or cost < best_cost:
+				best = id
+				best_cost = cost
+		if best == "" or coins - spent - best_cost < floor_coins:
+			break
+		spent += best_cost
+		buys[best] = int(buys.get(best, 0)) + 1
+		budget -= 1
+	plan.buys = buys
+	plan.spent = spent
+	var free := resting
+	var order := jobs.filter(func(j): return job(catalog, j).get("spot", {}).has("per_place")) \
+		+ jobs.filter(func(j): return not job(catalog, j).get("spot", {}).has("per_place"))
+	for id in order:
+		if not others(state, id):
+			continue
+		var n := 0
+		if tick(state, id, "fill"):
+			n = mini(_empty(state, id, buys), free)
+			if n > 0:
+				plan.fill[id] = n
+				free -= n
+		if job(catalog, id).get("spot", {}).has("per_place"):  # the pets its parties take out stay free
+			free -= mini(free, maxi(0, _working(state, id) + n - away) * _party_size(catalog, id))
+	return plan
+
+
+## A job's spots nobody works at, counting the ones `buys` brings home.
+static func _empty(state: Dictionary, id: String, buys: Dictionary) -> int:
+	return maxi(0, spots(state, id) + int(buys.get(id, 0)) - _working(state, id))
+
+
+## How many pets a party of a per-place job takes out (besides its leader).
+static func _party_size(catalog: Catalog, id: String) -> int:
+	return int(job(catalog, id).get("party", 3))

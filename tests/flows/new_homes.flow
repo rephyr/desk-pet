@@ -20,7 +20,7 @@ fill-room
 give-box starter 3
 tab boxes
 wait 1
-click "open 1"
+click name:open_starter_1
 wait 0.5
 expect pile starter 3
 tab collection
@@ -72,7 +72,7 @@ room 2
 give-box starter 30
 tab boxes
 wait 1
-click "open 10"
+click name:open_starter_10
 wait text "lovely!"
 shot sorted_reveal
 click "lovely!"
@@ -88,7 +88,7 @@ unlock tab:errands
 join coin_hunt on
 tab boxes
 wait 1
-click "open 10"
+click name:open_starter_10
 wait text "lovely!"
 click "lovely!"
 tab errands

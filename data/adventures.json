@@ -88,7 +88,7 @@
 		{
 			"id": "well", "type": "dungeon", "page": "beyond", "name": "the old well", "minutes": 40,
 			"difficulty": 1.5, "danger": 1.0, "loot": 1.0, "box": "starter",
-			"events": ["dark", "rope", "fox"],
+			"events": ["dark", "rope", "fox", "well_whistle"],
 			"map": { "x": 2.6, "y": -1.5, "doodle": "well", "note": "so deep" }
 		},
 		{
@@ -197,6 +197,12 @@
 			"id": "orchard_piggy", "title": "a piggy bank", "text": "tucked in the roots of the oldest apple tree: a little piggy bank. it jingles!", "find": "piggy", "auto": true,
 			"options": [
 				{ "label": "bring it home", "success": { "text": "{i} found a piggy bank! carrying it home. jingle jingle!", "rewards": [{ "kind": "find", "id": "piggy" }] } }
+			]
+		},
+		{
+			"id": "well_whistle", "title": "a tiny whistle", "text": "hanging on a nail inside the old well: a tiny tin whistle on a string. it's still shiny!", "find": "whistle", "after_workers": 30, "auto": true,
+			"options": [
+				{ "label": "bring it home", "success": { "text": "{i} found a tiny whistle! tweeeet! everyone looked up.", "rewards": [{ "kind": "find", "id": "whistle" }] } }
 			]
 		},
 		{

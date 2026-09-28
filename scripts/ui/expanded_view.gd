@@ -175,13 +175,15 @@ func show_start() -> void:
 		_: show_tab("machine")
 
 
-func show_tab(tab_id: String) -> void:
+func show_tab(tab_id: String, opens: Array = []) -> void:
 	if not _tabs.has(tab_id) or not GameState.tab_open(tab_id):
 		return
 	_current = tab_id
 	for n in _tabs:
 		_tabs[n].visible = n == tab_id
 	spine.set_current(tab_id)
+	if not opens.is_empty() and _tabs[tab_id].has_method("show_unlock"):  # an unlock's "show me": the tab can open on what it opened
+		_tabs[tab_id].show_unlock(opens)
 	# tabs with something of their own to say say it when they open; the rest get a general line
 	if not _tabs[tab_id].has_method("speak"):
 		_general_line()

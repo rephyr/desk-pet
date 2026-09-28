@@ -29,7 +29,7 @@ fill-room
 give-box starter 3
 tab boxes
 wait 1
-click "open 1"
+click name:open_starter_1
 wait 0.5
 expect pile starter 3
 wait text "squish*"

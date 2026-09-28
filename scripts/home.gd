@@ -96,7 +96,7 @@ func _build_views() -> void:
 	_panel.add_child(guide)
 	var popup := UnlockPopup.new()  # something new opened up: a card over the full game
 	popup.can_show = func() -> bool: return _expanded_mode and not _expanded.machine.busy()
-	popup.go.connect(func(tab_id): _expanded.show_tab(tab_id))
+	popup.go.connect(func(tab_id, opens): _expanded.show_tab(tab_id, opens))
 	_panel.add_child(popup)
 	_compact.expand_requested.connect(_set_expanded.bind(true))
 	_compact.let_out_toggled.connect(func(): _set_out(not GameState.pet_out))

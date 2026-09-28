@@ -35,6 +35,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `split_open` (workers open N boxes, not N pets), `best_first`, and `fix_retired` (lucky boxes).
   `Catalog.parts_in` and `box_rank` are cached (catalog data never changes after loading);
   box workers open at most `GameState.WORKER_BOXES_MAX` boxes at once.
+  With the room (the herd), `GameState.open_boxes` opens box by box while the room has space for
+  one more pet: a box's pets all come in (a sunset box can take the room over by a pet or two), the
+  rest wait on the pile; callers count what opened from the pile, not from `count`.
   `GameState.shop_boxes / stash_boxes / box_is_new / boxes_bought / boxes_greeted`.
 - `Collection` owns the pets, the active pet and the book counts (`part:<slot>:<id>`,
   `finish:<body>:<finish>`). Pets are **cards** (whole `Pet`s in `pets`) or **the herd** (`herd`:
@@ -74,7 +77,13 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `ErrandToolsView`, the pegboard of tools bought with coins; rules in `Jobs`, levels in
   `GameState.errand_tools`), `AutomationTab` (a card per job your pet can do, `JobScene` draws each one; rules in
   `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:
-  `WorkerCard` / `WorkerSpot`, `GameState.put_workers` / `buy_spots` / `teach_others`), `InventoryTab`
+  `WorkerCard` / `WorkerSpot`, `GameState.put_workers` / `buy_spots` / `teach_others`; the whistle page: `Clipboard`,
+  `TodoRow`, `Tick`, `TinyCrowd`, rules in `Automation.whistle_plan` / `exist` / `checks`, applied by
+  `GameState._whistle_checks` (it picks resting cards and herd counts with `_pick` and places them
+  with `_add_workers`, like `put_workers`; `Automation._working` counts `wherd` too), caps via
+  `GameState.spot_room`; parties only go by themselves to `GameState.party_places()`, no dungeons and
+  no risky place until it's ours, which also sets the parties cap; the whistle's save field `automation.whistle` needs no version: a save
+  without it gets every tick on), `InventoryTab`
   (the bag and sewing) and `SettingsTab` (general and video pages).
   Tabs can be locked or hidden until something opens them (`data/unlocks.json`).
 - The full game is laid out at 920x600 (`home.gd` `EXPANDED_SIZE`) and scaled to the chosen
