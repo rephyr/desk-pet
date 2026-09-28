@@ -6,7 +6,7 @@ How the code is laid out and where new things go. Game design lives in `design.m
 
 ```
 data/*.json          what exists: parts, rarities, finishes, traits, boxes (tune here, not in code)
-scripts/core/        generic helpers with no game rules (Catalog loads data/, Weighted picks)
+scripts/core/        generic helpers with no game rules (Catalog loads data/, Weighted picks, Boosts: the boost kind table and its arithmetic)
 scripts/pets/        pet rules and pet visuals (Pet, PetRoller, Collection, PetLook, PetView)
 scripts/adventure/   adventure rules: runs, events, parties, rewards, rumours, the pet's voice
 scripts/idle/        errands (Jobs) and automation (Automation): pure rules for idle jobs, see data/errands.json, data/automation.json
@@ -21,6 +21,21 @@ scripts/home.gd      the window: switches layers, sizes the window, runs the des
 Dependencies only point downwards: UI → GameState → pets → core → data. Nothing below the UI
 knows the UI exists; state changes are announced with signals (`GameState.changed`,
 `Collection.pets_added`, `Collection.active_changed`).
+
+## Boosts
+
+- One plumbing for every multiplier: `GameState.boost(kind)` (the total) and
+  `GameState.boost_parts(kind)` (what makes it: `{ source, id, x }`). Kinds are in
+  `data/boosts.json`. `Boosts` (core) is only the kind table (`kind`, `is_kind`, `kinds`,
+  `all_covers`), `part()` and `total()` (the product, 1.0 with none); it imports no game system.
+- `GameState.boost_parts` gathers the sources, since it holds their state: it checks the kind
+  (`[]` and an error for an unknown one), then appends `Toys.parts(toys, catalog, kind, now)` (one
+  part per edition working now). A new source (book, knacks, kitchen) appends its own `X.parts(...)`
+  there, and calls `_boosts_changed()` whenever its state changes.
+- `boost()` is called every frame (errand meters, the machine), so totals are kept in `_boosts` and
+  cleared by `_boosts_changed()`: on `toys_changed`, a new game, a load, and the once-a-second tick
+  (plays run out). `boost_parts()` is never cached (the `boosts` dev step, the receipt later).
+- Game code only ever calls `boost()`; no source has its own multiplier call.
 
 ## Pets
 

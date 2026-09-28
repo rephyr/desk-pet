@@ -1,0 +1,15 @@
+{
+	"_note": "Boost kinds (scripts/core/boosts.gd). Every multiplier on a kind comes from a source (toys now; book, knacks, kitchen later) as a part { source, id, x }; parts from every source multiply. `all`: an 'all' toy counts for this kind. 'automation' speeds every timed automation job: your pet's crank and box opening (in and out of sight) and the workers' machines and tables; adventures run on the trip's own clock. `sources` and `name` are the order and wording for the boost receipt later (not shown yet).",
+	"sources": ["toys", "book", "knacks", "kitchen"],
+	"kinds": [
+		{ "id": "coins", "name": "coins", "all": true },
+		{ "id": "xp", "name": "xp", "all": true },
+		{ "id": "luck", "name": "luck", "all": true },
+		{ "id": "speed", "name": "capsule speed" },
+		{ "id": "fever", "name": "fever" },
+		{ "id": "toys", "name": "toy drops" },
+		{ "id": "loot", "name": "adventure loot" },
+		{ "id": "errands", "name": "errand speed" },
+		{ "id": "automation", "name": "automation speed" }
+	]
+}

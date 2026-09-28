@@ -31,6 +31,7 @@ func _init() -> void:
 	_test_rummage(catalog)
 	_test_machine(catalog)
 	_test_toys(catalog)
+	_test_boosts(catalog)
 	_test_automation(catalog)
 	_test_unlocks(catalog)
 	_test_gear(catalog)
@@ -883,7 +884,7 @@ func _test_toys(catalog: Catalog) -> void:
 	rng.seed = 11
 	for t in Toys.all(catalog):
 		_check(d.tiers.has(t.tier), "toy %s has a real tier" % t.id)
-		_check(t.bonus in Toys.KINDS or t.bonus == "all", "toy %s has a known bonus" % t.id)
+		_check(Boosts.is_kind(catalog, t.bonus) or t.bonus == "all", "toy %s has a known bonus" % t.id)
 		var rows: Array = d.art.get(t.id, [])
 		_check(rows.size() == 14 and rows.all(func(r): return str(r).length() == 14), "toy %s has 14 x 14 art" % t.id)
 		for r in rows:
@@ -902,14 +903,14 @@ func _test_toys(catalog: Catalog) -> void:
 	Toys.add(state, "acorn", "ghost")
 	_check(Toys.boost(state, catalog, "acorn:ghost") > Toys.boost(state, catalog, "acorn:normal"), "a ghost toy boosts more than a normal one")
 	var now := 1000.0
-	_check(is_equal_approx(Toys.multiplier(state, catalog, "coins", now), 1.0), "a toy on the shelf does nothing")
+	_check(is_equal_approx(Boosts.total(Toys.parts(state, catalog, "coins", now)), 1.0), "a toy on the shelf does nothing")
 	_check(Toys.play(state, catalog, "acorn:normal", "quick", now), "your pet can play with a toy")
-	_check(Toys.multiplier(state, catalog, "coins", now + 1.0) > 1.0, "a toy being played with boosts")
+	_check(Boosts.total(Toys.parts(state, catalog, "coins", now + 1.0)) > 1.0, "a toy being played with boosts")
 	_check(not Toys.play(state, catalog, "acorn:ghost", "quick", now), "one play slot to start")
 	_check(Toys.finish_plays(state, now + 60.0).is_empty(), "a play isn't over early")
 	var ended := Toys.finish_plays(state, now + 3600.0)
 	_check(ended == ["acorn:normal"] and float(state.owned["acorn:normal"].wear) > 0.0, "a finished play wears the toy")
-	_check(is_equal_approx(Toys.multiplier(state, catalog, "coins", now + 3601.0), 1.0), "after playing the boost stops")
+	_check(is_equal_approx(Boosts.total(Toys.parts(state, catalog, "coins", now + 3601.0)), 1.0), "after playing the boost stops")
 	state.owned["acorn:normal"].wear = 1.0
 	var worn := Toys.boost(state, catalog, "acorn:normal") - 1.0
 	_check(worn > 0.0 and worn >= (float(d.tiers.common.base) - 1.0) * float(d.worn_floor) - 0.0001, "a worn out toy still works a little")
@@ -932,6 +933,50 @@ func _test_toys(catalog: Catalog) -> void:
 	for t in catalog.toys.sets[0].toys:
 		Toys.add(full, t.id, "normal")
 	_check(Toys.slots(full, catalog) == int(d.slots) + 1, "a finished set gives another play slot")
+
+
+## Boosts: one kind table (data/boosts.json), every source gives parts { source, id, x }, the total
+## is their product. Toys are the source so far: a playing toy or a favourite counts, a finished play
+## doesn't, an "all" toy counts for the kinds marked all, and other sources multiply on top.
+func _test_boosts(catalog: Catalog) -> void:
+	var ids := Boosts.kinds(catalog)
+	for k in catalog.boosts.kinds:
+		_check(str(k.get("id", "")) != "" and str(k.get("name", "")) != "", "boost kind %s has an id and a name" % k)
+	for src in catalog.boosts.sources:
+		_check(str(src) != "", "boost sources have names")
+	for t in Toys.all(catalog):
+		_check(t.bonus in ids or t.bonus == "all", "toy %s's bonus is a boost kind" % t.id)
+	var now := 1000.0
+	var state := Toys.fresh()
+	for k in ids:
+		var none := Toys.parts(state, catalog, k, now)
+		_check(none.is_empty() and is_equal_approx(Boosts.total(none), 1.0), "no toys, no %s boost" % k)
+	Toys.add(state, "acorn", "normal")  # coins
+	Toys.add(state, "acorn", "holo")  # coins
+	Toys.add(state, "moth", "normal")  # all
+	Toys.add(state, "snail", "normal")  # speed, stays on the shelf
+	for key in ["acorn:normal", "acorn:holo", "moth:normal"]:
+		state.playing.append({ "key": key, "until": now + 600.0, "wear": 0.0 })
+	var coins := Toys.parts(state, catalog, "coins", now)
+	_check(coins.size() == 3 and coins.all(func(p): return p.source == "toys"), "two coins toys and an all toy: three coins parts")
+	_check(Toys.parts(state, catalog, "luck", now).size() == 1, "the all toy counts for luck")
+	_check(Toys.parts(state, catalog, "speed", now).is_empty(), "a speed toy on the shelf does nothing")
+	_check(Toys.parts(state, catalog, "fever", now).is_empty(), "an all toy doesn't count for kinds not marked all")
+	var product := 1.0
+	for key in ["acorn:normal", "acorn:holo", "moth:normal"]:
+		product *= Toys.boost(state, catalog, key)
+	_check(product > 1.0 and is_equal_approx(Boosts.total(coins), product), "the coins total is every toy's boost multiplied")
+	var holo := coins.filter(func(p): return p.id == "acorn:holo")
+	_check(holo.size() == 1 and is_equal_approx(float(holo[0].x), Toys.boost(state, catalog, "acorn:holo")), "a part is its edition and its boost")
+	_check(Toys.parts(state, catalog, "coins", now + 601.0).is_empty(), "a play that's over counts no more")
+	state.owned["snail:normal"].level = int(catalog.toys.max_level)
+	var fav := Toys.parts(state, catalog, "speed", now + 601.0)
+	_check(fav.size() == 1 and fav[0].id == "snail:normal", "a favourite counts without playing")
+	var book := Boosts.part("book", "page:meadow", 1.5)
+	_check(is_equal_approx(Boosts.total(coins + [book]), product * 1.5), "boosts from different sources multiply")
+	_check(is_equal_approx(Boosts.total([]), 1.0), "nothing boosting is x1")
+	_check(not Boosts.is_kind(catalog, "no such kind") and Boosts.kind(catalog, "no such kind").is_empty(), "an unknown kind isn't in the table")
+	_check(Toys.parts(state, catalog, "no such kind", now).is_empty(), "no toy boosts an unknown kind")
 
 
 ## Gear: xp upgrades to adventuring (data/gear.json, Gear), and what they do on a trip.

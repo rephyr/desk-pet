@@ -37,6 +37,7 @@ extends Node
 ##   spots <job> <n>       n more machines (tables, parties) for a job's workers, for free
 ##   xp <n>                you have exactly n xp
 ##   gear <id> [levels]    levels of a gear upgrade (data/gear.json), for free
+##   boosts                logs every boost kind's total and its parts (data/boosts.json)
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -225,6 +226,13 @@ func _step(w: PackedStringArray) -> String:
 			if Gear.info(GameState.catalog, w[1]).is_empty():
 				return "unknown gear %s" % w[1]
 			GameState.set_gear_level(w[1], GameState.gear_level(w[1]) + (int(w[2]) if w.size() > 2 else 1))
+		"boosts":  # boosts: every boost kind's total and parts, in the log
+			for k in Boosts.kinds(GameState.catalog):
+				var parts := GameState.boost_parts(k)
+				var bits: Array[String] = []
+				for p in parts:
+					bits.append("%s %s x%.3f" % [p.source, p.id, float(p.x)])
+				_write(("boost %s x%.3f %s" % [k, Boosts.total(parts), ", ".join(bits)]).strip_edges())
 		"quit":
 			_finish()
 		_:

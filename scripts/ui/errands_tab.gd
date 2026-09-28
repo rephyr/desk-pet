@@ -599,7 +599,7 @@ func _primary() -> StyleBoxFlat:
 static func _pay_words(job: Dictionary, crew: int) -> String:
 	var p: Dictionary = job.get("pay", {})
 	if p.has("capsules"):
-		var each := Jobs.average_fill(job, GameState.job_boost(job.id)) * GameState.toy_boost("coins")
+		var each := Jobs.average_fill(job, GameState.job_boost(job.id)) * GameState.boost("coins")
 		return "%s%s coins a %s" % ["about " if job.has("tips") else "", UiTheme.num(each), "sale" if job.has("tips") else "find"]
 	if p.has("coins"):
 		return "%d coins" % roundi((float(p.coins[0]) + float(p.coins[1])) / 2.0)
@@ -617,7 +617,7 @@ static func _every(rate: float) -> String:
 static func _per_minute(job: Dictionary, rate: float) -> String:
 	var p: Dictionary = job.get("pay", {})
 	if p.has("capsules"):
-		return "%s coins a minute" % UiTheme.num(rate * 60.0 * Jobs.average_fill(job, GameState.job_boost(job.id)) * GameState.toy_boost("coins"))
+		return "%s coins a minute" % UiTheme.num(rate * 60.0 * Jobs.average_fill(job, GameState.job_boost(job.id)) * GameState.boost("coins"))
 	if p.has("coins"):
 		return "%s coins a minute" % ExpandedView._thousands(roundi(rate * 60.0 * (float(p.coins[0]) + float(p.coins[1])) / 2.0))
 	return "%s parts a minute" % ExpandedView._thousands(roundi(rate * 60.0 * float(p.get("part", 1))))

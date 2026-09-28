@@ -174,6 +174,12 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   wear for coins, and SACRIFICES 3 spares for a chance at a special finish (odds shown, gone
   either way). Max level = a FAVOURITE: always on, never wears (the late-game permanent buffs).
   Rerolling toys was cut (too strong). Mockups: toys.html, upgrading.html, toy-designs.html (B).
+  **Boosts (plumbing built, B2; no receipt yet):** every boost is a KIND from data/boosts.json
+  (coins, xp, luck, capsule speed, fever, toy drops, adventure loot, errand speed, automation
+  speed: your pet's crank and box opening and the workers' jobs, not adventures).
+  Each thing boosting a kind is a part (toys now; book stickers, knacks, the kitchen later) and
+  parts from different sources MULTIPLY. Gear stays inside adventures (not a shared kind). The
+  receipt by the coin pill that lists the parts waits for its look.
   **The broken machine and its tree (Emilia, built):** the machine is an old broken one you fix
   up (machine tab: machine | upgrades). The upgrade TREE (data/machine_tree.json) has a trunk of
   repairs (tape up the crack, oil the lever, unstick the flap, new glass, rewire the lights, better
