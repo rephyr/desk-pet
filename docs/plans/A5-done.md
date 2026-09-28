@@ -3,7 +3,7 @@
 Look A from lanes/mockups `design/mockups/screens/globes.html` (side by side), picks from
 docs/picks.md (A5 + "Look picks, round 2").
 
-**Status: built, not committed yet.** Tests, balance and flows pass on lanes/globes.
+**Status: VERIFIED (2026-09-29).** Built, reviewed, tests + balance + flows passing on lanes/globes.
 
 ## What was built
 
@@ -173,7 +173,7 @@ without globes.
 
 ## Text to add elsewhere
 
-**docs/dev-plan.md**, A5 heading: `### A5. The machine later: a globe per map page  (BUILT 2026-09-29, lane globes)` and add:
+**docs/dev-plan.md**, A5 heading: `### A5. The machine later: a globe per map page  (BUILT + VERIFIED 2026-09-29, lane globes)` and add:
 
 > - **Built:** look A. Globes + bits in data/machine_tree.json; the sunset globe comes home from the
 >   far fields after the tiny machine (event `fields_sunset_globe`), broken, beside the sunny one;
