@@ -1,0 +1,82 @@
+# The pets tab as a bookcase (C1 look A) with the herd: the cushion on top, a plank per rarity with
+# a mound that grows with the count, a shelf opened, the room nearly full, full (a box waits, your
+# pet squishes), and much later with a bigger room and a million commons.
+from rich
+view full
+pets 150                         # real pets: plain ones fold into the herd past 20 a shelf
+herd common normal 190
+herd common shiny 48
+herd uncommon normal 50
+herd uncommon shiny 17
+herd rare normal 10
+herd rare shiny 6
+herd epic normal 5
+fav 2
+tab collection
+wait 1
+expect fits
+shot near
+shelf rare
+wait 1
+click MiniCard#2
+expect fits
+shot shelf
+click "‹ shelves"
+wait 0.5
+expect text "pets"
+# full: the room is exactly full, a box waits on the pile, your pet squishes
+fill-room
+give-box starter 3
+tab boxes
+wait 1
+click "open 1"
+wait 0.5
+expect pile starter 3
+wait text "squish*"
+tab collection
+wait 1
+expect fits
+shot full
+click RoomPill#1
+wait 0.5
+expect text "more room"
+expect fits
+shot room_card
+click RoomPill#1
+# later: a much bigger room, thousands on every shelf
+room 12
+herd common normal 46000
+herd uncommon normal 12300
+herd rare normal 3150
+herd epic normal 380
+herd legendary normal 30
+wait 1
+tab boxes
+tab collection
+wait 1
+expect fits
+shot later
+# a million plain commons in the save and on screen
+room 22
+herd common normal 1000000
+tab boxes
+tab collection
+wait 1
+expect fits
+shot million
+shelf common
+wait 1
+expect fits
+shot million_shelf
+tab errands
+wait 1
+expect fits
+tab automation
+expect fits
+# pets from the herd can go on adventures too (stand-ins in the picker)
+unlock feature:parties
+unlock location:meadow
+place meadow
+wait 1
+expect fits
+shot picker

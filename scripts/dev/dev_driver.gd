@@ -37,6 +37,12 @@ extends Node
 ##   spots <job> <n>       n more machines (tables, parties) for a job's workers, for free
 ##   xp <n>                you have exactly n xp
 ##   gear <id> [levels]    levels of a gear upgrade (data/gear.json), for free
+##   herd <rarity> <finish> <n>  n plain pets straight into the herd (fast: for thousands or millions)
+##   room <level>          the room is at that upgrade level (data/herd.json "room")
+##   fill-room             plain commons into the herd until the room is exactly full
+##   fav <n>               the newest n cards become favourites
+##   shelf <rarity>        opens that shelf on the pets tab (collectibles)
+##   give-box <id> <n>     n boxes of that kind on your pile, for free
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -225,6 +231,31 @@ func _step(w: PackedStringArray) -> String:
 			if Gear.info(GameState.catalog, w[1]).is_empty():
 				return "unknown gear %s" % w[1]
 			GameState.set_gear_level(w[1], GameState.gear_level(w[1]) + (int(w[2]) if w.size() > 2 else 1))
+		"herd":  # herd <rarity> <finish> <n>: n plain pets straight into a count
+			var key := Herd.key(w[1], w[2])
+			if not Herd.valid_key(GameState.catalog, key) or not Herd.plain(GameState.catalog, w[2]):
+				return "no plain count %s" % key
+			GameState.collection.add_plain(key, int(w[3]))
+			GameState.changed.emit()
+		"room":  # room <level>: the room's upgrade level
+			GameState.room = maxi(0, int(w[1]))
+			GameState.changed.emit()
+		"fill-room":  # plain commons into the herd until the room is exactly full
+			GameState.collection.add_plain(Herd.key(GameState.catalog.tiers[0].id, "normal"), GameState.room_left())
+			GameState.changed.emit()
+		"fav":  # fav <n>: the newest n cards become favourites
+			var cards := GameState.collection.pets
+			for i in mini(int(w[1]), cards.size()):
+				GameState.collection.set_fav(cards[cards.size() - 1 - i].uid, true)
+		"shelf":  # shelf <rarity>: opens that shelf on the pets tab
+			home.full_game().show_tab("collection")
+			home.full_game().collection.show_mode(0)
+			home.full_game().collection.open_shelf(w[1])
+		"give-box":  # give-box <id> <n>: boxes on your pile
+			if GameState.catalog.box(w[1]).is_empty():
+				return "unknown box %s" % w[1]
+			GameState.bag[w[1]] = GameState.in_bag(w[1]) + int(w[2])
+			GameState.changed.emit()
 		"quit":
 			_finish()
 		_:

@@ -328,7 +328,7 @@ func _available() -> Array[Pet]:
 	var pets := GameState.sendable_pets()
 	var busy := {}  # on an errand or working in automation: picked last
 	for p in pets:
-		if GameState.job_of(p.uid) != "" or GameState.worker_job(p.uid) != "":
+		if GameState.job_of(p.uid) != "" or GameState.worker_job(p.uid) != "" or (Herd.is_stand_in(p.uid) and not GameState.resting_herd().has(Herd.key_of(p.uid))):
 			busy[p.uid] = true
 	pets.sort_custom(func(a: Pet, b: Pet):
 		if busy.has(a.uid) != busy.has(b.uid):

@@ -45,8 +45,8 @@ troops off to be killed. The game itself never lets on.
 - **The narrator is innocent:** the active pet comments on results and sincerely never
   understands ("Only 12 came back! They must have found somewhere nicer!"). See Adventures.
 - **The night sky** (**Decided**, inspired by Noita's star per death): every pet that doesn't come
-  back adds one tiny, dim star to the background of the home panel, in a spot and colour taken
-  from that pet. Never explained, never counted, really hard to notice. Early on there are a
+  back adds one tiny, dim star to the background of the home panel, in a spot taken from its
+  number (star i, so pets from the herd count too) and a colour taken from that pet. Never explained, never counted, really hard to notice. Early on there are a
   handful of specks; late game the panel is a dark starry sky, so the mood darkens by itself as
   a direct result of what you've done. Past what a small panel can hold, new stars thicken a
   faint milky band instead of adding specks.
@@ -128,7 +128,24 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
 
 - Tracks every part discovered, and every finish seen for each body.
 - Shows how many of each you've pulled, with undiscovered entries as silhouettes.
-- Owned pets: the list of pets you have, sortable by rarity, finish and stats.
+- Owned pets: the **bookcase** (C1, look A, built): a pink cushion on top with your active pet,
+  favourites and the best ones (holo and better, a part new to the book), then a plank per rarity
+  you have: a tilted tag ("common 48,210"), the newest 4 standing, a mound of tiny pets that grows
+  with the count (about log10, at most 60) and the shiny count. Tap a plank (or a cushion pet) to
+  open the shelf: the herd as chips (plain and shiny counts), the always-cards, a stitched line, the
+  newest ones, and the chosen pet's sticker with the heart (favourite) and make active.
+- **The herd** (C3's base, built): plain pets (below holo) fold into a **count per rarity x
+  finish**, so millions fit in the save and on screen. Always a card: favourites, the active pet,
+  holo or better, a pet that brought a part new to the book, pets with buttons (F2, later), and
+  pets something needs whole (away on an adventure, a good pull you haven't seen, leading a party);
+  each shelf also keeps its newest 20 plain pets as cards. Errands, workers and parties draw from
+  the counts; an adventure takes **stand-ins** (a pet from a count, its rarity's average stats, no
+  traits, a look from a seed) that come home into the count or leave it (a star).
+- **The room** (built, simple first version): one cap for every plain pet together (500 at first,
+  x1.5 per upgrade, bought with coins; placeholders in data/herd.json). A pill on the pets tab
+  shows it once the first pet folds; full, it turns pink and wiggles, box openings wait on the pile
+  (by hand, your pet, box workers, the machine's pet box: nothing is lost) and your pet squishes.
+  Gifts (the tutorial's pets, the basket's pet) always come in.
 - **Open:** completion rewards (per page, per body, per finish set).
 
 ## Care (active side)

@@ -3,8 +3,7 @@
 from long_pet
 view full
 tab collection
-click PetCard#1
-click PetCard#2
+click MiniCard#2                 # the long pet, on the cushion: its shelf opens with it chosen
 wait 1
 expect fits
 expect text "make active"

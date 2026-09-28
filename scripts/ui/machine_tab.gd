@@ -613,7 +613,7 @@ class MachineStage extends Control:
 			return
 		var portrait := PetPortrait.new(5, true)
 		portrait.set_pet(pet)
-		var second := GameState.collection.pets.size() >= 2
+		var second := GameState.collection.count() >= 2
 		_popup.show_prize(portrait, "%s!" % pet.display_name(Catalog.shared()), "and it's holding a scribbled map…" if second else "a pet came out of the machine!!", "new friend", UiTheme.PINK, true)
 		Sfx.play(self, MachineTab._sound("jackpot"))
 		PetBubble.say_line(self, "machine_pet_map" if second else "machine_pet")

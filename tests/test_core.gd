@@ -1,6 +1,7 @@
 extends SceneTree
 ## Headless checks for the pet core. Run with:
-##   godot --headless -s tests/test_core.gd
+##   godot --headless -s tests/test_core.gd -- --profile=test_core
+## Without a profile it uses "test_core" anyway: the tests write saves and must never touch the real one.
 
 const ROLLS := 100000
 
@@ -9,6 +10,8 @@ var _checks := 0  # printed at the end, so a test that stopped early on a script
 
 
 func _init() -> void:
+	if DevArgs.value("profile") == "":
+		DevArgs.overrides["profile"] = "test_core"  # before anything loads a save
 	var catalog := Catalog.new()
 	_test_data_is_consistent(catalog)
 	_test_odds_match_box(catalog, "starter")
@@ -34,6 +37,8 @@ func _init() -> void:
 	_test_automation(catalog)
 	_test_unlocks(catalog)
 	_test_gear(catalog)
+	_test_herd(catalog)
+	_test_herd_game(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -165,7 +170,7 @@ func _test_save_round_trip(catalog: Catalog) -> void:
 	c.set_active(c.pets[10].uid)
 
 	var restored := Collection.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
-	_check(restored.pets.size() == 50, "round trip keeps all pets")
+	_check(restored.count() == 50 and restored.pets.size() == c.pets.size() and restored.herd == c.herd, "round trip keeps all pets")
 	_check(restored.active_uid == c.pets[10].uid, "round trip keeps the active pet")
 	_check(JSON.stringify(restored.pets[3].to_dict()) == JSON.stringify(c.pets[3].to_dict()),
 		"round trip keeps pet data")
@@ -258,12 +263,12 @@ func _test_adventures(catalog: Catalog) -> void:
 	_check(walk.status == RunState.Status.DONE and played == answers, "answering every event finishes the walk")
 
 	# lost pets leave the collection, the book keeps them, each leaves a star
-	var gone: Array[String] = [batch[0].uid, batch[1].uid]
-	var key := Collection.part_key("body", batch[0].parts.body)
+	var gone: Array[String] = [c.pets[0].uid, c.pets[1].uid]
+	var key := Collection.part_key("body", c.pets[0].parts.body)
 	var seen_before := c.times_seen(key)
-	c.active_uid = batch[0].uid
+	c.active_uid = gone[0]
 	c.remove(gone)
-	_check(c.pets.size() == 1998 and c.get_pet(gone[0]) == null, "lost pets leave the collection")
+	_check(c.count() == 1998 and c.get_pet(gone[0]) == null, "lost pets leave the collection")
 	_check(c.times_seen(key) == seen_before, "the book still remembers them")
 	_check(c.fallen.size() == 2, "each lost pet leaves a star")
 	_check(c.active() != null, "losing the active pet picks another")
@@ -1082,6 +1087,252 @@ func _gear_losses(place_id: String, pets: Array[Pet], gear: Dictionary, catalog:
 			now += 1.0e5
 		lost += run.party.lost.size()
 	return lost
+
+
+## The herd: plain pets fold into counts per rarity x finish; favourites, the active pet, holo and
+## better, and pets with a part new to the book stay cards; each shelf keeps its newest 20.
+func _test_herd(catalog: Catalog) -> void:
+	var keep := int(catalog.herd.keep_cards)
+	var c := Collection.new()
+	var commons: Array[Pet] = []
+	for i in keep + 5:  # all with the same parts: only the first brings anything new to the book
+		commons.append(_plain_pet(catalog, "common", "normal", i, commons[0] if i > 0 else null))
+	c.add(commons)
+	# the very first pet brought every part it has to the book: it stays a card (and is active)
+	_check(c.count() == keep + 5 and c.herd_count("common:normal") == 4 and c.pets.size() == keep + 1,
+		"a 21st plain common folds the oldest into the herd (%d cards, %d in the herd)" % [c.pets.size(), c.herd_count("common:normal")])
+	_check(c.pets[0].new_part and c.pets[0].uid == c.active_uid, "the first pet stays a card (active, new parts)")
+	_check(c.count_of("common") == keep + 5 and c.plain_count() == keep + 5, "totals count cards and the herd")
+	var shiny: Array[Pet] = [_plain_pet(catalog, "common", "shiny", 99, commons[0])]
+	var holo: Array[Pet] = [_plain_pet(catalog, "common", "holo", 98, commons[0])]
+	c.add(shiny)
+	c.add(holo)
+	_check(c.get_pet(holo[0].uid) != null and c.shiny_of("common") == 1 and c.plain_count() == keep + 6,
+		"holo stays a card and isn't in the room; shiny counts as plain")
+	var fav := c.pets[1]
+	c.set_fav(fav.uid, true)
+	var more: Array[Pet] = []
+	for i in 30:
+		more.append(_plain_pet(catalog, "common", "normal", 200 + i, commons[0]))
+	c.add(more)
+	_check(c.get_pet(fav.uid) != null, "a favourite never folds")
+	c.set_fav(fav.uid, false)
+	_check(c.get_pet(fav.uid) == null and c.herd_count("common:normal") > 0, "unfaving an old pet folds it")
+	var free := c.pets.filter(func(p): return not c.always_card(p)).size()
+	_check(free == keep, "each shelf keeps its newest %d plain cards (%d)" % [keep, free])
+	# busy pets (away, pinned) never fold
+	var c2 := Collection.new()
+	var hold := {}
+	c2.busy = func(): return hold
+	var batch: Array[Pet] = []
+	for i in keep + 3:
+		batch.append(_plain_pet(catalog, "uncommon", "normal", i))
+	hold[str(2)] = true
+	c2.add(batch)
+	_check(c2.get_pet("2") != null, "a busy pet stays a card")
+	# round trip
+	var back := Collection.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
+	_check(back.count() == c.count() and back.herd == c.herd and back.plain_count() == c.plain_count()
+		and back.shiny_of("common") == c.shiny_of("common"), "the herd survives a save")
+	# stand-ins: a pet from a count, the same look every time; leaving takes one from the count
+	var uid := Herd.uid("common:normal", 3)
+	var s1 := c.get_pet(uid)
+	var s2 := Herd.stand_in(catalog, uid)
+	_check(s1 != null and s1.rarity == "common" and s1.finish == "normal" and s1.traits.is_empty() and s1.parts == s2.parts,
+		"a stand-in has its count's rarity and finish, no traits, and a steady look")
+	_check(Herd.key_of(uid) == "common:normal" and Herd.number_of(uid) == 3, "a stand-in's uid names its count")
+	var before := c.herd_count("common:normal")
+	var stars := c.fallen_n
+	var lost: Array[String] = [uid]
+	c.remove(lost)
+	_check(c.herd_count("common:normal") == before - 1 and c.fallen_n == stars + 1 and int(c.stand_next["common:normal"]) == 4,
+		"a lost stand-in leaves its count and adds a star; its look never comes back")
+	_check(c.get_pet(Herd.uid("rare:normal", 0)) == null, "no stand-ins for an empty count")
+	# a collection from before the herd (v22): stars were [uid, palette], nothing marked yet
+	var old := { "pets": [], "active": "1", "next_id": 4, "seen": {}, "fallen": [[5, "peach"], [9, "mint"]] }
+	for i in 3:
+		var d := _plain_pet(catalog, "common", "normal", i).to_dict()
+		d.uid = str(i + 1)
+		old.pets.append(d)
+	var migrated := Collection.from_dict(old)
+	_check(migrated.fallen == ["peach", "mint"] and migrated.fallen_n == 2, "old stars keep their palettes")
+	_check(migrated.pets[0].new_part and migrated.count() == 3, "old pets: the first with each part is marked")
+	# the room
+	_check(Herd.room_cap(catalog, 0) == int(catalog.herd.room.start) and Herd.room_cap(catalog, 1) > Herd.room_cap(catalog, 0)
+		and Herd.room_cost(catalog, 1) > Herd.room_cost(catalog, 0), "room upgrades hold more and cost more")
+	# spreading over places: the smallest fill up first
+	var spread: Dictionary = load("res://scripts/game_state.gd").water_fill({ "a": 0, "b": 10, "c": 3 }, 20)
+	_check(int(spread.a) + int(spread.b) + int(spread.c) == 20 and int(spread.a) == 11 and int(spread.c) == 8 and int(spread.b) == 1,
+		"pets spread so the smallest crews fill up first (%s)" % str(spread))
+	# a million plain pets: quick, and the save stays tiny
+	var big := Collection.new()
+	var t0 := Time.get_ticks_msec()
+	big.add_plain("common:normal", 1000000)
+	var text := JSON.stringify(big.to_dict())
+	var again := Collection.from_dict(JSON.parse_string(text))
+	_check(again.count() == 1000000 and text.length() < 2000, "a million plain pets fit in a tiny save (%d bytes)" % text.length())
+	_check(Time.get_ticks_msec() - t0 < 200, "a million plain pets save and load quickly (%d ms)" % (Time.get_ticks_msec() - t0))
+
+
+func _plain_pet(catalog: Catalog, rarity: String, finish: String, seed_n: int, parts_like: Pet = null) -> Pet:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_n
+	var p := PetRoller.new(catalog, rng).roll("starter", rarity)
+	p.finish = finish
+	if parts_like:
+		p.parts = parts_like.parts.duplicate()
+	return p
+
+
+## The herd in the game itself (GameState): an old save's crews and workers turn into counts,
+## errands and workers work from counts, stand-ins go on adventures, the room makes boxes wait.
+func _test_herd_game(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped the herd in the game: it needs a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	var roller := PetRoller.new(catalog, rng)
+	var pets := []
+	var coin: Dictionary = catalog.job("coin_hunt")
+	var speed_sum := 0.0
+	for i in 300:
+		var p := roller.roll("starter", "common")
+		p.finish = "normal"
+		p.uid = str(i + 1)
+		if i >= 1 and i <= 200:
+			speed_sum += Jobs.pet_speed(p, coin)
+		pets.append(p.to_dict())
+	var crew := range(2, 202).map(func(n): return str(n))
+	var workers := range(202, 242).map(func(n): return str(n))
+	var auto := Automation.fresh()
+	auto.taught = { "machine": true }
+	auto.others = { "machine": true }
+	auto.spots = { "machine": 50 }
+	auto.workers = { "machine": workers }
+	var old := { "version": 22, "coins": 10000000, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(),
+		"unlocks": ["feature:errands", "tab:errands", "tab:automation", "feature:parties", "location:meadow"],
+		"collection": { "pets": pets, "active": "1", "next_id": 301, "seen": {}, "fallen": [[5, "peach"]] },
+		"jobs": { "coin_hunt": { "crew": crew, "fill": 0.5 } }, "automation": auto }
+	SaveFile.write(path, old)
+	var old_size := FileAccess.get_file_as_string(path).length()
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	var c: Collection = gs.collection
+	_check(c.count() == 300 and c.fallen_n == 1 and c.fallen == ["peach"], "an old save loads with every pet and its stars (%d)" % c.count())
+	_check(c.herd_total() > 200 and c.pets.size() < 100, "old plain pets fold into the herd (%d cards)" % c.pets.size())
+	_check(gs.job_size("coin_hunt") == 200 and not gs.job_herd("coin_hunt").is_empty() and gs.job_crew("coin_hunt").size() < 200,
+		"an old crew of uids turns into counts (%d on the coin hunt)" % gs.job_size("coin_hunt"))
+	_check(gs.workers_count("machine") == 40 and not gs.workers_herd("machine").is_empty(), "old workers turn into counts too")
+	var cards_rate := Jobs.rate(coin, 200, speed_sum / 200.0, float(catalog.errands.crew_power))
+	var herd_rate: float = gs.job_rate("coin_hunt")
+	_check(absf(herd_rate - cards_rate) / cards_rate < 0.15, "a crew from counts works about as fast (%.4f vs %.4f)" % [herd_rate, cards_rate])
+	gs.save_game()
+	var new_size := FileAccess.get_file_as_string(path).length()
+	_check(new_size < old_size / 3, "the save shrinks (%d -> %d bytes)" % [old_size, new_size])
+	var resting: int = gs.resting_count()
+	_check(resting == 300 - 1 - 200 - 40, "everyone else rests (%d)" % resting)
+	# errands from counts
+	gs.put_on_job("coin_hunt", -1)
+	_check(gs.resting_count() == 0 and gs.job_size("coin_hunt") == 259, "+ all puts every resting pet on (%d)" % gs.job_size("coin_hunt"))
+	var off: int = gs.take_off_job("coin_hunt", 100)
+	_check(off == 100 and gs.resting_count() == 100 and gs.job_size("coin_hunt") == 159, "taking off 100 sends 100 home")
+	gs.unlocks["feature:parts"] = true  # the scrapyard opens: two jobs to share out over
+	gs.share_out()
+	_check(gs.resting_count() == 0 and absi(gs.job_size("coin_hunt") - gs.job_size("scrapyard")) <= 159,
+		"sharing out fills the smaller crew first (%d and %d)" % [gs.job_size("coin_hunt"), gs.job_size("scrapyard")])
+	_check(gs.job_size("scrapyard") == 100, "every resting pet went to the empty scrapyard (%d)" % gs.job_size("scrapyard"))
+	gs.take_off_job("scrapyard", -1)
+	# your pet shares out new pets: a new active pet sends the old one back to work
+	var resting_card: Array[Pet] = gs.resting_cards()
+	_check(not resting_card.is_empty(), "a card is resting (to make active)")
+	if not resting_card.is_empty():
+		gs.jobs_auto = true
+		c.set_active(resting_card[0].uid)
+		_check(gs.job_of("1") != "", "with sharing on, the old active pet goes back to work")
+		gs.jobs_auto = false
+		c.set_active("1")
+		gs.take_off_job(gs.job_of(resting_card[0].uid), 1, [resting_card[0].uid])
+	# your pet names the pet you tapped, not another face from its count
+	var tapped: Array = []
+	for k in gs.resting_herd():
+		tapped = c.stand_in_uids(k, 3)
+		break
+	_check(tapped.size() >= 2, "resting stand-ins to tap (%d)" % tapped.size())
+	if not tapped.is_empty():
+		gs.put_on_job("coin_hunt", 1, [tapped[-1]])
+		_check(gs.last_moved == str(tapped[-1]), "your pet names the stand-in you tapped (%s)" % gs.last_moved)
+		gs.take_off_job("coin_hunt", 1, [tapped[-1]])
+		_check(gs.last_moved == str(tapped[-1]), "and the one you sent home")
+	# workers from counts
+	var put: int = gs.put_workers("machine", -1)
+	_check(put == 10 and gs.workers_count("machine") == 50 and gs.workers_speed("machine") > 0.0, "workers fill up their machines from counts")
+	_check(gs.take_off_workers("machine", 5) == 5 and gs.workers_count("machine") == 45, "workers go home from counts")
+	# stand-ins on an adventure: the lost one leaves the count (a star), the rest come home into it
+	var going: Array[Pet] = []
+	for pet: Pet in gs.sendable_pets():
+		if Herd.is_stand_in(pet.uid) and going.size() < 3:
+			going.append(pet)
+	var herd_before := c.herd_total()
+	var run: RunState = gs.send_on_adventure("meadow", going)
+	_check(run != null and run.party.size() == 3, "stand-ins from the herd go on an adventure")
+	_check(not gs.sendable_pets().any(func(p): return p.uid == going[0].uid), "a stand-in away can't be sent twice")
+	run.status = RunState.Status.DONE
+	var lost_uid: String = run.party.uids[0]
+	run.party.uids.erase(lost_uid)
+	run.party.lost.append(lost_uid)
+	var stars := c.fallen_n
+	gs.collect_run(run)
+	_check(c.herd_total() == herd_before - 1 and c.fallen_n == stars + 1, "a stand-in that stays leaves the herd and adds a star")
+	_check(c.count() == 299, "the others come home (%d)" % c.count())
+	# the room: full, box openings wait (nothing lost); more room opens them again
+	gs.room = 0
+	c.add_plain("common:normal", maxi(0, gs.room_cap() - c.plain_count()))
+	gs.bag = { "starter": 3 }
+	var none: Array = gs.open_boxes("starter", 1)
+	_check(none.is_empty() and gs.in_bag("starter") == 3 and gs.room_left() == 0, "a full room: the box waits on the pile")
+	_check(gs.buy_room() and gs.room == 1 and gs.room_left() > 0, "more room, bought with coins")
+	_check(gs.open_boxes("starter", 1).size() == 1 and gs.in_bag("starter") == 2, "then the box opens")
+	# a million plain pets in the game: save, load and a job stay quick
+	c.add_plain("common:normal", 1000000)
+	var t0 := Time.get_ticks_msec()
+	gs.save_game()
+	var t_save := Time.get_ticks_msec() - t0
+	var size := FileAccess.get_file_as_string(path).length()
+	t0 = Time.get_ticks_msec()
+	var gs2: Node = load("res://scripts/game_state.gd").new()
+	var t_load := Time.get_ticks_msec() - t0
+	_check(gs2.collection.count() == c.count(), "a million plain pets load back (%d)" % gs2.collection.count())
+	t0 = Time.get_ticks_msec()
+	gs2.put_on_job("coin_hunt", -1)
+	var rate: float = gs2.job_rate("coin_hunt")
+	var t_job := Time.get_ticks_msec() - t0
+	_check(gs2.job_size("coin_hunt") > 1000000 and rate > 0.0, "a million pets on one errand")
+	_check(size < 300000, "the save stays small with a million pets (%d bytes)" % size)
+	_check(t_save < 300 and t_load < 1500 and t_job < 300, "a million pets: save %d ms, load %d ms, a job %d ms" % [t_save, t_load, t_job])
+	print("  a million plain pets: save %d ms, load %d ms, a job %d ms, %d bytes" % [t_save, t_load, t_job, size])
+	gs.free()
+	gs2.free()
+	# a save from before the room with more pets than its first level holds gets room for them
+	var many := []
+	for i in 700:
+		var p := roller.roll("starter", "common")
+		p.finish = "normal"
+		p.uid = str(i + 1)
+		many.append(p.to_dict())
+	SaveFile.write(path, { "version": 22, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(),
+		"collection": { "pets": many, "active": "1", "next_id": 701 } })
+	var gs3: Node = load("res://scripts/game_state.gd").new()
+	_check(gs3.room_left() > 0 and gs3.room > 0, "an old save with 700 pets loads with room to spare (%d / %d)" % [gs3.collection.plain_count(), gs3.room_cap()])
+	gs3.free()
+	_check(Herd.room_cap(catalog, Herd.room_level_for(catalog, 5000)) >= 5000 and Herd.room_cap(catalog, Herd.room_level_for(catalog, 5000) - 1) < 5000,
+		"the room level for 5000 pets is the smallest that holds them")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 
 
 func _check(ok: bool, what: String) -> void:

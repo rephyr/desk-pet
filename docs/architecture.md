@@ -29,7 +29,15 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   "signature" part gets that rarity, the others roll at or below it. The finish is a separate
   roll. So the odds shown on a box are exactly what you get (checked by `tests/test_core.gd`).
 - `Collection` owns the pets, the active pet and the book counts (`part:<slot>:<id>`,
-  `finish:<body>:<finish>`).
+  `finish:<body>:<finish>`). Pets are **cards** (whole `Pet`s in `pets`) or **the herd** (`herd`:
+  `"rarity:finish"` -> count, see `Herd` and data/herd.json). `add()` marks `new_part` and calls
+  `refold()`: past `keep_cards` plain cards a shelf, the oldest that may fold (not `always_card`,
+  not in `busy`, a Callable GameState sets: away, pinned, party leaders) become counts, and
+  `pets_folded(uids, keys)` lets GameState move their errand or machine place to a count. Totals
+  (`count`, `count_of`, `shiny_of`, `plain_count`) are running numbers: nothing loops over the herd.
+  `get_pet("h:<rarity>:<finish>:<n>")` gives a **stand-in** (`Herd.stand_in`: seeded look, average
+  stats, no traits); removing one takes it off its count. Stars are `fallen` (palettes, the first
+  `fallen_keep`) plus `fallen_n`.
 - `PetLook` is the placeholder art (pixel maps in code). Real art replaces `PetLook` only;
   `PetView` (draws a pet, blinking, squash, finish shader) and everything above stay the same.
 - Finish effects are one shader, `shaders/finish.gdshader`; `finishes.json` picks the mode.
@@ -43,7 +51,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   room), `MachineTab` (the capsule machine: `MachineStage` draws it and runs the lever, `Machine` in
   scripts/machine has its rules, `GameState.pull_lever()` pays out; a pet box out of a capsule is opened right there with a
   `PackOpening`), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
-  `CollectionTab` (pets grid + `PetDetails`, and the `BookView`), `AdventuresTab` (adventures:
+  `CollectionTab` (pets: the `Bookcase` with its cushion of `MiniCard`s and a `ShelfPlank` per
+  rarity with a `Mound`; a plank opens the `ShelfView` with `PetDetails`; the `RoomPill`; and the
+  `BookView`), `AdventuresTab` (adventures:
   `MapView`, the place card, trip cards, and `TrailView` for watching a trip; upgrades: `GearView`,
   gear bought with xp, rules in `Gear`, levels in `GameState.gear`, packed onto each trip as
   `RunState.gear`), `ErrandsTab` (jobs: the corkboard; upgrades:
@@ -93,6 +103,18 @@ saves (and the test saves) keep what their migrations gave them. Save v21 moves 
 into automation: a save with the cushion gets the automation tab and the boxes job (doing it if it was on).
 Save v22 adds `gear` (older saves start with none; loading drops unknown gear and clamps levels);
 runs save the gear they packed and the leaf's saves (`RunState.gear`, `saves_used`).
+Save v23 adds the herd: `collection` is `{ pets (cards), herd, active, next_id, seen, fallen
+(palettes), fallen_n, stand_next, herd_ever }`, errands are `{ crew (card uids), herd, fill }`,
+`automation.wherd` holds workers from the herd (a party leader stays a uid slot, a stand-in's uid for
+a herd pet), and top-level `room`. Old collections load as they are (stars keep their palettes,
+the first pet with each part is marked); `load_game` ends with `collection.refold()`, which turns
+old crews and workers of uids into counts through `pets_folded`. A save from before v23 that already
+has more plain pets than the first room holds gets room for them plus data/herd.json
+`room.old_save_margin` (`Herd.room_level_for`), so box openings and box jobs keep going.
+`Collection.herd_changed(keys)` says which counts changed; the pets tab rebuilds once a frame at
+most and leaves an open shelf of another rarity alone.
+Who's resting is worked out once (`GameState._resting`: cards, herd counts minus errands, workers,
+stand-ins away or leading) until `_rest_changed()`.
 
 ## Testing
 

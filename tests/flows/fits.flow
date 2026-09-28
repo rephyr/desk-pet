@@ -16,25 +16,33 @@ tab boxes
 expect fits
 tab collection
 expect fits
-click PetCard#1
+shot bookcase
+click MiniCard#1
 expect fits
-click PetCard#2
+click "‹ shelves"
+click MiniCard#2
 expect fits
-click PetCard#3
+click "‹ shelves"
+click MiniCard#3
 expect fits
-click PetCard#4
+click "‹ shelves"
+click MiniCard#4
 expect fits
-click PetCard#5
+click "‹ shelves"
+click MiniCard#5
 expect fits
-click PetCard#6
+click "‹ shelves"
+click MiniCard#6
 expect fits
-click PetCard#7
+click "‹ shelves"
+click ShelfPlank#1
+click MiniCard#1
 expect fits
-click PetCard#8
+click MiniCard#2
 expect fits
-click PetCard#9
+click MiniCard#3
 expect fits
-click PetCard#10
+click MiniCard#4
 expect fits
 shot pets
 tab adventures

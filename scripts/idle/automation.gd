@@ -8,13 +8,15 @@ extends RefCounted
 ##     tools: { tool id: levels }, party: { place, n }, fill: 0..1 (the next crank),
 ##     others: { job id: true } (taught to the other pets: workers), spots: { job id: machines,
 ##     tables or parties bought }, workers: { job id: [uids] } (one per spot), parties: [{ place, n }]
-##     (a party per bought party spot, led by the worker in the same place), wfill: { job id: 0..1 } }
+##     (a party per bought party spot, led by the worker in the same place), wfill: { job id: 0..1 },
+##     wherd: { job id: { count key: pets from the herd working there } } (not adventures: a party's
+##     leader keeps its slot, as a stand-in's uid) }
 ## GameState keeps the state and hands out what the jobs bring.
 
 
 static func fresh() -> Dictionary:
 	return { "task": "", "taught": {}, "tools": {}, "party": { "place": "", "n": 0 }, "fill": 0.0,
-		"others": {}, "spots": {}, "workers": {}, "parties": [], "wfill": {} }
+		"others": {}, "spots": {}, "workers": {}, "parties": [], "wfill": {}, "wherd": {} }
 
 
 static func job(catalog: Catalog, id: String) -> Dictionary:
