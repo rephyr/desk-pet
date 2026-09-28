@@ -34,6 +34,7 @@ func _init() -> void:
 	_test_automation(catalog)
 	_test_unlocks(catalog)
 	_test_gear(catalog)
+	_test_book(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -1190,6 +1191,143 @@ func _gear_losses(place_id: String, pets: Array[Pet], gear: Dictionary, catalog:
 			now += 1.0e5
 		lost += run.party.lost.size()
 	return lost
+
+
+## The collection book's reward stickers (data/book.json, Book): full pages open a permanent boost
+## that multiplies with the other sources and never goes away.
+func _test_book(catalog: Catalog) -> void:
+	var pages := Book.pages(catalog)
+	_check(pages.size() == 6, "the book has 6 sticker pages (%d)" % pages.size())
+	var kinds := {}
+	for p in pages:
+		var real: bool = (p.has("slot") and catalog.slots.has(str(p.slot))) or (p.has("finishes_of") and not catalog.part("body", str(p.finishes_of)).is_empty())
+		_check(real, "sticker page %s is on a real slot or body" % p.id)
+		_check(float(p.x) > 1.0, "sticker %s boosts (x%.2f)" % [p.id, float(p.x)])
+		_check(str(p.kind) in ["coins", "luck", "automation", "errands"], "sticker %s has a known kind" % p.id)
+		_check(Book.words(catalog, p) != "" and not Book.words(catalog, p).contains("{"), "sticker %s's line reads right (%s)" % [p.id, Book.words(catalog, p)])
+		_check(str(p.name) != "sticky paws", "no sticker is sticky paws (a gear upgrade now)")
+		kinds[str(p.kind)] = true
+	_check(kinds.size() == 4, "all 4 kinds are on a page")
+	_check(Book.words(catalog, Book.page(catalog, "palettes")) == "+10% coins", "the paint set reads +10% coins")
+	# full: every key of the page, and the finishes page only looks at its body
+	var c := Collection.new()
+	var eyes := Book.page(catalog, "eyes")
+	var keys := Book.keys(catalog, eyes)
+	_check(keys.size() == catalog.slots.eyes.size(), "the eyes page needs every eyes part")
+	for k in keys.slice(0, keys.size() - 1):
+		c.see(k)
+	_check(not Book.full(catalog, c, eyes), "a page with one sticker missing isn't full")
+	var seen_signals := [0]
+	c.seen_changed.connect(func(): seen_signals[0] += 1)
+	c.see(keys[keys.size() - 1])
+	_check(Book.full(catalog, c, eyes), "a page with every sticker is full")
+	_check(seen_signals[0] == 1, "see() says the book changed (%d)" % seen_signals[0])
+	var fin := Book.page(catalog, "finishes")
+	for f in catalog.finishes:
+		c.see(Collection.finish_key("cat", f.id))
+	_check(not Book.full(catalog, c, fin), "the finishes sticker only counts blob's finishes")
+	for f in catalog.finishes:
+		c.see(Collection.finish_key(str(fin.finishes_of), f.id))
+	_check(Book.full(catalog, c, fin), "every blob finish fills the finishes page")
+	_check(Book.newly_full(catalog, c, []) == ["eyes", "finishes"], "newly full lists the full pages")
+	_check(Book.newly_full(catalog, c, ["eyes"]) == ["finishes"], "newly full skips stickers already open")
+	_check(is_equal_approx(Book.multiplier(catalog, [], "coins"), 1.0), "no stickers, no boost")
+	_check(is_equal_approx(Book.multiplier(catalog, ["palettes", "finishes"], "coins"), 1.21), "both coins stickers multiply to x1.21")
+	_check(is_equal_approx(Book.multiplier(catalog, ["palettes", "finishes"], "luck"), 1.0), "kinds don't mix")
+	# permanent: a new part on the page later doesn't take the sticker away
+	var more := Catalog.new()
+	var fake: Dictionary = more.slots.palette[0].duplicate()
+	fake.id = "brand_new"
+	more.slots.palette.append(fake)
+	var pal := Book.page(more, "palettes")
+	var c2 := Collection.new()
+	for k in Book.keys(catalog, pal):
+		c2.see(k)
+	_check(not Book.full(more, c2, pal) and is_equal_approx(Book.multiplier(more, ["palettes"], "coins"), 1.1),
+		"an open sticker stays when its page gets a new part")
+
+	# GameState: stickers open once, are saved, and reach every boost path
+	var GS: GDScript = load("res://scripts/game_state.gd")
+	GS.testing = true  # never loads or saves the real game
+	var gs: Node = GS.new()
+	var opened: Array[String] = []
+	gs.sticker_opened.connect(func(id): opened.append(id))
+	var body_pets: Array[Pet] = []
+	for b in catalog.slots.body:
+		var pet := Pet.new()
+		pet.parts = { "body": b.id, "palette": "lilac", "pattern": "plain", "eyes": "round", "accessory": "none" }
+		body_pets.append(pet)
+	var last: Array[Pet] = [body_pets.pop_back()]
+	gs.collection.add(body_pets)
+	_check(opened.is_empty() and gs.stickers.is_empty(), "no sticker while a body is missing")
+	var tb: float = gs.workers_speed("machine")
+	var crank_before := Automation.crank_seconds(catalog, gs.automation, gs.book_x("automation"))
+	gs.automation.workers["machine"] = [gs.collection.pets[1].uid]
+	gs._worker_speed.clear()
+	var worker_before: float = gs.workers_speed("machine")
+	gs.collection.add(last)
+	_check(opened == ["bodies"] and gs.stickers == ["bodies"], "the last body opens the bodies sticker (%s)" % [opened])
+	var again: Array[Pet] = [Pet.new()]
+	again[0].parts = { "body": "blob", "palette": "lilac", "pattern": "plain", "eyes": "round", "accessory": "none" }
+	gs.collection.add(again)
+	_check(opened.size() == 1, "a sticker opens only once")
+	_check(Automation.crank_seconds(catalog, gs.automation, gs.book_x("automation")) < crank_before, "the automation sticker makes your pet crank faster")
+	_check(gs.workers_speed("machine") > worker_before and worker_before > tb, "the automation sticker makes the workers faster")
+	# coins and luck: the book times the toys
+	gs.coins = 0
+	gs.grant({ "coins": 100 })
+	_check(gs.coins == 100, "no coins sticker yet: 100 coins are 100")
+	for k in Book.keys(catalog, Book.page(catalog, "palettes")):
+		gs.collection.see(k)
+	gs.check_book()
+	gs.coins = 0
+	gs.grant({ "coins": 100 })
+	_check(gs.coins == 110, "the paint set makes 100 coins 110 (%d)" % gs.coins)
+	Toys.add(gs.toys, "acorn", "normal")
+	Toys.play(gs.toys, catalog, "acorn:normal", "quick", Time.get_unix_time_from_system())
+	gs.coins = 0
+	gs.grant({ "coins": 100 })
+	_check(gs.coins == 121, "a coins toy and the paint set multiply (x1.1 x1.1: %d)" % gs.coins)
+	for k in keys:
+		gs.collection.see(k)
+	gs.check_book()
+	_check(is_equal_approx(gs.boost("luck"), gs.toy_boost("luck") * 1.1), "luck is the toys' luck times the magnifying glass")
+	# errands: every job's meter fills faster
+	gs.unlocks["feature:errands"] = true
+	var uid: String = gs.collection.pets[2].uid
+	gs.jobs["coin_hunt"] = { "crew": [uid], "fill": 0.0 }
+	gs._crews_changed()
+	var rate_before: float = gs.job_rate("coin_hunt")
+	for k in Book.keys(catalog, Book.page(catalog, "patterns")):
+		gs.collection.see(k)
+	gs.check_book()
+	_check(rate_before > 0.0 and is_equal_approx(gs.job_rate("coin_hunt"), rate_before * 1.1), "the washi tape makes errands 10%% faster (%.4f to %.4f)" % [rate_before, gs.job_rate("coin_hunt")])
+	# the save keeps them; an old save with a full page gets its sticker after loading
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://profiles/test-core/"))
+	var path := "user://profiles/test-core/book_save.json"
+	gs.save_path = path
+	gs._can_save = true
+	gs.save_game()
+	var gs2: Node = GS.new()
+	gs2.save_path = path
+	gs2.load_game()
+	_check(gs2.stickers == gs.stickers, "a save round trip keeps the stickers (%s)" % [gs2.stickers])
+	var old := { "version": 23, "collection": { "seen": {} } }
+	for k in keys:
+		old.collection.seen[k] = 1
+	SaveFile.write(path, old)
+	var gs3: Node = GS.new()
+	var got3: Array[String] = []
+	gs3.sticker_opened.connect(func(id): got3.append(id))
+	gs3.save_path = path
+	gs3.load_game()
+	_check(got3.is_empty(), "loading opens no sticker halfway through (%s)" % [got3])
+	gs3.check_book()
+	_check(got3 == ["eyes"] and gs3.stickers == ["eyes"], "a v23 save with a full page gets its sticker after loading (%s)" % [got3])
+	for f in [path, path + ".bak"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	for n in [gs, gs2, gs3]:
+		n.free()
 
 
 func _check(ok: bool, what: String) -> void:

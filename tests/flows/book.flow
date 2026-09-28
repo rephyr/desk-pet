@@ -1,0 +1,65 @@
+# The collection book's reward stickers (data/book.json): every sticker page ends with a dashed gift spot (no words);
+# filling the page opens its sticker for good (a popup, "show me" goes to its spread), and the
+# spot turns into the gold sticker with its line. Every spread stays inside the window.
+from after_tutorial
+view full
+tab collection
+wait 1
+click "book"
+wait 1
+expect no-text "fill the page*"
+expect no-text "a cozy blanket"
+expect fits
+shot closed
+book bodies 1                       # one body still missing: no sticker yet
+wait 1
+expect no-text "a cozy blanket"
+expect no-text "bodies page full!"
+shot one_left
+book bodies
+wait popup
+expect text "bodies page full!"
+expect text "a cozy blanket"
+expect text "automation 10% faster"
+expect fits
+shot popup
+click "show me"
+wait 1
+expect text "a cozy blanket"
+expect text "automation 10% faster"
+expect fits
+shot bodies_open
+book palettes
+wait popup
+expect text "palettes page full!"
+click "show me"
+wait 1
+expect text "a paint set"
+expect text "+10% coins"
+expect fits
+shot palettes_open
+book patterns
+wait popup
+expect text "a roll of washi tape"
+click "lovely*"
+wait 1
+book eyes
+wait popup
+expect text "a magnifying glass"
+click "lovely*"
+wait 1
+book accessories
+wait popup
+expect text "a little wardrobe"
+click "lovely*"
+wait 1
+book finishes
+wait popup
+expect text "finishes page full!"
+click "show me"
+wait 1
+expect text "a glitter jar"
+expect text "+10% coins"
+expect text "errands 10% faster"      # the wardrobe, on the same spread
+expect fits
+shot finishes_open

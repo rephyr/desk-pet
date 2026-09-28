@@ -3,6 +3,7 @@
 # pets on them yourself, and the page scales to lots of machines.
 from rich
 view full
+stickers off                  # the pets here can fill a book page now and then: no sticker popups
 pets 12
 fix drops
 coins 900000000

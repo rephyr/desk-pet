@@ -1,6 +1,7 @@
 # Thousands of pets on errands: piles, counts and crowds instead of a photo each.
 from rich
 view full
+stickers off                  # 1500 pets fill a random few book pages: no sticker popups
 pets 1500
 find basket
 wait popup

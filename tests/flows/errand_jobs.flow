@@ -3,6 +3,7 @@
 # the new jobs, their note lines, the pegboard's new shelves, and a trip taking a scout note.
 from rich
 view full
+stickers off                  # 1200 pets below fill a random few book pages: no sticker popups
 fix tape
 fix oil
 fix flap
@@ -88,7 +89,7 @@ wait 1
 expect text "notes ready 1 / 2"
 expect fits
 shot trip_took_note
-# a big crew elsewhere thins the kitchen out: a decimal, never "0% faster" (1200 pets fill a book page)
+# a big crew elsewhere thins the kitchen out: a decimal, never "0% faster"
 pets 1200
 job coin_hunt 1000
 wait 1
