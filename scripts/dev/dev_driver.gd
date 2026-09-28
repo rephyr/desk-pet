@@ -13,7 +13,8 @@ extends Node
 ##   key <name>            a key press: space, escape, enter
 ##   wait <seconds>        or: wait ritual | wait popup | wait text "..." | wait tutorial <step> | wait event
 ##   expect <what>         tutorial <step> | tab <id> | text "..." | no-text "..." | pile <box> <n>
-##                         | fits (the full game fits its window)
+##                         | fits (the full game fits its window) | ours <place> | not-ours <place>
+##                         | lights <place> <n> (lights still on behind a next-door place)
 ##   shot <name>           a screenshot of the game, from inside it (works while it's off-screen)
 ##   say "<text>"          your pet says it (for testing the bubble)
 ##   answer                every adventure waiting at an event takes its first choice
@@ -38,6 +39,9 @@ extends Node
 ##   xp <n>                you have exactly n xp
 ##   gear <id> [levels]    levels of a gear upgrade (data/gear.json), for free
 ##   tiers all | off       every box tier in the shop, map pages or not (for the 3-tier fits check)
+##   open <page>           opens a map page the way the game's code does (GameState.open_page:
+##                         popup and all), e.g. open next_door
+##   visit <place> [n]     n more visits to a place (next door's lights go out, places become ours)
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -230,6 +234,17 @@ func _step(w: PackedStringArray) -> String:
 		"tiers":  # tiers all: every box tier is in the shop, map pages or not (tiers off: back to normal)
 			GameState.debug_all_tiers = w.size() > 1 and w[1] == "all"
 			GameState.changed.emit()
+		"open":  # open <page>: a map page opens as the game's code opens it (popup and all)
+			if Catalog.shared().page_info(w[1]).is_empty():
+				return "unknown page %s" % w[1]
+			if not GameState.open_page(w[1]):
+				return "%s was open already" % w[1]
+		"visit":  # visit <place> [n]: n more visits there
+			if Catalog.shared().location(w[1]).is_empty():
+				return "unknown place %s" % w[1]
+			GameState.add_visits(w[1], int(w[2]) if w.size() > 2 else 1)
+			GameState.adventures_changed.emit()
+			GameState.changed.emit()
 		"quit":
 			_finish()
 		_:
@@ -280,6 +295,13 @@ func _expect(w: PackedStringArray) -> String:
 		"pile":
 			var have := GameState.in_bag(w[2])
 			return "" if have == int(w[3]) else "%d on the pile" % have
+		"ours":
+			return "" if GameState.is_ours(w[2]) else "%s isn't ours (%d visits)" % [w[2], GameState.visits_at(w[2])]
+		"not-ours":
+			return "" if not GameState.is_ours(w[2]) else "%s is ours" % w[2]
+		"lights":
+			var left := GameState.lights_left(w[2])
+			return "" if left == int(w[3]) else "%d lights on behind %s" % [left, w[2]]
 		"fits":
 			# nothing on screen needs more room than the window has (it would spill past the edge)
 			var game: Control = get_parent().full_game()

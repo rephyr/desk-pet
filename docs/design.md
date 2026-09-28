@@ -267,6 +267,17 @@ economy: currency, body parts, and rewards for mechanics not designed yet. Rewar
 - **Body parts are the late-game chase:** a rare part found far away gets grafted onto your
   favourite pet (see Theme). Mass pets are sacrificable scaling; the real chase is a couple of
   extremely good pets built up over a long time.
+- **Next door (zone 3, E2, built):** the third map page, a row of back gardens at night (look A,
+  the street): house backs along the top whose windows are the lights, gardens underneath (their
+  gate, their garden path, the greenhouse, their pond, the porch with a broken capsule machine,
+  the doghouse as the risky spot; lights 3/4/5/5/6/8, placeholders). One light goes out per visit
+  (a trip welcomed back with somebody home); when the last one is out your pet colours the garden
+  in with its own colour (a lilac blob colours in lilac), a flag goes on the roof and the place is
+  **ours**: danger x0.5, coins x1.2, and the locals' trace events (a slipper, a teacup...) stop.
+  Their gate and path start as ours (their locals never show, so they have no trace and no local
+  events; their numbers are met x0.5 danger / x1.2 coins from the first trip). Backyard places become ours too after 40 visits each, once
+  next door is open. Locals only ever as traces. Nothing you find opens next door: pets past the
+  edge (C2) open it from code (`GameState.open_page`), and with it the midnight box.
 - Scale: 1 pet → a few with gear → 10 → hundreds → 100k+.
 - **Open:** raids (all pets as one force against a boss) as a later type.
 

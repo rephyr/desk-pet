@@ -54,7 +54,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `Machine.odds` via `GameState.machine_odds`, refilled on machine_upgraded / toys_changed /
   unlocked / tutorial_changed while open, placed on the stage's resize), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
   `CollectionTab` (pets grid + `PetDetails`, and the `BookView`), `AdventuresTab` (adventures:
-  `MapView`, the place card, trip cards, and `TrailView` for watching a trip; upgrades: `GearView`,
+  `MapView`, the place card, trip cards, and `TrailView` for watching a trip; next door's page
+  is drawn by `StreetPage` (night paper, house backs whose windows are the lights, gardens coloured
+  in when they're ours); upgrades: `GearView`,
   gear bought with xp, rules in `Gear`, levels in `GameState.gear`, packed onto each trip as
   `RunState.gear`), `ErrandsTab` (jobs: the corkboard; upgrades:
   `ErrandToolsView`, the pegboard of tools bought with coins; rules in `Jobs`, levels in
@@ -108,6 +110,19 @@ whatever the save's version (idempotent): lucky boxes on the pile, "save for me"
 still out (also pre-v5 runs' `boxes`) become sunset boxes, and unknown box ids are dropped from the
 bag. New fields `boxes_bought` (a tier is "new!" until the first) and `boxes_greeted` (its arrival
 played); a save without them counts what's on the pile as bought and greeted.
+Save v24 counts visits per place (`visits`: trips welcomed back with somebody home; old saves get
+one per place in `visited`) and runs save `ours`. Whether a place is ours is never saved: `Ours`
+(scripts/adventure/ours.gd) works it out from the visits against its `lights` (next door) or its
+page's `ours_after` (the backyard), or `ours_at_start`, and only while next door is open. An ours
+run meets the place through `AdventureRunner.place` (danger and loot scaled, worked out once per
+run into the unsaved `RunState.met`; `run_gap` reads the catalog, ours doesn't change the walk) and
+never draws `"local": true` events. A place that just became ours goes into
+`GameState.unshown_ours` (not saved); MapView takes it from there when it's on the page you're
+looking at (`GameState.ours_shown`), keeps the colouring-in timing itself (`_colouring`) and hands
+`grow` to `StreetPage.draw` / its own doodles, so the drawing never changes state.
+Unlocks with `"earn": { "called": true }` are opened only by code: `GameState.open_page(page_id)`
+fires the page's unlock (popup, announce) through the same `_open_entry` as `check_unlocks`, and
+emits `page_opened`; `UnlockRules.stale` never closes them.
 
 ## Testing
 

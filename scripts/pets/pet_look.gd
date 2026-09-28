@@ -120,6 +120,20 @@ static func texture_for(parts: Dictionary, blink := false, sewn: Array = []) -> 
 	return _cache[key]
 
 
+## The pet's own crayon colour (its palette's body colour: a lilac blob colours in lilac), made
+## lighter or darker when it would vanish on the page (a midnight pet on a `dark` page).
+static func main_color(pet: Pet, dark := true) -> Color:
+	if pet == null:
+		return Color("#c9a0ff")
+	var palette := Catalog.shared().part("palette", str(pet.parts.get("palette", "")))
+	var body := Color(palette.get("body", "#c9a0ff"))
+	if dark and body.get_luminance() < 0.35:
+		return Color(palette.get("light", "#f5dcec"))
+	if not dark and body.get_luminance() > 0.7:
+		return Color(palette.get("accent", "#9b6fe0"))
+	return body
+
+
 static func _build(parts: Dictionary, blink: bool, sewn: Array = []) -> Image:
 	var palette := Catalog.shared().part("palette", parts.palette)
 	var body := Color(palette.get("body", "#c9a0ff"))

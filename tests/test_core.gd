@@ -36,6 +36,7 @@ func _init() -> void:
 	_test_automation(catalog)
 	_test_unlocks(catalog)
 	_test_gear(catalog)
+	_test_next_door(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -88,7 +89,7 @@ func _test_data_is_consistent(catalog: Catalog) -> void:
 		for lead in l.get("leads_to", []):
 			_check(not catalog.location(lead.to).is_empty(), "%s leads to a real place (%s)" % [l.id, lead.to])
 		for other in catalog.locations:
-			if other.id < l.id and l.has("map") and other.has("map"):
+			if other.id < l.id and l.has("map") and other.has("map") and other.page == l.page:
 				var gap := Vector2(float(l.map.x), float(l.map.y)).distance_to(Vector2(float(other.map.x), float(other.map.y)))
 				_check(gap >= 0.8, "%s and %s aren't drawn on top of each other" % [l.id, other.id])
 	for l in catalog.locations:
@@ -1259,3 +1260,106 @@ func _check(ok: bool, what: String) -> void:
 	if not ok:
 		_failures += 1
 		print("FAIL: " + what)
+
+
+## Next door (E2): every garden has lights and its own column on the street, only the game's code
+## opens it, places become ours after their lights (the gate and path at once, the backyard after
+## many visits, nothing while next door is closed), and an ours trip is safer, pays more and never
+## meets the locals.
+func _test_next_door(catalog: Catalog) -> void:
+	var page := catalog.page_info("next_door")
+	_check(page.get("paper", "") == "night" and page.get("layout", "") == "street", "next door is a night page laid out as a street")
+	var places: Array = catalog.locations.filter(func(l): return l.page == "next_door")
+	_check(places.size() == 6, "next door has six places (%d)" % places.size())
+	var columns := {}
+	var in_fence := 0
+	for l in places:
+		_check(Ours.lights(l) > 0, "%s has lights" % l.id)
+		_check(l.box == "midnight", "%s is a midnight box place" % l.id)
+		var x := int(l.map.x)
+		_check(float(l.map.x) == float(x) and x >= 0 and x < 5, "%s sits in a column of the street" % l.id)
+		if int(l.map.y) >= 1:  # in our fence (StreetPage.in_fence)
+			in_fence += 1
+		else:
+			_check(not columns.has(x), "%s has a garden of its own" % l.id)
+			columns[x] = true
+			if l.get("ours_at_start", false):  # ours from the start: the locals are never seen there
+				_check(not l.map.has("trace"), "%s (ours from the start) has no locals' trace" % l.id)
+			else:
+				_check(str(l.map.get("trace", "")) != "", "%s has a trace of the locals" % l.id)
+		if l.get("ours_at_start", false):
+			_check(not l.pool.any(func(p): return catalog.events[p.event].get("local", false)), "%s (ours from the start) has no local events" % l.id)
+	_check(in_fence == 1, "one place sits in our fence (their gate)")
+	_check(catalog.location("doghouse").get("risky", false), "the doghouse is risky")
+	var lights := places.map(func(l): return Ours.lights(l))
+	lights.sort()
+	_check(lights == [3, 4, 5, 5, 6, 8], "lights are 3/4/5/5/6/8 (%s)" % str(lights))
+	for id in ["their_gate", "their_path"]:
+		_check(catalog.location(id).get("ours_at_start", false) and catalog.location(id).get("start", false), "%s starts as ours" % id)
+	# the locals only ever as traces: their events stop once a place is ours, so every place keeps enough others
+	for l in catalog.locations:
+		if l.has("pool"):
+			var others: Array = l.pool.filter(func(p): return not catalog.events[p.event].get("local", false))
+			_check(others.size() >= int(l.draws), "%s has enough events without the locals" % l.id)
+	for e in catalog.events.values():
+		if e.get("local", false):
+			_check(catalog.locations.any(func(l): return l.page == "next_door" and not l.get("ours_at_start", false) and l.get("pool", []).any(func(p): return p.event == e.id)), "local event %s can turn up next door" % e.id)
+	# only the game's code opens next door (GameState.open_page): nothing earns it, and it never goes stale
+	var opens: Array = catalog.unlock_list.filter(func(e): return "page:next_door" in e.opens)
+	_check(opens.size() == 1 and UnlockRules.called(opens[0]) and opens[0].show == "hidden", "next door opens only when the game calls for it")
+	_check(UnlockRules.opening(catalog.unlock_list, "page:next_door").get("id", "") == "next_door", "open_page finds next door's unlock")
+	_check(opens[0].has("popup") and str(opens[0].popup.get("go", "")) == "adventures", "next door pops up and goes to adventures")
+	_check(not "page:next_door" in UnlockRules.stale(catalog.unlock_list, func(_e): return false), "an old save never loses next door")
+	_check(not UnlockRules.called(catalog.unlock_list[0]), "other unlocks aren't called")
+	# lights and ours
+	var greenhouse := catalog.location("greenhouse")
+	for visits in 6:
+		_check(Ours.lights_left(greenhouse, visits) == 5 - visits, "a light goes out per visit (%d)" % visits)
+		_check(Ours.is_ours(catalog, greenhouse, visits, true) == (visits >= 5), "the greenhouse is ours at its last light (%d)" % visits)
+	_check(Ours.lights_left(greenhouse, 99) == 0, "lights never go below none")
+	_check(Ours.is_ours(catalog, catalog.location("their_gate"), 0, true) and Ours.lights_left(catalog.location("their_gate"), 0) == 0, "the gate is ours from the start")
+	_check(not Ours.is_ours(catalog, catalog.location("their_gate"), 0, false), "nothing is ours while next door is closed")
+	_check(not Ours.is_ours(catalog, greenhouse, 50, false), "not even with lots of visits")
+	var meadow := catalog.location("meadow")
+	var after := int(catalog.page_info("backyard").get("ours_after", 0))
+	_check(after >= 20, "the backyard takes lots of visits (%d)" % after)
+	_check(not Ours.is_ours(catalog, meadow, after - 1, true) and Ours.is_ours(catalog, meadow, after, true), "a backyard place is ours after %d visits" % after)
+	_check(not Ours.is_ours(catalog, meadow, after * 3, false), "the backyard waits for next door")
+	_check(not Ours.is_ours(catalog, catalog.location("fields"), 999, true), "beyond the fence never becomes ours")
+	_check(Ours.lights_left(meadow, 0) == 0, "backyard places have no lights of their own")
+	_check(Ours.opens_with(catalog) == "next_door", "ours opens with next door")
+	_check(not "{" in Ours.say(catalog, "say_ours", greenhouse) and "the greenhouse" in Ours.say(catalog, "say_ours", greenhouse), "your pet says which place it coloured in")
+	_check(not "{" in Ours.say(catalog, "say_dark", greenhouse), "the lights-out line has no placeholders")
+	# an ours trip: safer, pays more, no locals
+	var mine := Ours.place(catalog, catalog.location("doghouse"), true)
+	_check(is_equal_approx(float(mine.danger), float(catalog.location("doghouse").danger) * 0.5), "ours halves the danger")
+	_check(is_equal_approx(float(mine.loot), float(catalog.location("doghouse").loot) * 1.2), "ours pays x1.2")
+	_check(float(catalog.location("doghouse").danger) == 1.6, "the catalog's place stays as it was")
+	_check(Ours.place(catalog, greenhouse, false) == greenhouse, "not ours: the place as it is")
+	var locals_ours := false
+	var locals_theirs := false
+	for t in 300:
+		for e in AdventureRunner.pick_events(catalog.location("doghouse"), t, {}, catalog, {}, true):
+			locals_ours = locals_ours or catalog.events[e].get("local", false)
+		for e in AdventureRunner.pick_events(catalog.location("doghouse"), t, {}, catalog, {}, false):
+			locals_theirs = locals_theirs or catalog.events[e].get("local", false)
+	_check(not locals_ours and locals_theirs, "the locals turn up until a place is ours, then never")
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	var roller := PetRoller.new(catalog, rng)
+	var herd: Array[Pet] = []
+	for i in 60:
+		herd.append(roller.roll("starter"))
+	var run := AdventureRunner.start("doghouse", herd, 0.0, 3, catalog, {}, {}, {}, true)
+	_check(run.ours and not run.events.any(func(e): return catalog.events[e].get("local", false)), "an ours run meets no locals")
+	var saved := RunState.from_dict(JSON.parse_string(JSON.stringify(run.to_dict())), catalog)
+	_check(saved != null and saved.ours, "an ours run stays ours through a save")
+	var old := run.to_dict()
+	old.erase("ours")
+	_check(not RunState.from_dict(old, catalog).ours, "a run saved before ours isn't ours")
+	_check(AdventureRunner.place(run, catalog).loot == mine.loot, "the run meets the ours place")
+	var theirs := AdventureRunner.estimate_return("doghouse", herd, catalog, 40)
+	var ours := AdventureRunner.estimate_return("doghouse", herd, catalog, 40, {}, true)
+	_check(ours >= theirs, "more come home from the doghouse once it's ours (%.2f vs %.2f)" % [ours, theirs])
+	# v24: visits per place, every place visited before counts once
+	_check(Ours.visits_from(["garden", "meadow"]) == { "garden": 1, "meadow": 1 }, "old saves count one visit per place visited")

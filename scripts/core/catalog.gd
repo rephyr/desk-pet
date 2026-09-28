@@ -20,6 +20,7 @@ var adventure_types: Array[Dictionary] = []  # see data/adventures.json
 var locations: Array[Dictionary] = []  # in the order they're listed, safe to deadly
 var events := {}  # event id -> event, shared by the locations
 var rumours: Array[Dictionary] = []  # what exploration can bring back
+var ours := {}  # places that become "ours" (next door's lights, the backyard after many visits), see data/adventures.json
 var voice := {}  # what the active pet says, see data/voice.json
 var tutorial := {}  # the first few minutes of a new game, see data/tutorial.json
 var grafting := {}  # sewing parts onto your active pet, see data/grafting.json
@@ -87,6 +88,7 @@ func _init() -> void:
 	_location_by_id = _index(locations)
 	events = _index(adventures.events)
 	rumours.assign(adventures.rumours)
+	ours = adventures.get("ours", {})
 	_rumour_by_id = _index(rumours)
 	voice = _load("voice.json")
 	tutorial = _load("tutorial.json")
@@ -202,6 +204,14 @@ func box(id: String) -> Dictionary:
 
 func location(id: String) -> Dictionary:
 	return _location_by_id.get(id, {})
+
+
+## A map page (data/unlocks.json "pages"), or {}.
+func page_info(id: String) -> Dictionary:
+	for p in pages:
+		if p.id == id:
+			return p
+	return {}
 
 
 func adventure_type(id: String) -> Dictionary:

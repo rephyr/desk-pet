@@ -5,6 +5,9 @@ extends Control
 ## for you to say yes; unexplored directions are ? clouds.
 ## Pets out on trips walk along as tiny doodles. Everything comes from data/adventures.json
 ## ("map" on each location), and the drawing zooms to fit whatever has been found so far.
+## A page can be drawn on night paper ("paper": "night") and laid out as next door's street
+## ("layout": "street", drawn by StreetPage). Places that are ours (see Ours) are coloured in with
+## your pet's own colour, with a little flag.
 
 signal place_picked(location_id: String)
 signal lead_picked(location_id: String)  # a spotted place you can say yes to
@@ -13,6 +16,8 @@ signal rumour_picked(rumour_id: String)
 const UNIT := 150.0  # px per map unit when there's plenty of room
 const MARGIN := 70.0
 const HIT := 34.0  # px around a doodle that counts as clicking it
+const COLOUR_MS := 1100.0  # how long colouring a place in takes
+const BACK_SHOWN := 4  # little pets drawn for the trips back waiting by home (more share one tag)
 # colours from the player's theme (set in _init; the map redraws when the look changes)
 var PAPER := UiTheme.PAPER
 var GRAIN := UiTheme.DOT
@@ -40,6 +45,8 @@ var _hotspots := {}  # location id -> Control, so the tutorial can point at a pl
 var _tick := 0.0
 var _page_tabs := HBoxContainer.new()
 var _needed := {}  # machine bits some upgrade still needs: bit id -> true (a hint on the map where they are)
+var _street := {}  # next door's street, fitted into the map (StreetPage.fit), or {} on the other pages
+var _colouring := {}  # location id -> msec your pet started colouring it in (it just became ours), forgotten after
 
 
 func _init() -> void:
@@ -73,8 +80,38 @@ func _process(delta: float) -> void:
 	if _tick <= 0.0 and is_visible_in_tree():
 		_tick = 0.5  # walking pets move on
 		queue_redraw()
-	if is_visible_in_tree() and _nodes.any(_is_new):
+	if not is_visible_in_tree():
+		return
+	if not GameState.unshown_ours.is_empty():
+		_start_colouring()
+	if not _colouring.is_empty():
+		_forget_coloured()
+		queue_redraw()  # a place that just became ours is being coloured in
+	elif _nodes.any(_is_new):
 		queue_redraw()  # new places glow and their arrows bob
+
+
+## Places on this page that just became ours: your pet starts colouring them in now you're looking.
+func _start_colouring() -> void:
+	var now := Time.get_ticks_msec()
+	for node in _nodes:
+		if node.kind == "open" and GameState.unshown_ours.has(node.id):
+			_colouring[node.id] = now
+			GameState.ours_shown(node.id)
+
+
+func _forget_coloured() -> void:
+	var now := Time.get_ticks_msec()
+	for id in _colouring.keys():
+		if now - int(_colouring[id]) > COLOUR_MS * 1.6:
+			_colouring.erase(id)
+
+
+## How far your pet has got colouring a place in (0..1): 1 unless it's being coloured in right now.
+func _grow(id: String) -> float:
+	if not _colouring.has(id):
+		return 1.0
+	return clampf((Time.get_ticks_msec() - int(_colouring[id])) / COLOUR_MS, 0.0, 1.0)
 
 
 ## One little tab per open page, top right, when there's more than one.
@@ -150,6 +187,11 @@ func _collect() -> void:
 			var cloud_id: String = id + ":more"
 			at[cloud_id] = { "id": cloud_id, "kind": "unknown", "pos": node.pos + out * 0.9, "location": {} }
 			_edges.append({ "from": id, "to": cloud_id, "faint": true })
+	if _is_street():
+		for location in catalog.locations:
+			if location.has("map") and str(location.get("page", "")) == page and not at.has(location.id):
+				at[location.id] = _node(location, "unknown")
+		_edges.clear()  # the street's path is drawn with it
 	_nodes.assign(at.values())
 	_needed.clear()
 	for n in catalog.machine_tree.nodes:
@@ -165,8 +207,14 @@ func _node(location: Dictionary, kind: String) -> Dictionary:
 		"pos": Vector2(float(location.map.x), float(location.map.y)) }
 
 
+## Whether this page is next door's street (StreetPage draws it).
+func _is_street() -> bool:
+	return str(Catalog.shared().page_info(page).get("layout", "")) == "street"
+
+
 ## Zooms so everything found fits, as big as it comfortably can be.
 func _fit() -> void:
+	_street = StreetPage.fit(size) if _is_street() else {}
 	if _nodes.is_empty():
 		return
 	var box := Rect2(_nodes[0].pos, Vector2.ZERO)
@@ -181,6 +229,13 @@ func _screen(pos: Vector2) -> Vector2:
 	return _offset + pos * _scale
 
 
+## Where a place's doodle is drawn, in the map's pixels.
+func _at(node: Dictionary) -> Vector2:
+	if not _street.is_empty() and not node.location.is_empty():
+		return _street.at + StreetPage.spot(node.location) * float(_street.k)
+	return _screen(node.pos)
+
+
 func _place_hotspots() -> void:
 	for spot in _hotspots.values():
 		spot.queue_free()
@@ -191,7 +246,7 @@ func _place_hotspots() -> void:
 		var spot := Control.new()
 		spot.mouse_filter = MOUSE_FILTER_IGNORE
 		spot.size = Vector2(HIT, HIT) * 2.0
-		spot.position = _screen(node.pos) - spot.size / 2.0
+		spot.position = _at(node) - spot.size / 2.0
 		add_child(spot)
 		_hotspots[node.id] = spot
 
@@ -223,6 +278,12 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _node_at(point: Vector2) -> Dictionary:
+	if not _street.is_empty():
+		for node in _nodes:
+			var r := StreetPage.hit_rect(node.location)
+			if node.kind != "unknown" and Rect2(_street.at + r.position * float(_street.k), r.size * float(_street.k)).has_point(point):
+				return node
+		return {}
 	for node in _nodes:
 		if node.kind != "unknown" and _screen(node.pos).distance_to(point) <= HIT:
 			return node
@@ -232,24 +293,42 @@ func _node_at(point: Vector2) -> Dictionary:
 # ---- drawing --------------------------------------------------------------------
 
 func _draw() -> void:
-	draw_style_box(UiTheme.box(PAPER, UiTheme.LINE, 14, 2, 0), Rect2(Vector2.ZERO, size))
+	var night := str(Catalog.shared().page_info(page).get("paper", "")) == "night"
+	var paper := StreetPage.paper() if night else PAPER
+	draw_style_box(UiTheme.box(paper, UiTheme.LINE, 14, 2, 0), Rect2(Vector2.ZERO, size))
 	var grain := RandomNumberGenerator.new()
 	grain.seed = 7
+	var dots := GRAIN.lerp(paper, 0.5) if night else GRAIN
 	for i in int(size.x * size.y / 900.0):
-		draw_rect(Rect2(grain.randf() * size.x, grain.randf() * size.y, 1.5, 1.5), GRAIN)
+		draw_rect(Rect2(grain.randf() * size.x, grain.randf() * size.y, 1.5, 1.5), dots)
+	if not _street.is_empty():
+		var grow := {}
+		for id in _colouring:
+			grow[id] = _grow(id)
+		StreetPage.draw(self, _street, _nodes, _pet_color(), selected, _hover, grow)
+		for node in _nodes:
+			if _is_new(node):
+				_draw_new_glow(_at(node), 0.8, 32.0)  # the arrow a little higher: the garden's note is under it
 
 	var active := GameState.collection.active()
 	var title := "%s's map" % (active.display_name(Catalog.shared()) if active else "my")
-	draw_string(_title_font, Vector2(16, 30), title, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, PINK)
-	_crayon([Vector2(18, 38), Vector2(18 + minf(title.length() * 10.0, 280.0), 35)], PINK, 2.0, 1)
+	# smaller when a long name would run into the page bookmarks
+	var room := (_page_tabs.position.x - 28.0) if _page_tabs.visible else size.x - 32.0
+	var title_size := 20
+	while title_size > 13 and _title_font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, title_size).x > room:
+		title_size -= 1
+	var title_w := _title_font.get_string_size(title, HORIZONTAL_ALIGNMENT_LEFT, -1, title_size).x
+	draw_string(_title_font, Vector2(16, 30), title, HORIZONTAL_ALIGNMENT_LEFT, -1, title_size, PINK)
+	_crayon([Vector2(18, 38), Vector2(18 + minf(title_w, 280.0), 35)], PINK, 2.0, 1)
 
 	var by_id := {}
 	for node in _nodes:
 		by_id[node.id] = node
 	for edge in _edges:
 		_dotted(_screen(by_id[edge.from].pos), _screen(by_id[edge.to].pos), DIM if edge.faint else PEACH, hash(edge.from + edge.to))
-	for node in _nodes:
-		_draw_node(node)
+	if _street.is_empty():
+		for node in _nodes:
+			_draw_node(node)
 	_draw_trips()
 
 
@@ -275,6 +354,20 @@ func _draw_node(node: Dictionary) -> void:
 	var location: Dictionary = node.location
 	var doodle := str(location.map.get("doodle", "house"))
 	var color := Crayon.doodle_color(doodle)
+	var ours: bool = node.kind == "open" and GameState.is_ours(node.id)
+	if ours:
+		# your pet coloured it in, in its own colour, and stuck a little flag in it
+		color = _pet_color()
+		var grow := _grow(node.id)
+		var rx := 38.0 * k
+		var ry := 30.0 * k
+		var oval := func(y: float) -> Array:
+			var t := (y - at.y) / ry
+			var half := rx * sqrt(maxf(0.0, 1.0 - t * t))
+			return [at.x - half, at.x + half]
+		StreetPage.scribble(self, oval, at.y - ry, at.y + ry, 7, grow, color)
+		if grow >= 1.0:
+			StreetPage.small_flag(self, at + Vector2(-26, -14) * k, k, color, seed + 7)
 	if node.kind == "spotted":
 		color.a = 0.45
 	if _is_new(node):
@@ -309,12 +402,12 @@ func _is_new(node: Dictionary) -> bool:
 
 
 ## A soft golden glow that breathes round a new place, and a crayon arrow bobbing over it.
-func _draw_new_glow(at: Vector2, k: float) -> void:
+func _draw_new_glow(at: Vector2, k: float, lift := 0.0) -> void:
 	var t := Time.get_ticks_msec() / 1000.0
 	var breathe := 0.5 + 0.5 * sin(t * 3.0)
 	for i in 3:
 		draw_circle(at, (46.0 - i * 10.0 + breathe * 5.0) * k, Color(YELLOW, 0.05 + i * 0.04 + breathe * 0.04))
-	var tip := at + Vector2(0, -44.0 - absf(sin(t * 4.0)) * 8.0) * k
+	var tip := at + Vector2(0, -44.0 - lift - absf(sin(t * 4.0)) * 8.0) * k
 	_crayon([tip + Vector2(0, -26) * k, tip], YELLOW, 3.0, 11)
 	_crayon([tip + Vector2(-9, -10) * k, tip, tip + Vector2(9, -10) * k], YELLOW, 3.0, 12)
 
@@ -328,22 +421,43 @@ func _draw_trips() -> void:
 			home_node = node
 	if home_node.is_empty():
 		return
-	var home := _screen(home_node.pos)
-	var i := 0
-	for run in GameState.runs:
-		if str(Catalog.shared().location(run.location_id).get("page", "")) != page:
-			continue  # out on another page of the map
+	var home := _at(home_node)
+	var gate := {}
+	for node in _nodes:
+		if not _street.is_empty() and StreetPage.in_fence(node.location):
+			gate = node.location
+	var here: Array = GameState.runs.filter(func(r): return str(Catalog.shared().location(r.location_id).get("page", "")) == page)
+	var back: Array = here.filter(func(r): return r.status == RunState.Status.DONE)
+	if not back.is_empty():
+		# trips back wait in a short line by home (on the street: by their gate), under one tag
+		var first: RunState = back[0]
+		var start: Vector2 = (_street.at + (StreetPage.route(Catalog.shared().location(first.location_id), gate)[0] + Vector2(-44, 6)) * float(_street.k)) \
+			if not _street.is_empty() else home + Vector2(-38, 14)
+		if back.size() == 1:
+			_walker(first, start)
+		else:
+			var shown := mini(back.size(), BACK_SHOWN)
+			for j in shown:
+				_little_pet(start + Vector2(-16 * j, 0), LILAC, hash(back[j].rng_seed))
+			# the tag to the left of the line, where it has room (the gate and home are to the right)
+			var tag := "%d parties are back!" % back.size()
+			var x := maxf(8.0, start.x - 16.0 * (shown - 1) - 12.0 - _note_font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x)
+			draw_string(_note_font, Vector2(x, start.y + 4.0), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, LILAC)
+	for run in here:
+		if run.status == RunState.Status.DONE:
+			continue
 		var place := home
 		for node in _nodes:
 			if node.id == run.location_id:
-				place = _screen(node.pos)
+				place = _at(node)
 		var spot := home
+		if not _street.is_empty():
+			_walker(run, _street_walker(run, gate))
+			continue
 		match run.status:
 			RunState.Status.WAITING:
 				# stopped where the walk reached this event (not at the place itself)
 				spot = home.lerp(place, clampf((run.step + 1.0) / maxf(1.0, run.events.size()), 0.0, 1.0))
-			RunState.Status.DONE:
-				spot = home + Vector2(-38 - i * 16, 14)
 			_:
 				var gap := AdventureRunner.run_gap(run, Catalog.shared())
 				var within := clampf(1.0 - (run.next_at - now) / gap, 0.0, 1.0)
@@ -351,14 +465,45 @@ func _draw_trips() -> void:
 					spot = place.lerp(home, within)
 				else:
 					spot = home.lerp(place, clampf((run.step + within) / maxf(1.0, run.events.size()), 0.0, 1.0))
-		_little_pet(spot, LILAC, hash(run.rng_seed))
-		var tag: String = run.party.who() if run.party.setting_out() == 1 else "%d pets" % run.party.setting_out()
-		if run.status == RunState.Status.DONE:
-			tag += " is back!"
-		elif run.status == RunState.Status.WAITING:
-			tag += "?"
-		draw_string(_note_font, spot + Vector2(10, -8), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, LILAC)
-		i += 1
+		_walker(run, spot)
+
+
+## A trip's little pet and its tag ("3 pets", "is back!").
+func _walker(run: RunState, spot: Vector2) -> void:
+	_little_pet(spot, LILAC, hash(run.rng_seed))
+	draw_string(_note_font, spot + Vector2(10, -8), _tag(run), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, LILAC)
+
+
+func _tag(run: RunState) -> String:
+	var tag: String = run.party.who() if run.party.setting_out() == 1 else "%d pets" % run.party.setting_out()
+	if run.status == RunState.Status.DONE:
+		tag += " is back!"
+	elif run.status == RunState.Status.WAITING:
+		tag += "?"
+	return tag
+
+
+## Where a trip is on the street: in through the gate, along the path and up into its garden.
+func _street_walker(run: RunState, gate: Dictionary) -> Vector2:
+	var k := float(_street.k)
+	var way := StreetPage.route(Catalog.shared().location(run.location_id), gate)
+	var t := 0.0
+	match run.status:
+		RunState.Status.WAITING:
+			t = clampf((run.step + 1.0) / maxf(1.0, run.events.size() + 1.0), 0.0, 1.0)
+		_:
+			var gap := AdventureRunner.run_gap(run, Catalog.shared())
+			var within := clampf(1.0 - (run.next_at - Time.get_unix_time_from_system()) / gap, 0.0, 1.0)
+			if run.step >= run.events.size():
+				t = 1.0 - within
+			else:
+				t = clampf((run.step + within) / maxf(1.0, run.events.size()), 0.0, 1.0)
+	return _street.at + StreetPage.along(way, t) * k
+
+
+## Your active pet's own crayon colour (places that are ours are coloured in with it).
+func _pet_color() -> Color:
+	return PetLook.main_color(GameState.collection.active(), UiTheme.DARK)
 
 
 ## The machine bit a place's pets bring home when they go all the way (its finish_rewards), or "".

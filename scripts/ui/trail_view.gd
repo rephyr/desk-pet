@@ -311,12 +311,13 @@ func _held_centre() -> Vector2:
 # ---- drawing --------------------------------------------------------------------
 
 func _draw() -> void:
-	draw_style_box(UiTheme.box(UiTheme.PAPER, UiTheme.LINE, 14, 2, 0), Rect2(Vector2.ZERO, size))
+	var catalog := Catalog.shared()
+	var location := catalog.location(run.location_id) if run != null else {}
+	var night := str(catalog.page_info(str(location.get("page", ""))).get("paper", "")) == "night"
+	draw_style_box(UiTheme.box(StreetPage.paper() if night else UiTheme.PAPER, UiTheme.LINE, 14, 2, 0), Rect2(Vector2.ZERO, size))
 	if run == null:
 		return
-	var catalog := Catalog.shared()
-	var location := catalog.location(run.location_id)
-	_draw_scenery(str(location.get("map", {}).get("doodle", "grass")))
+	_draw_scenery(str(location.get("map", {}).get("doodle", "grass")), night)
 	# the path
 	var ground := _ground()
 	var path := PackedVector2Array()
@@ -384,7 +385,7 @@ func _draw() -> void:
 
 
 ## Two layers of doodles that scroll by: far away slowly, close up at walking speed.
-func _draw_scenery(doodle: String) -> void:
+func _draw_scenery(doodle: String, night := false) -> void:
 	var ground := _ground()
 	var far := Color(UiTheme.LILAC, 0.18)
 	var near := Color(UiTheme.MINT, 0.45)
@@ -398,7 +399,13 @@ func _draw_scenery(doodle: String) -> void:
 	for i in range(int(start), int(start) + int(size.x / step) + 3):
 		var x := i * step - _shown_x * 0.4
 		var h := 30.0 + float(hash(i) % 40)
-		if doodle in ["trees", "grass", "house", "apple"]:
+		if night:  # next door: house backs, a light still on here and there
+			var roof := ground - 30.0 - h
+			draw_polyline(PackedVector2Array([Vector2(x - 34, ground - 20), Vector2(x - 34, roof + 16), Vector2(x, roof),
+				Vector2(x + 34, roof + 16), Vector2(x + 34, ground - 20)]), far, 2.0)
+			if hash(i) % 2 == 0:
+				draw_rect(Rect2(x - 6, roof + 22, 9, 11), Color(StreetPage.lamp(), 0.5))
+		elif doodle in ["trees", "grass", "house", "apple"]:
 			draw_colored_polygon(PackedVector2Array([Vector2(x - 26, ground - 20), Vector2(x, ground - 20 - h), Vector2(x + 26, ground - 20)]), far)
 		else:
 			draw_arc(Vector2(x, ground - 10), 50.0, PI, TAU, 16, far, 2.0)
