@@ -1662,10 +1662,10 @@ func sendable_pets() -> Array[Pet]:
 ## `by_you`: you sent it (not your pet's or the workers' auto parties): it may take a scout note.
 func send_on_adventure(location_id: String, pets: Array[Pet], by_you := true) -> RunState:
 	var location := catalog.location(location_id)
-	var allowed := sendable_pets()
+	var gone := away()
 	var going: Array[Pet] = []
-	for pet in pets:
-		if pet in allowed:
+	for pet in pets:  # the sendable ones (see sendable_pets), checked one by one: parties go out hundreds at a time
+		if pet != null and collection.get_pet(pet.uid) == pet and pet.uid != collection.active_uid and not gone.has(pet.uid):
 			going.append(pet)
 	if not location_open(location) or going.is_empty() or going.size() > max_party(location_id):
 		return null
@@ -1674,7 +1674,8 @@ func send_on_adventure(location_id: String, pets: Array[Pet], by_you := true) ->
 	var run := AdventureRunner.start(location_id, going, Time.get_unix_time_from_system(), _rng.randi(), catalog, finds, machine.bought,
 		Gear.for_trip(catalog, gear, location))
 	var known := func(id): return location_open(catalog.location(id)) or spotted.has(id)
-	if Jobs.takes_note(catalog, location, by_you, scout_notes, Intel.left_to_find(location, known, not Rumours.hearable(catalog, heard, is_open).is_empty(), catalog)):
+	# cheap checks first (takes_note repeats them): the Intel/Rumours arguments are costly at hundreds of parties
+	if by_you and scout_notes > 0 and Jobs.takes_note(catalog, location, by_you, scout_notes, Intel.left_to_find(location, known, not Rumours.hearable(catalog, heard, is_open).is_empty(), catalog)):
 		scout_notes -= 1
 		run.scout = Jobs.scout_note(catalog)
 		jobs_changed.emit()

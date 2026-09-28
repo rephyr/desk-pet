@@ -1,11 +1,15 @@
 extends SceneTree
-## Headless checks for the pet core. Run with:
-##   godot --headless -s tests/test_core.gd
+## Headless checks for the pet core. Run with a profile of your own (the GameState tests write
+## their saves into it; a worktree lane adds its name so lanes never share one):
+##   godot --headless -s tests/test_core.gd -- --profile=core-test-<lane>
+## DESK_PETS_SLOW=3 stretches the time limits when several copies run at once.
 
 const ROLLS := 100000
 
 var _failures := 0
 var _checks := 0  # printed at the end, so a test that stopped early on a script error shows
+var _skipped: Array[String] = []  # whole groups that didn't run, named in the last line
+var _slow := maxf(1.0, OS.get_environment("DESK_PETS_SLOW").to_float())  # stretches the time limits
 
 
 func _init() -> void:
@@ -34,7 +38,11 @@ func _init() -> void:
 	_test_automation(catalog)
 	_test_unlocks(catalog)
 	_test_gear(catalog)
-	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
+	_test_game_state(catalog)
+	var result := "ALL PASSED" if _failures == 0 else "%d FAILED" % _failures
+	if not _skipped.is_empty():
+		result += ", BUT SKIPPED " + ", ".join(_skipped)
+	print("\n%s (%d checks)" % [result, _checks])
 	quit(1 if _failures > 0 else 0)
 
 
@@ -1187,6 +1195,588 @@ func _gear_losses(place_id: String, pets: Array[Pet], gear: Dictionary, catalog:
 			now += 1.0e5
 		lost += run.party.lost.size()
 	return lost
+
+
+# ---- GameState itself (X4): old saves, time away, auto parties, workers, gear and the new jobs ----
+# These make a real GameState from a save written into the test profile (--profile=...). Without a
+# profile they're skipped: they must never read or write the real save.
+
+const GAME_STATE := "res://scripts/game_state.gd"
+
+
+func _test_game_state(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("skipped the GameState tests: run with -- --profile=core-test-<lane> so they get a save of their own")
+		_skipped.append("the GameState tests (no --profile)")
+		return
+	# "test" is the profile every --from=<save> run plays in: these tests would wipe its save
+	if DevProfile.profile_name() == "test":
+		_check(false, "the GameState tests need a profile of their own, not \"test\" (try core-test-<lane>)")
+		return
+	var start := Time.get_ticks_msec()
+	_test_migrations(catalog)
+	_test_crank_catch_up(catalog)
+	_test_auto_adventures(catalog)
+	_test_many_workers(catalog)
+	_test_gear_state(catalog)
+	_test_jobs_state(catalog)
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	print("GameState tests took %.1f s" % ((Time.get_ticks_msec() - start) / 1000.0))
+
+
+## Writes `data` as the test profile's save, closed `away` seconds ago (negative: saved in the
+## future, so nothing catches up), and loads a GameState from it.
+func _state_from(data: Dictionary, away := -60.0) -> Node:
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var d := data.duplicate(true)
+	d.saved_at = Time.get_unix_time_from_system() - away
+	SaveFile.write(path, d)
+	return load(GAME_STATE).new()
+
+
+## The profile's save as the last save_game() wrote it.
+func _saved() -> Dictionary:
+	return SaveFile.read(DevProfile.path("save.json"))
+
+
+## Loads the profile's save again, as a fresh start of the game (nothing catches up).
+func _reload() -> Node:
+	return _state_from(_saved())
+
+
+## A collection of `n` pets from starter boxes, pet "1" active. `spread`: every rarity in turn
+## (workers of different speeds); otherwise all commons.
+func _collection_dict(n: int, spread := false, rng_seed := 11) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = rng_seed
+	var roller := PetRoller.new(Catalog.shared(), rng)
+	var tiers := Catalog.shared().tiers
+	var batch: Array[Pet] = []
+	for i in n:
+		batch.append(roller.roll("starter", str(tiers[i % tiers.size()].id) if spread else "common"))
+	var c := Collection.new()
+	c.add(batch)
+	c.set_active("1")
+	return c.to_dict()
+
+
+## A save shaped like `version` wrote it (21 and up): 30 pets well into the game, the machine
+## fully fixed, the automation tab open, errands going. v22 added gear, v23 scout notes.
+func _old_save(version: int, pets := 30, spread := false) -> Dictionary:
+	var d := {
+		"version": version, "coins": 5000000, "xp": 40, "hunger": 70.0, "happiness": 60.0, "pet_out": false,
+		"collection": _collection_dict(pets, spread), "bag": {}, "parts": {}, "items": {},
+		"unlocks": ["feature:errands", "tab:errands", "feature:parties", "location:meadow", "tab:boxes", "feature:toys",
+			"tab:automation", "feature:auto_adventures"],
+		"trips_done": 30, "heard": [], "rumours": [], "tutorial": "done", "spotted": {}, "spot_tries": {},
+		"finds": ["basket", "cart", "tiny_machine"], "packs_by_hand": 10, "parts_ever": false, "announcements": [],
+		"jobs": {}, "jobs_auto": false, "errand_tools": {}, "coin_reserve": 50, "saved_boxes": [],
+		"visited": ["garden", "meadow"], "buying_on": true, "pinned": [], "rummaged": {},
+		"machine": { "pulls": 900, "lit": 0, "bought": { "tape": 1, "oil": 1, "flap": 1, "glass": 1, "wires": 1, "drops": 1 } },
+		"toys": Toys.fresh(), "bits": { "gear": 2, "spring": 1 }, "started_at": 0.0, "milestones": {}, "idle_log": {},
+		"automation": Automation.fresh(), "runs": [],
+	}
+	if version >= 22:
+		d.gear = {}
+	if version >= 23:
+		d.scout_notes = 0
+	return d
+
+
+## The v21 save the migration tests start from: every automation field in use, errand crews and
+## tools, and an auto party (slot 0) out on a trip.
+func _v21_save(catalog: Catalog, version := 21) -> Dictionary:
+	var d := _old_save(version)
+	d.jobs = { "coin_hunt": { "crew": ["20", "21"], "fill": 0.25 } }
+	d.errand_tools = { "noses": 3, "paws": 2 }
+	d.automation = { "task": "adventures", "taught": { "machine": true, "adventures": true }, "tools": { "crank": 3, "stool": 1 },
+		"party": { "place": "meadow", "n": 3 }, "fill": 0.5, "others": { "machine": true, "adventures": true },
+		"spots": { "machine": 3, "adventures": 2 }, "workers": { "machine": ["5", "6", "7"], "adventures": ["8", ""] },
+		"parties": [{ "place": "meadow", "n": 3 }, { "place": "", "n": 0 }], "wfill": { "machine": 0.3 } }
+	var c := Collection.from_dict(d.collection)
+	var going: Array[Pet] = [c.get_pet("10"), c.get_pet("11"), c.get_pet("12")]
+	var run := AdventureRunner.start("meadow", going, Time.get_unix_time_from_system(), 5, catalog, {}, d.machine.bought)
+	run.auto = true
+	run.slot = 0
+	run.chooser = "policy"
+	d.runs = [run.to_dict()]
+	return d
+
+
+## A save as it is on disk, minus when it was written (to compare two saves).
+func _same_save(a: Dictionary, b: Dictionary) -> bool:
+	var x := a.duplicate(true)
+	var y := b.duplicate(true)
+	x.erase("saved_at")
+	y.erase("saved_at")
+	return JSON.stringify(x) == JSON.stringify(y)
+
+
+## Old saves load with every field moved over, and nothing lost on the way.
+func _test_migrations(catalog: Catalog) -> void:
+	var gs = _state_from(_v21_save(catalog))
+	_check(gs.gear == {} and gs.scout_notes == 0, "a v21 save starts with no gear and no scout notes")
+	_check(gs.collection.pets.size() == 30 and gs.collection.active_uid == "1", "a v21 save keeps its pets and active pet")
+	_check(gs.coins == 5000000 and gs.xp == 40 and gs.trips_done == 30 and gs.bits == { "gear": 2, "spring": 1 },
+		"a v21 save keeps coins, xp, trips and bits")
+	_check(Machine.owned(gs.machine, "drops") == 1 and int(gs.machine.pulls) == 900, "a v21 save keeps its machine")
+	for id in ["feature:errands", "tab:automation", "feature:auto_adventures", "location:meadow", "tab:boxes"]:
+		_check(gs.is_unlocked(id), "a v21 save keeps %s open" % id)
+	var a: Dictionary = gs.automation
+	_check(a.task == "adventures" and a.taught.has("machine") and a.taught.has("adventures"), "a v21 save keeps its pet's job (%s)" % a.task)
+	_check(a.tools == { "crank": 3, "stool": 1 } and is_equal_approx(float(a.fill), 0.5), "a v21 save keeps its pet's tools and crank (%s)" % [a.tools])
+	_check(a.party == { "place": "meadow", "n": 3 }, "a v21 save keeps where its party goes (%s)" % [a.party])
+	_check(a.others.has("machine") and a.others.has("adventures") and a.spots == { "machine": 3, "adventures": 2 }, "a v21 save keeps the workers page")
+	_check(a.workers.get("machine", []) == ["5", "6", "7"] and a.workers.get("adventures", []) == ["8", ""],
+		"a v21 save keeps its workers, an empty party slot too (%s)" % [a.workers])
+	_check(a.parties.size() == 2 and str(a.parties[0].place) == "meadow" and is_equal_approx(float(a.wfill.get("machine", 0.0)), 0.3),
+		"a v21 save keeps its parties and the workers' crank")
+	_check(gs.worker_job("5") == "machine" and gs.worker_job("8") == "adventures", "loaded workers know their jobs")
+	_check(gs.job_crew("coin_hunt") == ["20", "21"] and is_equal_approx(gs.job_fill("coin_hunt"), 0.25), "a v21 save keeps its errand crew")
+	_check(gs.errand_tools == { "noses": 3, "paws": 2 }, "a v21 save keeps its errand tools")
+	var run = gs.auto_run(0)
+	_check(gs.runs.size() == 1 and run != null and run.auto and run.chooser == "policy" and ",".join(run.party.uids) == "10,11,12",
+		"a v21 save keeps the workers' party out on its trip")
+	# round trip: saved at SAVE_VERSION, loading that again changes nothing
+	gs.save_game()
+	var first := _saved()
+	gs.free()
+	_check(int(first.version) == gs_version(), "a loaded save is written at the current version (%d)" % int(first.version))
+	var again = _reload()
+	again.save_game()
+	_check(_same_save(first, _saved()), "loading a saved game and saving it again changes nothing")
+	again.free()
+	# a v22 save (gear, no scout notes yet) loads the same way
+	var v22 = _state_from(_v21_save(catalog, 22))
+	v22.save_game()
+	var from_22 := _saved()
+	v22.free()
+	var v21 = _state_from(_v21_save(catalog, 21))
+	v21.save_game()
+	var from_21 := _saved()
+	v21.free()
+	var x := from_21.duplicate(true)
+	var y := from_22.duplicate(true)
+	for d: Dictionary in [x, y]:
+		d.runs = []  # the runs were started a moment apart
+	_check(_same_save(x, y), "v21 and v22 saves load the same")
+	# v14: your pet opening packs becomes the automation tab's boxes job
+	for on in [true, false]:
+		var old := { "version": 14, "coins": 100, "collection": _collection_dict(5), "tutorial": "done",
+			"unlocks": ["feature:packs", "feature:errands", "tab:errands"], "packs_on": on }
+		var gs14 = _state_from(old)
+		_check(gs14.knows_job("boxes") and gs14.is_unlocked("tab:automation") and gs14.packs_on == on and gs14.automation.task == ("boxes" if on else ""),
+			"a v14 save with the cushion knows the boxes job (%s, task %s)" % ["on" if on else "off", gs14.automation.task])
+		gs14.free()
+	# v17 (the capsule machine's time, re-gated by v20): the cushion's boxes job still stays
+	var v17 := { "version": 17, "coins": 100, "collection": _collection_dict(5), "tutorial": "done",
+		"unlocks": ["feature:packs", "tab:boxes"], "packs_on": true, "machine": { "pulls": 10, "lit": 0, "bought": {} } }
+	var gs17 = _state_from(v17)
+	_check(gs17.knows_job("boxes") and gs17.packs_on and gs17.is_unlocked("tab:automation") and gs17.is_unlocked("feature:packs"),
+		"a v17 save with the cushion keeps the boxes job through the re-gating")
+	_check(not gs17.is_unlocked("tab:boxes"), "and the boxes tab closes again until the machine earns it")
+	gs17.free()
+	# v18: parts that slipped in early stay in the bag, but parts close again before the 40th trip
+	var part_key := "body:" + str(catalog.slots.body[0].id)
+	var v18 := { "version": 18, "coins": 100, "collection": _collection_dict(5), "tutorial": "done", "trips_done": 10,
+		"unlocks": ["feature:parts"], "parts_ever": true, "parts": { part_key: 2 } }
+	var gs18 = _state_from(v18)
+	_check(not gs18.feature_on("parts") and not gs18.parts_ever and int(gs18.parts.get(part_key, 0)) == 2,
+		"a v18 save before the 40th trip closes parts again and keeps the ones it found")
+	gs18.free()
+	# a save from a newer game: played with, never written over
+	var newer := _old_save(23)
+	newer.version = gs_version() + 1
+	newer.coins = 777
+	var gs_new = _state_from(newer)
+	_check(gs_new.coins == 777, "a save from a newer game still loads")
+	gs_new.coins = 5
+	gs_new.save_game()
+	_check(int(_saved().version) == gs_version() + 1 and int(_saved().coins) == 777, "a save from a newer game is never written over")
+	gs_new.free()
+	# bad data is cleaned up
+	var bad := _old_save(gs_version())
+	bad.scout_notes = 99
+	bad.gear = { "boots": 99, "nope": 2 }
+	bad.jobs = { "coin_hunt": { "crew": ["20"], "fill": 0.0 } }
+	bad.automation = { "task": "machine", "taught": { "machine": true, "boxes": true, "adventures": true, "gone_job": true },
+		"others": { "machine": true, "boxes": true, "adventures": true, "gone_job": true },
+		"spots": { "machine": 3, "boxes": 1, "adventures": 2 },
+		"workers": { "machine": ["9999", "1", "20", "5", "5", "6", "7", "9"], "boxes": ["6"], "adventures": ["9999", "8"] } }
+	var gs_bad = _state_from(bad)
+	_check(gs_bad.scout_notes == gs_bad.scout_hold(), "too many scout notes are cut to what you can hold (%d)" % gs_bad.scout_notes)
+	_check(gs_bad.gear == { "boots": 5 }, "unknown gear is dropped and levels kept to the max (%s)" % [gs_bad.gear])
+	_check(not gs_bad.automation.taught.has("gone_job") and not gs_bad.automation.others.has("gone_job"), "a job that's gone is forgotten")
+	# the save lists jobs in key order (boxes before machine), so "6" stays on the box table
+	_check(gs_bad.workers_of("machine") == ["5", "7", "9"] and gs_bad.workers_of("boxes") == ["6"],
+		"workers who are gone, the active pet, errand pets, doubles, ones on two jobs and ones past the machines are dropped (%s %s)" % [gs_bad.workers_of("machine"), gs_bad.workers_of("boxes")])
+	_check(gs_bad.workers_of("adventures") == ["", "8"], "a party whose leader is gone waits for a new one (%s)" % [gs_bad.workers_of("adventures")])
+	_check(gs_bad.automation.parties.size() == 2, "every bought party has its place (%d)" % gs_bad.automation.parties.size())
+	gs_bad.free()
+
+
+func gs_version() -> int:
+	return int(load(GAME_STATE).get_script_constant_map().SAVE_VERSION)
+
+
+## The crank save: your pet on its machine, `workers` machine workers (all commons: half speed), no
+## errands, closed `away` seconds ago.
+func _crank_state(stool: int, crank: int, workers: int, away: float, pets := 30) -> Node:
+	var d := _old_save(gs_version(), pets)
+	d.unlocks = d.unlocks.filter(func(id): return not str(id) in ["feature:errands", "tab:errands"])
+	var list: Array = []
+	for i in workers:
+		list.append(str(i + 2))
+	d.automation = { "task": "machine", "taught": { "machine": true }, "tools": { "crank": crank, "stool": stool }, "fill": 0.3,
+		"others": { "machine": true } if workers > 0 else {}, "spots": { "machine": workers }, "workers": { "machine": list },
+		"wfill": { "machine": 0.1 } }
+	return _state_from(d, away)
+
+
+## Your pet's machine (and its workers) keep cranking while the game is closed only as long as the
+## stool lets them; a long time away stays quick and pays in proportion.
+func _test_crank_catch_up(catalog: Catalog) -> void:
+	var state := { "tools": { "crank": 3 } }
+	var cs := Automation.crank_seconds(catalog, state)
+	var gs = _crank_state(0, 3, 0, 7200.0)
+	_check(gs.idle_log.is_empty() and is_equal_approx(float(gs.automation.fill), 0.3), "without a stool nothing is cranked while the game is closed")
+	gs.free()
+	gs = _crank_state(1, 3, 0, 7200.0)
+	var want := fposmod(0.3 + 3600.0 / cs, 1.0)
+	_check(absf(float(gs.automation.fill) - want) < 0.01, "with the stool it cranks for an hour of the two away (fill %.3f, want %.3f)" % [float(gs.automation.fill), want])
+	_check(int(gs.idle_log.get("coins", 0)) > 0, "the pulls made while away are in the idle log (%s)" % [gs.idle_log])
+	gs.free()
+	# machine workers: also only as long as the stool lets them
+	var ws := Automation.worker_seconds(catalog, Automation.fresh(), "machine")
+	gs = _crank_state(0, 3, 7, 7200.0)
+	_check(is_equal_approx(float(gs.automation.wfill.machine), 0.1) and gs.idle_log.is_empty(), "without a stool the workers stop while the game is closed")
+	gs.free()
+	gs = _crank_state(1, 3, 7, 7200.0)
+	want = fposmod(0.1 + 7 * 0.5 * 3600.0 / ws, 1.0)
+	_check(absf(float(gs.automation.wfill.machine) - want) < 0.01, "with the stool the workers crank for its hour (%.3f, want %.3f)" % [float(gs.automation.wfill.machine), want])
+	gs.free()
+	# a long time away: tens of thousands of pulls, still quick
+	for hours in [2.0, 8.0]:
+		var t := Time.get_ticks_msec()
+		gs = _crank_state(8, 20, 500, hours * 3600.0, 600)
+		_check_quick("%d h away with 500 machine workers loads" % int(hours), Time.get_ticks_msec() - t, 150)
+		_check(int(gs.idle_log.get("coins", 0)) > 0, "%d h away pays coins (%s)" % [int(hours), gs.idle_log])
+		gs.free()
+	# and pays in proportion: the same capsules rolled (same seed), 4x the pulls, 4x the coins
+	var coins := []
+	for pulls in [800, 3200]:
+		gs = _crank_state(0, 3, 0, -60.0)
+		gs._rng.seed = 7
+		gs._pet_cranks(pulls, false)
+		coins.append(int(gs.idle_log.get("coins", 0)))
+		gs.free()
+	_check(coins[0] > 0 and absi(coins[1] - 4 * coins[0]) <= 4, "4x the pulls away brings 4x the coins (%s)" % [coins])
+	# the computer slept with the game open: without a stool at most a minute counts
+	for stool in [0, 1]:
+		gs = _crank_state(stool, 3, 0, -60.0)
+		gs.automation.fill = 0.0
+		gs._auto_at = Time.get_unix_time_from_system() - 7200.0
+		gs._work_automation(Time.get_unix_time_from_system())
+		want = fposmod((60.0 if stool == 0 else 3600.0) / cs, 1.0)
+		_check(absf(float(gs.automation.fill) - want) < 0.01, "after a sleep %s (fill %.3f, want %.3f)" % ["a minute counts without the stool" if stool == 0 else "the stool's hour counts", float(gs.automation.fill), want])
+		gs.free()
+
+
+## The adventures job: parties go out with the right pets, never wait, come home quietly and go
+## out again; lost pets are announced; nothing goes during the tutorial.
+func _test_auto_adventures(catalog: Catalog) -> void:
+	# the policy chooser never waits: every event at every place, any party, runs to the end
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var roller := PetRoller.new(catalog, rng)
+	var three: Array[Pet] = [roller.roll("starter"), roller.roll("starter"), roller.roll("starter")]
+	var c := Collection.new()
+	c.add(three)
+	var waited := []
+	for location in catalog.locations:
+		for t in 5:
+			var run := AdventureRunner.start(location.id, three, 0.0, t, catalog)
+			run.chooser = "policy"
+			AdventureRunner.resolve(run, Chooser.for_run(run), 1.0e12, catalog)
+			if run.status != RunState.Status.DONE:
+				waited.append(location.id)
+	_check(waited.is_empty(), "a policy party never stops to wait for you (%s)" % [waited])
+	var party := Party.make(three, catalog)
+	var bad_pick := []
+	for e in catalog.events.values():
+		for location in catalog.locations:
+			var allowed := AdventureRunner.allowed_options(e, party, location)
+			if not allowed.is_empty() and not PolicyChooser.new().choose(e, allowed, null, 0.0) in allowed:
+				bad_pick.append(e.id)
+	_check(bad_pick.is_empty(), "the policy always picks an option the party may take (%s)" % [bad_pick])
+
+	var d := _old_save(gs_version())
+	d.jobs = { "coin_hunt": { "crew": ["20", "21"], "fill": 0.0 } }
+	d.pinned = ["2"]
+	d.gear = { "boots": 2 }
+	d.scout_notes = 2
+	d.automation = { "task": "adventures", "taught": { "machine": true, "adventures": true }, "party": { "place": "meadow", "n": 3 },
+		"others": { "machine": true }, "spots": { "machine": 2 }, "workers": { "machine": ["3", "4"] } }
+	var gs = _state_from(d)
+	var now := Time.get_unix_time_from_system()
+	gs._work_automation(now)
+	var run = gs.auto_run(-1)
+	_check(run != null and run.auto and run.slot == -1 and run.chooser == "policy", "your pet sends its party out (auto, slot -1, the policy)")
+	if run == null:
+		gs.free()
+		return
+	_check(run.party.setting_out() == int(gs.auto_party().n) and int(gs.auto_party().n) == 3, "the party is as big as you set (%d)" % run.party.setting_out())
+	var home := ["1", "2", "3", "4", "20", "21"]
+	_check(not run.party.uids.any(func(u): return u in home), "the active pet, unseen pulls, workers and errand pets stay home while others rest (%s)" % [run.party.uids])
+	_check(run.scout.is_empty() and gs.scout_notes == 2, "an auto party takes no scout note")
+	_check(run.gear == { "boots": 2 }, "an auto party packs the gear (%s)" % [run.gear])
+	gs._work_automation(now)
+	_check(gs.runs.size() == 1 and gs.auto_run(-1) == run, "one party at a time")
+	# home: collected quietly, and a new party sets out
+	AdventureRunner.resolve(run, Chooser.for_run(run), 1.0e12, catalog)
+	var trips: int = gs.trips_done
+	gs.take_idle_log()
+	gs._work_automation(now)
+	_check(gs.trips_done == trips + 1 and int(gs.idle_log.get("trips", 0)) == 1 and not run in gs.runs, "a party that's home is welcomed back quietly (idle log %s)" % [gs.idle_log])
+	var next = gs.auto_run(-1)
+	_check(next != null and next != run, "and the next party sets out")
+	# a pet that stays behind is announced
+	if next != null:
+		AdventureRunner.resolve(next, Chooser.for_run(next), 1.0e12, catalog)
+		if next.party.size() > 0:
+			next.party.lose(1, rng)
+		var gone: String = next.party.lost[0]
+		var name: String = gs.collection.get_pet(gone).display_name(catalog)
+		gs.announcements.clear()
+		gs._work_automation(now)
+		_check(gs.announcements.any(func(a): return name in a and "stayed" in a), "a pet that stays behind is announced (%s)" % [gs.announcements])
+		_check(gs.collection.get_pet(gone) == null, "and it's gone from your pets")
+	# a place that's closed (or none picked) falls back to the first open one that takes a party
+	gs.automation.party = { "place": "well", "n": 3 }
+	_check(gs.auto_party().place == "meadow", "a party set to a closed place goes to an open one (%s)" % gs.auto_party().place)
+	gs.automation.party = { "place": "", "n": 0 }
+	_check(gs.auto_party().place == "meadow" and gs.auto_party().n == 3, "no place picked: the first open one, the job's party size")
+	gs.free()
+	# the tutorial: nothing goes out
+	d.tutorial = "machine"
+	gs = _state_from(d)
+	gs._work_automation(now)
+	_check(gs.runs.is_empty(), "no auto parties during the tutorial")
+	gs.free()
+
+
+## Thousands of workers: filled fastest first, one job each, never the active pet or errand pets,
+## and everything stays quick.
+func _test_many_workers(catalog: Catalog) -> void:
+	var d := _old_save(gs_version(), 5000, true)
+	d.unlocks.append("feature:packs")
+	d.jobs = { "coin_hunt": { "crew": ["20", "21"], "fill": 0.0 } }
+	var all := { "machine": true, "adventures": true, "boxes": true }
+	d.automation = { "taught": all, "others": all, "spots": { "machine": 2000, "boxes": 1000, "adventures": 200 } }
+	var gs = _state_from(d)
+	_check(gs.automation.parties.size() == 200, "every bought party has its place")
+	var t := Time.get_ticks_usec()
+	var started: int = gs.put_workers("machine", -1)
+	var took := (Time.get_ticks_usec() - t) / 1000
+	_check(started == 2000, "2000 workers go on their machines (%d)" % started)
+	_check_quick("2000 workers go on their machines", took, 200)
+	_check(gs.put_workers("boxes", -1) == 1000 and gs.put_workers("adventures", -1) == 200, "tables and parties fill up too")
+	var speed := func(uid): return Automation.worker_speed(catalog, gs.collection.get_pet(str(uid)))
+	var slowest := func(list: Array): return list.map(speed).min()
+	var fastest := func(list: Array): return list.map(speed).max()
+	var resting: Array = gs.resting_pets().map(func(p): return p.uid)
+	_check(slowest.call(gs.workers_of("machine")) >= fastest.call(gs.workers_of("boxes"))
+		and slowest.call(gs.workers_of("boxes")) >= fastest.call(gs.workers_of("adventures"))
+		and slowest.call(gs.workers_of("adventures")) >= fastest.call(resting), "the fastest pets are put on first")
+	var seen := {}
+	var twice := 0
+	for id in ["machine", "boxes", "adventures"]:
+		for uid in gs.workers_of(id):
+			if seen.has(uid):
+				twice += 1
+			seen[uid] = true
+	_check(seen.size() == 3200 and twice == 0, "nobody works two jobs (%d workers, %d doubles)" % [seen.size(), twice])
+	_check(not seen.has("1") and not seen.has("20") and not seen.has("21"), "never your active pet or a pet on an errand")
+	var sum := 0.0
+	for uid in gs.workers_of("machine"):
+		sum += speed.call(uid)
+	_check(absf(gs.workers_speed("machine") - sum) < 0.001, "the machines' speed is their workers' speeds added up (%.1f)" % sum)
+	gs._hold_saves = true  # as in the game's tick: one save at the end, not one per box they open
+	t = Time.get_ticks_usec()
+	gs._work_for_automation(3600.0, false)
+	took = (Time.get_ticks_usec() - t) / 1000
+	gs._release_saves()
+	_check_quick("an hour of 3200 workers is worked out", took, 150)
+	t = Time.get_ticks_usec()
+	gs._work_automation(Time.get_unix_time_from_system())
+	took = (Time.get_ticks_usec() - t) / 1000
+	var auto_runs: Array = gs.runs.filter(func(r): return r.auto)
+	_check(auto_runs.size() == 200, "200 parties set out (%d)" % auto_runs.size())
+	_check_quick("200 parties are sent", took, 300)
+	var bad := 0
+	for r in auto_runs:
+		if r.party.setting_out() != 3 or r.party.uids.any(func(u): return seen.has(u) or u in ["1", "20", "21"]):
+			bad += 1
+	_check(bad == 0, "every party is 3 resting pets, no workers (%d wrong)" % bad)
+	t = Time.get_ticks_usec()
+	gs.save_game()
+	var before: Dictionary = gs.automation.workers.duplicate(true)
+	gs.free()
+	gs = _reload()
+	took = (Time.get_ticks_usec() - t) / 1000
+	_check_quick("5000 pets and their workers are saved and loaded", took, 600)
+	_check(gs.automation.workers == before and gs.runs.size() == 200, "the workers and their parties survive a save")
+	_check(gs.take_off_workers("adventures", 10) == 10, "party leaders can be sent home")
+	var leaders: Array = gs.workers_of("adventures")
+	_check(leaders.size() == 200 and leaders.slice(190).all(func(u): return u == "") and leaders.slice(0, 190).all(func(u): return u != ""),
+		"the last parties wait for new leaders: their slots stay")
+	var worker: String = gs.workers_of("machine")[0]
+	var lost_uids: Array[String] = [worker, str(leaders[0])]
+	gs.collection.remove(lost_uids)
+	_check(gs.workers_count("machine") == 1999 and gs.worker_job(worker) == "" and gs.workers_of("adventures")[0] == "",
+		"a pet that's gone frees its machine, and its party waits")
+	gs.free()
+	# box workers open what's on the pile and never buy more
+	var small := _old_save(gs_version())
+	small.unlocks.append_array(["feature:packs", "feature:shopping"])
+	small.bag = { "starter": 5 }
+	small.automation = { "taught": { "boxes": true }, "others": { "boxes": true }, "spots": { "boxes": 3 }, "workers": { "boxes": ["3", "4", "5"] } }
+	gs = _state_from(small)
+	var coins: int = gs.coins
+	gs._work_for_automation(3600.0, false)
+	_check(gs.in_bag("starter") == 0 and gs.collection.pets.size() == 35 and gs.coins == coins and int(gs.idle_log.get("packs", 0)) == 5,
+		"box workers open the pile and never buy more (%d pets, %d coins spent)" % [gs.collection.pets.size(), coins - gs.coins])
+	gs.free()
+
+
+## A2 gear through GameState: bought with xp, packed on every trip but dungeons, kept in the save.
+func _test_gear_state(catalog: Catalog) -> void:
+	var d := _old_save(gs_version())
+	d.xp = 100
+	d.unlocks.append_array(["page:beyond", "location:well"])
+	var gs = _state_from(d)
+	_check(gs.gear_block("pouch") == "hidden" and not gs.buy_gear("pouch"), "gear that isn't on the path yet can't be bought")
+	var price: int = gs.gear_price("boots")
+	_check(price == Gear.price(catalog, "boots", 0) and gs.buy_gear("boots") and gs.xp == 100 - price and gs.gear_level("boots") == 1,
+		"boots cost their xp (%d)" % price)
+	gs.xp = 0
+	_check(not gs.buy_gear("tote") and gs.gear_level("tote") == 0 and gs.xp == 0, "no xp, no gear")
+	gs.xp = 1000000
+	gs.set_gear_level("boots", int(Gear.info(catalog, "boots").max))
+	_check(gs.gear_block("boots") == "max" and not gs.buy_gear("boots") and gs.xp == 1000000, "gear stops at its max")
+	gs.buy_gear("tote")
+	var pets: Array[Pet] = [gs.collection.get_pet("5"), gs.collection.get_pet("6")]
+	var mine = gs.send_on_adventure("meadow", pets)
+	_check(mine != null and mine.gear == gs.trip_gear("meadow") and mine.gear == { "boots": 5, "tote": 1 }, "a trip you send packs your gear")
+	var one: Array[Pet] = [gs.collection.get_pet("7")]
+	var deep = gs.send_on_adventure("well", one)
+	_check(deep != null and deep.gear.is_empty(), "a dungeon trip packs no gear")
+	gs.automation = { "task": "adventures", "taught": { "adventures": true }, "tools": {}, "party": { "place": "meadow", "n": 3 }, "fill": 0.0,
+		"others": {}, "spots": {}, "workers": {}, "parties": [], "wfill": {} }
+	gs._work_automation(Time.get_unix_time_from_system())
+	var auto = gs.auto_run(-1)
+	_check(auto != null and auto.gear == { "boots": 5, "tote": 1 }, "your pet's party packs the gear too")
+	gs.save_game()
+	gs.free()
+	gs = _reload()
+	_check(gs.gear == { "boots": 5, "tote": 1 } and gs.runs.all(func(r): return r.gear == ({} if r.location_id == "well" else { "boots": 5, "tote": 1 })),
+		"gear, and what each trip packed, survive a save")
+	gs.free()
+
+
+## A3 jobs through GameState: the kitchen, scouting, the savings jar, sharing out and the chain of
+## job levels that opens them.
+func _test_jobs_state(catalog: Catalog) -> void:
+	var d := _old_save(gs_version())
+	d.unlocks.append_array(["job:lemonade", "job:jar", "job:kitchen", "job:scouting"])
+	d.hunger = 30.0
+	d.happiness = 30.0
+	var gs = _state_from(d)
+	var kitchen := catalog.job("kitchen")
+	var power := float(catalog.errands.crew_power)
+	gs.put_on_job("kitchen", 1, ["5"])
+	gs.put_on_job("coin_hunt", 1, ["6"])
+	var with_kitchen: float = gs.job_rate("coin_hunt")
+	var bonus: float = gs.kitchen_bonus()
+	var own := Jobs.rate(kitchen, 1, Jobs.pet_speed(gs.collection.get_pet("5"), kitchen), power)
+	_check(bonus > 0.0 and is_equal_approx(gs.job_rate("kitchen"), own), "the kitchen speeds the other jobs, not itself (%.3f)" % bonus)
+	gs.take_off_job("kitchen", -1)
+	var without: float = gs.job_rate("coin_hunt")
+	_check(with_kitchen > without and is_equal_approx(with_kitchen / without, 1.0 + bonus), "the coin hunt is %.0f%% faster with a cook" % (bonus * 100.0))
+	gs.put_on_job("kitchen", 1, ["5"])
+	var upto := float(kitchen.get("meal_upto", 100.0))
+	gs._work_for(float(kitchen.seconds) * 50.0)
+	_check(is_equal_approx(gs.hunger, upto) and gs.happiness <= upto + 0.001, "the kitchen feeds your pet up to %.0f, no more (%.1f)" % [upto, gs.hunger])
+	gs.hunger = 90.0
+	gs._work_for(float(kitchen.seconds) * 50.0)
+	_check(gs.hunger == 90.0, "a full pet isn't fed down")
+	# scouting: notes fill up to the hold, then the meter waits
+	var scout := catalog.job("scouting")
+	gs.put_on_job("scouting", 1, ["7"])
+	gs._work_for(float(scout.seconds) * 20.0)
+	_check(gs.scout_notes == gs.scout_hold() and gs.scout_hold() == int(scout.scout.hold), "scouts write notes up to the hold (%d)" % gs.scout_notes)
+	var fill: float = gs.job_fill("scouting")
+	gs._work_for(float(scout.seconds) * 20.0)
+	_check(gs.scout_notes == int(scout.scout.hold) and gs.job_fill("scouting") == fill and gs.job_fill_now("scouting") == 1.0, "a full hold: the meter waits")
+	gs.set_errand_tool_level("map_case", 1)
+	gs._work_for(float(scout.seconds) * 20.0)
+	_check(gs.scout_notes == int(scout.scout.hold) + 1, "the map case holds one more note (%d)" % gs.scout_notes)
+	var pets: Array[Pet] = [gs.collection.get_pet("8")]
+	var mine = gs.send_on_adventure("meadow", pets)
+	_check(mine != null and mine.scouted and gs.scout_notes == int(scout.scout.hold), "a trip you send takes a note")
+	var theirs: Array[Pet] = [gs.collection.get_pet("9")]
+	var auto = gs.send_on_adventure("meadow", theirs, false)
+	_check(auto != null and not auto.scouted and gs.scout_notes == int(scout.scout.hold), "a party your pet sends doesn't")
+	gs.save_game()
+	gs.free()
+	gs = _reload()
+	_check(gs.scout_notes == int(scout.scout.hold) and gs.scout_hold() == int(scout.scout.hold) + 1, "scout notes survive a save")
+	# share out skips the kitchen and scouting
+	gs.take_off_job("kitchen", -1)
+	gs.take_off_job("scouting", -1)
+	gs.share_out()
+	_check(gs.job_crew("kitchen").is_empty() and gs.job_crew("scouting").is_empty() and gs.job_crew("coin_hunt").size() > 0,
+		"share out never puts pets in the kitchen or scouting")
+	gs.free()
+	# the savings jar: one full meter pays one chunk
+	d.jobs = {}
+	gs = _state_from(d)
+	gs.put_on_job("jar", 1, ["5"])
+	gs.jobs.jar.fill = 0.999
+	var paid := []
+	gs.job_paid.connect(func(id, loot): paid.append([id, loot]))
+	var coins: int = gs.coins
+	gs._work_for(0.002 / gs.job_rate("jar"))
+	var chunk := roundi(float(catalog.job("jar").pay.capsules) * Machine.coin_value(gs.machine, catalog))
+	_check(paid.size() == 1 and gs.coins - coins == chunk, "a full jar pays one chunk (%d, want %d)" % [gs.coins - coins, chunk])
+	gs.free()
+	# the chain: coin hunt lv 10 -> lemonade, lv 25 -> kitchen; lemonade lv 10 -> jar; jar lv 10 -> scouting
+	var chain := _old_save(gs_version())
+	gs = _state_from(chain)
+	gs.set_errand_tool_level("noses", 25)
+	_check(gs.is_unlocked("job:lemonade") and gs.is_unlocked("job:kitchen") and not gs.is_unlocked("job:jar"), "coin hunt lv 25 opens the lemonade stand and the kitchen")
+	gs.coins = Jobs.tool_cost(Jobs.tool(catalog, "lemons"), 0, 10) + 1
+	_check(gs.buy_errand_tool("lemons", -1) == 10 and gs.coins == 1, "as many lemons as you can afford (%d left)" % gs.coins)
+	_check(gs.is_unlocked("job:jar") and not gs.is_unlocked("job:scouting"), "lemonade lv 10 opens the savings jar")
+	gs.set_errand_tool_level("bigger_jar", 10)
+	_check(gs.is_unlocked("job:scouting"), "the jar at lv 10 opens scouting")
+	var open: Array = gs.open_jobs().map(func(j): return j.id)
+	_check(["lemonade", "jar", "kitchen", "scouting"].all(func(id): return id in open), "and they're all errands you can staff (%s)" % [open])
+	gs.free()
+
+
+## A time limit: `quiet_ms` is about what it takes on a quiet machine; it fails only at 5x that
+## (times DESK_PETS_SLOW), so only a real slowdown trips it. Always prints the time.
+func _check_quick(what: String, took_ms: int, quiet_ms: int) -> void:
+	var limit := roundi(quiet_ms * 5 * _slow)
+	print("  time: %s in %d ms (limit %d)" % [what, took_ms, limit])
+	_check(took_ms <= limit, "%s quickly (%d ms, limit %d)" % [what, took_ms, limit])
 
 
 func _check(ok: bool, what: String) -> void:
