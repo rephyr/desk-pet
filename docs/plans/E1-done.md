@@ -174,3 +174,9 @@ Replace the E1 "Prep" line with:
 - `GameState.take_dungeon_news()` (like take_announcement); `in_army()` removed (unused; the pet
   card's "down the well…" means sent, not picked, so it keeps its own check).
 - No save change from these fixes.
+
+## Verified
+
+- Step verified: test_core ALL PASSED (3661 checks), balance runs clean, dungeon flow + fits pass.
+- Commits on lanes/dungeon: "the old well dungeon, with review fixes" (the step), plus this note.
+  Not pushed. Save bump v23 -> v24 needs renumbering at merge.
