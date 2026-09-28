@@ -3,12 +3,16 @@
 Branch lanes/workshop now has E2 next door + B1 box tiers + SMALL machine odds (ours), C1-C3 the
 herd / shelves / new homes, and B3 the whistle. No new features, only the merges and their fixes.
 
-- Merge 1 `merge the herd` (d9267bd) is committed: git can't start the second merge while the first
-  is open.
-- Merge 2 (lanes/b3) is resolved and staged but NOT committed (MERGE_HEAD is still set). To finish:
-  `git commit -m "merge the whistle"`. The open_boxes room rule and the boxes tab count went into
-  merge 1. The two flow fixes (new_homes, pets_shelves buttons) and the new test are staged with
-  merge 2.
+Status: VERIFIED, both merges committed on lanes/workshop (not pushed).
+
+- Merge 1, lanes/c1-c3: d9267bd `merge the herd`. The open_boxes room rule and the boxes tab count
+  are in this one.
+- Merge 2, lanes/b3: 76070e1 (its message says "merge the herd: whistle keeps parties out of
+  dungeons, review fixes", but it's the whistle merge, parents d9267bd + lanes/b3 3166927). It also
+  holds the two flow fixes (new_homes, pets_shelves buttons), `_test_merged_saves`, and the review
+  fixes listed at the bottom.
+- Save: `SAVE_VERSION := 26` on this lane (22 base -> 23 box tiers, 24 visits, 25 herd, 26 new homes).
+  The merge into `test` has to renumber it (see the save chain).
 
 ## Conflicts and how each was settled
 
