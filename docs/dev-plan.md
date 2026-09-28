@@ -11,6 +11,24 @@ How a step works:
 3. **Done when**: tests pass (tests/test_core.gd), a flow in tests/flows/ plays it with
    screenshots, `expect fits` holds, docs and CLAUDE.md updated, committed and pushed to `test`.
 
+## BRAINSTORM FIRST (Emilia, 2026-09-28)
+
+Everything below still needs brainstorming. Run these first (Emilia runs a brainstorm workflow
+after /clear), then bring the options back to her as questions (AskUserQuestion rounds, she picks;
+no guessed work), and write her picks into the steps.
+
+1. **More gear upgrades** (A2): besides walk speed and bigger bags, what xp buys on the
+   adventures upgrades page. Seed ideas: sharper eyes (more spotting, rumours, trail pickups),
+   comfy harness (hurt less often), trail snacks (heal a heart on the way home), lucky charm
+   (risky choices go well more often), more trip slots.
+2. **Bad pets** (C3): once packs open per second, overflow pets pile up and become obsolete. How
+   do they clear? Seed: auto sacrifice, put to work, feed the sacrifice machine, sell, part them.
+3. **The new layer on pets** (F2): what makes a perfect pet really, really hard again in the mid
+   game, with a gambling loop more complex than a lever (so pets can't automate it at first).
+   Seed: part levels/stars from the sacrifice machine, a new axis (soul, aura, mutation).
+4. **The darker currency** (F2): what it is and what it buys (the name is decided later; "perk
+   points" is the working name).
+
 Rules every step follows: the game never winks (cute voice, darkness only in what you do);
 show, don't explain (no hint text about mechanics); hidden until earned (no locked "???"
 placeholders); UI never spills past the 920x600 window; no dropdowns; no "·" separators; dark
@@ -47,12 +65,14 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   prices for data/automation.json.
 - **Done when:** a report Emilia can read, with suggested numbers (not applied until she says).
 
-### A2. Gear: xp upgrades  (DECIDED 2026-09-28, ready)
+### A2. Gear: xp upgrades  (DECIDED 2026-09-28, waits for brainstorm 1)
 - **Emilia:** an "upgrades" page INSIDE the adventures tab (adventures | upgrades, like machine |
   upgrades), not its own tab. Look: gear.html's crayon path of gear stickers, words not numbers.
   Opens with the first xp. First upgrades: **walk speed** (shorter trips), **bigger bags** (more
-  coins/loot home), plus more to brainstorm (ideas: sharper eyes = more spotting and pickups,
-  extra heart, comfy harness = fewer hurt, lucky charm, trail snacks = hurt pets heal on the way).
+  coins/loot home), plus the ones brainstorm 1 picks.
+- **Look (picked 2026-09-28):** gear.html's crayon path (stickers along a path, buying reveals the
+  next ones), but **effects show as numbers** ("trips 10% shorter"), like the errands pegboard.
+- **Waits for:** brainstorm 1 (the rest of the upgrade list).
 - **Build:** data/gear.json, a pure Gear rules class, GameState xp spending, a GearView page in
   AdventuresTab, flow.
 
