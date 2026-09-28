@@ -23,6 +23,11 @@ static func play(owner: Node, entry: Dictionary, semitones := 0.0) -> void:
 	player.play()
 
 
+## A sound entry from data/sounds.json by group and key (e.g. "machine", "prize"), or {}.
+static func sound(group: String, key: String) -> Dictionary:
+	return Catalog.shared().sounds.get(group, {}).get(key, {})
+
+
 ## The sound an entry points at, or null.
 static func stream_of(entry: Dictionary) -> AudioStream:
 	var file := str(entry.get("file", ""))

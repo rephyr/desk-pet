@@ -159,7 +159,7 @@ static func cheer(from: Node, id: String) -> void:
 
 
 static func _sound(key: String) -> Dictionary:
-	return Catalog.shared().sounds.get("machine", {}).get(key, {})
+	return Sfx.sound("machine", key)
 
 
 ## One upgrade you can work on, next to the machine: its icon, name, what it gives, what it costs

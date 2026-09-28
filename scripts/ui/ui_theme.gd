@@ -398,6 +398,16 @@ static func tier_label(tier_id: String, size := SMALL) -> Label:
 
 
 ## A number for people: 9,999 as it is, then 12.3k, 4.56M, 7.8B, 1.2T, then 3.4e15 (coins go big).
+## A colour role by its name in data (a job's or a gear's "color"): cyan, lilac, mint, gold, else pink.
+static func named_color(color_name: String) -> Color:
+	match color_name:
+		"cyan": return CYAN
+		"lilac": return LILAC
+		"mint": return MINT
+		"gold": return GOLD
+	return PINK
+
+
 static func num(n: float) -> String:
 	var a := absf(n)
 	if a < 10000.0:
@@ -467,6 +477,15 @@ const DOODLES := {
 	"tool_nap": '<path d="M16 4 Q10 5 10 11 Q10 17 17 18 Q13 21 9 19.5 Q4 17 4.5 11 Q5 5 12 3.6 Q14.4 3.4 16 4 Z"/><path d="M17 7 L20 7 L17 10 L20 10" opacity=".8"/>',
 	"tool_pebble": '<path d="M5 15 Q4 9 11 8.5 Q18 8 19 14 Q19.5 18.5 12 18.5 Q5.5 18.5 5 15 Z"/><path d="M18 2.5 L18.7 4.3 L20.5 5 L18.7 5.7 L18 7.5 L17.3 5.7 L15.5 5 L17.3 4.3 Z"/>',
 	"tool_team": '<circle cx="8" cy="9" r="3"/><circle cx="16" cy="9" r="3"/><path d="M3.5 19 Q4 14 8 14 Q10.5 14 12 16 Q13.5 14 16 14 Q20 14 20.5 19"/>',
+	# gear (the adventures' upgrades page, drawn on a 40 grid, scaled down)
+	"gear_boots": '<g transform="scale(0.6)" stroke-width="3"><path d="M13 5 L22 5 L22.4 20 Q32 21 33 28 L33 33 L10 33 Q8.6 25 12 20 Z"/><path d="M13.5 10 L21.6 10 M13.4 14.2 L21.8 14.2 M10.3 29 L33 29"/></g>',
+	"gear_tote": '<g transform="scale(0.6)" stroke-width="3"><path d="M14 13 Q14 5 20 5 Q26 5 26 13"/><path d="M7 13 Q20 12 33 13 L32 33 Q20 34.5 8 33 Z"/><path d="M16 21 Q20 24 24 21"/></g>',
+	"gear_pouch": '<g transform="scale(0.6)" stroke-width="3"><path d="M13 14 Q6 22 9 30 Q20 36 31 30 Q34 22 27 14"/><path d="M11 14 Q20 10 29 14"/><path d="M16 12 L13 6 M24 12 L27 6"/><path d="M15 24 Q15 21 17.5 22 L22.5 22 Q25 21 25 24 Q25 27 22.5 26 L17.5 26 Q15 27 15 24 Z" stroke="{pink}"/></g>',
+	"gear_paws": '<g transform="scale(0.6)" stroke-width="3"><circle cx="11" cy="14" r="3.2"/><circle cx="17.5" cy="9.5" r="3.2"/><circle cx="24.5" cy="9.5" r="3.2"/><circle cx="31" cy="14" r="3.2"/><path d="M12 27 Q12 18 21 18 Q30 18 30 27 Q30 33 21 32 Q12 33 12 27 Z"/></g>',
+	"gear_eyes": '<g transform="scale(0.6)" stroke-width="3"><path d="M3 22 Q11 12 19 22 Q11 31 3 22 Z"/><circle cx="11" cy="22" r="2.6" fill="{c}"/><path d="M21 22 Q29 12 37 22 Q29 31 21 22 Z"/><circle cx="29" cy="22" r="2.6" fill="{c}"/><path d="M31 3 L32.2 6.8 L36 8 L32.2 9.2 L31 13 L29.8 9.2 L26 8 L29.8 6.8 Z" stroke="{gold}" stroke-width="2"/></g>',
+	"gear_charm": '<g transform="scale(0.6)" stroke-width="3"><path d="M20 5 L20 10"/><path d="M12 22 Q12 11 20 11 Q28 11 28 22 L30 27 L10 27 Z"/><circle cx="20" cy="31" r="2.6"/><path d="M33 8 L33 13 M30.5 10.5 L35.5 10.5" stroke="{gold}"/></g>',
+	"gear_leaf": '<g transform="scale(0.6)" stroke-width="3"><path d="M8 32 Q6 12 30 8 Q34 30 12 32 Z"/><path d="M10 30 Q18 22 26 13" opacity=".6"/><path d="M18 19 L24 19 M21 16 L21 22" stroke="{pink}"/></g>',
+	"gear_harness": '<g transform="scale(0.6)" stroke-width="3"><path d="M7 13 Q20 7 33 13"/><path d="M6 13 Q5 29 20 32 Q35 29 34 13"/><path d="M13 11 L14 31 M27 11 L26 31" opacity=".6"/><circle cx="20" cy="21" r="3.6" stroke="{gold}"/><path d="M20 5 Q24 5 24 8 Q24 11 20 11 Q16 11 16 8 Q16 5 20 5 Z"/></g>',
 	"star": '<path d="M12 2.5 L14.6 9 L21.5 9.4 L16.2 13.8 L17.9 20.6 L12 16.9 L6.1 20.6 L7.8 13.8 L2.5 9.4 L9.4 9 Z" fill="{c}"/>',
 	"bag": '<path d="M8.4 8.2 Q8.5 3.7 12 3.8 Q15.5 3.8 15.6 8.1"/><path d="M4.7 8.3 Q12 7.6 19.3 8.2 L18.7 19.6 Q12 20.5 5.3 19.7 Z"/><path d="M9.5 12.5 Q12 14.1 14.5 12.4"/>',
 	"lock": '<path d="M7.4 11 Q7 4.3 12 4.2 Q17 4.2 16.7 11"/><path d="M5 11.1 Q12 10.5 19 10.9 L18.7 19.8 Q12 20.5 5.3 19.9 Z"/><path d="M12 14.2 L12 16.4"/>',

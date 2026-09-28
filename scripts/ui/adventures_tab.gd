@@ -1,6 +1,8 @@
 class_name AdventuresTab
-extends HBoxContainer
-## Sending pets on adventures ("trips"). Your pet's crayon map of the world (MapView) fills the
+extends VBoxContainer
+## Sending pets on adventures ("trips"). Two pages, switched at the top once the first xp is home:
+## adventures and upgrades (gear for the trips, bought with xp: GearView).
+## Your pet's crayon map of the world (MapView) fills the
 ## left; tapping a place sticks a card onto the map for picking who goes there. A hands-on trip
 ## can be watched up close on the trail (TrailView), in the map's place. The trips that are away
 ## are stickers on the right: one waiting at an event shows its options, one that's back shows
@@ -36,19 +38,34 @@ var _estimate_key := ""  # which picks the cached estimate is for
 var _estimate := 1.0
 var _tick := 0.0
 var _voice_rng := RandomNumberGenerator.new()
+var gear_view := GearView.new()  # the upgrades page
+var _main := HBoxContainer.new()  # the adventures page: the map (or trail) and the trips away
+var _bar := HBoxContainer.new()
+var _mode: PanelContainer
+var _quiet := false  # the page is being flipped for you (to the trail, to a place): your pet says nothing
 
 
 func _init() -> void:
-	add_theme_constant_override("separation", 14)
+	add_theme_constant_override("separation", 10)
 	size_flags_vertical = SIZE_EXPAND_FILL
 	_voice_rng.randomize()
+	# adventures | upgrades, like machine | upgrades (hidden until there's xp to spend)
+	_mode = UiTheme.segmented(["adventures", "upgrades"], 0, func(i): _show_page(i))
+	_bar.add_child(_mode)
+	_bar.visible = GameState.gear_page_open()
+	add_child(_bar)
+	_main.add_theme_constant_override("separation", 14)
+	_main.size_flags_vertical = SIZE_EXPAND_FILL
+	add_child(_main)
+	gear_view.visible = false
+	add_child(gear_view)
 	_location_id = GameState.open_locations()[0].id
 
 	# the map, with the place card stuck onto it and the trail in its place when watching
 	var area := Control.new()
 	area.size_flags_horizontal = SIZE_EXPAND_FILL
 	area.size_flags_vertical = SIZE_EXPAND_FILL
-	add_child(area)
+	_main.add_child(area)
 	for c in [_map, _trail]:
 		c.set_anchors_preset(PRESET_FULL_RECT)
 		area.add_child(c)
@@ -70,7 +87,7 @@ func _init() -> void:
 	stuck.offset_top = 40
 	area.add_child(stuck)
 	area.add_child(_postcard)  # over the map and the place card
-	add_child(_runs_column())
+	_main.add_child(_runs_column())
 
 	_map.place_picked.connect(_choose_place)
 	_map.lead_picked.connect(func(id): GameState.follow_lead(id))
@@ -86,13 +103,18 @@ func _init() -> void:
 	GameState.collection.active_changed.connect(func(_p): _dirty = true)
 	visibility_changed.connect(func():
 		_rebuild_if_dirty()
-		if is_visible_in_tree():
-			speak()
-			# a hands-on trip is out: go along with it
-			for run in GameState.runs:
-				if _watchable(run) and run.status != RunState.Status.DONE:
-					_show_trail(run)
-					break)
+		if not is_visible_in_tree():
+			return
+		# back on the upgrades page: stay there (the trip can be watched from the adventures page)
+		if gear_view.visible:
+			gear_view.speak()
+			return
+		speak()
+		# a hands-on trip is out: go along with it
+		for run in GameState.runs:
+			if _watchable(run) and run.status != RunState.Status.DONE:
+				_show_trail(run)
+				break)
 
 
 ## The active pet says something about what's going on; news of a trip it's talking about is
@@ -113,8 +135,29 @@ func speak() -> void:
 	PetBubble.say(self, PetVoice.line(pet, what, _voice_rng, catalog))
 
 
+## 0 the adventures (map and trips), 1 the upgrades (gear); flips the switch at the top too.
+## `quiet`: flipped for you on the way to something else, so your pet doesn't talk over it.
+func show_page(page: int, quiet := false) -> void:
+	_quiet = quiet
+	(_mode.get_child(0).get_child(page) as Button).pressed.emit()
+	_quiet = false
+
+
+func _show_page(page: int) -> void:
+	_main.visible = page == 0
+	gear_view.visible = page == 1
+	if _quiet:
+		return
+	if page == 1:
+		gear_view.speak()
+	else:
+		speak()
+
+
 ## Opens a place's card, as if it was tapped on the map (dev flag --pick).
 func pick_place(location_id: String) -> void:
+	if gear_view.visible:
+		show_page(0, true)
 	_choose_place(location_id)
 
 
@@ -139,6 +182,8 @@ func _show_map(on: bool) -> void:
 
 ## Up close on a hands-on trip: the trail, where you click it along.
 func _show_trail(run: RunState) -> void:
+	if gear_view.visible:
+		show_page(0, true)
 	_trail.show_run(run)
 	_postcard.visible = false
 	_map.visible = false
@@ -414,7 +459,8 @@ func _refresh_send() -> void:
 	var most := _max_party()
 	_why.visible = most > 1
 	UiTheme.clear(_facts)
-	_facts.add_child(UiTheme.tag(_about(d.minutes)))
+	var walk := Gear.value(catalog, GameState.trip_gear(_location_id), "walk")
+	_facts.add_child(UiTheme.tag(_about(float(d.minutes) * (1.0 - walk))))
 	_facts.add_child(UiTheme.tag("1 pet" if most == 1 else ("as many as you like" if most > 999 else "up to %d pets" % most)))
 	var bit := MapView.bit_of(d)
 	if bit != "":
@@ -434,7 +480,8 @@ func _refresh_send() -> void:
 	if pets.is_empty():
 		_odds.text = "tap a pet to pick it"
 		return
-	var time := _duration(AdventureRunner.duration(d, Party.make(pets, catalog)))
+	var packed := GameState.trip_gear(_location_id)
+	var time := _duration(AdventureRunner.duration(d, Party.make(pets, catalog), walk))
 	match Chooser.kind_for(pets.size()):
 		"player":
 			_odds.text = "about %s there and back. you choose the way!" % time
@@ -442,10 +489,10 @@ func _refresh_send() -> void:
 			_odds.text = "about %s there and back. they'll ask you along the way." % time
 		_:
 			# trial runs are slow for big swarms: only redo them when the picks change
-			var key := _location_id + ":" + ",".join(_picked.keys())
+			var key := _location_id + ":" + ",".join(_picked.keys()) + str(packed)
 			if key != _estimate_key:
 				_estimate_key = key
-				_estimate = AdventureRunner.estimate_return(_location_id, pets, catalog)
+				_estimate = AdventureRunner.estimate_return(_location_id, pets, catalog, 30, packed)
 			_odds.text = "about %s there and back. about %d%% come home." % [time, roundi(_estimate * 100.0)]
 
 
@@ -501,7 +548,8 @@ func _rebuild_runs() -> void:
 				col.add_child(_wrapped(event.title, UiTheme.GOLD))
 				var scene := str(event.text)
 				if solo:
-					scene += " " + PetVoice.spotted(speaker, event, run.party, d, catalog, Rewards.depth_boost(run.history.size()))
+					scene += " " + PetVoice.spotted(speaker, event, run.party, d, catalog, Rewards.depth_boost(run.history.size()),
+						Gear.value(catalog, run.gear, "luck"))
 				col.add_child(_wrapped(scene, UiTheme.TEXT))
 				for i in allowed:
 					var option: Dictionary = options[i]
@@ -553,8 +601,7 @@ func _refresh_runs() -> void:
 		if row.has("countdown"):
 			row.countdown.text = "if nobody picks, it's %s in %s" % [row.default, _duration(TimeoutChooser.deadline(run) - now)]
 			continue
-		var d := catalog.location(run.location_id)
-		var gap := AdventureRunner.gap(d, run.party, run.events.size())
+		var gap := AdventureRunner.run_gap(run, catalog)
 		var within := clampf(1.0 - (run.next_at - now) / gap, 0.0, 1.0)
 		row.bar.value = (run.step + within) / (run.events.size() + 1.0)
 		var heading_home := run.step >= run.events.size()
@@ -590,6 +637,7 @@ func _process(delta: float) -> void:
 	if _tick <= 0.0:
 		_tick = 0.5
 		_refresh_runs()
+		_bar.visible = GameState.gear_page_open()
 
 
 static func _about(minutes: float) -> String:

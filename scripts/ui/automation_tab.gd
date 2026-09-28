@@ -129,7 +129,7 @@ func _teach(id: String) -> void:
 	if not GameState.teach_job(id):
 		PetBubble.say_line(self, "automation_poor")
 		return
-	Sfx.play(self, MachineTab._sound("prize"), 2.0)
+	Sfx.play(self, Sfx.sound("machine", "prize"), 2.0)
 	PetBubble.say_line(self, "automation_do_" + id if GameState.automation.task == id else "automation_teach")
 
 
@@ -150,7 +150,7 @@ func _buy_tool(id: String) -> void:
 	if not GameState.buy_auto_tool(id):
 		PetBubble.say_line(self, "automation_poor")
 		return
-	Sfx.play(self, MachineTab._sound("prize"), 2.0)
+	Sfx.play(self, Sfx.sound("machine", "prize"), 2.0)
 	var key := "automation_tool_" + id
 	PetBubble.say_line(self, key if Catalog.shared().voice.get("ui", {}).has(key) else "automation_tool")
 
@@ -191,7 +191,7 @@ func _on_cranked(result: Dictionary) -> void:
 # ---- building it ------------------------------------------------------------------
 
 static func color_of(job: Dictionary) -> Color:
-	return ErrandsTab._color(job)
+	return UiTheme.named_color(str(job.get("color", "")))
 
 
 static func doing(task: String) -> String:
@@ -355,7 +355,7 @@ func _teach_others(id: String) -> void:
 	if not GameState.teach_others(id):
 		PetBubble.say_line(self, "automation_poor")
 		return
-	Sfx.play(self, MachineTab._sound("jackpot"), -3.0)
+	Sfx.play(self, Sfx.sound("machine", "jackpot"), -3.0)
 	PetBubble.say_line(self, "automation_teach_others")
 
 
@@ -363,7 +363,7 @@ func _buy_spot(id: String) -> void:
 	if GameState.buy_spots(id, 1) <= 0:
 		PetBubble.say_line(self, "automation_poor")
 		return
-	Sfx.play(self, MachineTab._sound("prize"), 2.0)
+	Sfx.play(self, Sfx.sound("machine", "prize"), 2.0)
 	PetBubble.say_line(self, "automation_spot", { "spot": Automation.job(GameState.catalog, id).get("spot", {}).get("name", "spot") })
 
 

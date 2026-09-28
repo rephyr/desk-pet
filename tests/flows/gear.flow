@@ -1,0 +1,76 @@
+# Gear: the adventures tab's upgrades page, bought with xp. The switch only shows once there's xp;
+# buying boots brings the treat pouch onto the path; the charm waits for the meadow, the harness for
+# the wheelbarrow; everything stays inside the window, on both pages.
+from after_tutorial
+view full
+tab adventures
+wait 1
+expect no-text "upgrades"          # 0 xp: no switch yet
+xp 30
+wait 1
+click "upgrades"
+wait 1
+expect text "comfy boots"
+expect text "a tote bag"
+expect no-text "a treat pouch"
+expect fits
+shot path_start
+click "comfy boots"
+click "get it*"
+wait 1
+expect text "trips 8% shorter"
+expect text "a treat pouch"         # buying revealed the next one
+expect text "not enough xp yet*"    # the tote's 25 xp, and only 0 left
+shot bought_boots
+xp 5000
+click "a tote bag"
+wait 1
+click "a tote bag"                  # tapped again: bought
+wait 1
+expect text "+15% trip coins"
+gear pouch 1
+gear paws 1
+gear eyes 1
+unlock location:meadow
+wait 1
+expect text "a lucky charm"
+expect text "a first-aid leaf"
+expect no-text "a comfy harness"
+expect fits
+shot meadow_open
+unlock feature:parties_5
+gear charm 3
+gear leaf 3
+gear harness 3
+gear boots 5
+wait 1
+click "comfy boots"
+wait 1
+expect text "all done*"
+expect text "trips 40% shorter"
+expect fits
+shot all_gear
+tab home                            # leave on the upgrades page while the tutorial's trip is out
+wait 1
+tab adventures
+wait 1
+expect text "gear for the trips"    # still on the upgrades page, not pulled onto the trail
+page adventures 0                   # the switch's "adventures" (the spine's tab has the same name)
+wait 1
+expect fits                         # the tutorial's trip is out: the trail
+click "‹ map"
+place meadow
+wait 1
+expect text "the meadow"
+expect text "about 4 min"           # boots lv 5: the card's 6 min is 40% shorter
+expect fits
+shot map_with_switch
+pets 1                              # the tutorial's pet is still out, on a trip without gear
+send garden 1
+wait 1
+click "toss a treat"
+expect text "zoom!"
+wait 9.5                            # pouch lv 1: zoom 9 s, then the next treat 4 s later
+expect text "next treat in*"
+expect fits
+shot trail_pouch

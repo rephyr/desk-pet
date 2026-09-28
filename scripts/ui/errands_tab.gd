@@ -662,12 +662,7 @@ static func pill(text: String, color: Color) -> PanelContainer:
 
 
 static func _color(job: Dictionary) -> Color:
-	match str(job.get("color", "")):
-		"cyan": return UiTheme.CYAN
-		"lilac": return UiTheme.LILAC
-		"mint": return UiTheme.MINT
-		"gold": return UiTheme.GOLD
-	return UiTheme.PINK
+	return UiTheme.named_color(str(job.get("color", "")))
 
 
 static func _name(uid: String) -> String:

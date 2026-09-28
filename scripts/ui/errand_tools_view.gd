@@ -84,7 +84,7 @@ func buy(id: String) -> void:
 	if got <= 0:
 		PetBubble.say_line(self, "errands_tool_poor")
 		return
-	Sfx.play(self, MachineTab._sound("prize"), 2.0)
+	Sfx.play(self, Sfx.sound("machine", "prize"), 2.0)
 	var reached := {}
 	if job_id != "":
 		var job := GameState.catalog.job(job_id)
@@ -93,7 +93,7 @@ func buy(id: String) -> void:
 				reached = g
 		if not reached.is_empty():
 			PetBubble.say_line(self, "errands_goal", { "goal": Jobs.goal_words(job, reached) })
-			Sfx.play(self, MachineTab._sound("jackpot"), -3.0)
+			Sfx.play(self, Sfx.sound("machine", "jackpot"), -3.0)
 	if reached.is_empty():
 		var key := "errands_tool_" + id
 		PetBubble.say_line(self, key if Catalog.shared().voice.get("ui", {}).has(key) else "errands_tool")
@@ -125,7 +125,7 @@ func _rebuild() -> void:
 		if not is_open and wait.is_empty():
 			continue  # jobs that come much later don't show their tools yet
 		var sub := "lv %d" % GameState.job_level(job.id) if is_open else "opens at %s lv %d" % [wait.job.name, wait.level]
-		_shelves.add_child(_shelf(str(job.name), sub, ErrandsTab._color(job), job.tools.map(func(t):
+		_shelves.add_child(_shelf(str(job.name), sub, UiTheme.named_color(str(job.get("color", ""))), job.tools.map(func(t):
 			var tool: Dictionary = t.duplicate()
 			tool.job = str(job.id)
 			return tool), is_open))
@@ -174,7 +174,7 @@ func _rebuild_card() -> void:
 	var catalog := GameState.catalog
 	var tool := Jobs.tool(catalog, _picked)
 	var job := catalog.job(str(tool.job)) if tool.job != "" else {}
-	var color := ErrandsTab._color(job) if not job.is_empty() else UiTheme.LILAC
+	var color := UiTheme.named_color(str(job.get("color", ""))) if not job.is_empty() else UiTheme.LILAC
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 8)
 	head.add_child(UiTheme.icon_rect(str(tool.icon), 24, color))
@@ -225,7 +225,7 @@ func _rebuild_card() -> void:
 	var goals_job: Dictionary = job if not job.is_empty() else catalog.job("coin_hunt")
 	if not goals_job.get("goals", []).is_empty():
 		_card.add_child(UiTheme.label("%s goals" % goals_job.name, UiTheme.MUTED, UiTheme.SMALL))
-		_card.add_child(ErrandsTab.GoalTrack.new(goals_job, ErrandsTab._color(goals_job)))
+		_card.add_child(ErrandsTab.GoalTrack.new(goals_job, UiTheme.named_color(str(goals_job.get("color", "")))))
 		_card.add_child(_wrapped(ErrandsTab.goal_line(goals_job), UiTheme.TEXT, UiTheme.SMALL))
 
 
