@@ -34,11 +34,14 @@ func _init() -> void:
 	_test_rummage(catalog)
 	_test_machine(catalog)
 	_test_toys(catalog)
+	_test_boosts(catalog)
 	_test_automation(catalog)
 	_test_unlocks(catalog)
 	_test_gear(catalog)
 	_test_herd(catalog)
 	_test_herd_game(catalog)
+	_test_knacks(catalog)
+	_test_herd_knacks(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -888,7 +891,7 @@ func _test_toys(catalog: Catalog) -> void:
 	rng.seed = 11
 	for t in Toys.all(catalog):
 		_check(d.tiers.has(t.tier), "toy %s has a real tier" % t.id)
-		_check(t.bonus in Toys.KINDS or t.bonus == "all", "toy %s has a known bonus" % t.id)
+		_check(Boosts.is_kind(catalog, t.bonus) or t.bonus == "all", "toy %s has a known bonus" % t.id)
 		var rows: Array = d.art.get(t.id, [])
 		_check(rows.size() == 14 and rows.all(func(r): return str(r).length() == 14), "toy %s has 14 x 14 art" % t.id)
 		for r in rows:
@@ -907,14 +910,14 @@ func _test_toys(catalog: Catalog) -> void:
 	Toys.add(state, "acorn", "ghost")
 	_check(Toys.boost(state, catalog, "acorn:ghost") > Toys.boost(state, catalog, "acorn:normal"), "a ghost toy boosts more than a normal one")
 	var now := 1000.0
-	_check(is_equal_approx(Toys.multiplier(state, catalog, "coins", now), 1.0), "a toy on the shelf does nothing")
+	_check(is_equal_approx(Boosts.total(Toys.parts(state, catalog, "coins", now)), 1.0), "a toy on the shelf does nothing")
 	_check(Toys.play(state, catalog, "acorn:normal", "quick", now), "your pet can play with a toy")
-	_check(Toys.multiplier(state, catalog, "coins", now + 1.0) > 1.0, "a toy being played with boosts")
+	_check(Boosts.total(Toys.parts(state, catalog, "coins", now + 1.0)) > 1.0, "a toy being played with boosts")
 	_check(not Toys.play(state, catalog, "acorn:ghost", "quick", now), "one play slot to start")
 	_check(Toys.finish_plays(state, now + 60.0).is_empty(), "a play isn't over early")
 	var ended := Toys.finish_plays(state, now + 3600.0)
 	_check(ended == ["acorn:normal"] and float(state.owned["acorn:normal"].wear) > 0.0, "a finished play wears the toy")
-	_check(is_equal_approx(Toys.multiplier(state, catalog, "coins", now + 3601.0), 1.0), "after playing the boost stops")
+	_check(is_equal_approx(Boosts.total(Toys.parts(state, catalog, "coins", now + 3601.0)), 1.0), "after playing the boost stops")
 	state.owned["acorn:normal"].wear = 1.0
 	var worn := Toys.boost(state, catalog, "acorn:normal") - 1.0
 	_check(worn > 0.0 and worn >= (float(d.tiers.common.base) - 1.0) * float(d.worn_floor) - 0.0001, "a worn out toy still works a little")
@@ -937,6 +940,50 @@ func _test_toys(catalog: Catalog) -> void:
 	for t in catalog.toys.sets[0].toys:
 		Toys.add(full, t.id, "normal")
 	_check(Toys.slots(full, catalog) == int(d.slots) + 1, "a finished set gives another play slot")
+
+
+## Boosts: one kind table (data/boosts.json), every source gives parts { source, id, x }, the total
+## is their product. Toys are the source so far: a playing toy or a favourite counts, a finished play
+## doesn't, an "all" toy counts for the kinds marked all, and other sources multiply on top.
+func _test_boosts(catalog: Catalog) -> void:
+	var ids := Boosts.kinds(catalog)
+	for k in catalog.boosts.kinds:
+		_check(str(k.get("id", "")) != "" and str(k.get("name", "")) != "", "boost kind %s has an id and a name" % k)
+	for src in catalog.boosts.sources:
+		_check(str(src) != "", "boost sources have names")
+	for t in Toys.all(catalog):
+		_check(t.bonus in ids or t.bonus == "all", "toy %s's bonus is a boost kind" % t.id)
+	var now := 1000.0
+	var state := Toys.fresh()
+	for k in ids:
+		var none := Toys.parts(state, catalog, k, now)
+		_check(none.is_empty() and is_equal_approx(Boosts.total(none), 1.0), "no toys, no %s boost" % k)
+	Toys.add(state, "acorn", "normal")  # coins
+	Toys.add(state, "acorn", "holo")  # coins
+	Toys.add(state, "moth", "normal")  # all
+	Toys.add(state, "snail", "normal")  # speed, stays on the shelf
+	for key in ["acorn:normal", "acorn:holo", "moth:normal"]:
+		state.playing.append({ "key": key, "until": now + 600.0, "wear": 0.0 })
+	var coins := Toys.parts(state, catalog, "coins", now)
+	_check(coins.size() == 3 and coins.all(func(p): return p.source == "toys"), "two coins toys and an all toy: three coins parts")
+	_check(Toys.parts(state, catalog, "luck", now).size() == 1, "the all toy counts for luck")
+	_check(Toys.parts(state, catalog, "speed", now).is_empty(), "a speed toy on the shelf does nothing")
+	_check(Toys.parts(state, catalog, "fever", now).is_empty(), "an all toy doesn't count for kinds not marked all")
+	var product := 1.0
+	for key in ["acorn:normal", "acorn:holo", "moth:normal"]:
+		product *= Toys.boost(state, catalog, key)
+	_check(product > 1.0 and is_equal_approx(Boosts.total(coins), product), "the coins total is every toy's boost multiplied")
+	var holo := coins.filter(func(p): return p.id == "acorn:holo")
+	_check(holo.size() == 1 and is_equal_approx(float(holo[0].x), Toys.boost(state, catalog, "acorn:holo")), "a part is its edition and its boost")
+	_check(Toys.parts(state, catalog, "coins", now + 601.0).is_empty(), "a play that's over counts no more")
+	state.owned["snail:normal"].level = int(catalog.toys.max_level)
+	var fav := Toys.parts(state, catalog, "speed", now + 601.0)
+	_check(fav.size() == 1 and fav[0].id == "snail:normal", "a favourite counts without playing")
+	var book := Boosts.part("book", "page:meadow", 1.5)
+	_check(is_equal_approx(Boosts.total(coins + [book]), product * 1.5), "boosts from different sources multiply")
+	_check(is_equal_approx(Boosts.total([]), 1.0), "nothing boosting is x1")
+	_check(not Boosts.is_kind(catalog, "no such kind") and Boosts.kind(catalog, "no such kind").is_empty(), "an unknown kind isn't in the table")
+	_check(Toys.parts(state, catalog, "no such kind", now).is_empty(), "no toy boosts an unknown kind")
 
 
 ## Gear: xp upgrades to adventuring (data/gear.json, Gear), and what they do on a trip.
@@ -1067,11 +1114,11 @@ func _test_gear(catalog: Catalog) -> void:
 
 
 ## Pets lost over 200 meadow trips always taking the riskiest option, with this gear packed.
-func _gear_losses(place_id: String, pets: Array[Pet], gear: Dictionary, catalog: Catalog) -> int:
+func _gear_losses(place_id: String, pets: Array[Pet], gear: Dictionary, catalog: Catalog, knacks := {}) -> int:
 	var place := catalog.location(place_id)
 	var lost := 0
 	for t in 200:
-		var run := AdventureRunner.start(place_id, pets, 0.0, t, catalog, {}, {}, gear)
+		var run := AdventureRunner.start(place_id, pets, 0.0, t, catalog, {}, {}, gear, knacks)
 		var now := 0.0
 		for i in 20:
 			if run.status == RunState.Status.DONE:
@@ -1335,8 +1382,174 @@ func _test_herd_game(catalog: Catalog) -> void:
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 
 
+## Where the herd meets knacks: counts work at their plain template's speed (no uid, no knack
+## share), cards at their own knack-adjusted speed, on errands and as workers alike.
+func _test_herd_knacks(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped the herd's knacks: it needs a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 9
+	var roller := PetRoller.new(catalog, rng)
+	var active := roller.roll("starter", "common")
+	active.uid = "1"
+	var dressed := roller.roll("starter", "common")
+	dressed.uid = "2"
+	dressed.finish = "holo"  # always a card
+	dressed.stats = Herd.stats_for(catalog, "common")  # the same stats as a count's template
+	dressed.traits = []
+	dressed.parts.palette = "mint"  # minty fresh: errands
+	dressed.parts.accessory = "crown"  # royal: automation
+	var auto := Automation.fresh()
+	auto.taught = { "machine": true }
+	auto.others = { "machine": true }
+	auto.spots = { "machine": 10 }
+	var save := { "version": load("res://scripts/game_state.gd").SAVE_VERSION, "coins": 1000, "tutorial": "done",
+		"saved_at": Time.get_unix_time_from_system(),
+		"unlocks": ["feature:parts", "feature:errands", "tab:errands", "tab:automation"],
+		"collection": { "pets": [active.to_dict(), dressed.to_dict()], "herd": { "common:normal": 3 }, "active": "1", "next_id": 3 },
+		"automation": auto }
+	SaveFile.write(path, save)
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	var card: Pet = gs.collection.get_pet("2")
+	var job: Dictionary = catalog.job("coin_hunt")
+	var template := Herd.template(catalog, "common:normal")
+	_check(card != null and gs.feature_on("parts") and gs.feature_on("errands"), "the dressed card loads with parts and errands open")
+	if card == null:
+		gs.free()
+		return
+	_check(is_equal_approx(Jobs.pet_speed(card, job), Jobs.pet_speed(template, job)), "the card and the count have the same plain speed")
+	_check(gs._pet_speed(card, job) > Jobs.pet_speed(card, job), "minty fresh makes the card faster on errands (%.3f)" % gs._pet_speed(card, job))
+	_check(template.uid == "" and gs.knack_own(template, "errands") == 1.0 and gs.knack_own(template, "automation") == 1.0,
+		"a count's template counts no knacks")
+	gs.put_on_job("coin_hunt", 1)
+	_check(gs.job_crew("coin_hunt") == ["2"] and gs.job_herd("coin_hunt").is_empty(), "+1 picks the dressed card ahead of an equal count")
+	gs.put_on_job("coin_hunt", -1)
+	gs.take_off_job("coin_hunt", 1)
+	_check(gs.job_crew("coin_hunt") == ["2"] and gs.job_size("coin_hunt") == 3, "-1 sends a pet from the count home first")
+	gs.take_off_job("coin_hunt", -1)
+	_check(gs.job_size("coin_hunt") == 0, "everyone home again")
+	var put: int = gs.put_workers("machine", -1)
+	var own: float = gs.knack_own(card, "automation")
+	var want := Automation.worker_speed(catalog, card) * own + Automation.worker_speed(catalog, template) * 3
+	_check(put == 4 and own > 1.0, "the card and 3 from the count start working (%d, x%.3f)" % [put, own])
+	_check(is_equal_approx(gs.workers_speed("machine"), want), "only the card adds its knack share to the workers (%.3f vs %.3f)" % [gs.workers_speed("machine"), want])
+	gs.free()
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+
 func _check(ok: bool, what: String) -> void:
 	_checks += 1
 	if not ok:
 		_failures += 1
 		print("FAIL: " + what)
+
+
+## Knacks (data/knacks.json, Knacks): one per part, sized by rarity and finish, hidden until their
+## system opens; the active pet's feed the boosts, other pets' a share of their own work.
+func _test_knacks(catalog: Catalog) -> void:
+	var d: Dictionary = catalog.knacks
+	var icons := FileAccess.get_file_as_string("res://scripts/ui/ui_theme.gd")  # UiTheme needs the game running
+	for slot in Catalog.SLOTS:
+		for p in catalog.slots[slot]:
+			var key := "%s:%s" % [slot, p.id]
+			_check(d.parts.has(key), "part %s has a knack entry" % key)
+			var kind := str(d.parts.get(key, {}).get("kind", ""))
+			if kind != "":
+				_check(d.kinds.has(kind), "part %s's knack kind %s is in the table" % [key, kind])
+				_check(str(d.parts[key].get("name", "")) != "", "part %s's knack has a name" % key)
+	_check(d.parts["accessory:none"].is_empty(), "no accessory, no knack")
+	for key in d.parts:
+		var bits: PackedStringArray = str(key).split(":")
+		_check(bits.size() == 2 and not catalog.part(bits[0], bits[1]).is_empty(), "knack entry %s is a real part" % key)
+	for kind in d.kinds:
+		var k: Dictionary = d.kinds[kind]
+		_check(float(k.get("step", 0)) > 0 and str(k.get("text", "")).contains("{n}") and icons.contains('"%s":' % k.get("icon", "")),
+			"knack kind %s has a step, a text with {n} and a real icon" % kind)
+		_check(Boosts.is_kind(catalog, kind) or kind in ["all", "power"], "knack kind %s is a boost kind (or all, or power for later)" % kind)
+	for t in catalog.tiers:
+		_check(d.rarity_x.has(t.id), "every rarity has a knack size (%s)" % t.id)
+	for f in catalog.finishes:
+		_check(d.finish_x.has(f.id) and float(d.finish_x[f.id]) >= 1.0, "every finish makes knacks at least as big (%s)" % f.id)
+	# sizes: step x rarity x finish
+	_check(Knacks.size(catalog, "tough", "common") == 3, "a common blob is 3% tougher")
+	_check(Knacks.size(catalog, "tough", "legendary") == 24, "legendary x-eyes: 24% tougher")
+	_check(Knacks.size(catalog, "spots", "epic", "holo") == 30, "a holo cyclops: 20 x1.5 = 30% spotting")
+	var open := func(_gate: String) -> bool: return true
+	var shut := func(gate: String) -> bool: return gate != "feature:parts"
+	var pet := Pet.new()
+	pet.parts = { "body": "bunny", "palette": "gold", "pattern": "stars", "eyes": "cyclops", "accessory": "horns" }
+	var ks := Knacks.of(catalog, pet, open)
+	_check(ks.size() == 4 and not ks.any(func(k): return k.kind == "power"), "the demon horns' power knack stays hidden until fights (%d)" % ks.size())
+	_check(Knacks.of(catalog, pet, shut).is_empty(), "no knacks at all before parts open")
+	var spots := Knacks.parts(catalog, pet, "spots", open)
+	_check(spots.size() == 1 and spots[0].source == "knacks" and spots[0].id == "body:bunny+eyes:cyclops" and is_equal_approx(float(spots[0].x), 1.32),
+		"big ears + one big eye add up: one part, +32% spotting")
+	_check(is_equal_approx(Boosts.total(Knacks.parts(catalog, pet, "coins", open)), 1.40), "golden touch: +40% coins")
+	_check(Knacks.parts(catalog, pet, "fever", open).is_empty(), "no fever knack, no fever part")
+	_check(Knacks.best(catalog, pet, open).slot == "palette", "the best badge: the legendary one (golden touch)")
+	_check(is_equal_approx(Knacks.own(catalog, pet, "spots", open), 1.08), "other pets count a quarter: +8% spotting on their own trips")
+	_check(is_equal_approx(Knacks.own(catalog, pet, "spots", shut), 1.0), "and nothing before parts open")
+	var hum := Pet.new()
+	hum.parts = { "body": "void", "palette": "toxic", "pattern": "plain", "eyes": "sparkle", "accessory": "none" }
+	hum.finish = "prismatic"
+	for kind in ["coins", "xp", "luck"]:
+		_check(is_equal_approx(Boosts.total(Knacks.parts(catalog, hum, kind, open)), 1.6), "the hum counts for %s (2 x12 x2.5 = 60%%)" % kind)
+	_check(Knacks.parts(catalog, hum, "speed", open).is_empty(), "the hum doesn't count for kinds not marked all")
+	var no_fever := func(gate: String) -> bool: return gate != "machine:wires"
+	_check(not Knacks.of(catalog, hum, no_fever).any(func(k): return k.kind == "fever") and Knacks.of(catalog, hum, open).any(func(k): return k.kind == "fever"),
+		"glow in the dark shows once the lights (fever) are fixed")
+	var party: Array = [pet, hum]
+	_check(is_equal_approx(Knacks.party(catalog, party, "spots", open), 1.04), "a party's own share is the average (8% and 0%)")
+	_check(is_equal_approx(Knacks.party(catalog, [], "spots", open), 1.0), "nobody, x1")
+	# the lean totals (no display rows) agree with the rows the badges show
+	var roll_rng := RandomNumberGenerator.new()
+	roll_rng.seed = 11
+	var roller := PetRoller.new(catalog, roll_rng)
+	var agree := true
+	var many: Array = []
+	for i in 300:
+		var p := roller.roll("lucky")
+		many.append(p)
+		for kind in Boosts.kinds(catalog):
+			for gate: Callable in [open, no_fever]:
+				var by_rows := 0
+				for k in Knacks.of(catalog, p, gate):
+					if Knacks.covers(catalog, str(k.kind), kind):
+						by_rows += int(k.n)
+				if by_rows != Knacks.total(catalog, p, kind, gate):
+					agree = false
+	_check(agree, "lean knack totals match the badges' rows for 300 rolled pets")
+	var t0 := Time.get_ticks_usec()
+	for i in 10:
+		Knacks.party_all(catalog, many, ["trip", "tough", "safe", "spots", "finds", "pickups", "treats", "loot"], open)
+	var per_pet := float(Time.get_ticks_usec() - t0) / (10.0 * many.size())
+	print("knacks: party_all over 8 kinds %.1f us per pet" % per_pet)
+	# on a trip
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	var bean: Array[Pet] = [PetRoller.new(catalog, rng).roll("starter", "common")]
+	var plain := AdventureRunner.start("garden", bean, 0.0, 1, catalog)
+	var quick := AdventureRunner.start("garden", bean, 0.0, 1, catalog, {}, {}, {}, { "trip": 1.25 })
+	_check(is_equal_approx(AdventureRunner.run_gap(quick, catalog), AdventureRunner.run_gap(plain, catalog) / 1.25), "a trip knack x1.25: the walk / 1.25")
+	var both := AdventureRunner.start("garden", bean, 0.0, 1, catalog, {}, {}, { "boots": 5 }, { "trip": 1.25 })
+	_check(is_equal_approx(AdventureRunner.run_gap(both, catalog), AdventureRunner.run_gap(plain, catalog) * 0.6 / 1.25), "boots and knacks together")
+	var again := RunState.from_dict(both.to_dict(), catalog)
+	_check(is_equal_approx(again.knack("trip"), 1.25) and is_equal_approx(again.walk, both.walk), "a trip's knacks survive a save")
+	_check(is_equal_approx(RunState.from_dict(plain.to_dict(), catalog).knack("safe"), 1.0), "a trip without knacks is x1")
+	var lost_plain := _gear_losses("meadow", bean, {}, catalog)
+	var lost_safe := _gear_losses("meadow", bean, {}, catalog, { "safe": 2.0, "tough": 2.0 })
+	_check(lost_safe < lost_plain, "tougher, safe-home pets get lost less (%d vs %d)" % [lost_safe, lost_plain])
+	var garden := catalog.location("garden")
+	var seen := [0, 0]
+	for t in 400:
+		for i in 2:
+			rng.seed = t
+			seen[i] += Intel.roll(garden, func(_id): return false, {}, rng, 1.0 if i == 0 else 1.5).size()
+	_check(seen[1] > seen[0], "spotting knacks spot more places (%d vs %d)" % [seen[1], seen[0]])

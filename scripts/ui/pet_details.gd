@@ -1,14 +1,20 @@
 class_name PetDetails
 extends PanelContainer
 ## Everything about one pet, as a big sticker with a stitched edge: its portrait, name, rarity and
-## finish, parts, traits and stats, the heart (a favourite: on the cushion, never folds into the
-## herd) and the button to make it your active pet.
+## finish, its knacks as sewn badges (tap one to read it), parts, traits and stats, the heart (a
+## favourite: on the cushion, never folds into the herd) and the button to make it your active pet.
 
 var _pet: Pet
 var _portrait := PetPortrait.new(6, true)
 var _name := UiTheme.title("", 20)
 var _tags := HBoxContainer.new()
 var _info := GridContainer.new()
+var _badges := HBoxContainer.new()  # the pet's knacks (see Knacks), none while they're hidden
+var _card := PanelContainer.new()  # the chosen badge's knack, read out
+var _card_name := UiTheme.title("", 15)
+var _card_text := UiTheme.label("", UiTheme.MINT, 12)
+var _card_part := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
+var _picked := ""  # the slot of the badge being read
 var _active_button: Button
 var _fav_button: Button
 
@@ -36,6 +42,22 @@ func _init() -> void:
 	_tags.alignment = BoxContainer.ALIGNMENT_CENTER
 	_tags.add_theme_constant_override("separation", 6)
 	about.add_child(_tags)
+	_badges.alignment = BoxContainer.ALIGNMENT_CENTER
+	_badges.add_theme_constant_override("separation", 6)
+	var badge_pad := MarginContainer.new()  # room for the chosen badge's ring
+	badge_pad.add_theme_constant_override("margin_top", 8)
+	badge_pad.add_theme_constant_override("margin_bottom", 4)
+	badge_pad.add_child(_badges)
+	about.add_child(badge_pad)
+	_card.add_theme_stylebox_override("panel", UiTheme.box(UiTheme.DEEP, UiTheme.LINE, 10, 2, 6))
+	var card_col := VBoxContainer.new()
+	card_col.add_theme_constant_override("separation", 0)
+	_card.add_child(card_col)
+	for l: Label in [_card_name, _card_text, _card_part]:
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		card_col.add_child(l)
+	about.add_child(_card)
 	var gap := Control.new()
 	gap.custom_minimum_size = Vector2(0, 6)
 	about.add_child(gap)
@@ -66,6 +88,8 @@ func active_button() -> Button:
 
 
 func show_pet(pet: Pet) -> void:
+	if pet == null or _pet == null or pet.uid != _pet.uid:
+		_picked = ""  # another pet: its best badge is read first
 	_pet = pet
 	visible = pet != null
 	if pet == null:
@@ -81,6 +105,8 @@ func show_pet(pet: Pet) -> void:
 	if f.id != "normal":
 		_tags.add_child(UiTheme.tag(f.name, UiTheme.GOLD))
 
+	_show_knacks()
+
 	UiTheme.clear(_info)
 	for slot in Catalog.SLOTS:
 		var p := catalog.part(slot, pet.parts[slot])
@@ -94,6 +120,34 @@ func show_pet(pet: Pet) -> void:
 	for stat in Pet.STATS:
 		_row(stat, str(pet.stats.get(stat, 0)), UiTheme.TEXT)
 	_refresh_active()
+
+
+## The pet's knacks as badges and the chosen one's card; neither shows while it has none to show.
+func _show_knacks() -> void:
+	UiTheme.clear(_badges)
+	var knacks := GameState.knacks_of(_pet)
+	_badges.get_parent().visible = not knacks.is_empty()
+	_card.visible = not knacks.is_empty()
+	if knacks.is_empty():
+		return
+	if not knacks.any(func(k): return k.slot == _picked):
+		_picked = str(Knacks.best(GameState.catalog, _pet, GameState.knack_gate).slot)
+	for k in knacks:
+		var badge := KnackBadge.new(k)
+		badge.pressed.connect(func(picked: Dictionary): _pick(str(picked.slot)))
+		_badges.add_child(badge)
+	_pick(_picked)
+
+
+## Reads out the badge of this slot.
+func _pick(slot: String) -> void:
+	_picked = slot
+	for badge: KnackBadge in _badges.get_children():
+		badge.chosen = badge.knack.slot == slot
+		if badge.chosen:
+			_card_name.text = str(badge.knack.name)
+			_card_text.text = str(badge.knack.text)
+			_card_part.text = "%s: %s" % [badge.knack.slot, badge.knack.part_name]
 
 
 func _refresh_active() -> void:

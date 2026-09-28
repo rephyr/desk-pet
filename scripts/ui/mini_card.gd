@@ -2,7 +2,9 @@ class_name MiniCard
 extends PanelContainer
 ## A small pet sticker for the bookcase (the cushion and an opened shelf): the pet, its name, its
 ## rarity (or its finish, in gold). A moon for your active pet, "new!" for one that brought a part
-## new to the book, a heart for a favourite; holo and better glow. Hold it in a Tilted for the tilt.
+## new to the book, a heart for a favourite; holo and better glow. In an opened shelf it wears its
+## best knack's badge on the bottom-right corner (see Knacks, KnackBadge). Hold it in a Tilted for
+## the tilt.
 ## Design: design/mockups/screens/pets-shelves.html (look A).
 
 signal pressed(pet: Pet)
@@ -11,11 +13,15 @@ const WIDTH := 76
 
 var pet: Pet
 var _selected := false
+var _best := {}  # the knack on the corner badge ({} for none)
 
 
-func _init(p_pet: Pet, width := WIDTH) -> void:
+## `knack`: wear the best knack's badge on the corner (an opened shelf).
+func _init(p_pet: Pet, width := WIDTH, knack := false) -> void:
 	pet = p_pet
 	var catalog := Catalog.shared()
+	if knack:
+		_best = Knacks.best(catalog, pet, GameState.knack_gate)
 	var color := catalog.tier_color(pet.rarity)
 	mouse_filter = MOUSE_FILTER_STOP
 	mouse_default_cursor_shape = CURSOR_POINTING_HAND
@@ -92,6 +98,11 @@ func _draw() -> void:
 		draw_set_transform(Vector2.ZERO)
 	if pet.fav:
 		draw_texture_rect(UiTheme.icon("heart", 16), Rect2(Vector2(size.x - 11.0, -7.0), Vector2(16, 16)), false)
+	if not _best.is_empty():
+		# 20 px, poking out over the bottom-right corner (moon / new! and the heart have the top)
+		var at := Vector2(size.x - 3.0, size.y - 3.0)
+		draw_circle(at + Vector2(0, 1), 11.0, UiTheme.SHADOW)
+		KnackBadge.draw_badge(self, _best, at, 20.0, 10.0)
 
 
 func _gui_input(event: InputEvent) -> void:

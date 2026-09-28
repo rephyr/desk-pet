@@ -19,6 +19,7 @@ var _mode: PanelContainer  # the pets | toys | book switch
 var _toys_button: Button
 var _dirty := true
 var _queued := false  # a rebuild is waiting for the end of the frame
+var _knacks_seen := ""  # which knack kinds showed when the pets were last drawn (see _knacks_key)
 
 
 func _init() -> void:
@@ -61,6 +62,10 @@ func _init() -> void:
 		close_shelf()
 		_mark_dirty())
 	GameState.room_full.connect(func(): _room.refresh())
+	# knacks showing up (parts open, a machine fix, the tutorial moving on) redraw the badges
+	GameState.knacks_changed.connect(func():
+		if _knacks_key() != _knacks_seen:
+			_mark_dirty())
 	visibility_changed.connect(func():
 		if not is_visible_in_tree():
 			_room.hide_card()
@@ -169,6 +174,7 @@ func _rebuild_if_visible() -> void:
 
 func _rebuild() -> void:
 	_dirty = false
+	_knacks_seen = _knacks_key()
 	_room.visible = GameState.room_shown()
 	_room.refresh()
 	if _shelf.visible and GameState.collection.count_of(_shelf.rarity) > 0:
@@ -177,3 +183,15 @@ func _rebuild() -> void:
 		_shelf.visible = false
 		_bookcase.visible = true
 		_bookcase.rebuild()
+
+
+## Which knack kinds show right now, as a word ("" while knacks are shut).
+func _knacks_key() -> String:
+	var catalog := GameState.catalog
+	if not Knacks.system_open(catalog, GameState.knack_gate):
+		return ""
+	var on: Array[String] = []
+	for kind: String in catalog.knacks.kinds:
+		if Knacks.kind_open(catalog, kind, GameState.knack_gate):
+			on.append(kind)
+	return ",".join(on)

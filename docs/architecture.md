@@ -6,8 +6,8 @@ How the code is laid out and where new things go. Game design lives in `design.m
 
 ```
 data/*.json          what exists: parts, rarities, finishes, traits, boxes (tune here, not in code)
-scripts/core/        generic helpers with no game rules (Catalog loads data/, Weighted picks)
-scripts/pets/        pet rules and pet visuals (Pet, PetRoller, Collection, PetLook, PetView)
+scripts/core/        generic helpers with no game rules (Catalog loads data/, Weighted picks, Boosts: the boost kind table and its arithmetic)
+scripts/pets/        pet rules and pet visuals (Pet, PetRoller, Collection, Knacks, PetLook, PetView)
 scripts/adventure/   adventure rules: runs, events, parties, rewards, rumours, the pet's voice
 scripts/idle/        errands (Jobs) and automation (Automation): pure rules for idle jobs, see data/errands.json, data/automation.json
 scripts/machine/     the capsule machine (Machine) and capsule toys (Toys): pure rules, see data/machine.json, data/toys.json
@@ -21,6 +21,47 @@ scripts/home.gd      the window: switches layers, sizes the window, runs the des
 Dependencies only point downwards: UI → GameState → pets → core → data. Nothing below the UI
 knows the UI exists; state changes are announced with signals (`GameState.changed`,
 `Collection.pets_added`, `Collection.active_changed`).
+
+## Boosts
+
+- One plumbing for every multiplier: `GameState.boost(kind)` (the total) and
+  `GameState.boost_parts(kind)` (what makes it: `{ source, id, x }`). Kinds are in
+  `data/boosts.json`. `Boosts` (core) is only the kind table (`kind`, `is_kind`, `kinds`,
+  `all_covers`), `part()` and `total()` (the product, 1.0 with none); it imports no game system.
+- `GameState.boost_parts` gathers the sources, since it holds their state: it checks the kind
+  (`[]` and an error for an unknown one), then appends `Toys.parts(toys, catalog, kind, now)` (one
+  part per edition working now). A new source (book, knacks, kitchen) appends its own `X.parts(...)`
+  there, and calls `_boosts_changed()` whenever its state changes.
+- `boost()` is called every frame (errand meters, the machine), so totals are kept in `_boosts` and
+  cleared by `_boosts_changed()`: on `toys_changed`, a new game, a load, and the once-a-second tick
+  (plays run out). `boost_parts()` is never cached (the `boosts` dev step, the receipt later).
+- Game code only ever calls `boost()`; no source has its own multiplier call.
+- Knacks (D1) are the second source: `Knacks` (scripts/pets/knacks.gd, static, pure: a gate
+  Callable goes in) works a pet's knacks out of its parts and finish; nothing is saved. `of` /
+  `best` build display rows (the UI only). Totals (`total`, `parts`, `own`, `party_all`) take the
+  lean path: `counting(kind)` makes a lookup table once (slot -> part id -> size before the
+  finish, only parts whose knack kind counts and is open), `sum_in` / `own_in` then add a pet up
+  with no rows or strings (about 2.5 us a pet a kind). `GameState.boost_parts` appends
+  `Knacks.parts(catalog, collection.active(), kind, knack_gate)`. `knack_gate(gate)` answers
+  "adventures", "machine:<node>" and unlock ids. `GameState.knack_own(pet, kind)` keeps each
+  pet's own share by uid (`_knack_own`, tables in `_knack_steps`). `_knacks_changed()` (a pet's
+  parts, a new game, a load, a regate) clears boosts, those and the errand and worker speeds;
+  `_knack_gates_changed()` (unlock, unlocked, machine_upgraded, tutorial_changed, debug lock-all,
+  the `fix` dev step) clears boosts and the knack caches, clears the errand / worker speeds only
+  when the tables for "errands" / "automation" changed, bumps `knack_version` and emits
+  `knacks_changed` (the pets tab marks itself dirty, so an open shelf redraws its `MiniCard` corner
+  badges, only when the open kinds differ from its last draw). active_changed only clears boosts (your active pet never works). Other pets:
+  `_pet_speed` (errand speed x `knack_own(.., "errands")`, used to pick who goes on and who comes
+  off), `workers_speed` x `knack_own(.., "automation")` (cards; herd counts in crews and on machines work
+  at `Herd.template` speed: `knack_own` is 1.0 for a pet with no uid, so the templates never share
+  a cache slot). The adventures tab keeps
+  `trip_knacks(pets)` by a key of place, picks, gear, active pet, trip boosts and `knack_version`,
+  so a big swarm isn't walked on every click. Trips pack `RunState.knacks` when they set off
+  (`GameState.trip_knacks`: boost x party share for trip, tough, safe, spots, finds, pickups,
+  treats; loot is the party share only), read with `run.knack(kind)` (1.0 when missing):
+  `AdventureRunner.walk_of` (boots then / trip), hurt and injured counts / tough, lost / safe,
+  `Intel.roll(.., x)` lead chance x spots, trail pickups, treat zoom, extra bits and parts in
+  `_boost_trip_loot`.
 
 ## Pets
 

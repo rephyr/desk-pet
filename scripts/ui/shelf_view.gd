@@ -135,7 +135,7 @@ func _flow(pets: Array[Pet], start: int) -> Control:
 	flow.add_theme_constant_override("v_separation", 12)
 	flow.size_flags_horizontal = SIZE_EXPAND_FILL
 	for i in pets.size():
-		var mini := MiniCard.new(pets[i], CARD_WIDTH)
+		var mini := MiniCard.new(pets[i], CARD_WIDTH, true)
 		mini.set_selected(pets[i].uid == _selected)
 		mini.pressed.connect(_pick)
 		flow.add_child(Tilted.new(mini, [-2.0, 1.5, -1.0, 2.0, -1.5, 1.0][(start + i) % 6]))

@@ -1,0 +1,185 @@
+class_name Knacks
+extends RefCounted
+## Knacks: every part has a named knack (data/knacks.json), e.g. the bunny body's "big ears"
+## (+spotting). Its size n (a %) is the kind's step x the part's rarity x the pet's finish, and it
+## multiplies by 1 + n/100. Nothing is saved: a pet's knacks come from its parts and finish.
+## Your active pet's knacks are the "knacks" boost source (GameState.boost_parts); other pets'
+## count a share ("own") on their own errands, worker jobs and trips.
+## Pure rules: `open` is a Callable(gate: String) -> bool that says whether a gate is open
+## ("feature:parts", "machine:wires", "adventures", ...), so this knows no game state.
+
+
+static func data(catalog: Catalog) -> Dictionary:
+	return catalog.knacks
+
+
+## A kind's row ({} when there's no such kind).
+static func kind_info(catalog: Catalog, kind: String) -> Dictionary:
+	return data(catalog).get("kinds", {}).get(kind, {})
+
+
+## A part's knack row: { name, kind }, or {} (no accessory has none).
+static func of_part(catalog: Catalog, slot: String, part_id: String) -> Dictionary:
+	return data(catalog).get("parts", {}).get("%s:%s" % [slot, part_id], {})
+
+
+## A knack's size in % for a kind, a part rarity and a finish (rounded to a whole %).
+static func size(catalog: Catalog, kind: String, rarity: String, finish := "normal") -> int:
+	var d := data(catalog)
+	var step := float(kind_info(catalog, kind).get("step", 0))
+	return roundi(step * float(d.rarity_x.get(rarity, 1)) * float(d.finish_x.get(finish, 1)))
+
+
+## Whether the whole system is open (knacks show at all).
+static func system_open(catalog: Catalog, open: Callable) -> bool:
+	var gate := str(data(catalog).get("opens", ""))
+	return gate == "" or open.call(gate)
+
+
+## Whether knacks of this kind show and count: the kind does something now (a boost kind, or "all")
+## and its own gate is open. The whole system's gate is checked by the caller (see of).
+static func kind_open(catalog: Catalog, kind: String, open: Callable) -> bool:
+	if kind_info(catalog, kind).is_empty():
+		return false
+	if kind != "all" and not Boosts.is_kind(catalog, kind):
+		return false  # e.g. power: nothing uses it until fights
+	var gate := str(kind_info(catalog, kind).get("opens", ""))
+	return gate == "" or open.call(gate)
+
+
+## A pet's knacks that show right now, in slot order:
+##   [ { slot, part, part_name, name, kind, tier, n, x, text, icon } ]
+## [] when the system is shut.
+static func of(catalog: Catalog, pet: Pet, open: Callable) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	if pet == null or not system_open(catalog, open):
+		return out
+	for slot in Catalog.SLOTS:
+		var id := str(pet.parts.get(slot, ""))
+		var k := of_part(catalog, slot, id)
+		var kind := str(k.get("kind", ""))
+		if kind == "" or not kind_open(catalog, kind, open):
+			continue
+		var p := catalog.part(slot, id)
+		var tier := str(p.get("rarity", "common"))
+		var n := size(catalog, kind, tier, pet.finish)
+		var info := kind_info(catalog, kind)
+		out.append({ "slot": slot, "part": id, "part_name": str(p.get("name", id)), "name": str(k.get("name", "")),
+			"kind": kind, "tier": tier, "n": n, "x": 1.0 + n / 100.0,
+			"text": str(info.get("text", "")).replace("{n}", str(n)), "icon": str(info.get("icon", "")) })
+	return out
+
+
+## The pet's best knack (highest part rarity, then biggest), or {} with none showing.
+static func best(catalog: Catalog, pet: Pet, open: Callable) -> Dictionary:
+	var top := {}
+	for k in of(catalog, pet, open):
+		if top.is_empty() or catalog.rank(k.tier) > catalog.rank(top.tier) \
+				or (catalog.rank(k.tier) == catalog.rank(top.tier) and int(k.n) > int(top.n)):
+			top = k
+	return top
+
+
+## Whether a knack counts for a boost kind: its own kind, or "all" for kinds marked all.
+static func covers(catalog: Catalog, knack_kind: String, kind: String) -> bool:
+	return knack_kind == kind or (knack_kind == "all" and Boosts.all_covers(catalog, kind))
+
+
+## Which parts' knacks count for a boost kind right now, as a lookup table: slot -> { part id ->
+## its knack's size in % before the finish } ({} while knacks are shut or none count). Worked out
+## once per call so the lean totals below can walk big crews without building display rows.
+static func counting(catalog: Catalog, kind: String, open: Callable) -> Dictionary:
+	var out := {}
+	if not system_open(catalog, open):
+		return out
+	var d := data(catalog)
+	var steps := {}  # knack kind -> its step, for the kinds that count
+	for kk: String in d.get("kinds", {}):
+		if covers(catalog, kk, kind) and kind_open(catalog, kk, open):
+			steps[kk] = float(kind_info(catalog, kk).get("step", 0))
+	if steps.is_empty():
+		return out
+	var parts_data: Dictionary = d.get("parts", {})
+	for key: String in parts_data:
+		var kk := str(parts_data[key].get("kind", ""))
+		if not steps.has(kk):
+			continue
+		var bits := key.split(":")
+		var tier := str(catalog.part(bits[0], bits[1]).get("rarity", "common"))
+		if not out.has(bits[0]):
+			out[bits[0]] = {}
+		out[bits[0]][bits[1]] = float(steps[kk]) * float(d.rarity_x.get(tier, 1))
+	return out
+
+
+## A pet's knacks added up in % for the table from counting, building no display rows: the lean
+## path for totals over many pets. Same rounding as of (per knack).
+static func sum_in(catalog: Catalog, pet: Pet, table: Dictionary) -> int:
+	if pet == null or table.is_empty():
+		return 0
+	var fx := float(data(catalog).finish_x.get(pet.finish, 1))
+	var n := 0
+	for slot: String in table:
+		var base = table[slot].get(pet.parts.get(slot, ""))
+		if base != null:
+			n += roundi(float(base) * fx)
+	return n
+
+
+## `own` with the counting kinds already worked out (1.0 with none).
+static func own_in(catalog: Catalog, pet: Pet, table: Dictionary) -> float:
+	if pet == null or table.is_empty():
+		return 1.0
+	return 1.0 + float(data(catalog).get("own", 0.0)) * sum_in(catalog, pet, table) / 100.0
+
+
+## A pet's knacks of one kind added up, in % (0 with none).
+static func total(catalog: Catalog, pet: Pet, kind: String, open: Callable) -> int:
+	return sum_in(catalog, pet, counting(catalog, kind, open))
+
+
+## The boost parts (see Boosts) of one kind from a pet (your active pet): one part, its knacks of
+## that kind added up, id like "body:bunny+eyes:cyclops". [] when none.
+static func parts(catalog: Catalog, pet: Pet, kind: String, open: Callable) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var table := counting(catalog, kind, open)
+	if pet == null or table.is_empty():
+		return out
+	var fx := float(data(catalog).finish_x.get(pet.finish, 1))
+	var ids: Array[String] = []
+	var n := 0
+	for slot in Catalog.SLOTS:
+		var id := str(pet.parts.get(slot, ""))
+		var base = table.get(slot, {}).get(id)
+		if base != null and roundi(float(base) * fx) > 0:
+			ids.append("%s:%s" % [slot, id])
+			n += roundi(float(base) * fx)
+	if n > 0:
+		out.append(Boosts.part("knacks", "+".join(ids), 1.0 + n / 100.0))
+	return out
+
+
+## What a pet's own knacks of a kind do for its own work (errands, worker jobs, its trips): a share
+## ("own") of their size. 1.0 with none.
+static func own(catalog: Catalog, pet: Pet, kind: String, open: Callable) -> float:
+	return own_in(catalog, pet, counting(catalog, kind, open))
+
+
+## A party's average `own` for a kind (1.0 for nobody).
+static func party(catalog: Catalog, pets: Array, kind: String, open: Callable) -> float:
+	return float(party_all(catalog, pets, [kind], open)[kind])
+
+
+## `party` for several kinds in one go over the pets: kind -> average own multiplier.
+static func party_all(catalog: Catalog, pets: Array, kinds: Array, open: Callable) -> Dictionary:
+	var out := {}
+	for kind in kinds:
+		var table := counting(catalog, kind, open)
+		if pets.is_empty() or table.is_empty():
+			out[kind] = 1.0
+			continue
+		var sum := 0.0
+		for pet in pets:
+			sum += own_in(catalog, pet, table)
+		out[kind] = sum / pets.size()
+	return out

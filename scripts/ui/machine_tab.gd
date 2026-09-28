@@ -1009,7 +1009,7 @@ class MachineStage extends Control:
 		var sz := int(26.0 * (1.0 + pop * 0.12))
 		draw_texture_rect(UiTheme.icon("coin", 22, UiTheme.CYAN), Rect2(at + Vector2(-16, -12 - pop * 2.0), Vector2(22, 22)), false)
 		draw_string(font, at + Vector2(12, 8), UiTheme.num(_shown_coins), HORIZONTAL_ALIGNMENT_LEFT, -1, sz, UiTheme.TEXT.lerp(UiTheme.CYAN, pop * 0.6))
-		var per := Machine.coin_value(GameState.machine, Catalog.shared()) * GameState.toy_boost("coins")
+		var per := Machine.coin_value(GameState.machine, Catalog.shared()) * GameState.boost("coins")
 		var chutes := Machine.chutes(GameState.machine, Catalog.shared())
 		var line := "%s coin%s a capsule%s" % [UiTheme.num(per), "" if per < 1.5 else "s", ", %d chutes" % chutes if chutes > 1 else ""]
 		var left := GameState.fever_left()
