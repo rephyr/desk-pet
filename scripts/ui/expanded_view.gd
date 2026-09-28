@@ -176,6 +176,15 @@ func show_start() -> void:
 
 
 func show_tab(tab_id: String) -> void:
+	if tab_id == "book" or tab_id.begins_with("book:"):  # the collectibles' book, open on a reward
+		# sticker's page ("book:<page id>"), or the newest one's
+		show_tab("collection")
+		if _current == "collection":
+			var page_id := tab_id.trim_prefix("book:") if tab_id.begins_with("book:") else ""
+			if page_id == "" and not GameState.stickers.is_empty():
+				page_id = GameState.stickers.back()
+			collection.open_book_page(page_id)
+		return
 	if not _tabs.has(tab_id) or not GameState.tab_open(tab_id):
 		return
 	_current = tab_id

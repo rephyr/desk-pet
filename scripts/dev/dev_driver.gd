@@ -40,6 +40,11 @@ extends Node
 ##   spots <job> <n>       n more machines (tables, parties) for a job's workers, for free
 ##   xp <n>                you have exactly n xp
 ##   gear <id> [levels]    levels of a gear upgrade (data/gear.json), for free
+##   book <page> [left]    every sticker on that collection book page (data/book.json) is found but
+##                         the last `left` (the rarest), then full pages open their reward stickers
+##   stickers off          full book pages open their stickers without a popup from now on, and
+##                         any sticker popups waiting go away (for flows with big `pets` steps,
+##                         where how many pages fill is random)
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -241,6 +246,19 @@ func _step(w: PackedStringArray) -> String:
 			if Gear.info(GameState.catalog, w[1]).is_empty():
 				return "unknown gear %s" % w[1]
 			GameState.set_gear_level(w[1], GameState.gear_level(w[1]) + (int(w[2]) if w.size() > 2 else 1))
+		"book":  # book <page> [left]: that book page found, all but its last `left` stickers
+			var page := Book.page(GameState.catalog, w[1])
+			if page.is_empty():
+				return "unknown book page %s" % w[1]
+			var keys := Book.keys(GameState.catalog, page)
+			for k in keys.slice(0, keys.size() - (int(w[2]) if w.size() > 2 else 0)):
+				if GameState.collection.times_seen(k) == 0:
+					GameState.collection.see(k)  # the book redraws, full pages open
+		"stickers":  # stickers off: full book pages open their stickers quietly (no popup) from now on
+			if w.size() < 2 or w[1] != "off":
+				return "stickers takes: off"
+			for p in _all(UnlockPopup):
+				p.quiet_stickers()
 		"quit":
 			_finish()
 		_:

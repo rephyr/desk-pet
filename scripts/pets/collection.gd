@@ -8,6 +8,7 @@ signal pets_added(pets: Array[Pet])
 signal active_changed(pet: Pet)
 signal pets_removed(uids: Array[String])
 signal pet_changed(pet: Pet)  # a pet's parts changed (sewn on)
+signal seen_changed  # see() counted a book key without a pet (the book redraws, full pages open)
 
 var pets: Array[Pet] = []  # in pull order
 var active_uid := ""
@@ -81,6 +82,12 @@ func set_active(uid: String) -> void:
 
 func times_seen(key: String) -> int:
 	return _seen.get(key, 0)
+
+
+## Counts a book key as pulled `n` more times without a pet (the dev driver's "book" step, tests).
+func see(key: String, n := 1) -> void:
+	_seen[key] = _seen.get(key, 0) + n
+	seen_changed.emit()
 
 
 func _count(key: String) -> void:

@@ -3,7 +3,8 @@ extends Control
 ## Something new opened up (data/unlocks.json): a card pops up over the full game with what it is,
 ## what it does, and what found it. "show me" goes to its tab (if it has one), "lovely" closes it.
 ## Unlocks that happen while the game sits small in the corner wait here until the full game is
-## open again, and several in a row come one after another.
+## open again, and several in a row come one after another. A full collection book page's reward
+## sticker (GameState.sticker_opened) comes the same way.
 
 signal go(tab_id: String)
 
@@ -17,6 +18,8 @@ var _title := UiTheme.title("", 22)
 var _text := UiTheme.label("", UiTheme.TEXT, UiTheme.SMALL + 2)
 var _buttons := HBoxContainer.new()
 var _showing := false
+var _sticker_showing := false
+var _quiet_stickers := false  # the dev driver's "stickers off"
 
 
 func _init() -> void:
@@ -48,6 +51,18 @@ func _init() -> void:
 	col.add_child(_buttons)
 	add_child(Tilted.new(_card, -1.5))
 	GameState.unlocked.connect(func(entry): _queue.append(entry))
+	GameState.sticker_opened.connect(_queue_sticker)
+
+
+## A collection book page filled up: its reward sticker comes as a card too.
+func _queue_sticker(page_id: String) -> void:
+	if _quiet_stickers:
+		return
+	var page := Book.page(Catalog.shared(), page_id)
+	if page.is_empty():
+		return
+	_queue.append({ "sticker": page_id, "found_line": "%s page full!" % page_id,
+		"popup": { "title": str(page.name), "text": Book.words(Catalog.shared(), page), "go": "book:%s" % page_id } })
 
 
 func _process(_delta: float) -> void:
@@ -61,7 +76,9 @@ func _show(entry: Dictionary) -> void:
 	# what opened it: a find a pet brought home, or the first of something
 	var earn: Dictionary = entry.get("earn", {})
 	var find_name := str(Catalog.shared().finds.get(str(earn.get("find", "")), {}).get("name", ""))
-	if find_name != "":
+	if entry.has("found_line"):
+		_found.text = str(entry.found_line)
+	elif find_name != "":
 		_found.text = "found: %s" % find_name
 	elif earn.has("first"):
 		_found.text = "your first %s!" % earn.first
@@ -81,6 +98,7 @@ func _show(entry: Dictionary) -> void:
 	lovely.add_theme_constant_override("icon_max_width", 14)
 	_buttons.add_child(lovely)
 	_showing = true
+	_sticker_showing = entry.has("sticker")
 	visible = true
 	# centre the card, then pop it in
 	var holder := _card.get_parent() as Control
@@ -92,6 +110,14 @@ func _show(entry: Dictionary) -> void:
 	var t := create_tween().set_parallel()
 	t.tween_property(holder, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	t.tween_property(self, "modulate:a", 1.0, 0.2)
+
+
+## Test flows: sticker cards stop coming, and any waiting (or up) go away. Unlocks still come.
+func quiet_stickers() -> void:
+	_quiet_stickers = true
+	_queue = _queue.filter(func(e): return not e.has("sticker"))
+	if _showing and _sticker_showing:
+		_close()
 
 
 func _close() -> void:

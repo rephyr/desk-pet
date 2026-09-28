@@ -1,0 +1,17 @@
+{
+	"_note": "The collection book's reward stickers (Book, scripts/pets/book.gd). Filling a page opens its sticker for good: a small permanent boost. kind: coins | luck | automation | errands; x multiplies that kind (stickers multiply with each other and with toys). A page is a part slot's page (slot) or a body's finishes page (finishes_of). The line under the sticker is words[kind] with {p} = the % (so it can't disagree with x). All numbers are placeholders until balance.",
+	"words": {
+		"coins": "+{p}% coins",
+		"luck": "+{p}% luck",
+		"automation": "automation {p}% faster",
+		"errands": "errands {p}% faster"
+	},
+	"pages": [
+		{ "id": "bodies", "slot": "body", "name": "a cozy blanket", "kind": "automation", "x": 1.1 },
+		{ "id": "palettes", "slot": "palette", "name": "a paint set", "kind": "coins", "x": 1.1 },
+		{ "id": "patterns", "slot": "pattern", "name": "a roll of washi tape", "kind": "errands", "x": 1.1 },
+		{ "id": "eyes", "slot": "eyes", "name": "a magnifying glass", "kind": "luck", "x": 1.1 },
+		{ "id": "accessories", "slot": "accessory", "name": "a little wardrobe", "kind": "errands", "x": 1.1 },
+		{ "id": "finishes", "finishes_of": "blob", "name": "a glitter jar", "kind": "coins", "x": 1.1 }
+	]
+}

@@ -4,6 +4,8 @@ extends VBoxContainer
 ## palettes, patterns, eyes, accessories), then one per body for its finishes. Parts you've pulled
 ## are stickers stuck in a little crooked, with how many you've had; the rest are empty dashed
 ## spots with a dark silhouette. Bookmarks along the top jump between spreads.
+## A page with a reward sticker (data/book.json, Book) ends with it: a dashed gift spot until the
+## page is full, then the sticker itself, stuck in for good.
 
 # the pet every part is shown on, with just that one part swapped in
 const SHOWCASE := { "body": "blob", "palette": "lilac", "pattern": "plain", "eyes": "round", "accessory": "none" }
@@ -13,7 +15,7 @@ const TILTS := [-2.5, 1.5, -1.0, 2.2, -1.8, 1.0, 2.6, -2.2, 0.8, -1.4]
 var _found_label := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL + 1)
 var _marks := HBoxContainer.new()
 var _spread := HBoxContainer.new()
-var _pages: Array[Dictionary] = []  # { title, bookmark, tiles: [{ parts, finish, name, tier, seen }] }
+var _pages: Array[Dictionary] = []  # { title, bookmark, sticker (its data/book.json page, or {}), tiles: [{ parts, finish, name, tier, seen }] }
 var _at := 0  # which spread is open
 var _dirty := true
 
@@ -46,6 +48,8 @@ func _init() -> void:
 			y += 11.0)
 	add_child(book)
 	GameState.collection.pets_added.connect(func(_p): _mark_dirty())
+	GameState.sticker_opened.connect(func(_id): _mark_dirty())
+	GameState.collection.seen_changed.connect(_mark_dirty)
 	visibility_changed.connect(_rebuild_if_needed)
 
 
@@ -76,19 +80,31 @@ func _collect() -> void:
 			parts[slot] = part.id
 			var shown_name: String = "no hat" if slot == "accessory" and part.id == "none" else part.name
 			tiles.append({ "parts": parts, "finish": "normal", "name": shown_name, "tier": part.rarity, "seen": collection.times_seen(Collection.part_key(slot, part.id)) })
-		_pages.append({ "title": SLOT_TITLES[slot], "bookmark": SLOT_TITLES[slot], "tiles": tiles })
+		_pages.append({ "title": SLOT_TITLES[slot], "bookmark": SLOT_TITLES[slot], "tiles": tiles, "sticker": Book.page_for(catalog, slot) })
 	for body in catalog.slots.body:
 		var tiles: Array = []
 		for f in catalog.finishes:
 			var parts := SHOWCASE.duplicate()
 			parts.body = body.id
 			tiles.append({ "parts": parts, "finish": f.id, "name": f.name if f.name != "" else "normal", "tier": f.rarity, "seen": collection.times_seen(Collection.finish_key(body.id, f.id)) })
-		_pages.append({ "title": "%s finishes" % body.name, "bookmark": "finishes" if body == catalog.slots.body[0] else "", "tiles": tiles })
+		_pages.append({ "title": "%s finishes" % body.name, "bookmark": "finishes" if body == catalog.slots.body[0] else "", "tiles": tiles,
+			"sticker": Book.page_for(catalog, "", str(body.id)) })
 	for page in _pages:
 		for t in page.tiles:
 			total += 1
 			got += 1 if t.seen > 0 else 0
 	_found_label.text = "found %d of %d stickers" % [got, total]
+
+
+## Opens the book on the spread with this sticker's page (the popup's "show me").
+func open_page(page_id: String) -> void:
+	_collect()
+	_dirty = false
+	for i in _pages.size():
+		if page_id != "" and str(_pages[i].sticker.get("id", "")) == page_id:
+			_at = i >> 1
+			break
+	_show_spread()
 
 
 func _show_spread() -> void:
@@ -161,6 +177,8 @@ func _page(page: Dictionary, side: int, spreads: int) -> Control:
 	grid.add_theme_constant_override("v_separation", 12)
 	for i in page.tiles.size():
 		grid.add_child(_slot(page.tiles[i], i))
+	if not page.sticker.is_empty():
+		grid.add_child(_reward(page.sticker))
 	col.add_child(grid)
 	var fill := Control.new()
 	fill.size_flags_vertical = SIZE_EXPAND_FILL
@@ -213,3 +231,41 @@ func _slot(tile: Dictionary, i: int) -> Control:
 		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		col.add_child(count)
 	return Tilted.new(panel, TILTS[i % TILTS.size()] if got else 0.0)
+
+
+## The page's reward: a dashed gift spot until the page is full, then its sticker, in gold.
+func _reward(sticker: Dictionary) -> Control:
+	var open := GameState.stickers.has(str(sticker.id))
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(78, 90)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 3)
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	col.mouse_filter = MOUSE_FILTER_IGNORE
+	panel.add_child(col)
+	if open:
+		var sb := UiTheme.sticker(UiTheme.GOLD, 10, UiTheme.PAGE, 4)
+		sb.shadow_color = Color(UiTheme.GOLD, 0.3)  # a soft gold glow
+		sb.shadow_size = 9
+		sb.shadow_offset = Vector2.ZERO
+		panel.add_theme_stylebox_override("panel", sb)
+		var line := Book.words(Catalog.shared(), sticker)
+		panel.tooltip_text = line
+		col.add_child(_wrapped(str(sticker.name), UiTheme.GOLD))
+		col.add_child(_wrapped(line, UiTheme.MUTED))
+		return Tilted.new(panel, 2.0)
+	panel.add_theme_stylebox_override("panel", UiTheme.stitched(UiTheme.GOLD.lerp(UiTheme.LINE, 0.4), UiTheme.DEEP.lerp(UiTheme.RAISED, 0.5), 10, 4))
+	var gift := UiTheme.icon_rect("boxes", 18, UiTheme.GOLD)
+	gift.size_flags_horizontal = SIZE_SHRINK_CENTER
+	gift.mouse_filter = MOUSE_FILTER_IGNORE
+	col.add_child(gift)  # no words: what's in it shows when the page is full (open question for Emilia)
+	return panel
+
+
+static func _wrapped(text: String, color: Color) -> Label:
+	var l := UiTheme.label(text, color, UiTheme.SMALL)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	l.custom_minimum_size.x = 66
+	l.mouse_filter = MOUSE_FILTER_IGNORE
+	return l

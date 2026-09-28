@@ -136,6 +136,12 @@ func show_book(book: bool) -> void:
 	show_mode(2 if book else 0)
 
 
+## The book, open on the spread with this sticker's page (data/book.json).
+func open_book_page(page_id: String) -> void:
+	show_book(true)
+	_book.open_page(page_id)
+
+
 ## 0 pets, 1 toys, 2 the book.
 func show_mode(mode: int) -> void:
 	(_mode.get_child(0).get_child(mode) as Button).pressed.emit()  # flips the switch too
