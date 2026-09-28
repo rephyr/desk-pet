@@ -1,7 +1,7 @@
 # MERGE done: lanes/b1 (box tiers) into lanes/wish (test + A4 book)
 
 `git merge --no-ff lanes/b1` (4 commits: sunny/sunset/midnight box tiers, machine odds, play.py
-lane name). Merge base 9e57dd0. Resolved and tested; left staged (not committed yet).
+lane name). Merge base 9e57dd0. Resolved, tested and committed as 34de2f5.
 
 ## Conflicts and how they were resolved
 
