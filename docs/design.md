@@ -174,12 +174,24 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   wear for coins, and SACRIFICES 3 spares for a chance at a special finish (odds shown, gone
   either way). Max level = a FAVOURITE: always on, never wears (the late-game permanent buffs).
   Rerolling toys was cut (too strong). Mockups: toys.html, upgrading.html, toy-designs.html (B).
-  **Boosts (plumbing built, B2; no receipt yet):** every boost is a KIND from data/boosts.json
+  **Boosts (B2, built; receipt look A, the dark till roll):** every boost is a KIND from data/boosts.json
   (coins, xp, luck, capsule speed, fever, toy drops, adventure loot, errand speed, automation
   speed: your pet's crank and box opening and the workers' jobs, not adventures).
   Each thing boosting a kind is a part (toys now; book stickers, knacks, the kitchen later) and
-  parts from different sources MULTIPLY. Gear stays inside adventures (not a shared kind). The
-  receipt by the coin pill that lists the parts waits for its look.
+  parts from different sources MULTIPLY. Gear stays inside adventures (not a shared kind).
+  **The receipt:** once coins have a boost, a dashed cyan "x1.51" tag sits by the coin pill (the
+  coins total; hidden before). Tap it: a dark torn receipt "our boosts" prints out of a slot under
+  it (260 x 320, date and time, a header per kind with its total, dotted-leader lines per thing
+  doing it, "thank you, come again ♪" and a barcode). Shared boosts only (toys by edition name,
+  "holo acorn"; your active pet's badges, "big ears + one big eye"; book stickers and the kitchen
+  when they land). More lines grow it down to the page bottom, then they scroll. Tap the tag again
+  (or switch tabs) to fold it. Numbers read "x1.25" ("x12.5", "x1.2k" later).
+  **"Why so much?" tapes:** where coins land, boosts inside one system get a pink washi tape that
+  opens a small torn slip: where the number started, one line per multiplier (lines at x1 left
+  out), "all together". The trip postcard's coins (found on the way, the tote bag, the party's
+  badges, our boosts), the errands pill (the crews, our tools, job levels, tips, our boosts) and
+  the machine's "N coins a capsule" (a capsule, each coin upgrade by name, our boosts; not during
+  the tutorial or fever). A tape only shows once its slip has a line. Mockup: receipt.html (A).
   **Knacks (D1, built; look C, sewn badges):** every part has a named knack (data/knacks.json, the
   35 from design/mockups/screens/knacks.html; no accessory has none): the bunny's "big ears"
   (+spotting), the cat's "lucky paws" (+luck)... Size = the kind's step x the part's rarity

@@ -634,6 +634,12 @@ func job_fill_now(job_id: String) -> float:
 
 ## How many times a second an errand's meter fills with its crew now.
 func job_rate(job_id: String) -> float:
+	return _job_plain_rate(job_id, true) * boost("errands")
+
+
+## How many times a second an errand's meter fills before the shared boosts, with or without the
+## tools (for the errands' "why so much?").
+func _job_plain_rate(job_id: String, with_tools: bool) -> float:
 	var crew := job_crew(job_id)
 	if crew.is_empty():
 		return 0.0
@@ -643,50 +649,53 @@ func job_rate(job_id: String) -> float:
 		for uid in crew:
 			sum += _speed_of(uid, job)
 		_job_speed[job_id] = sum / crew.size()
-	if not _job_tools.has(job_id):  # what the tools do to this job's speed (per frame, so kept)
+	var tools := _job_tool_numbers(job_id) if with_tools else [float(catalog.errands.crew_power), 1.0]
+	return Jobs.rate(catalog.job(job_id), crew.size(), _job_speed[job_id], tools[0]) * tools[1]
+
+
+## What the tools do to a job's speed: [crew power, speed] (per frame, so kept).
+func _job_tool_numbers(job_id: String) -> Array:
+	if not _job_tools.has(job_id):
 		_job_tools[job_id] = [float(catalog.errands.crew_power) + Jobs.tool_sum(catalog, job_id, "crew_power", errand_tools),
 			1.0 + Jobs.tool_sum(catalog, job_id, "speed", errand_tools) + Jobs.tool_sum(catalog, job_id, "all_speed", errand_tools)]
-	return Jobs.rate(catalog.job(job_id), crew.size(), _job_speed[job_id], _job_tools[job_id][0]) * _job_tools[job_id][1] * boost("errands")
+	return _job_tools[job_id]
 
 
 ## What an errand's "capsules" pay is worth now (see Jobs.pay): a capsule's coins on the machine,
 ## the tools' extra capsules, its goals, its crew's tips, big finds and shiny ones.
-func job_boost(job_id: String) -> Dictionary:
+## Without the tools, goals or tips: that layer left out (for the errands' "why so much?").
+func job_boost(job_id: String, with_tools := true, with_goals := true, with_tips := true) -> Dictionary:
 	var job := catalog.job(job_id)
-	var shiny := Jobs.tool_sum(catalog, job_id, "shiny", errand_tools) > 0.0
+	var shiny := with_tools and Jobs.tool_sum(catalog, job_id, "shiny", errand_tools) > 0.0
 	return { "coin_value": Machine.coin_value(machine, catalog),
-		"worth": Jobs.tool_sum(catalog, job_id, "worth", errand_tools),
-		"x": Jobs.goal_x(job, job_level(job_id)) * job_tips(job_id),
-		"big": Jobs.tool_sum(catalog, job_id, "big", errand_tools), "big_x": float(catalog.errands.get("big_x", 5)),
+		"worth": Jobs.tool_sum(catalog, job_id, "worth", errand_tools) if with_tools else 0.0,
+		"x": (Jobs.goal_x(job, job_level(job_id)) if with_goals else 1.0) * (job_tips(job_id, with_tools) if with_tips else 1.0),
+		"big": Jobs.tool_sum(catalog, job_id, "big", errand_tools) if with_tools else 0.0, "big_x": float(catalog.errands.get("big_x", 5)),
 		"shiny": Machine.shiny_chance(machine, catalog) * boost("shiny") if shiny else 0.0, "shiny_pay": Machine.shiny_pay(machine, catalog) }
 
 
 ## A job with "tips" pays by its crew's rarity: their average tip (1 for jobs without tips). Fancy
-## cups make rare-or-better pets' tips count more.
-func job_tips(job_id: String) -> float:
+## cups make rare-or-better pets' tips count more (`with_tools` false: the tips without the cups).
+func job_tips(job_id: String, with_tools := true) -> float:
 	var job := catalog.job(job_id)
 	var crew := job_crew(job_id)
 	if not job.has("tips") or crew.is_empty():
 		return 1.0
-	if not _job_tip.has(job_id):
-		var rare_x := maxf(1.0, Jobs.tool_sum(catalog, job_id, "rare_x", errand_tools))
+	var key := job_id if with_tools else job_id + "|plain"
+	if not _job_tip.has(key):
+		var rare_x := maxf(1.0, Jobs.tool_sum(catalog, job_id, "rare_x", errand_tools)) if with_tools else 1.0
 		var sum := 0.0
 		for uid in crew:
 			var pet := collection.get_pet(uid)
 			var rarity := pet.rarity if pet else "common"
 			sum += float(job.tips.get(rarity, 1.0)) * (rare_x if catalog.rank(rarity) >= 2 else 1.0)
-		_job_tip[job_id] = sum / crew.size()
-	return _job_tip[job_id]
+		_job_tip[key] = sum / crew.size()
+	return _job_tip[key]
 
 
 ## Coins a minute from every coin-bringing errand with its crew now, on average.
 func errands_per_minute() -> float:
-	var total := 0.0
-	for job in open_jobs():
-		var p: Dictionary = job.get("pay", {})
-		if p.has("capsules") or p.has("coins"):
-			total += job_rate(job.id) * 60.0 * Jobs.average_fill(job, job_boost(job.id))
-	return total * boost("coins")
+	return _errands_layered(true, true, true) * boost("errands") * boost("coins")
 
 
 ## The coins a minute if a tool had `n` more levels (the upgrades card's "before → after").
@@ -1666,7 +1675,7 @@ func collect_run(run: RunState) -> Dictionary:
 			var find_name := str(catalog.finds.get(key.substr(5), {}).get("name", "something"))
 			new_finds.append(find_name)
 			announcements.append("%s found %s!" % [run.party.who(), find_name])
-	_boost_trip_loot(run.loot, run.gear, run.knacks)
+	var coins_why := _boost_trip_loot(run.loot, run.gear, run.knacks)
 	grant(run.loot, false)
 	collection.remove(run.party.lost)
 	if jobs_auto:  # the pets that came home go back to work
@@ -1691,7 +1700,8 @@ func collect_run(run: RunState) -> Dictionary:
 		if str(entry.get("text", "")) != "":
 			notes.append({ "text": str(entry.text), "stayed": int(entry.get("lost", 0)) > 0 })
 	return { "place": location.name, "doodle": str(location.get("map", {}).get("doodle", "")), "photo": photo,
-		"notes": notes, "loot": run.loot.duplicate(), "xp": gained, "spotted": spotted_places, "finds": new_finds }
+		"notes": notes, "loot": run.loot.duplicate(), "xp": gained, "spotted": spotted_places, "finds": new_finds,
+		"coins_why": coins_why }
 
 
 # ---- the trail (clicking along a trip yourself) -----------------------------------
@@ -2073,6 +2083,63 @@ func boost_parts(kind: String) -> Array[Dictionary]:
 	return out
 
 
+## The boost receipt (the x1.51 tag by the coin pill): every kind with a shared boost right now,
+## by kind, each line named (see Boosts.receipt).
+func boost_receipt() -> Array:
+	var by_kind := {}
+	for k in Boosts.kinds(catalog):
+		by_kind[k] = boost_parts(k)
+	return Boosts.receipt(catalog, by_kind, _boost_line_name)
+
+
+## A receipt line's name: the toy ("holo acorn"), your pet's badges ("big ears + one big eye"). A new
+## source (book stickers, the kitchen) names its lines here.
+func _boost_line_name(part: Dictionary) -> String:
+	match str(part.source):
+		"toys": return Toys.edition_name(catalog, str(part.id))
+		"knacks": return Knacks.part_names(catalog, str(part.id))
+	return str(part.id)
+
+
+## The machine's "why so much?": a capsule's plain coins, every upgrade that multiplies them, the
+## shared boosts, and the "N coins a capsule" it all comes to.
+func capsule_why() -> Dictionary:
+	var lines := []
+	for p in Machine.coin_parts(machine, catalog):
+		lines.append({ "name": p.name, "x": p.x })
+	lines.append({ "name": "our boosts", "x": boost("coins") })
+	return Boosts.why("a capsule", float(catalog.machine_tree.get("base_coins", 1)), lines,
+		Machine.coin_value(machine, catalog) * boost("coins"))
+
+
+## The errands pill's "why so much?": what the crews bring a minute on their own (no tools, goals or
+## tips), then each layer as how much it multiplied the total (every job differs, so a layer is
+## the ratio of the totals with and without it), the shared boosts, and the pill's number.
+func errands_why() -> Dictionary:
+	var crews := _errands_layered(false, false, false)
+	var tips := _errands_layered(false, false, true)  # the plain tips (the fancy cups are a tool)
+	var tools := _errands_layered(true, false, true)
+	var all := _errands_layered(true, true, true)
+	if crews <= 0.0:
+		return Boosts.why("the crews", 0.0, [], 0.0)
+	return Boosts.why("the crews", crews, [
+		{ "name": "our tools", "x": tools / tips if tips > 0.0 else 1.0 },
+		{ "name": "job levels", "x": all / tools if tools > 0.0 else 1.0 },
+		{ "name": "tips", "x": tips / crews },
+		{ "name": "our boosts", "x": boost("errands") * boost("coins") }], errands_per_minute())
+
+
+## Coins a minute from the coin errands before the shared boosts, with or without the tools, the
+## job levels' goals and the tips (errands_per_minute is this with every layer on, times the boosts).
+func _errands_layered(with_tools: bool, with_goals: bool, with_tips: bool) -> float:
+	var total := 0.0
+	for job in open_jobs():
+		var p: Dictionary = job.get("pay", {})
+		if p.has("capsules") or p.has("coins"):
+			total += _job_plain_rate(job.id, with_tools) * 60.0 * Jobs.average_fill(job, job_boost(job.id, with_tools, with_goals, with_tips))
+	return total
+
+
 ## A boost source changed (toys found, played with, levelled, or a play ended; a new save): the
 ## kept totals are worked out again.
 func _boosts_changed() -> void:
@@ -2233,23 +2300,39 @@ func trip_gear(location_id: String) -> Dictionary:
 ## does the tote bag in the trip's `packed` gear), and loot times luck gives a chance of an extra copy
 ## of every part and box. The trip's `knacks` (RunState.knacks): the party's own loot share, and
 ## "finds" gives a chance of an extra copy of every part and bit.
-func _boost_trip_loot(loot: Dictionary, packed := {}, knacks := {}) -> void:
+## Returns the coins' "why so much?" (see Boosts.why; {} when there were no coins).
+func _boost_trip_loot(loot: Dictionary, packed := {}, knacks := {}) -> Dictionary:
 	var tote := 1.0 + Gear.value(catalog, packed, "coins")
 	var more := boost("loot") * float(knacks.get("loot", 1.0))  # the party's own knacks too
 	var lucky := more * boost("luck")
 	var finds := float(knacks.get("finds", 1.0))  # knacks: more bits and parts
+	var why := {}
 	for key: String in loot.keys():
 		if key.begins_with("part:") and not feature_on("parts"):
 			loot.erase(key)  # parts come much later in the game
 			continue
 		if key == "coins":
+			var found := int(loot[key])
 			loot[key] = roundi(int(loot[key]) * more * boost("coins") * tote)
+			why = Boosts.why("found on the way", found, [
+				{ "name": _coin_gear_name(packed), "x": tote },
+				{ "name": "the party's badges", "x": float(knacks.get("loot", 1.0)) },
+				{ "name": "our boosts", "x": boost("loot") * boost("coins") }], int(loot[key]))
 		elif key.begins_with("part:"):
 			loot[key] = int(loot[key]) + Rewards.count(int(loot[key]) * (lucky - 1.0 + finds - 1.0), _rng)
 		elif key.begins_with("box:"):
 			loot[key] = int(loot[key]) + Rewards.count(int(loot[key]) * (lucky - 1.0), _rng)
 		elif key.begins_with("bit:") and finds > 1.0:
 			loot[key] = int(loot[key]) + Rewards.count(int(loot[key]) * (finds - 1.0), _rng)
+	return why
+
+
+## The name of the gear that brings more trip coins ("a tote bag"), for the trip's "why so much?".
+func _coin_gear_name(packed: Dictionary) -> String:
+	for g in Gear.all(catalog):
+		if int(packed.get(str(g.id), 0)) > 0 and g.each.has("coins"):
+			return str(g.name)
+	return "our gear"
 
 
 ## Seconds a capsule takes to pop open, quicker with the capsule speed boost.

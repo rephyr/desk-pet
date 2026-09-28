@@ -159,6 +159,16 @@ static func parts(catalog: Catalog, pet: Pet, kind: String, open: Callable) -> A
 	return out
 
 
+## A knacks part's id as people read it: "body:bunny+eyes:cyclops" -> "big ears + one big eye".
+static func part_names(catalog: Catalog, id: String) -> String:
+	var names: Array[String] = []
+	for bit in id.split("+"):
+		var sp := bit.split(":")
+		if sp.size() == 2:
+			names.append(str(of_part(catalog, sp[0], sp[1]).get("name", sp[1])))
+	return " + ".join(names)
+
+
 ## What a pet's own knacks of a kind do for its own work (errands, worker jobs, its trips): a share
 ## ("own") of their size. 1.0 with none.
 static func own(catalog: Catalog, pet: Pet, kind: String, open: Callable) -> float:

@@ -19,6 +19,7 @@ var _right := VBoxContainer.new()
 var _love := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL + 1)
 var _doodle := ""
 var _place := ""
+var coins_why := {}  # the trip coins' "why so much?" (see Boosts.why)
 
 
 func _init() -> void:
@@ -67,6 +68,7 @@ func _init() -> void:
 ## Fills the postcard with one trip (the Dictionary from GameState.collect_run()).
 func show_trip(trip: Dictionary) -> void:
 	_place = str(trip.place)
+	coins_why = {}
 	_doodle = str(trip.doodle)
 	UiTheme.clear(_left)
 	UiTheme.clear(_right)
@@ -97,6 +99,11 @@ func show_trip(trip: Dictionary) -> void:
 	corner.draw.connect(_draw_stamp.bind(corner))
 	_right.add_child(corner)
 	_right.add_child(UiTheme.label("we brought back", UiTheme.MUTED, UiTheme.SMALL + 1))
+	coins_why = trip.get("coins_why", {})
+	if not coins_why.get("lines", []).is_empty():
+		var room := Control.new()  # room for the "why so much?" tape over the coins
+		room.custom_minimum_size.y = 2  # plus the column's gap: 10 px
+		_right.add_child(room)
 	var tags := HFlowContainer.new()
 	tags.add_theme_constant_override("h_separation", 6)
 	tags.add_theme_constant_override("v_separation", 6)
@@ -104,7 +111,9 @@ func show_trip(trip: Dictionary) -> void:
 	var loot: Dictionary = trip.loot
 	var coins := Rewards.total(loot, "coins")
 	if coins > 0:
-		tags.add_child(UiTheme.chip("coin", str(coins), UiTheme.CYAN))
+		# "why so much?" on the coins, once something multiplied them (the tote, badges, boosts)
+		var why := coins_why
+		tags.add_child(WhyTape.wrap(UiTheme.chip("coin", str(coins), UiTheme.CYAN), func(): return why))
 	if int(trip.xp) > 0:
 		tags.add_child(UiTheme.chip("xp", str(trip.xp), UiTheme.GOLD))
 	for key: String in loot:

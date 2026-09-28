@@ -43,6 +43,13 @@ static func split(edition: String) -> PackedStringArray:
 	return edition.split(":")
 
 
+## An edition as people read it: "acorn", "holo acorn".
+static func edition_name(catalog: Catalog, edition: String) -> String:
+	var bits := split(edition)
+	var name := str(toy(catalog, bits[0]).get("name", bits[0]))
+	return name if bits.size() < 2 or bits[1] == "normal" else "%s %s" % [finish(catalog, bits[1]).get("name", bits[1]), name]
+
+
 ## Rolls a toy out of a capsule: its tier (rarer tiers weigh more with luck), which toy of that
 ## tier, and its finish (special finishes weigh more with luck). Returns { id, finish }.
 static func roll(catalog: Catalog, rng: RandomNumberGenerator, luck := 1.0) -> Dictionary:

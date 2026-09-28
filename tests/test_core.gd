@@ -36,6 +36,8 @@ func _init() -> void:
 	_test_unlocks(catalog)
 	_test_gear(catalog)
 	_test_knacks(catalog)
+	_test_receipt(catalog)
+	_test_whys_add_up(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -1239,3 +1241,104 @@ func _test_knacks(catalog: Catalog) -> void:
 			rng.seed = t
 			seen[i] += Intel.roll(garden, func(_id): return false, {}, rng, 1.0 if i == 0 else 1.5).size()
 	_check(seen[1] > seen[0], "spotting knacks spot more places (%d vs %d)" % [seen[1], seen[0]])
+
+
+func _test_receipt(catalog: Catalog) -> void:
+	# the "x1.25" numbers
+	_check(Boosts.times(1.25) == "x1.25", "x1.25 (got %s)" % Boosts.times(1.25))
+	_check(Boosts.times(1.0) == "x1.00", "nothing is x1.00")
+	_check(Boosts.times(12.46) == "x12.5", "from 10: one decimal (got %s)" % Boosts.times(12.46))
+	_check(Boosts.times(123.4) == "x123", "from 100: whole (got %s)" % Boosts.times(123.4))
+	_check(Boosts.times(1234.0) == "x1.2k", "from 1000: 1.2k (got %s)" % Boosts.times(1234.0))
+	_check(Boosts.times(3400000.0) == "x3.4M", "then 3.4M (got %s)" % Boosts.times(3400000.0))
+	# line names
+	_check(Toys.edition_name(catalog, "acorn:holo") == "holo acorn" and Toys.edition_name(catalog, "acorn:normal") == "acorn",
+		"toy editions read \"holo acorn\", \"acorn\"")
+	_check(Knacks.part_names(catalog, "body:bunny+eyes:cyclops") == "big ears + one big eye",
+		"a pet's badges read \"big ears + one big eye\" (got %s)" % Knacks.part_names(catalog, "body:bunny+eyes:cyclops"))
+	# the receipt: kinds in boosts.json order, lines in sources order, each kind totted up
+	var namer := func(part: Dictionary) -> String:
+		return Toys.edition_name(catalog, str(part.id)) if part.source == "toys" else Knacks.part_names(catalog, str(part.id))
+	_check(Boosts.receipt(catalog, {}, namer).is_empty(), "no boosts, an empty receipt")
+	var now := 1000.0
+	var state := Toys.fresh()
+	for ed in [["acorn", "normal"], ["acorn", "holo"], ["moth", "normal"]]:
+		Toys.add(state, ed[0], ed[1])
+		state.playing.append({ "key": Toys.key(ed[0], ed[1]), "until": now + 600.0, "wear": 0.0 })
+	var by_kind := {}
+	for k in Boosts.kinds(catalog):
+		by_kind[k] = Toys.parts(state, catalog, k, now)
+	var knack := Boosts.part("knacks", "palette:gold", 1.4)
+	by_kind["coins"] = [knack] + by_kind["coins"]  # listed first, but knacks come after toys on the receipt
+	var rows := Boosts.receipt(catalog, by_kind, namer)
+	var kinds: Array = rows.map(func(r): return r.kind)
+	_check(kinds == ["coins", "xp", "luck"], "the moth's all bonus: coins, xp, luck, in the table's order (got %s)" % [kinds])
+	var coins: Dictionary = rows[0]
+	var names: Array = coins.lines.map(func(l): return l.name)
+	_check(names.size() == 4 and names.slice(0, 3).has("holo acorn") and names.slice(0, 3).has("acorn") and names.slice(0, 3).has("moon moth")
+		and names[3] == Knacks.part_names(catalog, "palette:gold"), "the coins lines: the toys first, then the badge (got %s)" % [names])
+	_check(is_equal_approx(float(coins.total), Boosts.total(by_kind["coins"])) and coins.name == "coins", "a kind's total is its parts multiplied")
+	_check(rows[2].lines.size() == 1 and rows[2].lines[0].source == "toys", "luck: only the moth")
+	var odd := { "coins": [Boosts.part("someday", "x", 1.1), Boosts.part("toys", "acorn:normal", 1.05)] }
+	var last: Array = Boosts.receipt(catalog, odd, func(p): return str(p.source))[0].lines
+	_check(last[0].source == "toys" and last[1].source == "someday", "a source not in the list goes last")
+	# the machine's coin lines multiply up to a capsule's coins
+	var machine := { "bought": {} }
+	_check(Machine.coin_parts(machine, catalog).is_empty(), "a broken machine: nothing multiplies its coins")
+	machine.bought = { "tape": 1, "shine": 3, "chute2": 1 }
+	var cp := Machine.coin_parts(machine, catalog)
+	var product := float(catalog.machine_tree.get("base_coins", 1))
+	for p in cp:
+		product *= float(p.x)
+	_check(cp.size() == 2 and cp[0].name == "tape up the crack" and is_equal_approx(float(cp[0].x), 2.0) and is_equal_approx(float(cp[1].x), pow(1.25, 3)),
+		"tape x2, shinier coins x1.25^3 (the chute doesn't touch coins)")
+	_check(is_equal_approx(product, Machine.coin_value(machine, catalog)), "the lines multiplied are a capsule's coins")
+	# a "why so much?": lines at x1 did nothing, so they're left out; the total is what it came to
+	var why := Boosts.why("found on the way", 47, [{ "name": "a tote bag", "x": 1.3 }, { "name": "the party's badges", "x": 1.0 },
+		{ "name": "our boosts", "x": 1.51 }], roundi(47 * 1.51 * 1.3))
+	_check(why.lines.size() == 2 and why.lines[0].name == "a tote bag" and why.start.value == 47, "the badges at x1 are left off the slip")
+	_check(int(why.total) == 92, "found 47, tote x1.30, our boosts x1.51: all together 92 (got %d)" % int(why.total))
+
+
+## The machine's and the errands' "why so much?": where it starts times every line comes to the
+## number shown (a GameState of its own, nothing saved).
+func _test_whys_add_up(catalog: Catalog) -> void:
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	var adds_up := func(why: Dictionary) -> bool:
+		var v := float(why.start.value)
+		for l in why.lines:
+			v *= float(l.x)
+		return absf(v - float(why.total)) <= maxf(0.02 * absf(float(why.total)), 0.001)
+	gs.machine = { "pulls": 0, "lit": 0, "bought": { "tape": 1, "shine": 3 } }
+	var cw: Dictionary = gs.capsule_why()
+	_check(cw.lines.size() >= 2 and adds_up.call(cw), "the capsule's why multiplies up to its coins (%s)" % [cw])
+	# errands: two jobs, rare pets on the stand, every kind of tool
+	gs.unlocks["feature:errands"] = true
+	gs.unlocks["job:lemonade"] = true
+	var pets: Array[Pet] = []
+	for i in 12:
+		var p: Pet = gs._roller.roll(gs.FIRST_PET_BOX)
+		p.rarity = "rare" if i % 2 == 0 else "common"
+		pets.append(p)
+	gs.collection.add(pets)
+	gs.put_on_job("coin_hunt", -1, pets.slice(0, 6).map(func(p): return p.uid))
+	gs.put_on_job("lemonade", -1, pets.slice(6).map(func(p): return p.uid))
+	var before: Dictionary = gs.errands_why()
+	_check(adds_up.call(before), "the errands' why multiplies up to the pill (%s)" % [before])
+	for t in [["noses", 3], ["paws", 4], ["snack", 2], ["lemons", 2]]:
+		gs.errand_tools[t[0]] = t[1]
+	gs._tools_changed()
+	var tooled: Dictionary = gs.errands_why()
+	_check(adds_up.call(tooled) and is_equal_approx(float(tooled.total), gs.errands_per_minute()), "with tools it still adds up (%s)" % [tooled])
+	var line := func(why: Dictionary, name: String) -> float:
+		for l in why.lines:
+			if l.name == name:
+				return float(l.x)
+		return 1.0
+	gs.errand_tools["cups"] = 1
+	gs._tools_changed()
+	var cupped: Dictionary = gs.errands_why()
+	_check(adds_up.call(cupped), "with the fancy cups it still adds up (%s)" % [cupped])
+	_check(line.call(cupped, "our tools") > line.call(tooled, "our tools") + 0.01 and is_equal_approx(line.call(cupped, "tips"), line.call(tooled, "tips")),
+		"the fancy cups count under our tools, not tips")
+	gs.free()

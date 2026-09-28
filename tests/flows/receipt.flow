@@ -1,0 +1,177 @@
+# The boost receipt (look A, the dark till roll): no tag until coins have a boost, then a dashed
+# "x1.25" by the coin pill; tap it for the torn receipt "our boosts" (fits on every tab, grows and
+# scrolls with a long list), tap again to fold it. The "why so much?" tapes: the machine's capsule
+# line, the errands pill, the trip postcard's coins, each opening a small slip.
+from after_tutorial
+view full
+tab home
+wait 1
+expect no-text "our boosts"
+expect fits
+shot no_tag
+toy acorn holo 1
+play acorn holo
+wait 1
+click BoostTag#1
+wait 0.5
+expect text "our boosts"
+expect text "holo acorn"
+expect text "thank you, come again ♪"
+expect fits
+shot receipt
+boosts
+unlock tab:boxes
+unlock tab:errands
+unlock tab:automation
+unlock tab:inventory
+wait 0.5
+tab machine
+click BoostTag#1
+wait 0.5
+expect text "our boosts"
+expect fits
+shot receipt_machine
+tab boxes
+click BoostTag#1
+wait 0.5
+expect fits
+tab collection
+click BoostTag#1
+wait 0.5
+expect fits
+shot receipt_collection
+tab adventures
+click BoostTag#1
+wait 0.5
+expect fits
+tab errands
+click BoostTag#1
+wait 0.5
+expect fits
+tab automation
+click BoostTag#1
+wait 0.5
+expect fits
+tab inventory
+click BoostTag#1
+wait 0.5
+expect fits
+tab settings
+click BoostTag#1
+wait 0.5
+expect fits
+shot receipt_settings
+# a long receipt: your pet's badges on many kinds (knacks), every gate open
+unlock feature:parts
+fix wires
+dress body=bunny palette=toxic pattern=stars eyes=cyclops accessory=crown finish=holo
+favourite snail
+favourite ladybug holo
+favourite mushroom
+favourite bee
+favourite frog ghost
+favourite gnome
+favourite moth foil
+wait 1
+tab home
+click BoostTag#1
+wait 0.8
+expect text "our boosts"
+expect fits
+shot receipt_long
+click BoostTag#1
+wait 0.5
+expect no-text "our boosts"
+shot folded
+# longer than the page: the receipt stops at the bottom and its lines scroll
+favourite acorn foil
+favourite ladybug foil
+favourite mushroom holo
+favourite snail ghost
+favourite bee holo
+favourite gnome foil
+wait 1
+click BoostTag#1
+wait 0.8
+expect text "ghost snail"
+expect fits
+shot receipt_scroll
+click BoostTag#1
+wait 0.5
+# the machine's tape: upgrades multiply a capsule's coins
+tab machine
+fix tape
+fix oil
+fix flap
+fix shine 3
+wait 1
+click WhyTape#1
+wait 0.5
+expect text "shinier coins"
+expect text "all together"
+expect fits
+shot machine_why
+why machine
+# a prize lands over the open slip
+next-prize golden
+pull 1 1.6
+shot prize_over_slip
+wait 3
+# an unlock popup covers the tape, the slip and the receipt (which folds)
+click BoostTag#1
+wait 0.5
+expect text "our boosts"
+find basket
+wait popup
+wait 0.5
+expect no-text "thank you, come again*"
+expect fits
+shot popup_over_why
+click "show me"
+wait 1
+tool paws 3
+tool noses 2
+wait 1
+tab errands
+wait 1
+click WhyTape#1
+wait 0.5
+expect text "our tools"
+expect text "all together"
+expect fits
+shot errands_why
+why errands
+# the postcard's tape: the tote bag, then a trip home
+gear tote 2
+pets 3
+send garden 1
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+wait text "welcome back"
+click "welcome back"
+expect text "greetings from"
+click WhyTape#1
+wait 0.5
+expect text "found on the way"
+expect no-text "a tote bag"          # the trip from the save set off before the tote bag
+expect fits
+shot postcard_old_why
+click "lovely"
+wait 0.5
+click "welcome back"
+expect text "greetings from"
+click WhyTape#1
+wait 0.5
+expect text "a tote bag"
+expect text "found on the way"
+expect text "all together"
+expect fits
+shot postcard_why
+why trip

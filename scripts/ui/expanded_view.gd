@@ -20,6 +20,9 @@ var spine := Spine.new()
 var bubble := PetBubble.new()
 var _coins := UiTheme.chip("coin", "", UiTheme.CYAN)
 var _xp := UiTheme.chip("xp", "", UiTheme.GOLD)
+var boost_tag := BoostTag.new()  # "x1.51" by the coin pill: tap for the boost receipt
+var receipt := BoostReceipt.new()
+var _paper := Control.new()  # over the page, under the bubble: the receipt hangs here
 var _tabs := {}  # id -> Control
 var _current := "boxes"
 var _rng := RandomNumberGenerator.new()
@@ -64,7 +67,7 @@ func _init() -> void:
 	slot.size_flags_vertical = SIZE_SHRINK_CENTER
 	slot.mouse_filter = MOUSE_FILTER_PASS
 	slot.custom_minimum_size.y = PetBubble.one_line_height()
-	bubble.z_index = 5
+	bubble.z_index = UiTheme.Z_BUBBLE
 	slot.add_child(bubble)
 	var fit := func():
 		bubble.position = Vector2.ZERO
@@ -73,6 +76,7 @@ func _init() -> void:
 	bubble.minimum_size_changed.connect(fit)
 	top.add_child(slot)
 	top.add_child(_coins)
+	top.add_child(boost_tag)
 	top.add_child(_xp)
 	if OS.is_debug_build():
 		var cheat := UiTheme.small_button("+%d" % GameState.DEBUG_COINS, func(): GameState.add_debug_coins())
@@ -99,6 +103,21 @@ func _init() -> void:
 	_tabs = { "home": home, "machine": machine, "boxes": boxes, "collection": collection, "adventures": adventures, "errands": errands, "automation": automation, "inventory": workbench, "settings": SettingsTab.new() }
 	for tab_id in _tabs:
 		body.add_child(_tabs[tab_id])
+	# the boost receipt prints out under the tag, over whatever tab is open
+	_paper.mouse_filter = MOUSE_FILTER_IGNORE
+	_paper.z_index = UiTheme.Z_PAPER
+	body.add_child(_paper)
+	_paper.add_child(receipt)
+	_paper.resized.connect(_place_receipt)
+	boost_tag.toggled_receipt.connect(func(open: bool):
+		if open:
+			_place_receipt()
+			receipt.open()
+		else:
+			receipt.fold())
+	boost_tag.visibility_changed.connect(func():
+		if not boost_tag.visible:
+			fold_receipt())
 	for t in TABS:
 		spine.add_tab(t[0], t[1], t[2])
 	spine.add_tab("settings", "", "settings", true)
@@ -179,12 +198,29 @@ func show_tab(tab_id: String) -> void:
 	if not _tabs.has(tab_id) or not GameState.tab_open(tab_id):
 		return
 	_current = tab_id
+	fold_receipt()
 	for n in _tabs:
 		_tabs[n].visible = n == tab_id
 	spine.set_current(tab_id)
 	# tabs with something of their own to say say it when they open; the rest get a general line
 	if not _tabs[tab_id].has_method("speak"):
 		_general_line()
+
+
+## Folds the boost receipt away (a tap on the tag, a tab switch, or coins lost their last boost).
+func fold_receipt() -> void:
+	receipt.fold()
+	boost_tag.set_on(false)
+
+
+## The receipt hangs under the tag (its fold line 70% along, like the mockup), inside the page, as
+## tall as the page lets it be.
+func _place_receipt() -> void:
+	var tag_x := (_paper.get_global_transform().affine_inverse() * boost_tag.get_global_rect().get_center()).x
+	receipt.max_height = _paper.size.y - 12.0
+	receipt.position = Vector2(clampf(tag_x - BoostReceipt.WIDTH * 0.7, 0.0, maxf(0.0, _paper.size.x - BoostReceipt.WIDTH)), 4.0)
+	if receipt.is_open():
+		receipt.refresh(true)
 
 
 func current_tab() -> String:
