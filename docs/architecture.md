@@ -50,7 +50,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
 - `ExpandedView` - the full game: the `Spine` of tabs and the page. Tabs: `HomeTab` (the pet's
   room), `MachineTab` (the capsule machine: `MachineStage` draws it and runs the lever, `Machine` in
   scripts/machine has its rules, `GameState.pull_lever()` pays out; a pet box out of a capsule is opened right there with a
-  `PackOpening`), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
+  `PackOpening`; `OddsCard` is the "prizes" tag that flips into the odds card, from
+  `Machine.odds` via `GameState.machine_odds`, refilled on machine_upgraded / toys_changed /
+  unlocked / tutorial_changed while open, placed on the stage's resize), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
   `CollectionTab` (pets grid + `PetDetails`, and the `BookView`), `AdventuresTab` (adventures:
   `MapView`, the place card, trip cards, and `TrailView` for watching a trip; upgrades: `GearView`,
   gear bought with xp, rules in `Gear`, levels in `GameState.gear`, packed onto each trip as

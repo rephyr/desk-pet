@@ -1956,7 +1956,7 @@ func pull_lever() -> Dictionary:
 		for ball in Machine.balls_from_chute(machine, catalog, _rng):
 			capsules.append(_capsule(capsules.is_empty(), lucky, pay, pet_due))
 	if lucky:
-		fever_until = now + Machine.fever_seconds(machine, catalog) * fever
+		fever_until = now + Machine.fever_for(machine, catalog, fever, toy_boost("speed"))
 	var result := { "capsules": capsules, "lucky": lucky, "fever": in_fever }
 	machine_pulled.emit(result)
 	_check_tutorial()
@@ -1985,7 +1985,7 @@ func _capsule(first: bool, lucky: bool, pay: float, pet_due := false) -> Diction
 	if tutorial_active():
 		prize = _machine_prize("golden" if lucky else "coins")  # nothing fancy while you're starting out
 	elif not _machine_gives(str(prize.kind)) or (prize.kind == "pet_box" and not first):
-		prize = _machine_prize("coins")  # not open yet (boxes, toys, parts); pet boxes: one pull, one chance
+		prize = _machine_prize(Machine.FALLBACK_PRIZE)  # not open yet (boxes, toys, parts); pet boxes: one pull, one chance
 	elif first and toys.owned.is_empty() and _machine_gives("toy") and int(machine.pulls) >= int(m.get("first_toy_by", 0)):
 		prize = _machine_prize("toy")  # your first toy, sure to come soon after toys can drop
 	if first and pet_due:
@@ -2031,6 +2031,12 @@ func _capsule(first: bool, lucky: bool, pay: float, pet_due := false) -> Diction
 	else:
 		grant(loot, false)
 	return { "prize": prize, "loot": loot, "shiny": shiny, "toy": toy, "pet": pet }
+
+
+## The chance of each prize in the next capsule (a lucky one when `lucky`), with your toys' boosts
+## and only the kinds that can come out yet (Machine.odds). For the machine's prize card.
+func machine_odds(lucky := false, first := true) -> Dictionary:
+	return Machine.odds(machine, catalog, _machine_gives, lucky, toy_boost("luck"), toy_boost("toys"), first)
 
 
 func _machine_prize(id: String) -> Dictionary:

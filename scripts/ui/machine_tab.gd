@@ -147,6 +147,69 @@ func _refresh() -> void:
 		_next.add_child(UiTheme.label("everything's fixed! for now…", UiTheme.MUTED, UiTheme.SMALL + 1))
 
 
+## The prize card's columns: a plain capsule, and a lucky one once the lucky lights work.
+## `odds` is any capsule's; `pull` the pull's first capsule's, the only one a pet box can be in
+## (the same as `odds` while a pull drops one capsule).
+## [ { name, lucky, odds: { prize id: chance }, pull: { prize id: chance } } ]
+static func odds_columns() -> Array:
+	var many := Machine.many_capsules(GameState.machine, Catalog.shared())
+	var cols := []
+	for lucky in [false, true]:
+		if lucky and not Machine.lights_on(GameState.machine, Catalog.shared()):
+			continue
+		cols.append({ "name": "lucky" if lucky else "a capsule", "lucky": lucky,
+			"odds": GameState.machine_odds(lucky, not many), "pull": GameState.machine_odds(lucky, true) })
+	return cols
+
+
+## The prize card's rows, in the order data/machine.json lists the prizes, each with its chance in
+## every column; then shiny balls once they're fixed. A pet box only comes in a pull's first
+## capsule, so once a pull drops more than one it gets its own "a pull" part at the end (a header
+## row, then its chance a pull). [ { name, chances: [..], shiny?, header? } ]
+static func odds_rows(cols: Array) -> Array:
+	var catalog := Catalog.shared()
+	var rows := []
+	var per_pull := []
+	for p: Dictionary in catalog.machine.prizes:
+		var chances := cols.map(func(c): return float(c.odds.get(p.id, 0.0)))
+		if chances.any(func(x): return x > 0.0):
+			rows.append({ "name": prize_name(p), "chances": chances })
+		elif str(p.kind) == "pet_box":
+			var pull := cols.map(func(c): return float(c.get("pull", {}).get(p.id, 0.0)))
+			if pull.any(func(x): return x > 0.0):
+				per_pull.append({ "name": prize_name(p), "chances": pull })
+	var shiny := Machine.shiny_chance(GameState.machine, catalog)
+	if shiny > 0.0:
+		rows.append({ "name": "shiny", "shiny": true, "chances": cols.map(func(_c): return shiny) })
+	if not per_pull.is_empty():
+		rows.append({ "name": "a pull", "header": true, "chances": cols.map(func(_c): return 0.0) })
+		rows.append_array(per_pull)
+	return rows
+
+
+## How a prize reads on the prize card: its "name" (data/machine.json), a box its box's name.
+static func prize_name(p: Dictionary) -> String:
+	if p.has("name"):
+		return str(p.name)
+	if str(p.kind) == "box":
+		return str(Catalog.shared().box(str(p.get("box", "starter"))).get("name", p.id))
+	return str(p.id)
+
+
+## The prize card as plain lines, for the tag's hover (like the back of a pack).
+static func odds_text() -> String:
+	var cols := odds_columns()
+	var lines: Array[String] = []
+	for i in cols.size():
+		lines.append(str(cols[i].name))
+		for row in odds_rows(cols):
+			if row.get("header", false):
+				lines.append(str(row.name))
+			elif float(row.chances[i]) > 0.0:
+				lines.append("  %s  %s" % [row.name, UiTheme.percent(row.chances[i])])
+	return "\n".join(lines)
+
+
 static func bit_name(bit: String, n: int) -> String:
 	return bit if n == 1 or bit == "glass" else bit + "s"
 
@@ -275,6 +338,8 @@ class MachineStage extends Control:
 	var _halves: Array = []  # the two halves of a capsule that just popped: { pos, vel, rot, spin, color, top, t }
 	## Sits over the lever, for the tutorial to point at (drawing is all in _draw).
 	var lever_target := Control.new()
+	## The prize card in the corner (hidden in the tutorial: capsules only hold coins then).
+	var odds := OddsCard.new()
 
 	func _init() -> void:
 		mouse_filter = MOUSE_FILTER_STOP
@@ -294,7 +359,9 @@ class MachineStage extends Control:
 		add_child(_fever_music)
 		lever_target.mouse_filter = MOUSE_FILTER_IGNORE
 		add_child(lever_target)
+		add_child(odds)
 		add_child(_popup)
+		resized.connect(func(): odds.place(size))
 
 	static func _colors() -> Array:
 		return [UiTheme.PINK, UiTheme.CYAN, UiTheme.MINT, UiTheme.GOLD, UiTheme.LILAC]
@@ -428,6 +495,7 @@ class MachineStage extends Control:
 			_pull = 0.0
 
 		_popup.position = _to_screen(GLOBE + Vector2(0, 30)) - _popup.size / 2.0
+		odds.visible = not GameState.tutorial_active()
 		var knob: Array = _knob(0.0)
 		lever_target.position = _to_screen(knob[0] - Vector2(24, 24))
 		lever_target.size = Vector2(48, PIVOT.y - knob[0].y + 44) * _scale()
@@ -1072,6 +1140,132 @@ class MachineStage extends Control:
 					draw_line(pts[i], pts[i + 1], line, 2.5, true)
 		else:
 			draw_polyline(pts, line, 2.5, true)
+
+
+## The machine's prize card, taped up next to it like the back of a box: a little "prizes" tag
+## (the odds on hover, like a pack in the boxes tab) that flips over into a card of everything a
+## capsule can hold and how likely it is (GameState.machine_odds), a lucky capsule's once the
+## lights work, and shiny balls once they're fixed. Tap the card to flip it back.
+class OddsCard extends Control:
+	var tag := Button.new()
+	var card := PanelContainer.new()
+	var _tween: Tween
+
+	func _init() -> void:
+		mouse_filter = MOUSE_FILTER_IGNORE
+		tag.name = "odds_tag"
+		tag.text = "prizes"
+		tag.focus_mode = FOCUS_NONE
+		tag.mouse_default_cursor_shape = CURSOR_POINTING_HAND
+		tag.add_theme_font_override("font", UiTheme.DISPLAY_FONT)
+		tag.add_theme_font_size_override("font_size", 14)
+		for state in ["normal", "hover", "pressed"]:
+			var sb := UiTheme.sticker(UiTheme.LILAC if state == "hover" else UiTheme.LILAC_SEAM, 6, UiTheme.RAISED, 0)
+			sb.content_margin_left = 12
+			sb.content_margin_right = 12
+			sb.content_margin_top = 6
+			sb.content_margin_bottom = 4
+			tag.add_theme_stylebox_override(state, sb)
+		for key in ["font_color", "font_hover_color", "font_pressed_color"]:
+			tag.add_theme_color_override(key, UiTheme.LILAC)
+		tag.rotation_degrees = 4.0
+		tag.pressed.connect(func(): flip(true))
+		tag.mouse_entered.connect(func(): tag.tooltip_text = MachineTab.odds_text())
+		add_child(tag)
+		card.name = "odds_card"
+		card.visible = false
+		card.mouse_filter = MOUSE_FILTER_STOP
+		card.mouse_default_cursor_shape = CURSOR_POINTING_HAND
+		card.add_theme_stylebox_override("panel", UiTheme.sticker(UiTheme.LILAC_SEAM, 8, UiTheme.RAISED, 12))
+		card.gui_input.connect(func(e):
+			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+				flip(false))
+		add_child(card)
+
+	func _ready() -> void:
+		# refill while it's open when what it shows changes (a fix, a toy, a new kind opening)
+		GameState.machine_upgraded.connect(_refresh.unbind(1))
+		GameState.toys_changed.connect(_refresh)
+		GameState.unlocked.connect(_refresh.unbind(1))
+		GameState.tutorial_changed.connect(_refresh)
+		_refit.call_deferred()
+
+	func _refresh() -> void:
+		if card.visible:
+			_fill()
+
+	func _refit() -> void:
+		var stage := get_parent() as Control
+		if stage:
+			place(stage.size)
+
+	func is_open() -> bool:
+		return card.visible
+
+	## Flips the tag over into the card (`open`) or back.
+	func flip(open: bool) -> void:
+		if open == card.visible and (_tween == null or not _tween.is_running()):
+			return
+		if open:
+			_fill()
+		var from: Control = card if not open else tag
+		var to: Control = tag if not open else card
+		from.pivot_offset = from.size / 2.0
+		if _tween:
+			_tween.kill()
+		_tween = create_tween()
+		_tween.tween_property(from, "scale:x", 0.0, 0.1)
+		_tween.tween_callback(func():
+			from.visible = false
+			from.scale.x = 1.0
+			to.visible = true
+			to.scale.x = 0.0
+			to.pivot_offset = to.get_combined_minimum_size() / 2.0)
+		_tween.tween_property(to, "scale:x", 1.0, 0.14)
+		Sfx.play(self, MachineTab._sound("tick"), 4.0)
+
+	## Keeps the tag in the top right corner of the stage, and the card inside the stage.
+	func place(room: Vector2) -> void:
+		size = room
+		tag.size = tag.get_combined_minimum_size()
+		tag.position = Vector2(room.x - tag.size.x - 16, 14)
+		tag.pivot_offset = tag.size / 2.0
+		card.size = card.get_combined_minimum_size()
+		card.position = Vector2(maxf(8.0, room.x - card.size.x - 10), 10)
+
+	func _fill() -> void:
+		UiTheme.clear(card)
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 6)
+		col.mouse_filter = MOUSE_FILTER_IGNORE
+		card.add_child(col)
+		col.add_child(UiTheme.title("prizes", 16, UiTheme.LILAC))
+		var cols := MachineTab.odds_columns()
+		var grid := GridContainer.new()
+		grid.columns = 1 + cols.size()
+		grid.add_theme_constant_override("h_separation", 14)
+		grid.add_theme_constant_override("v_separation", 3)
+		grid.mouse_filter = MOUSE_FILTER_IGNORE
+		col.add_child(grid)
+		grid.add_child(Control.new())
+		for c in cols:
+			grid.add_child(_cell(str(c.name), UiTheme.GOLD if c.lucky else UiTheme.MUTED, true))
+		for row in MachineTab.odds_rows(cols):
+			var head: bool = row.get("header", false)
+			grid.add_child(_cell(str(row.name), UiTheme.GOLD if row.get("shiny", false) else (UiTheme.MUTED if head else UiTheme.TEXT), false))
+			for chance in row.chances:
+				grid.add_child(_cell(UiTheme.percent(chance) if chance > 0.0 else "", UiTheme.MUTED, true))
+		for c in col.get_children() + grid.get_children():
+			if c is Control:
+				c.mouse_filter = MOUSE_FILTER_IGNORE
+		_refit()
+		_refit.call_deferred()
+
+	static func _cell(text: String, color: Color, right: bool) -> Label:
+		var l := UiTheme.label(text, color, UiTheme.SMALL + 1)
+		if right:
+			l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+		return l
 
 
 ## A good prize out of the machine, as a picture: a card over the globe with the thing itself (a

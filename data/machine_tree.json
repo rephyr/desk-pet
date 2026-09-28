@@ -18,6 +18,6 @@
 		{ "id": "triple", "branch": "balls", "at": [110, 260], "name": "triple drop", "icon": "balls", "max": 5, "coins": 20000, "grow": 2.6, "bits": { "spring": 1 }, "each": { "triple": 0.03 }, "says": "three at once! the chutes are getting wider.", "gain": "+3% chance of 3 balls per chute", "from": "double" },
 		{ "id": "shiny", "branch": "shiny", "at": [410, 180], "name": "shiny balls", "icon": "shiny", "max": 5, "coins": 2000, "grow": 2.6, "bits": {}, "each": { "shiny": 0.04 }, "says": "with the new glass, some capsules sparkle! a shiny one pays double.", "gain": "+4% chance of a shiny ball (x2)", "from": "glass" },
 		{ "id": "shinier", "branch": "shiny", "at": [500, 180], "name": "brighter shiny", "icon": "shiny", "max": 2, "coins": 40000, "grow": 6, "bits": { "glass": 1 }, "each": { "shiny_x": 1 }, "says": "shiny balls shine even brighter now.", "gain": "shiny balls pay x3, then x4", "from": "shiny" },
-		{ "id": "fever", "branch": "lights", "at": [410, 100], "name": "longer fever", "icon": "lights", "max": 3, "coins": 20000, "grow": 3, "bits": {}, "each": { "fever_s": 3 }, "says": "the lights stay on for longer!", "gain": "+3 s of fever a level", "from": "wires" }
+		{ "id": "fever", "branch": "lights", "at": [410, 100], "name": "longer fever", "icon": "lights", "max": 3, "coins": 20000, "grow": 3, "bits": {}, "each": { "fever_s": 1 }, "says": "the lights stay on for longer!", "gain": "+1 s of fever a level", "from": "wires" }
 	]
 }

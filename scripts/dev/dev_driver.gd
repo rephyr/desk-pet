@@ -182,6 +182,7 @@ func _step(w: PackedStringArray) -> String:
 		"fix":  # fix <node> [levels]: that machine tree node, for free (skips the building-up)
 			GameState.machine.bought[w[1]] = Machine.owned(GameState.machine, w[1]) + (int(w[2]) if w.size() > 2 else 1)
 			GameState.changed.emit()
+			GameState.machine_upgraded.emit(w[1])
 		"coins":  # coins <n>: you have exactly n coins
 			GameState.coins = int(w[1])
 			GameState.changed.emit()

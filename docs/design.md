@@ -166,8 +166,18 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   lever won't budge until the capsule has opened (1.4 s, the springier spring makes it quicker), so
   it's fewer, better pulls and kinder to your wrist; a capsule starts at 1 coin (mostly a few coins that fly up to the counter;
   sometimes an xp, a part, a whole box or a golden capsule). Every pull lights one of the lucky
-  lights; all lit = a shiny capsule (only good prizes) and FEVER (10 s where every capsule pays
-  double, the room music steps back for a bouncy fever tune). The upgrade shelf (Cookie Clicker's
+  lights; all lit = a shiny capsule (only good prizes) and FEVER (8 s where every capsule pays
+  double, +1 s a level of "longer fever", 11 s fully upgraded; the room music steps back for a
+  bouncy fever tune). **Fever stays a burst** (Emilia): it never lasts longer than 0.8 of the time
+  it takes to light every light again (lights x capsule seconds, machine.json "fever_burst"), even
+  with fever toys, so it never chains. Fever counts in pulls: a speed toy divides the (capped) fever
+  seconds, so it gives the same fever pulls in less time and every "longer fever" level still adds
+  pulls. **The machine shows its odds** like a box: a "prizes" tag in the stage's corner (odds on
+  hover) flips over into a card of every prize and its chance in a capsule, a lucky column once the
+  lights work, and shiny once shiny balls are fixed (Machine.odds, GameState.machine_odds; hidden in
+  the tutorial; it refills while open when a fix, a toy or an unlock changes the odds). A pet box
+  only comes in a pull's first capsule, so once a pull can drop more than one capsule (a second
+  chute, double / triple drop) the pet box moves under its own "a pull" row with its chance a pull. The upgrade shelf (Cookie Clicker's
   store): fuller capsules, a springier spring, shinier capsules, luckier lights, and locked ones
   found on adventures later. **Decided (Emilia):** it is NEVER automated. Pets don't work it (they
   earn on errands); it stays relevant all game as a side objective you keep building, so the game

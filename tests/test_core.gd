@@ -982,6 +982,66 @@ func _test_machine(catalog: Catalog) -> void:
 	for i in 1000:
 		balls += Machine.balls_from_chute({ "bought": { "double": 5 } }, catalog, rng)
 	_check(balls > 1100, "double drop sometimes gives two balls (%d from 1000)" % balls)
+	# the prize card: odds add up, follow better drops, swap kinds that aren't open for coins
+	var all_open := func(_k): return true
+	var early := Machine.odds(fresh, catalog, all_open)
+	var total := 0.0
+	for id in early:
+		total += float(early[id])
+	_check(absf(total - 1.0) < 0.0001, "the machine's odds add up to 1 (%.4f)" % total)
+	var dropped := { "bought": { "drops": 2 } }
+	for p in m.prizes:
+		var waits := float(p.get("drops", 0)) > 0.0
+		_check(early.has(p.id) != waits, "prize %s %s the odds before better drops" % [p.id, "is missing from" if waits else "is on"])
+		_check(Machine.odds(dropped, catalog, all_open).has(p.id), "prize %s is on the odds with better drops" % p.id)
+	var no_boxes := Machine.odds(dropped, catalog, func(k): return k != "box")
+	var box_w := 0.0
+	var all_w := 0.0
+	for p in m.prizes:
+		all_w += float(p.weight)
+		if p.kind == "box":
+			box_w += float(p.weight)
+	_check(not no_boxes.has("box") and absf(float(no_boxes.coins) - (float(m.prizes[0].weight) + box_w) / all_w) < 0.0001, "a kind that isn't open yet counts as coins on the odds")
+	var lucky_odds := Machine.odds(dropped, catalog, all_open, true, 2.0, 1.5)
+	var lucky_total := 0.0
+	for id in lucky_odds:
+		lucky_total += float(lucky_odds[id])
+		var p: Dictionary = m.prizes.filter(func(x): return x.id == id)[0]
+		_check(p.get("lucky", false), "lucky odds only hold lucky prizes (%s)" % id)
+	_check(absf(lucky_total - 1.0) < 0.0001, "lucky odds add up to 1")
+	var rate_up := Machine.odds(dropped, catalog, all_open, false, 1.0, 3.0)
+	_check(float(rate_up.toy) > float(Machine.odds(dropped, catalog, all_open).toy), "toys that make toys show on the odds")
+	# fever stays a burst: even fully upgraded with big toys it ends before the lights relight
+	var maxed_fever := { "bought": { "wires": 1 } }
+	for n in catalog.machine_tree.nodes:
+		if n.each.has("fever_s"):
+			maxed_fever.bought[n.id] = int(n.get("max", 1))
+	var relight := func(speed: float) -> float: return Machine.lights_needed(maxed_fever, catalog) * Machine.reveal_seconds(maxed_fever, catalog) / speed
+	_check(Machine.fever_for(maxed_fever, catalog, 5.0, 3.0) < relight.call(3.0), "fever ends before the lights relight, even with a 5x fever toy and a 3x speed toy")
+	_check(Machine.fever_for(maxed_fever, catalog) < relight.call(1.0), "fully upgraded fever ends before the lights relight")
+	_check(is_equal_approx(Machine.fever_for(maxed_fever, catalog), Machine.fever_seconds(maxed_fever, catalog)), "fully upgraded fever without toys isn't cut short (%.1f s)" % Machine.fever_for(maxed_fever, catalog))
+	_check(Machine.fever_for(fresh, catalog) > 0.0, "fever lasts a while")
+	# a speed toy never cancels longer fever: every level still adds fever pulls
+	var fever_node := ""
+	for n in catalog.machine_tree.nodes:
+		if n.each.has("fever_s"):
+			fever_node = str(n.id)
+	for speed in [1.0, 1.1, 1.5, 3.0]:
+		var last := 0.0
+		for lv in int(Machine.node(catalog, fever_node).get("max", 1)) + 1:
+			var st := { "bought": { "wires": 1, fever_node: lv } }
+			var pulls: float = Machine.fever_for(st, catalog, 1.0, speed) * speed / Machine.reveal_seconds(st, catalog)
+			_check(pulls > last + 0.01, "longer fever level %d still adds fever pulls with a x%.1f speed toy (%.2f pulls)" % [lv, speed, pulls])
+			last = pulls
+	_check(is_equal_approx(Machine.fever_for(maxed_fever, catalog, 1.0, 1.5) * 1.5, Machine.fever_for(maxed_fever, catalog)), "a speed toy gives the same fever pulls in less time")
+	# a pet box only comes in a pull's first capsule: in the others it counts as coins
+	var later := Machine.odds(dropped, catalog, all_open, false, 1.0, 1.0, false)
+	var first_odds := Machine.odds(dropped, catalog, all_open)
+	_check(not later.has("pet_box") and first_odds.has("pet_box"), "a pet box is only on the first capsule's odds")
+	_check(absf(float(later.coins) - float(first_odds.coins) - float(first_odds.pet_box)) < 0.0001, "a later capsule's pet box chance goes to coins")
+	_check(not Machine.many_capsules(fresh, catalog) and Machine.many_capsules({ "bought": { "chute2": 1 } }, catalog) and Machine.many_capsules({ "bought": { "double": 1 } }, catalog), "a second chute or double drop means more capsules a pull")
+	for p in m.prizes:
+		_check(p.has("name") or (p.kind == "box" and catalog.box(str(p.box)).has("name")), "prize %s has a name for the prize card" % p.id)
 
 
 ## Capsule toys: every toy has art and a real tier and bonus, rolls give real toys, boosts start
