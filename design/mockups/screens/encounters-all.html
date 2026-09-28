@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>All encounters</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<style>
+  /* Every adventure event's art (look A: pixel things on the trail), grouped by place.
+     Sprites live in ../shared/encounters/*.js as row strings, ready to port to Godot.
+     ?ids=a,b shows only those events. */
+  body { background: var(--backdrop); color: var(--text); font: var(--body-size)/1.4 var(--body); margin: 0; padding: 20px 24px 40px; display: block; height: auto; min-height: 0; }
+  h1 { font: var(--display-weight) 26px/1 var(--display); color: var(--pink); margin: 0 0 4px; }
+  .lede { color: var(--muted); margin: 0 0 16px; }
+  h2 { font: var(--display-weight) 19px/1 var(--display); color: var(--gold); margin: 22px 0 10px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 380px); gap: 12px; }
+  .tile { display: grid; gap: 6px; }
+  .trail { position: relative; height: 170px; border-radius: var(--r-panel); overflow: hidden; background: var(--paper); border: 2px solid var(--line); }
+  .trail svg.bg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .pets { position: absolute; left: 16px; bottom: 34px; display: flex; align-items: flex-end; gap: 4px; }
+  .pets img { image-rendering: pixelated; display: block; }
+  .bang { position: absolute; left: 128px; bottom: 100px; font: 700 20px/1 var(--body); color: var(--pink); }
+  .thing { position: absolute; bottom: 34px; left: 200px; }
+  .thing.glow { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--cyan) 60%, transparent)); }
+  .thing.eerie { filter: drop-shadow(0 0 7px color-mix(in srgb, var(--tier-mythic) 45%, transparent)); }
+  .shadow { position: absolute; bottom: 30px; height: 6px; border-radius: 50%; background: rgba(0,0,0,.35); }
+  canvas.px { image-rendering: pixelated; display: block; }
+  .missing { position: absolute; left: 220px; bottom: 50px; color: var(--muted); font-size: 12px; }
+  .cap b { color: var(--gold); font-weight: 400; }
+  .cap span { display: block; color: var(--muted); font-size: 11px; }
+  .cap .id { color: var(--lilac-seam); }
+  .warn { color: var(--tier-mythic); font-size: 11px; }
+</style>
+</head>
+<body>
+<h1>all the encounters</h1>
+<p class="lede">What your pets find on the trail, in look A. Each one stands just ahead of the pets while the adventure card asks what to do.</p>
+<div id="out"></div>
+
+<script>window.ENCOUNTER_SPRITES = {};</script>
+<script src="../shared/encounters/part1.js"></script>
+<script src="../shared/encounters/part2.js"></script>
+<script src="../shared/encounters/part3.js"></script>
+<script src="../shared/encounters/part4.js"></script>
+<script>
+// events by place, from data/adventures.json (titles and scene text)
+const PLACES = [
+  ["the garden path", [
+    ["garden_fork", "a fork in the path", "one way smells of flowers. the other way is dark and twisty!"],
+    ["garden_brambles", "brambles", "thorny brambles! and something red and shiny right in the middle."],
+    ["garden_goose", "a big goose", "a goose stands in the way. it is very big!"],
+    ["garden_chest", "a little chest", "a little chest sits by the path. it's humming to itself."],
+    ["garden_apples", "an apple tree", "apples! and one golden apple right at the very top."],
+    ["garden_bees", "a bee hive", "a hive is buzzing away in a tree. honey drips down!"],
+    ["garden_ball", "a lost ball", "a bouncy ball, all alone in the grass."],
+    ["garden_pond", "a duck pond", "ducks! and something sparkly at the bottom of the pond."]]],
+  ["the meadow", [
+    ["meadow_basket", "a little basket", "a little basket sits all alone in the grass. perfect for carrying things!"],
+    ["meadow_wagon", "a hay wagon", "a big old hay wagon at the edge of the meadow, still half full of hay. it's so big!"],
+    ["meadow_butterflies", "butterflies", "a cloud of butterflies! one of them has shiny wings."],
+    ["meadow_hay", "a hay bale", "a big soft hay bale. something jingles inside it."],
+    ["meadow_moles", "mole hills", "lots of little mole hills! someone is digging down there."],
+    ["meadow_kite", "a lost kite", "a kite is stuck way up in the only tree in the meadow."]]],
+  ["the woods", [
+    ["woods_cart", "an old cart", "under the leaves at the far end of the woods: an old cart! it still rolls, but it's stuck in the mud."],
+    ["woods_mushrooms", "mushrooms", "a ring of mushrooms. some of them glow a little."],
+    ["woods_owl", "an owl", "an owl blinks from a branch. there's something shiny in its nest."],
+    ["woods_log", "a hollow log", "a big hollow log. it echoes when you say hi!"],
+    ["woods_fox", "a fox", "a fox is watching from the ferns. it looks hungry."]]],
+  ["the far fields", [
+    ["hill", "a big hill", "you can probably see a long way from the top!"],
+    ["tracks", "funny tracks", "little tracks lead off the path!"],
+    ["fields_cushion", "a comfy cushion", "a big comfy cushion, lying in the grass like it's waiting for someone."],
+    ["signpost", "an old signpost", "the writing is very faded."]]],
+  ["the orchard", [
+    ["orchard_wheelbarrow", "a wheelbarrow", "leaning on the orchard fence: a wheelbarrow with one squeaky wheel. it's big enough for a few friends!"],
+    ["orchard_piggy", "a piggy bank", "tucked in the roots of the oldest apple tree: a little piggy bank. it jingles!"]]],
+  ["the duck pond", [
+    ["pond_frog", "a frog", "a frog on a rock! it looks like it wants to race."],
+    ["pond_lilypads", "lily pads", "lily pads all the way to a little island!"],
+    ["pond_reeds", "rustling reeds", "the reeds are rustling. something's hiding in there!"],
+    ["pond_turtle", "a turtle", "a big old turtle is sunbathing. it looks very wise."]]],
+  ["the stream", [
+    ["stream_stones", "stepping stones", "stepping stones across the stream. some look slippery."],
+    ["stream_fish", "a big fish", "a big fish is swimming against the current!"],
+    ["stream_bottle", "a bottle", "a little bottle floats by. there's a note inside!"],
+    ["stream_waterfall", "a waterfall", "a little waterfall. there's a sparkle behind it!"]]],
+  ["the old shed", [
+    ["shed_boxes", "old boxes", "a tower of dusty old boxes. one says 'keep out'."],
+    ["shed_spider", "a big spider", "a big spider is sitting in the doorway. it has lots of legs."],
+    ["shed_jar", "a jar of buttons", "a big jar of buttons on a high shelf!"],
+    ["shed_mice", "a mouse family", "a family of mice lives in an old boot!"]]],
+  ["anywhere (shared events)", [
+    ["fork", "a fork in the path", "the path splits in two!"],
+    ["brambles", "brambles", "thorny brambles cover the path."],
+    ["goose", "a big goose", "a goose stands in the way. it is very big!"],
+    ["limping", "sore paws", "some paws are a bit sore."],
+    ["chest", "a little chest", "a little chest sits by the path, unlocked!"],
+    ["puddle", "a big puddle", "a big muddy puddle!"],
+    ["fox", "a fox", "a fox is watching from the trees!"]]],
+  ["the well, the cellar, further down", [
+    ["dark", "it's dark", "it's very dark down here!"],
+    ["rope", "an old rope", "a rope goes further down!"],
+    ["door", "a small door", "someone is knocking on the other side!"],
+    ["thing", "something big", "something big is sleeping here!"]]],
+];
+
+function trailBg(w, h, dark) {
+  let trees = "";
+  if (!dark) for (let x = 20; x < w; x += 86) trees += `<path d="M${x} ${h - 50} l18 -34 l18 34 z" fill="#2c1d3d"/>`;
+  let path = `M0 ${h - 32}`;
+  for (let x = 0; x <= w; x += 20) path += ` L${x} ${h - 32 + Math.sin(x / 40) * 2}`;
+  return `<svg class="bg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none"${dark ? ' style="background:#0e0814"' : ""}>${trees}<path d="${path}" stroke="#6d2f58" stroke-width="3" fill="none"/></svg>`;
+}
+
+function sprite(id) {
+  let s = ENCOUNTER_SPRITES[id];
+  if (s && s.alias) s = { ...ENCOUNTER_SPRITES[s.alias], ...s, rows: s.rows || ENCOUNTER_SPRITES[s.alias]?.rows, pal: s.pal || ENCOUNTER_SPRITES[s.alias]?.pal };
+  return s;
+}
+
+function spriteCanvas(s, px) {
+  const w = Math.max(...s.rows.map(r => r.length)), h = s.rows.length;
+  const c = document.createElement("canvas");
+  c.width = w * px; c.height = h * px; c.className = "px";
+  const g = c.getContext("2d");
+  s.rows.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch === "." || !s.pal[ch]) return;
+    g.fillStyle = s.pal[ch]; g.fillRect(x * px, y * px, px, px);
+  }));
+  return c;
+}
+
+function problems(s) {
+  const out = [];
+  const w = s.rows[0].length;
+  if (s.rows.some(r => r.length !== w)) out.push("rows differ in width: " + [...new Set(s.rows.map(r => r.length))].join("/"));
+  const unknown = new Set([...s.rows.join("")].filter(ch => ch !== "." && !s.pal[ch]));
+  if (unknown.size) out.push("no colour for: " + [...unknown].join(""));
+  if (w > 36 || s.rows.length > 30) out.push(`big: ${w}x${s.rows.length}`);
+  return out;
+}
+
+const only = new URLSearchParams(location.search).get("ids")?.split(",");
+const out = document.getElementById("out");
+for (const [place, events] of PLACES) {
+  const list = only ? events.filter(e => only.includes(e[0])) : events;
+  if (!list.length) continue;
+  out.insertAdjacentHTML("beforeend", `<h2>${place}</h2>`);
+  const grid = document.createElement("div");
+  grid.className = "grid";
+  out.appendChild(grid);
+  const dark = place.startsWith("the well");
+  for (const [id, title, text] of list) {
+    const tile = document.createElement("div");
+    tile.className = "tile";
+    const trail = document.createElement("div");
+    trail.className = "trail";
+    trail.innerHTML = trailBg(380, 170, dark) + `<div class="pets"><img src="../assets/pets/lilac-blob.png" width="40" height="45"><img src="../assets/pets/mint-bear.png" width="40" height="45"><img src="../assets/pets/sky-bunny.png" width="50" height="56"></div><div class="bang">!</div>`;
+    const s = sprite(id);
+    let warn = "";
+    if (s && s.rows) {
+      const c = spriteCanvas(s, s.px || 4);
+      const thing = document.createElement("div");
+      thing.className = "thing" + (s.glow ? " glow" : "") + (s.eerie ? " eerie" : "");
+      if (s.float) thing.style.bottom = (34 + s.float) + "px";
+      thing.appendChild(c);
+      if (!s.float && !s.flat) trail.insertAdjacentHTML("beforeend", `<div class="shadow" style="left:${210}px;width:${Math.max(10, c.width - 20)}px"></div>`);
+      trail.appendChild(thing);
+      warn = problems(s).map(p => `<div class="warn">${p}</div>`).join("");
+    } else {
+      trail.insertAdjacentHTML("beforeend", `<div class="missing">(not drawn yet)</div>`);
+    }
+    tile.appendChild(trail);
+    tile.insertAdjacentHTML("beforeend", `<div class="cap"><b>${title}</b> <span class="id">${id}</span><span>${text}</span>${warn}</div>`);
+    grid.appendChild(tile);
+  }
+}
+</script>
+</body>
+</html>

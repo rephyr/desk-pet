@@ -1,0 +1,127 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Workbench</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* the upgrading tab (was the bag): sew parts onto your pet, and the toy workbench */
+  .up { display: flex; flex-direction: column; gap: 12px; height: 100%; min-height: 0; }
+  .bar { display: flex; align-items: center; gap: 10px; }
+  .seg { display: inline-flex; background: var(--deep); border: 2px solid var(--line); border-radius: var(--r-md); padding: 2px; }
+  .seg button { background: none; border: 0; color: var(--muted); padding: 4px 12px; border-radius: 6px; cursor: pointer; font: inherit; font-size: 12px; }
+  .seg button.on { background: var(--pink-pressed); color: var(--text); }
+  .bar span { font-size: 12px; color: var(--muted); }
+
+  .benches { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .bench { position: relative; display: flex; flex-direction: column; align-items: center; padding: 12px 14px 12px; border-radius: var(--r-xl); background: var(--raised); border: 2px solid var(--line); }
+  .bench::before { content: ""; position: absolute; inset: 5px; border: 2px dashed color-mix(in srgb, var(--accent) 35%, var(--line)); border-radius: 9px; pointer-events: none; }
+  .bench h3 { margin: 0; font: 400 17px/1 var(--display); color: var(--accent); }
+  .bench .what { font-size: 12px; color: var(--muted); text-align: center; margin: 4px 0 8px; }
+  .ins { display: flex; gap: 6px; align-items: center; }
+  .in { width: 46px; height: 50px; display: grid; place-items: end center; border-radius: 10px; background: var(--deep); border: 2px solid var(--line); }
+  .in.empty { place-items: center; color: var(--locked); font-size: 20px; border-style: dashed; }
+  .arrow { margin: 4px 0 0; color: var(--accent); font: 400 20px/1 var(--display); }
+  .out { width: 70px; height: 72px; display: grid; place-items: end center; border-radius: 12px; background: var(--deep); border: 2px dashed var(--accent); position: relative; }
+  .out .q { position: absolute; inset: 0; display: grid; place-items: center; font: 400 36px/1 var(--display); color: var(--accent); }
+  .out .tag { position: absolute; top: -9px; right: -10px; padding: 1px 7px; border-radius: 999px; background: var(--gold); color: var(--deep); font: 400 11px/1.4 var(--display); }
+  .odds { width: 100%; margin: 8px 0 0; display: grid; grid-template-columns: auto 1fr auto; gap: 3px 8px; align-items: center; font-size: 12px; }
+  .odds .ed { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--line); }
+  .odds .ed.holo { background: linear-gradient(135deg, var(--pink), var(--gold), var(--mint), var(--cyan)); border-color: var(--lilac); }
+  .odds .ed.foil { background: linear-gradient(135deg, #8a6a1f, var(--gold), #fff6d6); border-color: var(--gold); }
+  .odds .ed.ghost { background: color-mix(in srgb, var(--cyan) 40%, transparent); border-color: var(--cyan); box-shadow: 0 0 4px var(--cyan); }
+  .odds .ed.gone { background: var(--deep); }
+  .odds b { font-weight: 400; color: var(--text); }
+  .odds .lose { color: var(--muted); }
+  .sure { margin: 8px 0 0; font-size: 12px; color: var(--mint); text-align: center; }
+  .bench .go { margin-top: auto; width: 100%; padding-top: 8px; }
+  .bench .go .btn { width: 100%; }
+  .bench .go small { display: block; margin-top: 5px; text-align: center; font-size: 11px; color: var(--muted); }
+  .btn.risk { border-color: var(--pink); color: var(--pink); }
+
+  .tray { flex: none; display: flex; flex-direction: column; gap: 4px; }
+  .benches { flex: 1; min-height: 0; }
+  .tray h3 { margin: 0; font: 400 14px/1 var(--display); color: var(--lilac); }
+  .tray .row { display: flex; gap: 10px; overflow-x: auto; padding: 8px 8px 4px 4px; scrollbar-width: thin; scrollbar-color: var(--lilac-seam) transparent; }
+  .chip { position: relative; flex: none; display: flex; flex-direction: column; align-items: center; padding: 6px 6px 5px; border-radius: 10px; background: var(--raised); border: 2px solid var(--tier); cursor: grab; }
+  .chip.used { opacity: .4; }
+  .chip span { font-size: 11px; color: var(--muted); }
+  .chip b { position: absolute; top: -7px; right: -7px; padding: 0 6px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); font-size: 11px; font-weight: 400; }
+</style>
+</head>
+<body>
+<div class="app" data-tab="inventory" data-say="three acorns! stuck together they'll make one really good acorn. i think.">
+  <div class="up">
+    <div class="bar">
+      <div class="seg"><button>your pet</button><button class="on">toys</button></div>
+      <span>drag toys from your tray onto a bench</span>
+    </div>
+    <div class="benches">
+      <div class="bench" style="--accent: var(--mint)">
+        <h3>combine</h3>
+        <div class="what">3 of the same toy make it one level better. always works.</div>
+        <div class="ins" id="combine-in"></div>
+        <div class="arrow">↓</div>
+        <div class="out" id="combine-out"></div>
+        <div class="sure">acorn, level 2: +2 coins in every capsule on display</div>
+        <div class="go"><button class="btn">combine</button></div>
+      </div>
+      <div class="bench" style="--accent: var(--cyan)">
+        <h3>reroll</h3>
+        <div class="what">turns a toy into another of the same tier. maybe a new one!</div>
+        <div class="ins" id="reroll-in"></div>
+        <div class="arrow">↓</div>
+        <div class="out"><span class="q">?</span></div>
+        <div class="odds">
+          <i></i><span>a common toy</span><b>100%</b>
+          <i class="ed holo"></i><span>and it's holo</span><b>5%</b>
+        </div>
+        <div class="go"><button class="btn">reroll <small style="display: inline; color: var(--cyan)">◆ 40</small></button></div>
+      </div>
+      <div class="bench" style="--accent: var(--pink)">
+        <h3>sacrifice</h3>
+        <div class="what">3 of the same toy for a chance at a special one. gone either way.</div>
+        <div class="ins" id="sac-in"></div>
+        <div class="arrow">↓</div>
+        <div class="out" id="sac-out"></div>
+        <div class="odds">
+          <i class="ed holo"></i><span>holo snail</span><b>25%</b>
+          <i class="ed foil"></i><span>gold foil snail</span><b>8%</b>
+          <i class="ed ghost"></i><span>ghost snail</span><b>2%</b>
+          <i class="ed gone"></i><span class="lose">nothing</span><b class="lose">65%</b>
+        </div>
+        <div class="go"><button class="btn risk">risk it</button></div>
+      </div>
+    </div>
+    <div class="tray">
+      <h3>your toys</h3>
+      <div class="row" id="tray"></div>
+    </div>
+  </div>
+</div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script src="../shared/toys.js"></script>
+<script>
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "inventory").label = "upgrading";
+  const content = mountFrame();
+  const $ = s => content.querySelector(s);
+  $("#combine-in").innerHTML = [0, 1, 2].map(() => `<div class="in">${toySvg("acorn", "normal", 42)}</div>`).join("");
+  $("#combine-out").innerHTML = toySvg("acorn", "normal", 64) + `<span class="tag">lv 2</span>`;
+  $("#reroll-in").innerHTML = `<div class="in">${toySvg("ladybug", "normal", 42)}</div>`;
+  $("#sac-in").innerHTML = [0, 1, 2].map(() => `<div class="in">${toySvg("snail", "normal", 42)}</div>`).join("");
+  $("#sac-out").innerHTML = toySvg("snail", "holo", 64) + `<span class="q" style="background: color-mix(in srgb, var(--deep) 55%, transparent); border-radius: 10px">?</span>`;
+  const TRAY = [["acorn", "normal", 3, true], ["snail", "normal", 3, true], ["snail", "holo", 1], ["ladybug", "normal", 2, true], ["mushroom", "normal", 1], ["bee", "normal", 1], ["bee", "ghost", 1], ["gnome", "normal", 1]];
+  $("#tray").innerHTML = TRAY.map(([id, f, n, used]) => {
+    const t = TOY_SET.toys.find(t => t.id === id);
+    return `<div class="chip ${used ? "used" : ""}" style="--tier: ${TOY_TIERS[t.tier]}">${toySvg(id, f, 38)}<span>${f === "normal" ? t.name : TOY_FINISHES[f].name}</span><b>x${n}</b></div>`;
+  }).join("");
+  applyLook(loadLook());
+</script>
+</body>
+</html>

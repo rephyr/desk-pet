@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Capsule Machine</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* the capsule machine: pull the lever towards you, one capsule comes out */
+  .wrap { display: grid; grid-template-columns: 1fr 262px; grid-template-rows: minmax(0, 1fr); gap: 14px; height: 100%; min-height: 0; user-select: none; }
+  .stage { position: relative; border-radius: var(--r-panel); overflow: hidden; background: var(--paper); border: 2px solid var(--line); min-height: 0; touch-action: none; }
+  .world { position: absolute; left: 50%; top: 50%; width: 520px; height: 470px; transform-origin: 0 0; }
+  .world > svg { position: absolute; inset: 0; width: 520px; height: 470px; overflow: visible; }
+
+  .m-body { fill: color-mix(in srgb, var(--pink) 22%, var(--page)); stroke: var(--pink); stroke-width: 3.5; stroke-linejoin: round; }
+  .m-trim { fill: color-mix(in srgb, var(--pink) 40%, var(--page)); stroke: var(--pink); stroke-width: 3; stroke-linejoin: round; }
+  .m-glass { fill: color-mix(in srgb, var(--lilac) 9%, var(--page)); stroke: var(--lilac); stroke-width: 3.5; }
+  .m-shine { fill: none; stroke: var(--text); stroke-width: 4; stroke-linecap: round; opacity: .35; }
+  .m-slot { fill: var(--deep); stroke: var(--pink-seam); stroke-width: 2.5; }
+  .m-plate { fill: var(--raised); stroke: var(--gold); stroke-width: 2.5; }
+  .m-floor { fill: var(--page); }
+  .m-line { fill: none; stroke: var(--lilac-seam); stroke-width: 3; stroke-linecap: round; }
+  .m-rug { fill: color-mix(in srgb, var(--lilac) 12%, var(--page)); stroke: var(--lilac-seam); stroke-width: 2.5; stroke-dasharray: 7 5; }
+  .m-mount { fill: var(--raised); stroke: var(--gold); stroke-width: 3; }
+  #lever { cursor: grab; }
+  #lever.held { cursor: grabbing; }
+  .arm { stroke: var(--gold); stroke-linecap: round; }
+  .knob { fill: var(--pink); stroke: var(--deep); stroke-width: 2.5; }
+  .knob-shine { fill: var(--text); opacity: .55; }
+  #lever:hover .knob { fill: color-mix(in srgb, var(--pink) 80%, var(--text)); }
+  #balls { transition: transform .25s var(--ease-out); transform-box: view-box; transform-origin: 200px 150px; }
+  .pip { fill: var(--deep); stroke: var(--gold); stroke-width: 2; transition: fill .15s; }
+  .pip.on { fill: var(--gold); }
+  .whole { transform-box: view-box; transform-origin: 200px 420px; }
+  .whole.shake { animation: shake .26s ease-in-out; }
+  @keyframes shake { 25% { transform: translateY(2px) rotate(-.7deg); } 60% { transform: translateY(-1px) rotate(.6deg); } }
+  .pullme { font: 400 17px/1 var(--display); fill: var(--pink); transition: opacity .4s; }
+  .pullme-arrow { fill: none; stroke: var(--pink); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; animation: nudge 1.2s ease-in-out infinite; }
+  @keyframes nudge { 50% { transform: translateY(6px); } }
+  .gone { opacity: 0; }
+
+  /* the capsule that rolls out and pops open */
+  .cap { position: absolute; width: 44px; height: 44px; z-index: 4; pointer-events: none; }
+  .cap svg { width: 100%; height: 100%; overflow: visible; }
+  .cap.roll { animation: roll .45s cubic-bezier(.2,.8,.3,1) forwards; }
+  @keyframes roll { from { transform: translate(0, -40px) rotate(-160deg) scale(.6); opacity: .3; } to { transform: none; } }
+  .cap.pop { animation: pop .25s ease-out forwards; }
+  @keyframes pop { to { transform: scale(1.5); opacity: 0; } }
+  .prize { position: absolute; z-index: 6; min-width: 140px; padding: 12px 16px; text-align: center; background: var(--raised); border: 2px solid var(--accent); border-radius: 12px; box-shadow: var(--lift); pointer-events: none; animation: prize 1.9s var(--ease-out) forwards; }
+  .prize b { display: block; font: 400 18px/1.1 var(--display); color: var(--accent); }
+  .prize span { display: block; font-size: 12px; color: var(--muted); margin-top: 4px; }
+  @keyframes prize { 0% { transform: translateY(10px) scale(.6); opacity: 0; } 12% { transform: none; opacity: 1; } 80% { opacity: 1; } 100% { transform: translateY(-20px); opacity: 0; } }
+  .float { position: absolute; font: 400 18px/1 var(--display); color: var(--cyan); pointer-events: none; text-shadow: 0 2px 0 var(--deep); z-index: 5; animation: up 1s var(--ease-out) forwards; display: flex; gap: 4px; align-items: center; }
+  .float.small { font-size: 13px; opacity: .8; }
+  @keyframes up { to { transform: translateY(-40px); opacity: 0; } }
+  .bit { position: absolute; width: 7px; height: 7px; border-radius: 2px; pointer-events: none; z-index: 5; animation: bit .6s ease-out forwards; }
+  @keyframes bit { to { transform: translate(var(--dx), var(--dy)) rotate(180deg); opacity: 0; } }
+
+  .bigprize { position: absolute; left: 50%; top: 46%; z-index: 7; width: 200px; padding: 18px 16px 14px; display: flex; flex-direction: column; align-items: center; text-align: center; background: var(--raised); border: 3px solid var(--accent); border-radius: 16px; box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 18%, transparent), var(--lift); transform: translate(-60%, -50%) rotate(-2deg); }
+  .bigprize .burst { position: absolute; left: 50%; top: 70px; width: 220px; height: 220px; margin: -110px 0 0 -110px; border-radius: 50%; background: repeating-conic-gradient(color-mix(in srgb, var(--accent) 22%, transparent) 0 10deg, transparent 10deg 20deg); animation: spin 8s linear infinite; z-index: -1; mask: radial-gradient(circle, #000 30%, transparent 70%); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .bigprize b { margin-top: 8px; font: 400 20px/1.1 var(--display); color: var(--accent); }
+  .bigprize span { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .bigprize em { margin-top: 8px; padding: 2px 10px; border-radius: 999px; font-style: normal; font-size: 12px; color: var(--deep); background: var(--accent); }
+  .bigprize .new { position: absolute; top: -12px; right: -14px; padding: 4px 10px; font: 400 15px/1 var(--display); font-style: normal; color: var(--deep); background: var(--gold); border-radius: 8px; transform: rotate(10deg); }
+  .rate { position: absolute; left: 16px; top: 14px; z-index: 3; }
+  .rate b { display: flex; align-items: center; gap: 6px; font: 400 26px/1 var(--display); color: var(--text); }
+  .rate > span { display: block; font-size: 12px; color: var(--muted); margin-top: 5px; }
+  .helpers { position: absolute; left: 12px; bottom: 10px; display: flex; flex-wrap: wrap-reverse; gap: 0 2px; max-width: 170px; z-index: 3; }
+  .helpers img { width: 34px; height: 38px; animation: bob .9s ease-in-out infinite; }
+  .helpers img:nth-child(2n) { animation-delay: -.45s; }
+  @keyframes bob { 50% { transform: translateY(-3px) rotate(4deg); } }
+  .helpers small { width: 100%; font-size: 12px; color: var(--muted); }
+
+  /* the shelf of upgrades, like cookie clicker's store */
+  .shop { display: flex; flex-direction: column; gap: 8px; min-height: 0; overflow: auto; padding: 2px 4px 8px 2px; scrollbar-width: thin; scrollbar-color: var(--lilac-seam) transparent; }
+  .shop h3 { margin: 4px 2px 0; font: 400 15px/1 var(--display); color: var(--lilac); }
+  .up { display: grid; grid-template-columns: 38px 1fr auto; gap: 2px 10px; align-items: center; padding: 10px 12px; text-align: left; color: var(--text); background: var(--raised); border: 2px solid var(--line); border-radius: var(--r-lg); cursor: pointer; transition: border-color .12s, transform .12s var(--ease-out), opacity .12s; font: inherit; }
+  .up:hover:not(.poor):not(.locked) { border-color: var(--accent); transform: translateY(-2px); }
+  .up.poor { opacity: .55; cursor: default; }
+  .up .ic { grid-row: span 2; width: 38px; height: 38px; border-radius: 9px; background: color-mix(in srgb, var(--accent) 16%, var(--page)); border: 2px solid color-mix(in srgb, var(--accent) 55%, var(--page)); display: grid; place-items: center; }
+  .up .ic svg { width: 26px; height: 26px; }
+  .up b { font: 400 14px/1.1 var(--display); color: var(--accent); }
+  .up em { grid-column: 3; grid-row: 1 / span 2; font-style: normal; font: 400 20px/1 var(--display); color: var(--muted); }
+  .up small { grid-column: 2; font-size: 12px; line-height: 1.3; color: var(--muted); }
+  .up .cost { grid-column: 2; display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--cyan); }
+  .up.poor .cost { color: var(--muted); }
+  .up.locked { opacity: .45; cursor: default; }
+</style>
+</head>
+<body>
+<div class="app" data-tab="capsules" data-say="a capsule machine! pull the lever, pull the lever!!">
+  <div class="wrap">
+    <div class="stage">
+      <div class="world">
+        <svg viewBox="0 0 520 470" aria-hidden="true">
+          <path class="m-floor" d="M-400 400 Q260 392 920 400 L920 900 L-400 900 Z"/>
+          <path class="m-line" d="M-400 400 Q260 392 920 400"/>
+          <ellipse class="m-rug" cx="210" cy="428" rx="190" ry="30"/>
+          <g class="whole">
+            <!-- the glass globe full of capsules -->
+            <circle class="m-glass" cx="200" cy="150" r="118"/>
+            <clipPath id="gl"><circle cx="200" cy="150" r="114"/></clipPath>
+            <g clip-path="url(#gl)"><g id="balls"></g></g>
+            <path class="m-shine" d="M126 96 Q140 66 172 52"/>
+            <path class="m-shine" d="M112 128 Q113 118 116 110"/>
+            <rect class="m-trim" x="160" y="22" width="80" height="18" rx="7"/>
+            <!-- the body -->
+            <path class="m-trim" d="M82 262 Q200 250 318 262 L318 280 Q200 270 82 280 Z"/>
+            <path class="m-body" d="M92 278 Q200 268 308 278 L322 408 Q200 418 78 408 Z"/>
+            <!-- the lucky lights: a shiny capsule when they're all lit -->
+            <rect class="m-plate" x="136" y="294" width="128" height="30" rx="8"/>
+            <g id="pips"></g>
+            <!-- the flap the capsule rolls out of -->
+            <path class="m-slot" d="M168 348 Q200 342 232 348 L232 392 Q200 396 168 392 Z"/>
+            <path d="M172 354 Q200 348 228 354" fill="none" stroke="var(--pink-seam)" stroke-width="2"/>
+            <!-- the lever on the side: you pull it towards you -->
+            <rect class="m-mount" x="318" y="306" width="34" height="46" rx="9"/>
+            <g id="lever">
+              <path class="arm" id="arm" d="M335 329 L335 219"/>
+              <circle class="knob" id="knob" cx="335" cy="219" r="17"/>
+              <circle class="knob-shine" id="kshine" cx="329" cy="213" r="4.5"/>
+              <!-- a bigger invisible grab area -->
+              <rect id="grab" x="300" y="170" width="72" height="190" fill="transparent"/>
+            </g>
+            <circle cx="335" cy="329" r="7" fill="var(--gold)" stroke="var(--deep)" stroke-width="2"/>
+          </g>
+          <g id="pullme">
+            <text class="pullme" x="370" y="222">pull me!</text>
+            <path class="pullme-arrow" d="M392 234 L392 272 M382 262 L392 274 L402 262"/>
+          </g>
+        </svg>
+      </div>
+      <div class="rate"><b><span data-icon="coin" data-px="1.6"></span><span id="coins">0</span></b><span id="per"></span></div>
+      <div class="helpers" id="helpers"></div>
+    </div>
+    <div class="shop" id="shop"></div>
+  </div>
+</div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script src="../shared/toys.js"></script>
+<script>
+  // a tab and an icon for the machine (mockup only)
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);  // the frame fits 7 tabs; gear isn't built yet
+  const content = mountFrame();
+  const stage = content.querySelector(".stage"), world = content.querySelector(".world");
+  const bubble = () => document.querySelector(".top .bubble");
+  const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(1) + "k" : Math.floor(n).toLocaleString("en");
+
+  const scale = () => Math.min(stage.clientWidth / 560, stage.clientHeight / 540);
+  function fit() { world.style.transform = `translate(0, 20px) scale(${scale()}) translate(-50%, -50%)`; }
+  fit(); addEventListener("resize", fit);
+  // where a spot of the machine is, in stage pixels
+  function at(x, y) { const s = scale(); return [stage.clientWidth / 2 + (x - 260) * s, stage.clientHeight / 2 + 20 + (y - 235) * s]; }
+
+  // capsules in the globe: two-tone balls
+  const CAP_COLORS = ["var(--pink)", "var(--cyan)", "var(--mint)", "var(--gold)", "var(--lilac)"];
+  const cap = (c, r = 20) => `<circle r="${r}" fill="color-mix(in srgb, var(--text) 85%, var(--page))" stroke="var(--deep)" stroke-width="2"/><path d="M${-r} 0 A${r} ${r} 0 0 1 ${r} 0 Z" fill="${c}" stroke="var(--deep)" stroke-width="2"/><path d="M${-r * .5} ${-r * .45} Q${-r * .2} ${-r * .75} ${r * .15} ${-r * .72}" stroke="var(--text)" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".6"/>`;
+  const BALLS = [[130,210],[172,222],[214,218],[256,212],[290,190],[110,172],[150,184],[194,182],[238,178],[276,152],[124,134],[166,146],[210,142],[252,120],[146,106],[190,104],[230,84],[172,68],[106,208],[300,230]];
+  content.querySelector("#balls").innerHTML = BALLS.map(([x, y], i) => `<g transform="translate(${x} ${y}) rotate(${i * 37})">${cap(CAP_COLORS[i % 5])}</g>`).join("");
+
+  // the game state for the mockup
+  const S = { coins: 0, pulls: 0, fill: 2, lucky: 10, luck: 0, spring: 650, helpers: 0, bought: {} };
+  const UPGRADES = [
+    { id: "fuller", name: "fuller capsules", does: "+1 coin in every capsule", cost: 15, grow: 1.4, color: "var(--cyan)", buy: () => S.fill += 1,
+      icon: `<g transform="translate(12 12)">${cap("var(--cyan)", 8)}</g>` },
+    { id: "friend", name: "a friend on the lever", does: "a spare pet pulls it for you", cost: 40, grow: 1.15, color: "var(--pink)", buy: () => S.helpers += 1,
+      icon: `<path d="M5 10 L5.4 5 L9 7.6 Q12 6.8 15 7.6 L18.6 5 L19 10 Q20 16 12 19 Q4 16 5 10 Z" fill="none" stroke="var(--pink)" stroke-width="2"/><circle cx="9.5" cy="12" r="1" fill="var(--pink)"/><circle cx="14.5" cy="12" r="1" fill="var(--pink)"/>` },
+    { id: "spring", name: "a springier spring", does: "the lever snaps back faster", cost: 60, grow: 2.2, color: "var(--mint)", max: 4, buy: () => S.spring -= 100,
+      icon: `<path d="M7 5 Q17 6 7 8.5 Q17 10 7 12.5 Q17 14 7 16.5 Q17 18 7 20" fill="none" stroke="var(--mint)" stroke-width="2" stroke-linecap="round"/>` },
+    { id: "shiny", name: "shinier capsules", does: "parts inside, now and then a box", cost: 120, grow: 2.5, color: "var(--lilac)", max: 4, buy: () => S.luck += 1,
+      icon: `<g transform="translate(11 13)">${cap("var(--lilac)", 7)}</g><path d="M19 3 L19.8 5.2 L22 6 L19.8 6.8 L19 9 L18.2 6.8 L16 6 L18.2 5.2 Z" fill="var(--gold)"/>` },
+    { id: "lights", name: "luckier lights", does: "the shiny capsule comes sooner", cost: 300, grow: 3, color: "var(--gold)", max: 4, buy: () => S.lucky -= 1,
+      icon: `<circle cx="6" cy="12" r="2.6" fill="var(--gold)"/><circle cx="12" cy="12" r="2.6" fill="var(--gold)"/><circle cx="18" cy="12" r="2.6" fill="none" stroke="var(--gold)" stroke-width="1.6"/>` },
+    { id: "second", name: "???", does: "found on an adventure", locked: true, color: "var(--muted)",
+      icon: `<path d="M7.4 11 Q7 4.3 12 4.2 Q17 4.2 16.7 11"/><path d="M5 11.1 Q12 10.5 19 10.9 L18.7 19.8 Q12 20.5 5.3 19.9 Z"/>` },
+  ];
+  const cost = u => Math.round(u.cost * Math.pow(u.grow, S.bought[u.id] || 0));
+  const shop = content.querySelector("#shop");
+  function drawShop() {
+    shop.innerHTML = `<h3>the upgrade shelf</h3>` + UPGRADES.map(u => {
+      const n = S.bought[u.id] || 0, maxed = u.max && n >= u.max;
+      const cls = u.locked ? "locked" : S.coins < cost(u) || maxed ? "poor" : "";
+      return `<button class="up ${cls}" data-id="${u.id}" style="--accent: ${u.color}">
+        <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="var(--muted)" stroke-width="2" stroke-linecap="round">${u.icon}</svg></span>
+        <b>${u.name}</b>${u.locked ? "" : `<em>${n || ""}</em>`}
+        <small>${u.does}</small>
+        ${u.locked ? "" : maxed ? `<span class="cost">all done!</span>` : `<span class="cost"><span data-icon="coin" data-px="1"></span>${fmt(cost(u))}</span>`}
+      </button>`;
+    }).join("");
+    paintIcons(shop);
+  }
+  shop.addEventListener("click", e => {
+    const b = e.target.closest(".up"); if (!b) return;
+    const u = UPGRADES.find(u => u.id === b.dataset.id);
+    if (u.locked || S.coins < cost(u) || (u.max && (S.bought[u.id] || 0) >= u.max)) return;
+    S.coins -= cost(u); S.bought[u.id] = (S.bought[u.id] || 0) + 1; u.buy();
+    blip(660, .12, "sine"); blip(990, .18, "sine", .04, .08);
+    bubble().textContent = { fuller: "the capsules feel heavier! more coins in them!", friend: "peach cat wants to help! pull pull pull ♪", spring: "boing! the lever bounces right back now!", shiny: "the capsules look extra sparkly!", lights: "the little lights blink faster!" }[u.id];
+    update();
+  });
+
+  function drawPips() {
+    const n = S.lucky, w = 112 / n, lit = S.pulls % n;
+    content.querySelector("#pips").innerHTML = Array.from({ length: n }, (_, i) => `<circle class="pip ${i < lit ? "on" : ""}" cx="${144 + w * (i + .5)}" cy="309" r="${Math.min(5, w / 2 - 1.5)}"/>`).join("");
+  }
+  const friendRate = () => S.helpers * S.fill * 1.5 / 3;   // a friend pulls about every 3 seconds
+  function update() {
+    content.querySelector("#coins").textContent = fmt(S.coins);
+    document.querySelector(".top .chip.coins").innerHTML = `<span data-icon="coin"></span>${fmt(S.coins)}`;
+    const ps = friendRate();
+    content.querySelector("#per").textContent = `about ${S.fill + 1} coins a capsule` + (ps ? `, ${ps.toFixed(1)} a second from friends` : "");
+    const pets = ["peach-cat", "sky-bunny", "mint-bear", "lilac-cat", "bubblegum-fox", "mint-blob"];
+    content.querySelector("#helpers").innerHTML = Array.from({ length: Math.min(S.helpers, 8) }, (_, i) => `<img class="px" src="../assets/pets/${pets[i % pets.length]}.png" alt="">`).join("") + (S.helpers > 8 ? `<small>and ${S.helpers - 8} more</small>` : "");
+    paintIcons(document.querySelector(".top")); paintIcons(content.querySelector(".rate"));
+    drawShop(); drawPips();
+  }
+
+  let actx = null;
+  function blip(freq, len = .07, type = "triangle", vol = .05, delay = 0) {
+    try {
+      actx = actx || new AudioContext();
+      const t = actx.currentTime + delay, o = actx.createOscillator(), g = actx.createGain();
+      o.type = type; o.frequency.value = freq; g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(.0001, t + len);
+      o.connect(g).connect(actx.destination); o.start(t); o.stop(t + len);
+    } catch (e) { /* no sound: fine */ }
+  }
+  function float(html, x, y, cls = "") { const f = document.createElement("div"); f.className = "float " + cls; f.innerHTML = html; f.style.left = x + "px"; f.style.top = y + "px"; stage.appendChild(f); paintIcons(f); setTimeout(() => f.remove(), 1000); }
+
+  // ---- the lever: t = 0 standing up, t = 1 pulled all the way towards you ----
+  const PIVOT = [335, 329], LEN = 110;
+  let t = 0, held = false, startY = 0, ready = true, lastTick = 0;
+  function drawLever() {
+    const phi = t * 1.95;                        // swings past flat, towards the player
+    const tipY = PIVOT[1] - LEN * Math.cos(phi);
+    const near = Math.sin(Math.min(phi, Math.PI / 2)) + Math.max(0, phi - Math.PI / 2) * .4;  // how close to you it is
+    const r = 17 * (1 + near * .75);
+    content.querySelector("#arm").setAttribute("d", `M${PIVOT[0]} ${PIVOT[1]} L${PIVOT[0]} ${tipY}`);
+    content.querySelector("#arm").setAttribute("stroke-width", 9 * (1 + near * .5));
+    const k = content.querySelector("#knob"); k.setAttribute("cy", tipY); k.setAttribute("r", r);
+    const sh = content.querySelector("#kshine"); sh.setAttribute("cx", PIVOT[0] - r * .35); sh.setAttribute("cy", tipY - r * .35); sh.setAttribute("r", r * .26);
+    // the knob is in front of the machine once it comes past flat
+    const lever = content.querySelector("#lever"); lever.parentNode.appendChild(lever);
+  }
+  const lever = content.querySelector("#lever");
+  lever.addEventListener("pointerdown", e => {
+    if (!ready) return;
+    held = true; startY = e.clientY; lever.classList.add("held"); lever.setPointerCapture(e.pointerId);
+  });
+  lever.addEventListener("pointermove", e => {
+    if (!held) return;
+    t = Math.max(0, Math.min(1, (e.clientY - startY) / (150 * scale())));
+    const tick = Math.floor(t * 6);
+    if (tick > lastTick) blip(260 + tick * 40, .03, "square", .02);   // the ratchet clicks as it goes
+    lastTick = tick; drawLever();
+  });
+  lever.addEventListener("pointerup", () => {
+    if (!held) return;
+    held = false; lever.classList.remove("held"); lastTick = 0;
+    if (t > .85) { t = 1; drawLever(); pull(); }
+    springBack();
+  });
+  function springBack() {
+    ready = false;
+    const from = t, t0 = performance.now(), dur = t > .5 ? S.spring : 180;
+    (function step(now) {
+      const k = Math.min(1, (now - t0) / dur);
+      const e = 1 - Math.pow(1 - k, 3);
+      t = from * (1 - e) + (k < 1 ? 0 : 0) - Math.sin(k * Math.PI) * .04 * from;
+      drawLever();
+      if (k < 1) requestAnimationFrame(step); else { t = 0; drawLever(); ready = true; }
+    })(t0);
+  }
+
+  // ---- one pull, one capsule ----
+  const PRIZES = [
+    { w: 70, luck: 0, color: "var(--cyan)", small: true, give: () => { const n = S.fill + Math.floor(Math.random() * 3); S.coins += n; return [`+${n} coins`]; } },
+    { w: 16, luck: 0, color: "var(--gold)", give: () => ["an xp", "for the gear shelf"] },
+    { w: 10, luck: 1, color: "var(--tier-uncommon)", shiny: true, give: () => ["a part!", "bunny ears, common"] },
+    { w: 3, luck: 2, color: "var(--pink)", shiny: true, give: () => ["a whole box!!", "a starter box, on your pile"] },
+    { w: 1.5, luck: 0, color: "var(--gold)", gold: true, shiny: true, give: () => { const n = 60 + S.fill * 30; S.coins += n; return ["a golden capsule!", `${n} coins!!`]; } },
+  ];
+  function roll(shinyOnly) {
+    const pool = PRIZES.filter(p => (p.luck <= Math.max(S.luck, shinyOnly ? 1 : 0)) && (!shinyOnly || p.shiny));
+    let r = Math.random() * pool.reduce((a, p) => a + p.w * (p.shiny ? 1 + S.luck * .5 : 1), 0);
+    for (const p of pool) if ((r -= p.w * (p.shiny ? 1 + S.luck * .5 : 1)) < 0) return p;
+    return pool[0];
+  }
+  function pull() {
+    S.pulls++;
+    const lucky = S.pulls % S.lucky === 0, prize = roll(lucky);
+    const whole = content.querySelector(".whole"); whole.classList.remove("shake"); void whole.getBBox(); whole.classList.add("shake");
+    const balls = content.querySelector("#balls"); balls.style.transform = `rotate(${S.pulls % 2 ? 5 : -5}deg) translateY(-4px)`;
+    setTimeout(() => balls.style.transform = "", 260);
+    blip(140, .12, "square", .04); blip(520, .1, "sine", .05, .12);
+    content.querySelector("#pullme").classList.add("gone");
+    const c = document.createElement("div"); c.className = "cap roll";
+    const [x, y] = at(200, 384);
+    c.style.left = x - 22 + "px"; c.style.top = y - 22 + "px";
+    const col = prize.gold || lucky ? "var(--gold)" : CAP_COLORS[S.pulls % 5];
+    c.innerHTML = `<svg viewBox="-24 -24 48 48">${cap(col, 20)}</svg>`;
+    if (prize.gold || lucky) c.style.filter = "drop-shadow(0 0 8px var(--gold))";
+    stage.appendChild(c);
+    setTimeout(() => {
+      c.classList.replace("roll", "pop"); setTimeout(() => c.remove(), 250);
+      const [a, b] = prize.give();
+      if (prize.small && !lucky) {
+        float(`${a.replace(" coins", "")} <span data-icon="coin" data-px="1.3"></span>`, x - 18, y - 40);
+        blip(880, .12, "sine", .05);
+      } else {
+        const p = document.createElement("div"); p.className = "prize"; p.style.setProperty("--accent", prize.color);
+        p.innerHTML = `<b>${a}</b>${b ? `<span>${b}</span>` : ""}`;
+        p.style.left = x - 80 + "px"; p.style.top = y - 110 + "px";
+        stage.appendChild(p); setTimeout(() => p.remove(), 1900);
+        [784, 988, 1319].forEach((f, i) => blip(f, .2, "sine", .05, i * .07));
+        for (let i = 0; i < 10; i++) { const d = document.createElement("i"); d.className = "bit"; d.style.background = CAP_COLORS[i % 5]; d.style.left = x + "px"; d.style.top = y + "px"; d.style.setProperty("--dx", Math.cos(i * .63) * 60 + "px"); d.style.setProperty("--dy", Math.sin(i * .63) * 45 - 20 + "px"); stage.appendChild(d); setTimeout(() => d.remove(), 600); }
+      }
+      bubble().textContent = lucky ? "all the lights! a shiny one!!" : prize.gold ? "golden!! we're rich!!" : prize.small ? ["coins! again, again!", "clink clink ♪", "pull it again!", "ooh, a heavy one!"][S.pulls % 4] : `${a} ooh!`;
+      update();
+    }, 430);
+    update();
+  }
+
+  // friends pull it for you now and then: a little pile of coins by them
+  setInterval(() => {
+    if (!S.helpers) return;
+    const n = Math.round(friendRate() * 3); S.coins += n;
+    const h = content.querySelector("#helpers").getBoundingClientRect(), s = stage.getBoundingClientRect();
+    float(`+${n} <span data-icon="coin" data-px="1"></span>`, h.left - s.left + 20, h.top - s.top - 10, "small");
+    update();
+  }, 3000);
+
+  // states for screenshots
+  const q = new URLSearchParams(location.search);
+  if (q.get("state") === "later") {
+    Object.assign(S, { coins: 1843, pulls: 6, fill: 5, lucky: 8, luck: 1, spring: 450, helpers: 5, bought: { fuller: 3, friend: 5, spring: 2, shiny: 1, lights: 2 } });
+    content.querySelector("#pullme").classList.add("gone");
+    bubble().textContent = "everyone's helping! pull pull pull ♪";
+  }
+  // a good prize: its picture pops up out of the capsule, not just words
+  if (q.get("state") === "toy" || q.get("state") === "toy-holo" || q.get("state") === "part") {
+    const holo = q.get("state") === "toy-holo", part = q.get("state") === "part";
+    const card = document.createElement("div");
+    card.className = "bigprize";
+    card.style.setProperty("--accent", part ? "var(--tier-uncommon)" : holo ? "var(--lilac)" : "var(--tier-rare)");
+    card.innerHTML = part
+      ? `<div class="burst"></div><img class="px" src="../assets/pets/sky-bunny.png" style="width: 96px; height: 108px"><b>a part!</b><span>bunny ears</span><em>uncommon</em>`
+      : `<div class="burst"></div>${toySvg(holo ? "snail" : "gnome", holo ? "holo" : "normal", 120)}<i class="new">new!</i><b>${holo ? "holo snail!" : "garden gnome!"}</b><span>backyard friends ${holo ? "" : "7 of 8"}</span><em>${holo ? "holo" : "rare"}</em>`;
+    stage.appendChild(card);
+    content.querySelector("#pullme").classList.add("gone");
+    bubble().textContent = part ? "a part! a real part!!" : holo ? "it's SHINY! a shiny snail!!" : "a gnome!! it has a little hat!!";
+  }
+  if (q.get("state") === "pulled") { t = .95; content.querySelector("#pullme").classList.add("gone"); }
+  drawLever(); update();
+  applyLook(loadLook());
+</script>
+</body>
+</html>

@@ -29,6 +29,48 @@
         ],
         "createdAt": "2026-09-27T09:55:08.696Z",
         "reason": "Claude: pill tags copy the existing tag style from screens/trips.html and DESIGN.md, same call as found.html"
+      },
+      {
+        "rule": "bounce-easing",
+        "value": "cubic-bezier(.3, 1.6, .5, 1)",
+        "createdAt": "2026-09-28T08:16:35.535Z",
+        "reason": "Claude: sticker pop in a cute pet game; same easing already used for the pet squish in screens/rummage.html"
+      },
+      {
+        "rule": "pulsing-dot",
+        "value": "*",
+        "files": [
+          "screens/doormat.html"
+        ],
+        "createdAt": "2026-09-28T08:16:35.544Z",
+        "reason": "Claude: the twinkle marks a find you uncovered and can grab (a real state), same sparkle as rummage spots"
+      },
+      {
+        "rule": "ai-color-palette",
+        "value": "*",
+        "files": [
+          "screens/toys.html"
+        ],
+        "createdAt": "2026-09-28T10:02:11.585Z",
+        "reason": "Claude: rainbow gradient is the holo trading-card finish on toys; pink/lilac/cyan dark palette is Emilia's stated look (global CLAUDE.md) and the game's theme tokens"
+      },
+      {
+        "rule": "ai-color-palette",
+        "value": "*",
+        "files": [
+          "screens/upgrading.html"
+        ],
+        "createdAt": "2026-09-28T10:02:11.594Z",
+        "reason": "Claude: rainbow gradient is the holo trading-card finish on toys; pink/lilac/cyan dark palette is Emilia's stated look (global CLAUDE.md) and the game's theme tokens"
+      },
+      {
+        "rule": "ai-color-palette",
+        "value": "*",
+        "files": [
+          "index.html"
+        ],
+        "createdAt": "2026-09-28T14:29:45.771Z",
+        "reason": "Claude: index page uses the game's theme tokens (shared/tokens.css); pink/lilac/cyan dark palette is Emilia's stated look (global CLAUDE.md), same call as toys.html"
       }
     ]
   }

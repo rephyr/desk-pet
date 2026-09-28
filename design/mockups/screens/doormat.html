@@ -1,0 +1,373 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Doormat</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* pets come home muddy: wipe the mud, pop the burrs, flick what you find into the jars */
+  .scene { position: relative; height: 100%; border-radius: var(--r-panel); overflow: hidden; background: var(--paper); border: 2px solid var(--line); user-select: none; }
+  .world { position: absolute; left: 0; top: 0; width: 790px; height: 470px; transform-origin: 0 0; }
+  .world svg.bg { position: absolute; inset: 0; width: 790px; height: 470px; }
+  .bg .wall-line { fill: none; stroke: var(--lilac-seam); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .bg .soft { fill: none; stroke: var(--line); stroke-width: 2.5; stroke-linecap: round; }
+  .bg .floor { fill: var(--page); }
+  .bg .sky { fill: var(--sky); }
+  .bg .moon { fill: var(--gold); }
+  .bg .wood { fill: color-mix(in srgb, var(--lilac) 22%, var(--page)); stroke: var(--lilac-seam); stroke-width: 2.5; stroke-linejoin: round; }
+  .bg .door { fill: color-mix(in srgb, var(--pink) 14%, var(--page)); stroke: var(--pink-seam); stroke-width: 3; stroke-linejoin: round; }
+  .bg .mat { fill: color-mix(in srgb, var(--gold) 16%, var(--page)); stroke: var(--gold); stroke-width: 2.5; stroke-dasharray: 7 5; stroke-linecap: round; }
+  .bg .mat2 { fill: none; stroke: color-mix(in srgb, var(--gold) 50%, var(--page)); stroke-width: 2; stroke-dasharray: 3 6; }
+  .bg .tub { fill: color-mix(in srgb, var(--cyan) 16%, var(--page)); stroke: var(--cyan); stroke-width: 3; stroke-linejoin: round; }
+  .bg .porch { fill: color-mix(in srgb, var(--lilac) 12%, var(--page)); stroke: var(--lilac-seam); stroke-width: 2.5; }
+  .bg .leaf { fill: color-mix(in srgb, var(--mint) 30%, var(--page)); stroke: var(--mint); stroke-width: 2.2; stroke-linejoin: round; }
+  .bg .pot { fill: color-mix(in srgb, var(--pink) 25%, var(--page)); stroke: var(--pink-seam); stroke-width: 2.5; stroke-linejoin: round; }
+  .bg .lamp { fill: color-mix(in srgb, var(--gold) 55%, var(--page)); stroke: var(--gold); stroke-width: 2; }
+  .bg .glow { fill: var(--gold); opacity: .08; }
+  .bg .prints { fill: color-mix(in srgb, #8a6a55 70%, var(--page)); opacity: .8; }
+  .look { display: none; }
+  body.look-a .look.a, body.look-b .look.b, body.look-c .look.c { display: inline; }
+
+  /* the muddy pet and everything stuck to it */
+  #stage { position: absolute; touch-action: none; cursor: grab; }
+  #stage.wiping { cursor: grabbing; }
+  #stage .petimg { position: absolute; inset: 0; width: 100%; height: 100%; transition: filter .3s; }
+  #stage.clean .petimg { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--gold) 70%, transparent)); }
+  .mud { position: absolute; border-radius: 48% 52% 44% 56% / 55% 45% 55% 45%; background: radial-gradient(circle at 35% 35%, #9b7a60, #6f5140 70%); box-shadow: inset -3px -4px 0 rgba(0,0,0,.18); pointer-events: none; transition: opacity .08s; }
+  .mud::after { content: ""; position: absolute; width: 30%; height: 30%; right: -12%; bottom: 8%; border-radius: 50%; background: inherit; }
+  .mud.dry { background: radial-gradient(circle at 35% 35%, #b7967a, #8a6b55 70%); }
+  .burr { position: absolute; width: 28px; height: 28px; cursor: pointer; z-index: 3; }
+  .burr svg { width: 100%; height: 100%; overflow: visible; }
+  .burr:hover { transform: scale(1.15) rotate(12deg); }
+  .find { position: absolute; width: 30px; height: 30px; opacity: 0; pointer-events: none; z-index: 2; transition: opacity .25s, transform .25s var(--ease-out); }
+  .find.shown { opacity: 1; pointer-events: auto; cursor: grab; transform: scale(1.1); }
+  .find svg { width: 100%; height: 100%; overflow: visible; }
+  .find.shown::before, .find.shown::after { content: ""; position: absolute; left: 50%; top: -8px; width: 2px; height: 12px; margin-left: -1px; background: var(--gold); border-radius: 1px; animation: tw 1.2s ease-in-out infinite; }
+  .find.shown::after { transform: rotate(90deg); }
+  @keyframes tw { 0%,100% { opacity: .2; scale: .5; } 50% { opacity: 1; scale: 1; } }
+  .find.flying { transition: left .35s var(--ease-out), top .35s var(--ease-out), transform .35s; }
+
+  /* the jars */
+  #jars { position: absolute; display: flex; gap: 10px; align-items: flex-end; z-index: 4; }
+  .jar { position: relative; width: 62px; text-align: center; }
+  .jar svg { width: 62px; height: 70px; display: block; }
+  .jar b { display: block; font: var(--display-weight) 12px/1 var(--display); font-weight: 400; color: var(--accent); margin-top: 3px; }
+  .jar em { position: absolute; top: 26px; left: 0; right: 0; font-style: normal; font: 400 16px/1 var(--display); color: var(--text); text-shadow: 0 2px 0 var(--deep); }
+  .jar.hot svg { transform: translateY(-4px) scale(1.06); }
+  .jar.gulp { animation: gulp .35s var(--ease-out); }
+  @keyframes gulp { 40% { transform: scale(1.14, .9); } }
+
+  /* who's still waiting at the door */
+  #queue { position: absolute; display: flex; gap: 4px; align-items: flex-end; z-index: 2; }
+  #queue img { width: 40px; height: 45px; filter: saturate(.6) brightness(.8); }
+  #queue img.mud2 { filter: sepia(.8) saturate(.7) brightness(.7); }
+  #queue span { font: 400 13px/1 var(--display); color: var(--muted); margin-left: 4px; padding-bottom: 6px; }
+
+  /* the combo count while you scrub */
+  #combo { position: absolute; font: 400 20px/1 var(--display); color: var(--pink); text-shadow: 0 2px 0 var(--deep); opacity: 0; transition: opacity .2s; z-index: 5; pointer-events: none; transform: rotate(-6deg); }
+  #combo.on { opacity: 1; }
+  .fresh { position: absolute; z-index: 6; padding: 10px 16px; font: 400 22px/1 var(--display); color: var(--gold); background: var(--raised); border: 2px solid var(--gold); border-radius: 10px; transform: rotate(-8deg) scale(0); transition: transform .35s cubic-bezier(.3,1.6,.5,1); pointer-events: none; }
+  .fresh.on { transform: rotate(-8deg) scale(1); }
+  .fresh small { display: block; font: 12px/1.2 var(--body); color: var(--text); margin-top: 3px; }
+  .float { position: absolute; font: 400 16px/1 var(--display); pointer-events: none; text-shadow: 0 2px 0 var(--deep); z-index: 7; animation: up .9s var(--ease-out) forwards; }
+  @keyframes up { to { transform: translateY(-34px); opacity: 0; } }
+  .fleck { position: absolute; width: 6px; height: 6px; border-radius: 50%; background: #8a6b55; pointer-events: none; z-index: 6; animation: fleck .5s ease-out forwards; }
+  @keyframes fleck { to { transform: translate(var(--dx), var(--dy)) scale(.3); opacity: 0; } }
+  .label-look { position: absolute; left: 14px; bottom: 10px; font: 400 13px/1 var(--display); color: var(--muted); z-index: 8; }
+  .hint { position: absolute; font-size: 12px; color: var(--muted); z-index: 8; }
+
+  /* ---- look A: by the door, in the room ---- */
+  body.look-a #stage { left: 84px; top: 250px; width: 96px; height: 108px; }
+  body.look-a #jars { left: 226px; bottom: 268px; transform: scale(.8); transform-origin: left bottom; }
+  body.look-a #queue { left: 34px; top: 196px; display: none; }
+  body.look-a #combo { left: 176px; top: 236px; }
+  body.look-a .fresh { left: 176px; top: 226px; }
+  body.look-a .hint { left: 226px; top: 214px; }
+  /* ---- look B: the doormat up close ---- */
+  body.look-b #stage { left: 256px; top: 132px; width: 208px; height: 234px; }
+  body.look-b #jars { right: 96px; bottom: 30px; flex-direction: column; align-items: flex-end; gap: 4px; }
+  body.look-b #jars .jar { display: flex; align-items: center; width: auto; gap: 6px; }
+  body.look-b #jars .jar svg { width: 44px; height: 50px; }
+  body.look-b #jars .jar em { top: 14px; left: auto; right: 0; width: 44px; font-size: 14px; }
+  body.look-b #jars .jar b { order: -1; margin: 0; }
+  body.look-b #queue { left: 44px; top: 262px; }
+  body.look-b #combo { left: 470px; top: 150px; }
+  body.look-b .fresh { left: 470px; top: 120px; }
+  body.look-b .hint { left: 230px; top: 24px; }
+  /* ---- look C: the wash tub on the porch ---- */
+  body.look-c #stage { left: 300px; top: 150px; width: 168px; height: 189px; }
+  body.look-c #jars { left: 250px; top: 356px; }
+  body.look-c #queue { left: 26px; top: 300px; }
+  body.look-c #combo { left: 480px; top: 170px; }
+  body.look-c .fresh { left: 480px; top: 140px; }
+  body.look-c .hint { left: 250px; top: 24px; }
+  body.look-c #stage .petimg { clip-path: inset(0 0 22% 0); }
+  .suds { position: absolute; border-radius: 50%; background: color-mix(in srgb, var(--text) 85%, var(--cyan)); opacity: .9; pointer-events: none; }
+  body:not(.look-c) .suds { display: none; }
+</style>
+</head>
+<body>
+<div class="app" data-tab="home" data-say="bean's home! and it brought half the garden with it…">
+  <div class="scene"><div class="world">
+    <svg class="bg" viewBox="0 0 790 470" aria-hidden="true">
+      <!-- A: the room, with the front door on the left -->
+      <g class="look a">
+        <path class="floor" d="M0 332 Q200 326 395 330 Q590 334 790 328 L790 470 L0 470 Z"/>
+        <path class="wall-line" d="M-5 332 Q200 326 395 330 Q590 334 795 328"/>
+        <path class="door" d="M60 332 L62 150 Q116 118 170 150 L172 332 Z"/>
+        <path class="soft" d="M78 318 L80 166 Q116 142 154 166 L156 318" />
+        <circle cx="152" cy="250" r="4" fill="var(--gold)"/>
+        <ellipse class="mat" cx="132" cy="352" rx="92" ry="22"/>
+        <ellipse class="mat2" cx="132" cy="352" rx="74" ry="14"/>
+        <path class="wall-line" d="M212 202 Q290 198 520 202"/>
+        <g class="prints"><ellipse cx="238" cy="372" rx="6" ry="4"/><ellipse cx="262" cy="384" rx="6" ry="4"/><ellipse cx="290" cy="376" rx="6" ry="4"/><ellipse cx="316" cy="390" rx="6" ry="4"/></g>
+        <!-- the rest of the room, quiet: rummage spots still live over here -->
+        <g opacity=".5">
+          <path class="wood" d="M560 262 Q600 259 642 262 L644 334 L558 334 Z"/>
+          <path class="leaf" d="M700 318 Q674 268 688 236 Q706 272 704 316 Z"/><path class="leaf" d="M706 316 Q710 262 736 246 Q734 290 712 318 Z"/>
+          <path class="pot" d="M680 316 L734 316 L726 352 L688 352 Z"/>
+          <path class="sky" d="M440 58 Q506 54 574 57 L576 176 Q508 179 442 177 Z"/>
+          <path class="wall-line" d="M440 58 Q506 54 574 57 L576 176 Q508 179 442 177 Z"/>
+        </g>
+      </g>
+      <!-- B: close up on the doormat, the door open behind -->
+      <g class="look b">
+        <path class="floor" d="M0 300 Q395 292 790 300 L790 470 L0 470 Z"/>
+        <path class="wall-line" d="M-5 300 Q395 292 795 300"/>
+        <path class="door" d="M20 300 L22 40 Q100 4 180 40 L182 300 Z"/>
+        <path class="sky" d="M38 292 L40 54 Q100 24 162 54 L164 292 Z"/>
+        <path class="moon" d="M120 80 Q106 92 114 108 Q124 120 138 114 Q120 112 118 96 Q118 86 120 80 Z"/>
+        <rect x="60" y="120" width="2" height="2" fill="var(--text)" opacity=".5"/><rect x="140" y="150" width="2" height="2" fill="var(--text)" opacity=".4"/><rect x="80" y="200" width="2" height="2" fill="var(--text)" opacity=".4"/>
+        <path class="soft" d="M36 294 Q100 290 166 294"/>
+        <g class="prints"><ellipse cx="200" cy="320" rx="7" ry="4"/><ellipse cx="230" cy="336" rx="7" ry="4"/><ellipse cx="190" cy="352" rx="7" ry="4"/></g>
+        <ellipse class="mat" cx="360" cy="352" rx="170" ry="48"/>
+        <ellipse class="mat2" cx="360" cy="352" rx="140" ry="34"/>
+        <ellipse class="mat2" cx="360" cy="352" rx="100" ry="22"/>
+        <!-- the jar shelf -->
+        <path class="wood" d="M640 120 L770 120 L770 128 L640 128 Z"/>
+        <path class="leaf" d="M660 118 Q650 90 664 72 Q676 96 668 118 Z"/><path class="pot" d="M652 118 L680 118 L676 100 L656 100 Z" transform="translate(0 0)"/>
+      </g>
+      <!-- C: the wash tub on the porch at night -->
+      <g class="look c">
+        <path class="sky" d="M0 0 L790 0 L790 330 L0 330 Z"/>
+        <path class="moon" d="M140 60 Q122 76 132 96 Q146 112 164 104 Q140 102 138 82 Q138 70 140 60 Z"/>
+        <rect x="60" y="40" width="2" height="2" fill="var(--text)" opacity=".5"/><rect x="220" y="90" width="2" height="2" fill="var(--text)" opacity=".4"/><rect x="330" y="30" width="2" height="2" fill="var(--text)" opacity=".5"/><rect x="420" y="70" width="2" height="2" fill="var(--text)" opacity=".35"/>
+        <!-- the house wall and door -->
+        <path class="porch" d="M560 0 L790 0 L790 330 L560 330 Z"/>
+        <path class="door" d="M620 330 L622 120 Q676 92 730 120 L732 330 Z"/>
+        <circle cx="712" cy="236" r="4" fill="var(--gold)"/>
+        <circle class="glow" cx="596" cy="130" r="80"/>
+        <path class="lamp" d="M586 118 L606 118 L602 142 L590 142 Z"/>
+        <!-- the porch boards and the path -->
+        <path class="porch" d="M0 330 L790 330 L790 470 L0 470 Z"/>
+        <path class="soft" d="M0 370 L790 370 M0 414 L790 414"/>
+        <path class="wall-line" d="M-5 330 L795 330"/>
+        <path d="M0 316 Q80 300 200 318 Q150 322 0 330 Z" fill="color-mix(in srgb, var(--mint) 14%, var(--page))" stroke="var(--mint)" stroke-width="2"/>
+        <!-- the tub -->
+        <path class="tub" d="M262 258 Q384 248 506 258 L490 340 Q384 352 278 340 Z"/>
+        <path class="soft" d="M272 276 Q384 268 496 276"/>
+        <path d="M290 340 L284 358 M478 340 L484 358" stroke="var(--cyan)" stroke-width="3" stroke-linecap="round"/>
+      </g>
+    </svg>
+
+    <div id="queue"></div>
+    <div id="stage"><img class="px petimg" src="../assets/pets/mint-bear.png" alt="bean, home from the garden" draggable="false"></div>
+    <div id="jars"></div>
+    <div id="combo"></div>
+    <div class="fresh">fresh!<small>+1 heart next trip</small></div>
+    <div class="hint">drag to wipe, click the burrs, flick finds into the jars</div>
+  </div>
+    <div class="label-look"></div>
+  </div>
+</div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  const content = mountFrame();
+  const world = content.querySelector(".world");
+  function fit() { const s = world.parentElement; world.style.transform = `scale(${Math.max(s.clientWidth / 790, s.clientHeight / 470)})`; }
+  fit(); addEventListener("resize", fit);
+  const scene = content.querySelector(".scene"), stage = content.querySelector("#stage");
+  const bubble = () => document.querySelector(".top .bubble");
+  const q = new URLSearchParams(location.search), look = q.get("look") || "a", state = q.get("state") || "muddy";
+  document.body.classList.add("look-" + look);
+  content.querySelector(".label-look").textContent = { a: "A: by the door, in the room", b: "B: the doormat up close", c: "C: the wash tub on the porch" }[look];
+
+  // the four jars: what the mess turns into
+  const JARS = [
+    { id: "thread", label: "thread", color: "var(--pink)", n: 3 },
+    { id: "buttons", label: "buttons", color: "var(--cyan)", n: 7 },
+    { id: "seeds", label: "seeds", color: "var(--mint)", n: 1 },
+    { id: "trinkets", label: "trinkets", color: "var(--gold)", n: 0 },
+  ];
+  const ICON = {
+    thread: c => `<svg viewBox="0 0 30 30"><rect x="8" y="5" width="14" height="4" rx="1.5" fill="var(--raised)" stroke="${c}" stroke-width="2"/><rect x="8" y="21" width="14" height="4" rx="1.5" fill="var(--raised)" stroke="${c}" stroke-width="2"/><rect x="10" y="9" width="10" height="12" fill="${c}"/><path d="M10 12 L20 11 M10 15 L20 14 M10 18 L20 17" stroke="var(--deep)" stroke-width="1" opacity=".5"/></svg>`,
+    buttons: c => `<svg viewBox="0 0 30 30"><circle cx="15" cy="15" r="10" fill="${c}" stroke="var(--deep)" stroke-width="1.5"/><circle cx="15" cy="15" r="6.5" fill="none" stroke="var(--deep)" stroke-width="1" opacity=".4"/><circle cx="12.5" cy="12.5" r="1.4" fill="var(--deep)"/><circle cx="17.5" cy="12.5" r="1.4" fill="var(--deep)"/><circle cx="12.5" cy="17.5" r="1.4" fill="var(--deep)"/><circle cx="17.5" cy="17.5" r="1.4" fill="var(--deep)"/></svg>`,
+    seeds: c => `<svg viewBox="0 0 30 30"><path d="M15 4 Q24 12 15 26 Q6 12 15 4 Z" fill="${c}" stroke="var(--deep)" stroke-width="1.5"/><path d="M15 8 Q17 15 15 22" stroke="var(--deep)" stroke-width="1" fill="none" opacity=".5"/></svg>`,
+    trinkets: c => `<svg viewBox="0 0 30 30"><circle cx="9" cy="15" r="5" fill="none" stroke="${c}" stroke-width="3"/><path d="M14 15 L26 15 M22 15 L22 20 M25 15 L25 19" stroke="${c}" stroke-width="3" stroke-linecap="round"/></svg>`,
+  };
+  const jarsEl = content.querySelector("#jars");
+  jarsEl.innerHTML = JARS.map(j => `<div class="jar" data-id="${j.id}" style="--accent: ${j.color}">
+    <svg viewBox="0 0 62 70"><rect x="16" y="4" width="30" height="8" rx="2" fill="color-mix(in srgb, ${j.color} 40%, var(--page))" stroke="${j.color}" stroke-width="2"/>
+    <path d="M14 12 L48 12 Q56 18 55 34 L54 60 Q31 68 8 60 L7 34 Q6 18 14 12 Z" fill="color-mix(in srgb, ${j.color} 12%, var(--page))" stroke="${j.color}" stroke-width="2.5" stroke-linejoin="round"/>
+    <g class="fill"></g></svg><em>${j.n}</em><b>${j.label}</b></div>`).join("");
+  function fillJar(j) {
+    const el = jarsEl.querySelector(`[data-id="${j.id}"]`);
+    el.querySelector("em").textContent = j.n;
+    const h = Math.min(40, j.n * 4);
+    el.querySelector(".fill").innerHTML = h ? `<path d="M9 ${60 - h} Q31 ${56 - h} 53 ${60 - h} L53 59 Q31 66 9 59 Z" fill="${j.color}" opacity=".35"/>` : "";
+  }
+  JARS.forEach(fillJar);
+
+  // who's queued at the door
+  const queue = content.querySelector("#queue");
+  queue.innerHTML = `<img class="px mud2" src="../assets/pets/peach-cat.png" alt=""><img class="px mud2" src="../assets/pets/sky-bunny.png" alt=""><span>2 more at the door</span>`;
+
+  // tiny sounds: each wipe a little higher, like a combo
+  let actx = null;
+  function blip(freq, len = .07, type = "triangle", vol = .05) {
+    try {
+      actx = actx || new AudioContext();
+      const o = actx.createOscillator(), g = actx.createGain();
+      o.type = type; o.frequency.value = freq; g.gain.value = vol;
+      g.gain.exponentialRampToValueAtTime(.0001, actx.currentTime + len);
+      o.connect(g).connect(actx.destination); o.start(); o.stop(actx.currentTime + len);
+    } catch (e) { /* no sound: fine */ }
+  }
+
+  // the mess, in % of the pet's box
+  const MUD = [[8, 20, 34], [52, 12, 30], [30, 44, 40], [62, 50, 30], [14, 66, 28], [48, 74, 32], [70, 28, 22], [36, 6, 22]];
+  const BURRS = [[4, 36], [80, 64], [40, 90]];
+  const FINDS = [{ kind: "buttons", at: [36, 52] }, { kind: "thread", at: [16, 70] }, { kind: "trinkets", at: [56, 16], rare: true }];
+  let muds = [], combo = 0, comboTimer = null, left = 0;
+
+  function build() {
+    stage.querySelectorAll(".mud,.burr,.find,.suds").forEach(e => e.remove());
+    stage.classList.remove("clean"); content.querySelector(".fresh").classList.remove("on");
+    muds = MUD.map(([x, y, s], i) => {
+      const d = document.createElement("div"); d.className = "mud" + (i % 3 === 0 ? " dry" : "");
+      d.style.left = x + "%"; d.style.top = y + "%"; d.style.width = s + "%"; d.style.height = s * 0.8 + "%";
+      d.dataset.hp = i % 3 === 0 ? 1.6 : 1; stage.appendChild(d); return d;
+    });
+    BURRS.forEach(([x, y]) => {
+      const b = document.createElement("div"); b.className = "burr"; b.style.left = x + "%"; b.style.top = y + "%";
+      b.innerHTML = `<svg viewBox="0 0 22 22"><circle cx="11" cy="11" r="6" fill="color-mix(in srgb, var(--mint) 40%, #6f5140)" stroke="var(--mint)" stroke-width="1.5"/>${[0,45,90,135,180,225,270,315].map(a => `<path d="M11 11 L11 1" stroke="var(--mint)" stroke-width="1.6" stroke-linecap="round" transform="rotate(${a} 11 11)"/>`).join("")}</svg>`;
+      b.addEventListener("pointerdown", e => { e.stopPropagation(); popBurr(b); });
+      stage.appendChild(b);
+    });
+    FINDS.forEach(f => {
+      const d = document.createElement("div"); d.className = "find"; d.dataset.kind = f.kind;
+      d.style.left = f.at[0] + "%"; d.style.top = f.at[1] + "%";
+      d.innerHTML = ICON[f.kind](JARS.find(j => j.id === f.kind).color);
+      d.addEventListener("pointerdown", e => { e.stopPropagation(); grab(d, e); });
+      stage.appendChild(d);
+    });
+    if (look === "c") for (let i = 0; i < 9; i++) {
+      const s = document.createElement("div"); s.className = "suds";
+      const w = 20 + (i * 7) % 18; s.style.width = s.style.height = w + "px";
+      s.style.left = (-8 + i * 13) + "%"; s.style.top = (72 + (i % 3) * 4) + "%"; stage.appendChild(s);
+    }
+    left = muds.length + BURRS.length + FINDS.length;
+  }
+
+  function pos(el) { const r = el.getBoundingClientRect(), s = scene.getBoundingClientRect(); return [r.left - s.left + r.width / 2, r.top - s.top + r.height / 2]; }
+  function float(text, x, y, color) { const f = document.createElement("div"); f.className = "float"; f.textContent = text; f.style.color = color; f.style.left = x + "px"; f.style.top = y + "px"; scene.appendChild(f); setTimeout(() => f.remove(), 900); }
+
+  function reveal() {
+    stage.querySelectorAll(".find:not(.shown):not(.done)").forEach(f => {
+      const [fx, fy] = pos(f);
+      const covered = muds.some(m => { if (m.dataset.gone) return false; const [mx, my] = pos(m); return Math.hypot(mx - fx, my - fy) < m.offsetWidth * 0.6; });
+      if (!covered) { f.classList.add("shown"); blip(f.dataset.kind === "trinkets" ? 1320 : 990, .25, "sine", .06); if (f.dataset.kind === "trinkets") bubble().textContent = "ooh, something shiny was stuck in its fur!"; }
+    });
+  }
+  function wipeAt(cx, cy) {
+    const s = scene.getBoundingClientRect(); const x = cx - s.left, y = cy - s.top;
+    muds.forEach(m => {
+      if (m.dataset.gone) return;
+      const [mx, my] = pos(m);
+      if (Math.hypot(mx - x, my - y) > m.offsetWidth * 0.7) return;
+      m.dataset.hp = +m.dataset.hp - 0.07;
+      m.style.opacity = Math.max(0, +m.dataset.hp);
+      if (Math.random() < .35) { const f = document.createElement("i"); f.className = "fleck"; f.style.left = x + "px"; f.style.top = y + "px"; f.style.setProperty("--dx", (Math.random() * 60 - 30) + "px"); f.style.setProperty("--dy", (Math.random() * 30 + 10) + "px"); scene.appendChild(f); setTimeout(() => f.remove(), 500); }
+      if (+m.dataset.hp <= 0) { m.dataset.gone = 1; m.style.opacity = 0; left--; bump(); reveal(); check(); }
+    });
+  }
+  function bump() {
+    combo++; const c = content.querySelector("#combo"); c.textContent = "scrub x" + combo; c.classList.add("on");
+    blip(420 + combo * 55, .09);
+    clearTimeout(comboTimer); comboTimer = setTimeout(() => { c.classList.remove("on"); combo = 0; }, 1400);
+  }
+  function popBurr(b) {
+    const [x, y] = pos(b); b.remove(); left--; blip(700, .12, "square", .03);
+    float("+1 seed", x, y - 10, "var(--mint)");
+    const j = JARS.find(j => j.id === "seeds"); j.n++; fillJar(j); gulp("seeds"); bump(); check();
+  }
+  function gulp(id) { const el = jarsEl.querySelector(`[data-id="${id}"]`); el.classList.remove("gulp"); void el.offsetWidth; el.classList.add("gulp"); }
+
+  // flick a find into a jar: the right jar keeps it, the wrong one bounces it back
+  function grab(f, e) {
+    const s = scene.getBoundingClientRect(), home = [f.style.left, f.style.top];
+    const ghost = f.cloneNode(true); ghost.style.position = "absolute"; ghost.style.zIndex = 9; ghost.style.width = ghost.style.height = "34px";
+    scene.appendChild(ghost); f.style.opacity = 0;
+    const move = ev => { ghost.style.left = ev.clientX - s.left - 17 + "px"; ghost.style.top = ev.clientY - s.top - 17 + "px";
+      jarsEl.querySelectorAll(".jar").forEach(j => { const r = j.getBoundingClientRect(); j.classList.toggle("hot", ev.clientX > r.left && ev.clientX < r.right && ev.clientY > r.top - 20 && ev.clientY < r.bottom); }); };
+    move(e);
+    const up = ev => {
+      removeEventListener("pointermove", move); removeEventListener("pointerup", up);
+      const hot = jarsEl.querySelector(".jar.hot"); jarsEl.querySelectorAll(".jar").forEach(j => j.classList.remove("hot"));
+      if (hot && hot.dataset.id === f.dataset.kind) {
+        ghost.remove(); f.classList.add("done"); f.classList.remove("shown"); left--;
+        const j = JARS.find(j => j.id === f.dataset.kind); j.n++; fillJar(j); gulp(j.id); blip(880, .15, "sine", .06);
+        const [x, y] = pos(hot); float("+1 " + j.label.replace(/s$/, ""), x - 20, y - 50, j.color); check();
+      } else {
+        if (hot) { blip(180, .15, "square", .03); bubble().textContent = hot.dataset.id === "seeds" ? "that's not a seed, silly!" : "hmm, not that jar!"; }
+        ghost.remove(); f.style.opacity = ""; }
+    };
+    addEventListener("pointermove", move); addEventListener("pointerup", up);
+  }
+
+  function check() {
+    if (left > 0) return;
+    stage.classList.add("clean"); content.querySelector(".fresh").classList.add("on");
+    bubble().textContent = "bean is all fresh! it feels like a whole new bean ♪";
+    [0, 90, 180].forEach((d, i) => setTimeout(() => blip([784, 988, 1175][i], .3, "sine", .06), d));
+    setTimeout(nextPet, 2600);
+  }
+  const QUEUE_PETS = ["peach-cat", "sky-bunny", "lilac-cat", "mint-bear"];
+  let turn = 0;
+  function nextPet() {
+    turn++;
+    stage.querySelector(".petimg").src = `../assets/pets/${QUEUE_PETS[(turn - 1) % QUEUE_PETS.length]}.png`;
+    const waiting = Math.max(0, 2 - turn);
+    queue.innerHTML = waiting ? QUEUE_PETS.slice(turn, turn + waiting).map(p => `<img class="px mud2" src="../assets/pets/${p}.png" alt="">`).join("") + `<span>${waiting} more at the door</span>` : `<span>that's everyone!</span>`;
+    bubble().textContent = ["next! this one rolled in something…", "last one! it's mostly burrs", "everyone's clean! off you go again ♪"][Math.min(turn - 1, 2)];
+    build();
+  }
+
+  stage.addEventListener("pointerdown", e => { stage.classList.add("wiping"); stage.setPointerCapture(e.pointerId); wipeAt(e.clientX, e.clientY); });
+  stage.addEventListener("pointermove", e => { if (stage.classList.contains("wiping")) wipeAt(e.clientX, e.clientY); });
+  stage.addEventListener("pointerup", () => stage.classList.remove("wiping"));
+
+  build();
+  // states for screenshots
+  if (state === "mid") {
+    muds.slice(0, 5).forEach((m, i) => { m.dataset.gone = 1; m.style.opacity = i === 4 ? .4 : 0; });
+    stage.querySelector(".burr").remove();
+    reveal();
+    const c = content.querySelector("#combo"); c.textContent = "scrub x6"; c.classList.add("on");
+    bubble().textContent = "ooh, something shiny was stuck in its fur!";
+  }
+  if (state === "done") {
+    muds.forEach(m => { m.dataset.gone = 1; m.style.opacity = 0; });
+    stage.querySelectorAll(".burr,.find").forEach(e => e.remove());
+    stage.classList.add("clean"); content.querySelector(".fresh").classList.add("on");
+    bubble().textContent = "bean is all fresh! it feels like a whole new bean ♪";
+  }
+  applyLook(loadLook());
+</script>
+</body>
+</html>

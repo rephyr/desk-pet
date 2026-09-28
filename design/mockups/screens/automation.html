@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Automation</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* the automation tab: where you put your pet (and later the workers) to do things for you.
+     layer 1 = the machine, boxes and adventures. your pet does ONE thing at a time. */
+  .page2 { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+  .bar { display: flex; align-items: center; gap: 10px; }
+  .seg button.locked { color: var(--locked); cursor: default; }
+  .seg button small { font-size: 10px; color: var(--muted); margin-left: 4px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 11px; }
+  .ico { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .price { display: inline-flex; align-items: center; gap: 4px; color: var(--cyan); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .price.short { color: var(--muted); }
+  .price svg { width: 13px; height: 13px; }
+  .lv { font: 400 11px/1 var(--display); color: var(--deep); background: var(--gold); padding: 3px 7px 2px; border-radius: 999px; white-space: nowrap; }
+  .body { display: grid; grid-template-columns: 1fr 250px; grid-template-rows: minmax(0, 1fr); gap: 14px; flex: 1; min-height: 0; }
+  /* one more tab: squeeze the spine a little so settings still fits */
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+
+  /* who's where: your pet's badge in the bar */
+  .where { margin-left: auto; display: flex; align-items: center; gap: 8px; padding: 2px 12px 2px 4px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--pink) 40%, var(--line)); font-size: 11px; line-height: 1.2; }
+  .where img { width: 24px; height: 27px; }
+  .where b { color: var(--pink); font-weight: 400; }
+
+  /* the little scenes: a machine with a crank, a box table, the adventure gate */
+  .scene { display: block; overflow: visible; }
+  .scene .crank { transform-origin: 52px 50px; }
+  .run .crank { animation: crank var(--spd, 3.2s) linear infinite; }
+  @keyframes crank { to { transform: rotate(360deg); } }
+  .scene .drop { opacity: 0; }
+  .run .drop { animation: drop var(--spd, 3.2s) ease-in infinite; }
+  @keyframes drop { 0%, 70% { opacity: 0; transform: translateY(-6px); } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(4px); } }
+  .scene .lid { transform-origin: 30px 44px; }
+  .run .lid { animation: lid 2.6s var(--ease-out) infinite; }
+  @keyframes lid { 0%, 60% { transform: none; } 72% { transform: translateY(-7px) rotate(-18deg); } 90%, 100% { transform: none; } }
+  .run .spark { animation: spark 2.6s ease-out infinite; }
+  .scene .spark { opacity: 0; }
+  @keyframes spark { 0%, 66% { opacity: 0; } 76% { opacity: 1; } 100% { opacity: 0; transform: translateY(-6px); } }
+  .scene .flag { transform-origin: 46px 12px; }
+  .run .flag { animation: wave 1.6s ease-in-out infinite; }
+  @keyframes wave { 50% { transform: skewY(-6deg) scaleX(.94); } }
+  .run .trail { stroke-dashoffset: 0; animation: march 1.2s linear infinite; }
+  @keyframes march { to { stroke-dashoffset: -12; } }
+  .worker { position: relative; display: inline-flex; flex-direction: column; align-items: center; }
+  .bob { animation: bob var(--spd, 3.2s) ease-in-out infinite; }
+  @keyframes bob { 0%, 100% { transform: none; } 25% { transform: translate(1px, -2px) rotate(3deg); } 75% { transform: translate(-1px, 0) rotate(-2deg); } }
+  .idle .scene { opacity: .45; filter: saturate(.4); }
+  .zz { position: absolute; font: 400 12px var(--display); color: var(--lilac); animation: zz 2.4s ease-in-out infinite; }
+  @keyframes zz { 0% { opacity: 0; transform: translate(0, 4px); } 50% { opacity: 1; } 100% { opacity: 0; transform: translate(6px, -8px); } }
+
+  /* ---------- A: the chore chart ---------- */
+  .chart { border-radius: var(--r-panel); border: 2px solid var(--line); background: var(--paper); display: grid; grid-template-columns: 118px 1.05fr 1fr; grid-template-rows: auto repeat(3, 1fr); min-height: 0; overflow: hidden;
+    background-image: linear-gradient(to right, transparent 116px, color-mix(in srgb, var(--pink) 30%, transparent) 116px 118px, transparent 118px); }
+  .chart .hd { padding: 8px 12px 6px; font: 400 14px/1 var(--display); color: var(--lilac); border-bottom: 2px dashed var(--line); }
+  .chart .hd small { display: block; margin-top: 3px; font: 10px/1.2 var(--body); color: var(--muted); }
+  .chart .hd + .hd { border-left: 2px dashed var(--line); }
+  .chart .rowlabel { display: flex; flex-direction: column; justify-content: center; gap: 4px; padding: 8px 10px 8px 12px; color: var(--c); cursor: pointer; border-bottom: 2px dashed var(--line); }
+  .chart .rowlabel b { font: 400 15px/1.05 var(--display); }
+  .chart .rowlabel span { font-size: 10px; color: var(--muted); line-height: 1.3; }
+  .chart .cell { position: relative; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-bottom: 2px dashed var(--line); border-left: 2px dashed var(--line); cursor: pointer; min-width: 0; }
+  .chart .cell:last-child, .chart > :nth-last-child(-n+3) { border-bottom: 0; }
+  .chart .picked { background: color-mix(in srgb, var(--c) 7%, transparent); }
+  .chart .cell .txt { font-size: 11px; line-height: 1.3; min-width: 0; }
+  .chart .cell .txt b { display: block; font-weight: 400; color: var(--text); font-size: 12px; }
+  .chart .cell .txt em { font-style: normal; color: var(--c); }
+  .star-seat { position: relative; display: flex; align-items: flex-end; gap: 0; flex: none; }
+  .star-seat img { width: 36px; height: 40px; margin-left: -10px; margin-bottom: 2px; }
+  .gold-star { position: absolute; left: -6px; top: -6px; width: 20px; height: 20px; color: var(--gold); transform: rotate(-12deg); }
+  .emptyseat { flex: none; width: 58px; height: 52px; border: 2px dashed color-mix(in srgb, var(--c) 40%, var(--line)); border-radius: 10px; display: grid; place-items: center; color: var(--muted); font-size: 10px; text-align: center; line-height: 1.2; }
+  .crew { display: flex; align-items: flex-end; gap: 2px; }
+  .crew .worker img { width: 26px; height: 29px; }
+  .crew .worker .scene { margin-bottom: -2px; }
+  .crew.big .worker img { width: 36px; height: 40px; margin-top: -4px; }
+  .count { font: 400 13px/1 var(--display); color: var(--c); margin-left: 4px; white-space: nowrap; }
+  .lockcell { color: var(--locked); font-size: 11px; line-height: 1.3; }
+  .lockcell b { color: var(--muted); font-weight: 400; display: block; }
+
+  /* ---------- B: the yard ---------- */
+  .yard { position: relative; border-radius: var(--r-panel); border: 2px solid var(--line); overflow: hidden; min-height: 0;
+    background: linear-gradient(to bottom, var(--sky, var(--deep)) 0 44%, color-mix(in srgb, var(--mint) 7%, var(--page)) 44%); }
+  .yard .fence { position: absolute; left: 0; right: 0; top: 36%; height: 30px; background: repeating-linear-gradient(to right, transparent 0 10px, color-mix(in srgb, var(--lilac) 18%, transparent) 10px 16px); mask: linear-gradient(to bottom, transparent 0 4px, #000 4px); }
+  .yard .fence::before { content: ""; position: absolute; left: 0; right: 0; top: 10px; height: 4px; background: color-mix(in srgb, var(--lilac) 18%, transparent); }
+  .yard .stars { position: absolute; inset: 0 0 60% 0; background-image: radial-gradient(circle, color-mix(in srgb, var(--text) 40%, transparent) 1px, transparent 1.4px); background-size: 47px 31px; opacity: .35; }
+  .spot { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer; transform: translateX(-50%); }
+  .spot .sign { font: 400 13px/1 var(--display); color: var(--c); padding: 4px 9px 3px; border-radius: 6px; background: var(--raised); border: 2px solid color-mix(in srgb, var(--c) 45%, var(--line)); box-shadow: var(--lift); transform: rotate(var(--t, -2deg)); white-space: nowrap; margin-bottom: 4px; }
+  .spot.picked .sign { border-style: dashed; border-color: var(--pink); }
+  .spot .stage { position: relative; display: flex; align-items: flex-end; }
+  .spot .me img { width: 44px; height: 50px; }
+  .spot .ground { width: 130px; height: 14px; border-radius: 50%; background: color-mix(in srgb, var(--deep) 55%, transparent); margin-top: -8px; }
+  .spot .note { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.3; max-width: 170px; }
+  .spot .note b { color: var(--text); font-weight: 400; }
+  .spot .forsale { padding: 6px 10px; border: 2px dashed color-mix(in srgb, var(--c) 45%, var(--line)); border-radius: 10px; background: color-mix(in srgb, var(--deep) 70%, transparent); text-align: center; font-size: 11px; line-height: 1.35; }
+  .backrow { position: absolute; display: flex; gap: 6px; align-items: flex-end; transform: translateX(-50%) scale(.9); transform-origin: 50% 100%; opacity: .95; }
+  .backrow .worker img { width: 30px; height: 34px; }
+  .backrow .ghost { width: 60px; height: 64px; border: 2px dashed var(--line); border-radius: 10px; display: grid; place-items: center; color: var(--locked); font: 400 18px var(--display); }
+  .yardkey { position: absolute; left: 12px; bottom: 8px; font-size: 11px; color: var(--muted); }
+
+  /* ---------- C: station cards ---------- */
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; min-height: 0; }
+  .card { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 12px 10px 10px; border-radius: var(--r-xl); background: var(--raised); border: 2px solid color-mix(in srgb, var(--c) 40%, var(--line)); box-shadow: var(--lift); cursor: pointer; min-height: 0; }
+  .card.picked { border-style: dashed; border-color: var(--pink); }
+  .card .head { display: flex; align-items: center; gap: 6px; color: var(--c); }
+  .card .head b { font: 400 16px/1 var(--display); }
+  .card .seat { position: relative; height: 112px; border-radius: 10px; background: var(--deep); border: 2px solid var(--line); display: flex; align-items: flex-end; justify-content: center; padding-bottom: 8px; }
+  .card .seat .me img { width: 40px; height: 45px; }
+  .card .seat .tag { position: absolute; top: 6px; left: 8px; font-size: 10px; color: var(--muted); }
+  .card .seat.mine .tag { color: var(--pink); }
+  .card .rate { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.3; min-height: 28px; }
+  .card .rate b { color: var(--c); font-weight: 400; }
+  .card .wk { border-top: 2px dashed var(--line); padding-top: 6px; display: flex; flex-direction: column; gap: 4px; }
+  .card .wk .label { font-size: 10px; color: var(--muted); }
+  .card .wk .crew .worker img { width: 24px; height: 27px; }
+  .card .foot { margin-top: auto; display: flex; justify-content: space-between; align-items: center; font-size: 11px; }
+
+  /* ---------- the side panel (all looks) ---------- */
+  .side { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px 12px; min-height: 0; overflow: hidden; }
+  .side h2 { margin: 0; font: 400 18px/1.1 var(--display); color: var(--c); display: flex; align-items: center; gap: 8px; }
+  .side p { margin: 0; font-size: 11px; line-height: 1.4; color: var(--muted); }
+  .side .sec { font: 400 12px/1 var(--display); color: var(--lilac); margin-top: 2px; }
+  .you { display: grid; grid-template-columns: 28px 1fr; align-items: center; gap: 4px 8px; padding: 6px 8px; border-radius: 10px; background: var(--deep); border: 2px solid var(--line); font-size: 11px; line-height: 1.3; }
+  .you img { width: 28px; height: 31px; flex: none; }
+  .you b { color: var(--text); font-weight: 400; }
+  .you .btn { grid-column: 1 / -1; padding: 3px 8px; font-size: 11px; white-space: nowrap; }
+  .you.here { border-color: color-mix(in srgb, var(--pink) 50%, var(--line)); }
+  .mini { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; background: var(--deep); border: 2px solid var(--line); cursor: pointer; }
+  .mini:hover { border-color: var(--pink-seam); }
+  .mini .ico { width: 18px; height: 18px; color: var(--c); }
+  .mini b { font-weight: 400; font-size: 11px; line-height: 1.2; display: block; }
+  .mini span { display: block; font-size: 10px; line-height: 1.25; color: var(--muted); }
+  .mini.lock { cursor: default; opacity: .6; }
+  .party { display: grid; grid-template-columns: 26px 1fr auto; align-items: center; gap: 6px; padding: 4px 6px; border-radius: 6px; background: var(--deep); border: 2px solid var(--line); font-size: 11px; }
+  .party img { width: 24px; height: 27px; }
+  .party .cyc { display: flex; align-items: center; gap: 2px; }
+  .party .cyc button { width: 18px; height: 18px; padding: 0; border: 0; background: none; color: var(--muted); cursor: pointer; font: 400 13px/1 var(--display); }
+  .party .cyc button:hover { color: var(--pink); }
+  .party .cyc span { min-width: 44px; text-align: center; color: var(--text); }
+  .party .n { min-width: 16px; text-align: center; color: var(--c); }
+  .party.off { opacity: .55; }
+  .party.empty { grid-template-columns: 1fr auto; border-style: dashed; color: var(--muted); }
+  .side .foot2 { margin-top: auto; padding-top: 6px; border-top: 2px dashed var(--line); font-size: 11px; color: var(--muted); line-height: 1.35; }
+  .side .foot2 b { color: var(--mint); font-weight: 400; }
+  .toggle { display: flex; align-items: center; gap: 8px; font-size: 11px; line-height: 1.3; cursor: pointer; }
+  .toggle i { flex: none; width: 30px; height: 16px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); position: relative; }
+  .toggle i::after { content: ""; position: absolute; top: 2px; left: 2px; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); transition: left .15s var(--ease-out); }
+  .toggle.on i { border-color: var(--pink-seam); }
+  .toggle.on i::after { left: 16px; background: var(--pink); }
+
+  /* look picker (mockup only) */
+  .picker { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 6px; }
+  .picker a { padding: 3px 12px; border-radius: 999px; color: var(--muted); border: 2px solid var(--line); text-decoration: none; font-size: 12px; background: var(--backdrop); white-space: nowrap; }
+  .picker a.on { color: var(--pink); border-color: var(--pink); }
+</style>
+</head>
+<body>
+<nav class="picker" id="picker"></nav>
+<div class="app" data-tab="automation" data-say=""></div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  // the game's current tabs, plus automation after errands
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+
+  const params = new URLSearchParams(location.search);
+  const LOOK = params.get("look") || "chart";   // chart | yard | cards
+  const STAGE = params.get("stage") || "later"; // start (tab just bought) | later (your pet + a few workers)
+  const LATER = STAGE === "later";
+  const content = mountFrame();
+  const say = t => { document.querySelector(".top .bubble").textContent = t; };
+  document.getElementById("picker").innerHTML = [
+    ["look=chart&stage=start", "just opened"], ["look=chart", "A: chore chart"], ["look=yard", "B: the yard"], ["look=cards", "C: cards"],
+  ].map(([k, l]) => {
+    const on = k === `look=${LOOK}&stage=start` ? !LATER : LATER && k === `look=${LOOK}`;
+    return `<a href="?${k}${k.includes("stage") ? "" : `&page=${params.get("page") || "pet"}`}" class="${on ? "on" : ""}">${l}</a>`;
+  }).join("");
+
+  const num = n => n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1) + "M" : n >= 1e4 ? (n / 1e3).toFixed(n >= 1e5 ? 0 : 1) + "k" : Math.round(n).toLocaleString("en");
+  const COIN = `<svg viewBox="0 0 24 24"><path d="M12 3 L19.6 10.4 L12 21.2 L4.4 10.4 Z" fill="var(--cyan)"/><path d="M5 10.4 L19 10.4 M9.2 10.4 L12 4.2 L14.8 10.4 L12 19.8 L9.2 10.4" stroke="var(--page)" stroke-width="1.1" fill="none"/></svg>`;
+  const STAR = `<svg class="gold-star" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.5 L14.6 9 L21.5 9.4 L16.2 13.8 L17.9 20.6 L12 16.9 L6.1 20.6 L7.8 13.8 L2.5 9.4 L9.4 9 Z"/></svg>`;
+  const pet = (id, cls = "") => `<img class="px ${cls}" src="../assets/pets/${id}.png" alt="">`;
+  const ART = {
+    crank: `<circle cx="10" cy="10" r="6"/><path d="M5 18 L15 18 L15.6 21 L4.4 21 Z"/><path d="M16 12 L20 12 L20 7"/><circle cx="20" cy="5.6" r="1.4"/>`,
+    box: `<path d="M4.6 10 L19.4 10 L18.6 20 L5.4 20 Z"/><path d="M3.4 6.6 L20.6 6.6 L19.8 10 L4.2 10 Z"/><path d="M12 6.6 L12 20"/>`,
+    flag: `<path d="M6 21 L6 3.4"/><path d="M6 4.4 Q10 2.6 13 5 Q16 7.2 19 5.2 L19 12.4 Q16 14.4 13 12.2 Q10 9.8 6 11.6"/>`,
+    speed: `<path d="M4 16 Q4 8 12 8 Q20 8 20 16"/><path d="M12 16 L16 10"/><path d="M4 16 L20 16" opacity=".6"/>`,
+    stool: `<path d="M5 9 Q12 6 19 9 L19 11 Q12 13 5 11 Z"/><path d="M7 12 L6 20 M17 12 L18 20 M12 13 L12 20"/>`,
+    lucky: `<circle cx="12" cy="13" r="6.5"/><path d="M18 3 L18.8 5.2 L21 6 L18.8 6.8 L18 9 L17.2 6.8 L15 6 L17.2 5.2 Z"/>`,
+    knife: `<path d="M4 18 L14 8 L17 11 L7 21 Z"/><path d="M14 8 L18 4 L20 6 L17 11"/>`,
+    bag: `<path d="M5 9 L19 9 L18 20 L6 20 Z"/><path d="M9 9 Q9 4 12 4 Q15 4 15 9"/>`,
+    boots: `<path d="M6 4 L11 4 L11 14 Q16 14 18 17 L18 20 L6 20 Z"/><path d="M6 17 L18 17" opacity=".6"/>`,
+    teach: `<path d="M3 9 L12 5 L21 9 L12 13 Z"/><path d="M7 11 L7 16 Q12 19 17 16 L17 11"/><path d="M21 9 L21 14"/>`,
+  };
+  const ico = (k, cls = "ico") => `<svg class="${cls}" viewBox="0 0 24 24">${ART[k]}</svg>`;
+
+  // little scenes. w = width in px; each draws the thing a pet works at.
+  function scene(kind, w = 74) {
+    if (kind === "machine") return `<svg class="scene" width="${w}" height="${w * 80 / 70}" viewBox="0 0 70 80">
+      <circle cx="30" cy="22" r="17" fill="color-mix(in srgb, var(--lilac) 10%, var(--page))" stroke="var(--lilac)" stroke-width="2.5"/>
+      <circle cx="24" cy="25" r="4" fill="var(--pink)" opacity=".85"/><circle cx="34" cy="18" r="4" fill="var(--cyan)" opacity=".85"/><circle cx="34" cy="29" r="4" fill="var(--gold)" opacity=".85"/>
+      <path d="M26 12 Q29 9 33 10" stroke="var(--text)" stroke-width="1.6" fill="none" opacity=".5" stroke-linecap="round"/>
+      <path d="M13 39 L47 39 L49 76 L11 76 Z" fill="color-mix(in srgb, var(--pink) 22%, var(--page))" stroke="var(--pink)" stroke-width="2.5" stroke-linejoin="round"/>
+      <rect x="23" y="56" width="14" height="12" rx="3" fill="var(--deep)" stroke="var(--pink-seam)" stroke-width="2"/>
+      <circle class="drop" cx="30" cy="62" r="3.6" fill="var(--mint)"/>
+      <g class="crank"><path d="M52 50 L63 50 L63 41" stroke="var(--gold)" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="63" cy="39" r="3.2" fill="var(--pink)"/></g>
+      <circle cx="52" cy="50" r="3.4" fill="var(--gold)"/>
+    </svg>`;
+    if (kind === "boxes") return `<svg class="scene" width="${w}" height="${w * 80 / 70}" viewBox="0 0 70 80">
+      <rect x="44" y="28" width="18" height="14" rx="2" fill="color-mix(in srgb, var(--lilac) 18%, var(--page))" stroke="var(--lilac)" stroke-width="2"/>
+      <rect x="48" y="16" width="14" height="12" rx="2" fill="color-mix(in srgb, var(--cyan) 18%, var(--page))" stroke="var(--cyan)" stroke-width="2"/>
+      <rect x="18" y="44" width="24" height="18" rx="2" fill="color-mix(in srgb, var(--gold) 22%, var(--page))" stroke="var(--gold)" stroke-width="2.4"/>
+      <g class="lid"><rect x="16" y="39" width="28" height="7" rx="2" fill="color-mix(in srgb, var(--gold) 34%, var(--page))" stroke="var(--gold)" stroke-width="2.4"/></g>
+      <path class="spark" d="M30 30 L31 33 L34 34 L31 35 L30 38 L29 35 L26 34 L29 33 Z" fill="var(--gold)"/>
+      <path d="M6 62 L64 62 M12 62 L10 78 M58 62 L60 78" stroke="var(--pink)" stroke-width="3" stroke-linecap="round"/>
+    </svg>`;
+    return `<svg class="scene" width="${w}" height="${w * 80 / 70}" viewBox="0 0 70 80">
+      <path class="trail" d="M8 76 Q22 64 30 66 Q42 68 44 56 Q46 46 58 44" fill="none" stroke="var(--muted)" stroke-width="2" stroke-dasharray="3 3"/>
+      <path d="M8 34 L8 76 M38 34 L38 76" stroke="var(--mint)" stroke-width="3" stroke-linecap="round"/>
+      <path d="M8 44 L38 44 M8 62 L38 62 M8 44 L38 62" stroke="color-mix(in srgb, var(--mint) 70%, var(--page))" stroke-width="2.4" stroke-linecap="round"/>
+      <path d="M46 76 L46 12" stroke="var(--text)" stroke-width="2.2" stroke-linecap="round" opacity=".8"/>
+      <path class="flag" d="M46 13 Q54 9 58 13 Q62 17 66 13 L66 27 Q62 31 58 27 Q54 23 46 27 Z" fill="color-mix(in srgb, var(--pink) 40%, var(--page))" stroke="var(--pink)" stroke-width="2"/>
+    </svg>`;
+  }
+
+  // ---------------- the numbers (placeholders) ----------------
+  let coins = LATER ? 184000 : 9400;
+  let at = LATER ? "machine" : null;   // where your pet is. only ONE place at a time.
+  const WORK_PETS = ["peach-cat", "mint-blob", "sky-bunny", "mint-bear", "peach-bear", "toxic-cat"];
+  const PLACES = ["garden", "pond", "meadow", "orchard", "shed", "hedge"];
+  const ST = [
+    { id: "machine", name: "crank a machine", short: "machine", c: "var(--pink)", art: "crank",
+      what: "a little machine of its own.",
+      price: 8000, bought: LATER, brings: "capsules: coins, toys, now and then a box",
+      secs: () => Math.round(48 * Math.pow(.9, up("crank").lv)),
+      rate: s => `a pull every ${s.secs()}s`, yours: "you: about 2 a second",
+      ups: [
+        { id: "crank", name: "a smoother crank", what: "cranks 10% faster", art: "speed", lv: LATER ? 4 : 0, price: 1200, grow: 1.35 },
+        { id: "stool", name: "a comfy stool", what: "keeps cranking while you're away", art: "stool", lv: 0, price: 9000, grow: 1.9 },
+        { id: "luckm", name: "lucky knob", what: "its capsules can be shiny too", art: "lucky", lv: 0, price: 30000, grow: 2, needs: "shiny balls" },
+      ],
+      teach: { done: LATER, price: 40000, after: 3 },          // teach the others: after crank lv 3
+      workers: LATER ? ["peach-cat", "mint-blob", "mint-bear", "toxic-cat"] : [], more: 15000, unit: "machine",
+      wups: [{ id: "grease", name: "grease for everyone", what: "their machines crank 10% faster", art: "speed", lv: 2, price: 5000, grow: 1.4 }] },
+    { id: "boxes", name: "open boxes", short: "boxes", c: "var(--gold)", art: "box",
+      what: "opens boxes from the pile.",
+      price: 25000, bought: LATER, brings: "pets and parts from your boxes",
+      secs: () => Math.round(150 * Math.pow(.9, up("cutter").lv)),
+      rate: s => `a box every ${Math.floor(s.secs() / 60)}m ${String(s.secs() % 60).padStart(2, "0")}s`, yours: "you: as fast as you can rip",
+      ups: [
+        { id: "cutter", name: "a box cutter", what: "opens 10% faster", art: "knife", lv: LATER ? 2 : 0, price: 3000, grow: 1.4 },
+        { id: "bag2", name: "a bigger pile", what: "+10 boxes it can reach", art: "bag", lv: 0, price: 6000, grow: 1.6 },
+      ],
+      keep: true,   // save boxes that glow gold for you to open yourself
+      teach: { done: false, price: 90000, after: 5 },
+      workers: [], more: 30000, unit: "table" },
+    { id: "adventures", name: "run adventures", short: "adventures", c: "var(--mint)", art: "flag",
+      what: "takes a party out, again and again.",
+      price: 15000, bought: LATER, brings: "bits, coins, finds from the places",
+      secs: () => 0, rate: () => "", yours: "",
+      ups: [
+        { id: "boots", name: "comfy boots", what: "parties walk 10% faster", art: "boots", lv: LATER ? 1 : 0, price: 2500, grow: 1.4 },
+      ],
+      teach: { done: LATER, price: 60000, after: 1 },
+      mine: { place: 1, n: 3 },
+      workers: LATER ? [{ lead: "sky-bunny", place: 2, n: 5 }, { lead: "peach-bear", place: 0, n: 3 }] : [], more: 20000, unit: "party",
+      wups: [{ id: "snacks", name: "trail snacks", what: "their parties walk 10% faster", art: "boots", lv: 0, price: 4000, grow: 1.4 }] },
+  ];
+  const st = id => ST.find(s => s.id === id);
+  const up = id => ST.flatMap(s => [...s.ups, ...(s.wups || [])]).find(u => u.id === id);
+  const cost = u => Math.round(u.price * Math.pow(u.grow, u.lv));
+  const lvOf = s => s.ups.reduce((n, u) => n + u.lv, 0);
+  const priceTag = c => `<span class="price ${c > coins ? "short" : ""}">${COIN}${num(c)}</span>`;
+  let picked = params.get("pick") || "machine";
+
+  // what a spot is doing right now
+  const mineRunning = s => s.bought && at === s.id;
+  const placesRun = () => { const s = st("adventures"); const set = new Set(s.workers.map(w => w.place)); if (mineRunning(s)) set.add(s.mine.place); return set.size; };
+
+  // ---------------- bits every look shares ----------------
+  // two pages: your pet | workers. the workers page doesn't exist until someone's been taught.
+  let PAGE = params.get("page") || "pet";
+  const taught = () => ST.filter(s => s.bought && s.teach.done);
+  const bar = () => `<div class="bar">
+      ${taught().length ? `<div class="seg"><button data-page="pet" class="${PAGE === "pet" ? "on" : ""}">your pet</button><button data-page="workers" class="${PAGE === "workers" ? "on" : ""}">workers</button></div>` : ""}
+      ${PAGE === "pet" ? `<div class="where">${pet("lilac-blob")}<div>${at ? `lilac blob is <b>${at === "machine" ? "cranking" : at === "boxes" ? "opening boxes" : "on adventures"}</b>` : `lilac blob is <b>free</b>`}</div></div>`
+        : `<div class="where" style="padding-left:12px">${taught().reduce((n, s) => n + s.workers.length, 0)} <b style="margin-left:4px">workers</b></div>`}
+    </div>`;
+  const workerSprites = (s, max, sceneW) => s.workers.slice(0, max).map((w, i) => {
+    const id = typeof w === "string" ? w : w.lead;
+    return `<span class="worker run" style="--spd:${(3.6 + i * .4).toFixed(1)}s">${sceneW ? scene(s.id, sceneW) : ""}${pet(id, "bob")}</span>`;
+  }).join("") + (s.workers.length > max ? `<span class="count">+${s.workers.length - max}</span>` : "");
+  const plural = (n, unit) => `${n} ${unit === "party" ? (n === 1 ? "party" : "parties") : unit + (n === 1 ? "" : "s")}`;
+
+  // your pet's spot on a station, as text
+  function mineText(s) {
+    if (!s.bought) return `<b>teach lilac blob</b>${priceTag(s.price)}`;
+    if (mineRunning(s)) return s.id === "adventures" ? `<b>taking ${s.mine.n} pets to the ${PLACES[s.mine.place]}</b>` : `<b>${s.rate(s)}</b>`;
+    return `<b>nobody here</b>`;
+  }
+
+  // ---------------- A: chore chart ----------------
+  function renderChart() {
+    if (PAGE === "workers") {
+      const rows = taught().map(s => `<div class="rowlabel ${s.id === picked ? "picked" : ""}" data-st="${s.id}" style="--c:${s.c}">${ico(s.art)}<b>${s.name}</b><span>${s.brings}</span></div>
+        <div class="cell ${s.id === picked ? "picked" : ""}" data-st="${s.id}" style="--c:${s.c}"><div class="crew">${workerSprites(s, 5, 40)}</div>
+          <div class="txt"><b>${plural(s.workers.length, s.unit)}</b></div></div>`).join("");
+      return `<div class="chart" style="grid-template-columns: 118px 1fr; grid-template-rows: auto repeat(${taught().length}, minmax(0, 1fr))"><div class="hd">jobs</div><div class="hd">workers</div>${rows}</div>`;
+    }
+    const rows = ST.map(s => {
+      const on = mineRunning(s);
+      const seat = !s.bought ? `<div class="emptyseat">for sale</div>`
+        : on ? `<div class="star-seat run" style="--spd:${Math.max(1.4, s.secs() / 14).toFixed(1)}s">${STAR}${scene(s.id, 46)}${pet("lilac-blob", "bob")}</div>`
+        : `<div class="star-seat idle">${scene(s.id, 46)}</div>`;
+      return `<div class="rowlabel ${s.id === picked ? "picked" : ""}" data-st="${s.id}" style="--c:${s.c}">${ico(s.art)}<b>${s.name}</b><span>${s.brings}</span></div>
+        <div class="cell ${s.id === picked ? "picked" : ""}" data-st="${s.id}" style="--c:${s.c}">${seat}<div class="txt">${mineText(s)}</div></div>`;
+    }).join("");
+    return `<div class="chart" style="grid-template-columns: 118px 1fr"><div class="hd">jobs</div><div class="hd">your pet</div>${rows}</div>`;
+  }
+
+  // ---------------- B: the yard ----------------
+  function renderYard() {
+    if (PAGE === "workers") {
+      const list = taught(), X = list.length === 1 ? [50] : list.length === 2 ? [28, 72] : [17, 50, 83];
+      const spots = list.map((s, i) => `<div class="spot ${s.id === picked ? "picked" : ""}" data-st="${s.id}" style="--c:${s.c}; left:${X[i]}%; top:26%">
+        <div class="sign" style="--t:${[-2, 1.5, -1][i]}deg">${s.name}</div>
+        <div class="stage crew big" style="gap:6px">${workerSprites(s, 3, 60)}</div><div class="ground" style="width:220px"></div>
+        <div class="note"><b>${plural(s.workers.length, s.unit)}</b></div></div>`).join("");
+      return `<div class="yard"><div class="stars"></div><div class="fence"></div>${spots}</div>`;
+    }
+    const X = { machine: 17, boxes: 50, adventures: 83 };
+    const spots = ST.map((s, i) => {
+      const on = mineRunning(s);
+      const body = !s.bought
+        ? `<div class="forsale" style="--c:${s.c}">${priceTag(s.price)}</div>`
+        : `<div class="stage ${on ? "run" : "idle"}" style="--spd:${Math.max(1.4, s.secs() / 14).toFixed(1)}s">${scene(s.id, 78)}${on ? `<span class="me">${pet("lilac-blob", "bob")}</span>` : `<span class="zz" style="left:30px; top:0">z</span>`}</div><div class="ground"></div>
+           <div class="note">${on ? (s.id === "adventures" ? `<b>${s.mine.n} pets to the ${PLACES[s.mine.place]}</b>, on repeat` : `<b>${s.rate(s)}</b>`) : "nobody here"}</div>`;
+      return `<div class="spot ${s.id === picked ? "picked" : ""}" data-st="${s.id}" style="--c:${s.c}; left:${X[s.id]}%; top:${s.bought ? 30 : 42}%"><div class="sign" style="--t:${[-2, 1.5, -1][i]}deg">${s.name}</div>${body}</div>`;
+    }).join("");
+    return `<div class="yard"><div class="stars"></div><div class="fence"></div>${spots}</div>`;
+  }
+
+  // ---------------- C: station cards ----------------
+  function renderCards() {
+    if (PAGE === "workers") {
+      const list = taught();
+      return `<div class="cards" style="grid-template-columns: repeat(${Math.max(2, list.length)}, 1fr)">${list.map(s => `<div class="card ${s.id === picked ? "picked" : ""}" data-st="${s.id}" style="--c:${s.c}">
+        <div class="head">${ico(s.art)}<b>${s.name}</b></div>
+        <div class="seat crew big" style="height:auto; flex:1; flex-wrap:wrap; align-content:center; justify-content:center; gap:10px 8px; padding:10px">${workerSprites(s, 6, 56)}</div>
+        <div class="rate"><b>${plural(s.workers.length, s.unit)}</b></div>
+      </div>`).join("")}</div>`;
+    }
+    return `<div class="cards">${ST.map(s => {
+      const on = mineRunning(s);
+      return `<div class="card ${s.id === picked ? "picked" : ""}" data-st="${s.id}" style="--c:${s.c}">
+        <div class="head">${ico(s.art)}<b>${s.name}</b></div>
+        <div class="seat ${on ? "mine run" : "idle"}" style="--spd:${Math.max(1.4, s.secs() / 14).toFixed(1)}s"><span class="tag">${on ? "♡" : ""}</span>
+          ${s.bought ? scene(s.id, 70) + (on ? `<span class="me">${pet("lilac-blob", "bob")}</span>` : "") : `<div class="forsale" style="margin:auto; border:0">${priceTag(s.price)}</div>`}</div>
+        <div class="rate">${!s.bought ? s.brings : on ? (s.id === "adventures" ? `<b>${s.mine.n} pets to the ${PLACES[s.mine.place]}</b>` : `<b>${s.rate(s)}</b>`) : "nobody here"}</div>
+        <div class="foot">${s.bought ? `<span class="lv">lv ${lvOf(s)}</span>` : ""}</div>
+      </div>`;
+    }).join("")}</div>`;
+  }
+
+  // ---------------- side panel ----------------
+  const upRow = u => `<div class="mini" data-up="${u.id}" title="${u.what}">${ico(u.art)}<div><b>${u.name}</b><span>lv ${u.lv}: ${u.what}</span></div>${priceTag(cost(u))}</div>`;
+  function side() {
+    const s = st(picked), here = at === s.id;
+    if (PAGE === "workers") {
+      const list = s.id === "adventures"
+        ? s.workers.map((w, i) => `<div class="party">${pet(w.lead)}<div class="cyc"><button data-cyc="${i}" data-d="-1">‹</button><span>${PLACES[w.place]}</span><button data-cyc="${i}" data-d="1">›</button></div>
+            <div class="cyc"><button data-n="${i}" data-d="-1">−</button><span class="n">${w.n}</span><button data-n="${i}" data-d="1">+</button></div></div>`).join("")
+          + `<div class="party empty" data-more="${s.id}" style="cursor:pointer"><span>+ another party</span>${priceTag(s.more)}</div>`
+        : `<div class="mini" data-more="${s.id}">${ico(s.art)}<div><b>${plural(s.workers.length, s.unit)}</b><span>+1 ${s.unit}</span></div>${priceTag(s.more)}</div>`;
+      return `<div class="side sticker" style="--c:${s.c}">
+        <h2>${ico(s.art)}${s.name}</h2>
+        ${list}
+        ${s.wups ? `<div class="sec">upgrades</div>${s.wups.map(upRow).join("")}` : ""}
+        ${s.id === "adventures" ? `<div class="foot2">backyard: <b>${placesRun()} of 6 places</b> on repeat</div>` : ""}
+      </div>`;
+    }
+    let you;
+    if (!s.bought) you = `<div class="you">${pet("lilac-blob")}<div><b>teach lilac blob</b></div><button class="btn primary" data-buyst="${s.id}" ${s.price > coins ? "disabled" : ""}>◆ ${num(s.price)}</button></div>`;
+    else if (here) you = `<div class="you here">${pet("lilac-blob")}<div><b>lilac blob is here ♡</b><br>${s.id === "adventures" ? "leading a party" : s.rate(s)}</div><button class="btn" data-free>take it off</button></div>`;
+    else you = `<div class="you">${pet("lilac-blob")}<div><b>nobody here</b></div><button class="btn primary" data-move="${s.id}">move it here</button></div>`;
+    const ups = s.bought ? s.ups.filter(u => !u.needs).map(upRow).join("") : "";
+    // "teach the others" only shows up once it can be bought
+    const teachNow = s.bought && !s.teach.done && s.ups[0].lv >= s.teach.after;
+    const teach = teachNow ? `<div class="mini" data-teach="${s.id}">${ico("teach")}<div><b>teach the others</b></div>${priceTag(s.teach.price)}</div>` : "";
+    const minePart = s.id === "adventures" && s.bought ? `<div class="party ${here ? "" : "off"}">${pet("lilac-blob")}<div class="cyc"><button data-mcyc="-1">‹</button><span>${PLACES[s.mine.place]}</span><button data-mcyc="1">›</button></div>
+        <div class="cyc"><button data-mn="-1">−</button><span class="n">${s.mine.n}</span><button data-mn="1">+</button></div></div>` : "";
+    const keep = s.keep && s.bought ? `<div class="toggle ${keepOn ? "on" : ""}" data-keep><i></i><span>save boxes that glow gold for me to open</span></div>` : "";
+    return `<div class="side sticker" style="--c:${s.c}">
+      <h2>${ico(s.art)}${s.name}</h2><p>${s.what}</p>
+      ${you}${minePart}${keep}
+      ${ups || teach ? `<div class="sec">upgrades</div>${ups}${teach}` : ""}
+    </div>`;
+  }
+
+  let keepOn = true;
+  const LINES = {
+    machine: "my own machine! crank crank crank. it's slow, but it's MINE.",
+    boxes: "i'll open them for you! i'll hold up the good ones, promise.",
+    adventures: "i'll take them out and bring them back. again and again!",
+  };
+  function render() {
+    if (!taught().length) PAGE = "pet";
+    if (PAGE === "workers" && !taught().includes(st(picked))) picked = taught()[0].id;
+    const view = { chart: renderChart, yard: renderYard, cards: renderCards }[LOOK]();
+    content.innerHTML = `<div class="page2">${bar()}<div class="body">${view}${side()}</div></div>`;
+    document.querySelector(".chip.coins").lastChild.textContent = coins.toLocaleString("en");
+    paintIcons(content);
+    const on = (sel, f) => content.querySelectorAll(sel).forEach(el => el.addEventListener("click", e => { e.stopPropagation(); f(el); }));
+    on("[data-page]", el => { PAGE = el.dataset.page; render(); say(PAGE === "workers" ? "look at them go!" : "what should i do next?"); });
+    on("[data-st]", el => { picked = el.dataset.st; render(); });
+    on("[data-move]", el => { const from = at; at = el.dataset.move; render(); say(from ? `okay! i'll stop ${from === "machine" ? "cranking" : from === "boxes" ? "opening boxes" : "leading the party"}. ${LINES[at]}` : LINES[at]); });
+    on("[data-free]", () => { at = null; render(); say("a break! what should i do next?"); });
+    on("[data-buyst]", el => { const s = st(el.dataset.buyst); if (s.price > coins) return; coins -= s.price; s.bought = true; if (!at) at = s.id; render(); say(at === s.id ? LINES[s.id] : "learned it!"); });
+    on("[data-up]", el => { const u = up(el.dataset.up); if (cost(u) > coins) { say("we need a few more coins for that one."); return; } coins -= cost(u); u.lv++; render(); say(`${u.name}! ${u.what}.`); });
+    on("[data-teach]", el => { const s = st(el.dataset.teach); if (s.teach.price > coins) return; coins -= s.teach.price; s.teach.done = true; render(); say("i showed everyone how! they're not as good as me. yet."); });
+    on("[data-more]", el => { const s = st(el.dataset.more); if (s.more > coins) return; coins -= s.more;
+      s.workers.push(s.id === "adventures" ? { lead: WORK_PETS[(s.workers.length + 2) % WORK_PETS.length], place: (s.workers.length + 3) % 6, n: 3 } : WORK_PETS[s.workers.length % WORK_PETS.length]);
+      s.more = Math.round(s.more * 1.6); render(); say(`another ${s.unit}! they start right away.`); });
+    on("[data-keep]", () => { keepOn = !keepOn; render(); say(keepOn ? "the gold ones are yours to rip. i'll put them aside." : "i'll open every single one!"); });
+    const adv = st("adventures");
+    on("[data-cyc]", el => { const w = adv.workers[el.dataset.cyc]; w.place = (w.place + Number(el.dataset.d) + 6) % 6; render(); });
+    on("[data-n]", el => { const w = adv.workers[el.dataset.n]; w.n = Math.max(1, Math.min(10, w.n + Number(el.dataset.d))); render(); });
+    on("[data-mcyc]", el => { adv.mine.place = (adv.mine.place + Number(el.dataset.mcyc) + 6) % 6; render(); });
+    on("[data-mn]", el => { adv.mine.n = Math.max(1, Math.min(10, adv.mine.n + Number(el.dataset.mn))); render(); });
+  }
+
+  say(LATER ? "crank crank crank! my very own machine."
+            : "ooh, what should i learn first?");
+  render();
+  applyLook(loadLook());
+</script>
+</body>
+</html>

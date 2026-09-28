@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toy Designs</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<style>
+  /* the first toy set, every toy in every finish, in three art styles to pick from */
+  body { display: block; place-items: normal; background: var(--backdrop); color: var(--text); margin: 0; padding: 22px 26px 30px; }
+  header { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+  h1 { margin: 0; font: 400 26px/1 var(--display); color: var(--pink); }
+  header p { margin: 0; font-size: 13px; color: var(--muted); }
+  .styles { display: inline-flex; background: var(--deep); border: 2px solid var(--line); border-radius: var(--r-md); padding: 2px; margin-left: auto; }
+  .styles a { color: var(--muted); padding: 5px 14px; border-radius: 6px; font-size: 13px; text-decoration: none; }
+  .styles a.on { background: var(--pink-pressed); color: var(--text); }
+  .sheet { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 16px; }
+  .toycard { padding: 14px 16px 12px; border-radius: 14px; background: var(--raised); border: 2px solid var(--tier); }
+  .toycard h2 { margin: 0; font: 400 18px/1 var(--display); color: var(--text); display: flex; align-items: baseline; gap: 10px; }
+  .toycard h2 small { font: 13px var(--body); color: var(--tier); }
+  .toycard .does { font-size: 12px; color: var(--muted); margin: 5px 0 10px; }
+  .toycard .does b { color: var(--mint); font-weight: 400; }
+  .row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .cell { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px 8px; border-radius: 10px; background: var(--page); border: 2px solid var(--line); }
+  .cell span { font-size: 12px; color: var(--muted); }
+  .cell.holo { border-color: var(--lilac-seam); }
+  .cell.foil { border-color: color-mix(in srgb, var(--gold) 45%, var(--line)); }
+  .cell.ghost { border-color: color-mix(in srgb, var(--cyan) 40%, var(--line)); }
+
+  /* pixel toys: the sprite, a pixel stand, and the finish as a masked overlay */
+  .ptoy { position: relative; width: 84px; height: 96px; }
+  .ptoy img, .ptoy .fx { position: absolute; left: 0; top: 0; width: 84px; height: 84px; image-rendering: pixelated; }
+  .ptoy .stand { position: absolute; left: 12px; right: 12px; bottom: 2px; height: 14px; border-radius: 50%; background: color-mix(in srgb, var(--text) 16%, var(--page)); border: 3px solid #1a0f22; }
+  .ptoy .fx { -webkit-mask-size: 84px 84px; mask-size: 84px 84px; -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat; pointer-events: none; }
+  .ptoy.holo .fx { background: linear-gradient(120deg, #ff79c6, #ffe08a, #8fe8c0, #8be9fd, #c9a0ff, #ff79c6); background-size: 300% 300%; mix-blend-mode: screen; opacity: .42; animation: sheen 4s linear infinite; }
+  .ptoy.foil .fx { background: linear-gradient(120deg, #8a6a1f, #ffe08a 40%, #fff6d6 50%, #ffe08a 60%, #8a6a1f); background-size: 250% 250%; mix-blend-mode: overlay; animation: sheen 3s linear infinite; }
+  .ptoy.foil .fx2 { opacity: .35; mix-blend-mode: normal; }
+  .ptoy.ghost img { opacity: .45; filter: drop-shadow(0 0 4px var(--cyan)); }
+  @keyframes sheen { from { background-position: 0% 50%; } to { background-position: 300% 50%; } }
+  .note { margin-top: 18px; font-size: 13px; color: var(--muted); max-width: 900px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>backyard friends</h1>
+  <p>the first toy set: 4 common, 2 uncommon, 1 rare, 1 secret. every toy in every finish.</p>
+  <nav class="styles" id="styles"></nav>
+</header>
+<div class="sheet" id="sheet"></div>
+<p class="note" id="note"></p>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script src="../shared/toys.js"></script>
+<script src="../shared/toy-pixels.js"></script>
+<script>
+  const style = new URLSearchParams(location.search).get("style") || "doodle";
+  const STYLES = { doodle: "A: crayon doodle", pixel: "B: pixel art", vinyl: "C: glossy vinyl" };
+  const NOTES = {
+    doodle: "A: the same hand-drawn crayon lines as the icons and the map. Soft and flat, like stickers.",
+    pixel: "B: chunky pixels like the pets. Toys and pets look like they come from the same world.",
+    vinyl: "C: the crayon doodles with a glossy shine and shading, like little plastic gashapon figures.",
+  };
+  document.getElementById("styles").innerHTML = Object.entries(STYLES).map(([k, v]) => `<a href="?style=${k}" class="${k === style ? "on" : ""}">${v}</a>`).join("");
+  document.getElementById("note").textContent = NOTES[style];
+  function draw(id, finish) {
+    if (style !== "pixel") return toySvg(id, finish, 88, false, style);
+    const url = toyPixelUrl(id, 6);
+    const fx = finish === "holo" || finish === "foil" ? `<div class="fx" style="-webkit-mask-image: url(${url}); mask-image: url(${url})"></div>` : "";
+    return `<div class="ptoy ${finish}"><div class="stand"></div><img src="${url}" alt="">${fx}</div>`;
+  }
+  document.getElementById("sheet").innerHTML = TOY_SET.toys.map(t => `
+    <section class="toycard" style="--tier: ${TOY_TIERS[t.tier]}">
+      <h2>${t.name}<small>${t.tier}</small></h2>
+      <div class="does">on display: <b>${t.does}</b></div>
+      <div class="row">${Object.keys(TOY_FINISHES).map(f => `<div class="cell ${f}">${draw(t.id, f)}<span>${TOY_FINISHES[f].name}</span></div>`).join("")}</div>
+    </section>`).join("");
+  applyLook(loadLook());
+</script>
+</body>
+</html>

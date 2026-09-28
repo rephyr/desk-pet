@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Machine Upgrades</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* the machine tab's upgrades page: fixing an old broken capsule machine, as a branching tree */
+  .page2 { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+  .bar { display: flex; align-items: center; gap: 10px; }
+  .seg { display: inline-flex; background: var(--deep); border: 2px solid var(--line); border-radius: var(--r-md); padding: 2px; }
+  .seg button { background: none; border: 0; color: var(--muted); padding: 4px 12px; border-radius: 6px; cursor: pointer; font: inherit; font-size: 12px; }
+  .seg button.on { background: var(--pink-pressed); color: var(--text); }
+  .bits { margin-left: auto; display: flex; gap: 8px; }
+  .bit { display: flex; align-items: center; gap: 5px; white-space: nowrap; padding: 5px 12px 5px 8px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); font-size: 12px; }
+  .bit svg { width: 20px; height: 20px; }
+  .bit.none { color: var(--locked); }
+  .body { display: grid; grid-template-columns: 1fr 250px; gap: 14px; flex: 1; min-height: 0; }
+  .tree { position: relative; border-radius: var(--r-panel); background: var(--paper); border: 2px solid var(--line); overflow: hidden; }
+  .tree svg.map { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .link { fill: none; stroke: var(--line); stroke-width: 3; stroke-dasharray: 7 5; stroke-linecap: round; }
+  .link.on { stroke: var(--lilac-seam); stroke-dasharray: none; }
+  .node { cursor: pointer; }
+  .node .disc { stroke-width: 3; }
+  .node.owned .disc { fill: color-mix(in srgb, var(--c) 30%, var(--page)); stroke: var(--c); }
+  .node.next .disc { fill: var(--raised); stroke: var(--c); stroke-dasharray: 6 4; }
+  .node.next .glow { fill: none; stroke: var(--c); stroke-width: 2; opacity: .5; animation: breathe 2s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+  @keyframes breathe { 50% { transform: scale(1.18); opacity: .1; } }
+  .node.dim .disc { fill: var(--deep); stroke: var(--line); }
+  .node.dim .ico { opacity: .35; }
+  .node.hidden .disc { fill: var(--deep); stroke: var(--line); stroke-dasharray: 3 5; }
+  .node .ico { fill: none; stroke: var(--c); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .node.hidden .ico { display: none; }
+  .node .q { font: 400 20px/1 var(--display); fill: var(--locked); text-anchor: middle; }
+  .node .lvl { font: 400 11px/1 var(--display); fill: var(--deep); text-anchor: middle; }
+  .node .lvlpill { fill: var(--gold); }
+  .node .name { font: 12px var(--body); fill: var(--muted); text-anchor: middle; }
+  .node.owned .name, .node.next .name { fill: var(--text); }
+  .node.picked .disc { stroke-width: 4; }
+  .node .needs { stroke: var(--deep); stroke-width: 1.5; }
+  .node.big .disc { stroke-width: 4; }
+  .branch-label { font: 400 13px/1 var(--display); fill: var(--muted); }
+  .legend { position: absolute; left: 12px; bottom: 10px; display: flex; gap: 12px; font-size: 11px; color: var(--muted); }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+
+  .detail { display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; min-height: 0; overflow: auto; }
+  .detail .mini { align-self: center; }
+  .detail h2 { margin: 0; font: 400 19px/1.1 var(--display); color: var(--pink); text-align: center; }
+  .detail .kind { text-align: center; font-size: 12px; color: var(--muted); }
+  .detail p { margin: 0; font-size: 12px; line-height: 1.4; }
+  .detail .gain { color: var(--mint); }
+  .cost { display: flex; flex-direction: column; gap: 5px; padding: 8px 10px; border-radius: 10px; background: var(--deep); border: 2px solid var(--line); font-size: 12px; }
+  .cost div { display: flex; align-items: center; gap: 6px; }
+  .cost svg { width: 18px; height: 18px; }
+  .cost .ok { color: var(--cyan); }
+  .cost .short { color: var(--pink); }
+  .cost small { color: var(--muted); font-size: 11px; }
+  .detail .btn { width: 100%; }
+  .label-look { position: absolute; right: 12px; top: 10px; font: 400 12px/1 var(--display); color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="app" data-tab="capsules" data-say="the flap is stuck! if we had a spring… maybe someone finds one out there?">
+  <div class="page2">
+    <div class="bar">
+      <div class="seg"><button>machine</button><button class="on">upgrades</button></div>
+      
+      <div class="bits" id="bits"></div>
+    </div>
+    <div class="body">
+      <div class="tree" id="tree"></div>
+      <div class="detail sticker" id="detail"></div>
+    </div>
+  </div>
+</div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  const content = mountFrame();
+  const $ = s => content.querySelector(s);
+
+  // bits: machine parts pets bring home from adventures
+  const BIT_ART = {
+    gear: `<circle cx="12" cy="12" r="4.5" fill="none" stroke="var(--lilac)" stroke-width="2"/><path d="M12 3 L12 6 M12 18 L12 21 M3 12 L6 12 M18 12 L21 12 M5.6 5.6 L7.8 7.8 M16.2 16.2 L18.4 18.4 M5.6 18.4 L7.8 16.2 M16.2 7.8 L18.4 5.6" stroke="var(--lilac)" stroke-width="2.4" stroke-linecap="round"/>`,
+    spring: `<path d="M7 4 Q17 5 7 8 Q17 9 7 12 Q17 13 7 16 Q17 17 7 20" fill="none" stroke="var(--mint)" stroke-width="2" stroke-linecap="round"/>`,
+    bolt: `<path d="M8 5 L16 5 L17 8 L7 8 Z" fill="var(--gold)" stroke="var(--gold)" stroke-width="1.5" stroke-linejoin="round"/><path d="M12 8 L12 20 M10 11 L14 11 M10 14 L14 14 M10 17 L14 17" stroke="var(--gold)" stroke-width="2" stroke-linecap="round"/>`,
+    glass: `<path d="M6 4 L18 4 L20 20 L4 20 Z" fill="color-mix(in srgb, var(--cyan) 20%, transparent)" stroke="var(--cyan)" stroke-width="2" stroke-linejoin="round"/><path d="M8 8 L11 7 M8 11 L10 10.4" stroke="var(--text)" stroke-width="1.6" stroke-linecap="round" opacity=".7"/>`,
+  };
+  const HAVE = { gear: 2, spring: 0, bolt: 1, glass: 0 };
+  $("#bits").innerHTML = Object.entries(HAVE).map(([k, n]) => `<span class="bit ${n ? "" : "none"}" title="${k}s: pets find them on adventures"><svg viewBox="0 0 24 24">${BIT_ART[k]}</svg>${k === "glass" ? "glass" : k + "s"} ${n}</span>`).join("");
+
+  // the tree: repairs are the trunk, the branches grow off them
+  const ICON = {
+    tape: `<path d="M6 16 L18 8 M8 19 L20 11" /><path d="M5 12 L10 17" />`,
+    oil: `<path d="M12 4 Q18 12 18 15 Q18 20 12 20 Q6 20 6 15 Q6 12 12 4 Z"/>`,
+    flap: `<path d="M6 8 L18 8 L18 18 L6 18 Z"/><path d="M6 8 L18 13" />`,
+    glass: `<circle cx="12" cy="12" r="7"/><path d="M8.5 9.5 Q10 7.5 12.5 7"/>`,
+    brass: `<path d="M12 4 L14 10 L20 10 L15 14 L17 20 L12 16 L7 20 L9 14 L4 10 L10 10 Z"/>`,
+    coin: `<path d="M12 4 L19 11 L12 20 L5 11 Z"/><path d="M5.5 11 L18.5 11"/>`,
+    chute: `<path d="M5 6 L10 6 L10 18 L5 18 Z M14 6 L19 6 L19 18 L14 18 Z"/>`,
+    balls: `<circle cx="9" cy="13" r="4.5"/><circle cx="15.5" cy="10" r="4.5"/>`,
+    shiny: `<circle cx="11" cy="13" r="5.5"/><path d="M18 3 L18.8 5.2 L21 6 L18.8 6.8 L18 9 L17.2 6.8 L15 6 L17.2 5.2 Z"/>`,
+    lights: `<circle cx="6" cy="12" r="2.5"/><circle cx="12" cy="12" r="2.5"/><circle cx="18" cy="12" r="2.5"/>`,
+    drops: `<circle cx="12" cy="12" r="7"/><path d="M9.5 10 Q10 7.5 12.5 7.8 Q15 8.3 14.3 10.8 Q13.6 12.4 12 13 L12 14.5"/><circle cx="12" cy="17" r=".8"/>`,
+  };
+  const COL = { repair: "var(--pink)", coins: "var(--cyan)", chutes: "var(--mint)", balls: "var(--gold)", shiny: "var(--lilac)", later: "var(--muted)" };
+  // x, y in a 760 x 470 map; state: owned / next / dim (you can see it, can't get it yet) / hidden
+  const NODES = [
+    { id: "tape", b: "repair", x: 380, y: 410, name: "tape up the crack", icon: "tape", state: "owned", big: true,
+      says: "the globe had a big crack. taped! capsules stop falling out the side.", gain: "+1 coin a capsule", cost: [] },
+    { id: "oil", b: "repair", x: 380, y: 330, name: "oil the lever", icon: "oil", state: "owned", from: "tape", big: true,
+      says: "the lever squeaked and stuck. now it glides.", gain: "x2 coins", cost: [] },
+    { id: "flap", b: "repair", x: 380, y: 250, name: "unstick the flap", icon: "flap", state: "next", from: "oil", big: true,
+      says: "the flap sticks, so half the capsules jam inside. a new spring would fix it.", gain: "x2 coins, and a new branch: extra balls", cost: [["coins", 60, 43], ["spring", 1, 0]] },
+    { id: "glass", b: "repair", x: 380, y: 170, name: "new glass", icon: "glass", state: "dim", from: "flap", big: true,
+      says: "the old glass is all cloudy and scratched.", gain: "x3 coins, and shiny balls", cost: [["coins", 400, 43], ["glass", 1, 0]] },
+    { id: "brass", b: "repair", x: 380, y: 92, name: "???", icon: "brass", state: "hidden", from: "glass", big: true },
+    { id: "drops", b: "later", x: 380, y: 30, name: "better drops", icon: "drops", state: "hidden", from: "brass", big: true },
+
+    { id: "c1", b: "coins", x: 270, y: 410, name: "shinier coins", icon: "coin", state: "owned", from: "tape", lvl: "3/10",
+      says: "polish every coin before it goes in a capsule.", gain: "x1.25 coins a level", cost: [["coins", 38, 43]] },
+    { id: "c2", b: "coins", x: 170, y: 410, name: "heavier coins", icon: "coin", state: "dim", from: "c1",
+      says: "thicker coins. they clink better.", gain: "x2 coins", cost: [["coins", 250, 43], ["bolt", 1, 1]] },
+    { id: "c3", b: "coins", x: 75, y: 410, name: "???", icon: "coin", state: "hidden", from: "c2" },
+
+    { id: "ch2", b: "chutes", x: 490, y: 330, name: "a second chute", icon: "chute", state: "next", from: "oil",
+      says: "there's a second chute, all bent shut. bend it back and every pull drops two capsules.", gain: "2 capsules a pull", cost: [["coins", 120, 43], ["gear", 1, 2]] },
+    { id: "ch3", b: "chutes", x: 600, y: 330, name: "a third chute", icon: "chute", state: "hidden", from: "ch2" },
+
+    { id: "b1", b: "balls", x: 270, y: 250, name: "double drop", icon: "balls", state: "dim", from: "flap",
+      says: "sometimes two capsules squeeze out of one chute.", gain: "5% chance of 2 balls per chute", cost: [["coins", 300, 43]] },
+    { id: "b2", b: "balls", x: 170, y: 250, name: "???", icon: "balls", state: "hidden", from: "b1" },
+
+    { id: "s1", b: "shiny", x: 490, y: 170, name: "shiny balls", icon: "shiny", state: "hidden", from: "glass" },
+    { id: "l1", b: "later", x: 270, y: 170, name: "???", icon: "lights", state: "hidden", from: "glass" },
+  ];
+  const q = new URLSearchParams(location.search);
+  let picked = q.get("node") || "flap";
+
+  function drawTree() {
+    const byId = Object.fromEntries(NODES.map(n => [n.id, n]));
+    const links = NODES.filter(n => n.from).map(n => {
+      const a = byId[n.from], on = n.state === "owned";
+      return `<path class="link ${on ? "on" : ""}" d="M${a.x} ${a.y} L${n.x} ${n.y}"/>`;
+    }).join("");
+    const nodes = NODES.map(n => {
+      const r = n.big ? 28 : 22, c = COL[n.b];
+      const need = (n.cost || []).find(([k, need, have]) => k !== "coins" && have < need);
+      return `<g class="node ${n.state} ${n.big ? "big" : ""} ${n.id === picked ? "picked" : ""}" data-id="${n.id}" style="--c: ${c}" transform="translate(${n.x} ${n.y})">
+        ${n.state === "next" ? `<circle class="glow" r="${r + 5}"/>` : ""}
+        <circle class="disc" r="${r}"/>
+        <g class="ico" transform="translate(-12 -12)">${ICON[n.icon]}</g>
+        ${n.state === "hidden" ? `<text class="q" y="7">?</text>` : ""}
+        ${n.lvl ? `<rect class="lvlpill" x="-15" y="${r - 8}" width="30" height="14" rx="7"/><text class="lvl" y="${r + 3}">${n.lvl}</text>` : ""}
+        ${need && n.state !== "hidden" ? `<g transform="translate(${r - 6} ${-r - 2}) scale(.8)"><circle r="12" fill="var(--deep)" stroke="var(--pink)" stroke-width="2"/><g transform="translate(-12 -12)">${BIT_ART[need[0]]}</g></g>` : ""}
+        <text class="name" y="${r + (n.lvl ? 22 : 16)}">${n.state === "hidden" ? "" : n.name}</text>
+      </g>`;
+    }).join("");
+    $("#tree").innerHTML = `<svg class="map" viewBox="45 5 590 470" preserveAspectRatio="xMidYMid meet">
+      <text class="branch-label" x="60" y="382">coins</text>
+      <text class="branch-label" x="560" y="302">chutes</text>
+      <text class="branch-label" x="150" y="222">extra balls</text>
+      <text class="branch-label" x="418" y="416">repairs</text>
+      ${links}${nodes}</svg>
+      <div class="legend"><span><i style="background: var(--lilac-seam)"></i>fixed</span><span><i style="border: 2px dashed var(--pink)"></i>next</span><span><i style="background: var(--deep); border: 2px solid var(--line)"></i>later</span></div>`;
+    content.querySelectorAll(".node").forEach(el => el.addEventListener("click", () => { picked = el.dataset.id; drawTree(); drawDetail(); }));
+  }
+
+  // a tiny picture of the machine, showing what's still broken
+  function mini() {
+    const fixed = id => NODES.find(n => n.id === id).state === "owned";
+    return `<svg class="mini" width="120" height="120" viewBox="0 0 120 120">
+      <circle cx="60" cy="42" r="32" fill="color-mix(in srgb, var(--lilac) 9%, var(--page))" stroke="var(--lilac)" stroke-width="2.5"/>
+      ${fixed("glass") ? "" : `<path d="M40 30 Q48 26 52 34 Q58 30 64 38" fill="none" stroke="var(--muted)" stroke-width="1.5" opacity=".7"/><circle cx="72" cy="30" r="9" fill="var(--text)" opacity=".08"/>`}
+      ${fixed("tape") ? `<path d="M76 20 L90 34 M72 24 L86 38" stroke="var(--gold)" stroke-width="5" opacity=".8"/>` : ""}
+      <path d="M30 74 L90 74 L94 110 L26 110 Z" fill="color-mix(in srgb, var(--pink) 22%, var(--page))" stroke="var(--pink)" stroke-width="2.5"/>
+      <circle cx="40" cy="98" r="3" fill="#8a6448"/><circle cx="80" cy="84" r="2.5" fill="#8a6448"/>
+      <rect x="50" y="90" width="20" height="16" rx="3" fill="var(--deep)" stroke="var(--pink-seam)" stroke-width="2" transform="${fixed("flap") ? "" : "rotate(8 60 98)"}"/>
+      <path d="M94 88 L104 70" stroke="var(--gold)" stroke-width="4" stroke-linecap="round"/><circle cx="105" cy="67" r="5" fill="var(--pink)"/>
+    </svg>`;
+  }
+
+  function drawDetail() {
+    const n = NODES.find(n => n.id === picked);
+    if (n.state === "hidden") {
+      $("#detail").innerHTML = `${mini()}<h2>???</h2><p class="kind">something else is broken in there…</p><p>fix what's next to it first.</p>`;
+      return;
+    }
+    const costs = (n.cost || []).map(([k, need, have]) => {
+      const short = have < need;
+      const art = k === "coins" ? `<span data-icon="coin" data-px="1.2"></span>` : `<svg viewBox="0 0 24 24">${BIT_ART[k]}</svg>`;
+      return `<div class="${short ? "short" : "ok"}">${art}${need} ${k === "coins" ? "coins" : k + (need > 1 ? "s" : "")} <small>(you have ${have})</small></div>
+        ${short && k !== "coins" ? `<div><small>pets find ${k}s on adventures</small></div>` : ""}`;
+    }).join("");
+    const blocked = (n.cost || []).some(([k, need, have]) => have < need);
+    $("#detail").innerHTML = `${mini()}
+      <h2>${n.name}</h2>
+      <p class="kind" style="color: ${COL[n.b]}">${n.b === "repair" ? "a repair" : n.b}${n.lvl ? `, level ${n.lvl}` : ""}</p>
+      <p>${n.says}</p>
+      <p class="gain">${n.gain}</p>
+      ${n.state === "owned" && !n.lvl ? `<p class="kind" style="color: var(--mint)">fixed ✓</p>` : `<div class="cost">${costs}</div>
+      <button class="btn" ${blocked ? "disabled" : ""}>${blocked ? "not yet" : n.b === "repair" ? "fix it" : "upgrade"}</button>`}`;
+    paintIcons($("#detail"));
+  }
+  drawTree(); drawDetail();
+  applyLook(loadLook());
+</script>
+</body>
+</html>

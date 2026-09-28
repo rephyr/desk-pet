@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Encounter art</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<style>
+  /* Encounter art on the trail: when the pets stop at an event, the thing they found shows up
+     on the trail just ahead of them (to their right). Three looks to pick from. */
+  body { background: var(--backdrop); color: var(--text); font: var(--body-size)/1.4 var(--body); margin: 0; padding: 20px 24px 40px; }
+  h1 { font: var(--display-weight) 26px/1 var(--display); color: var(--pink); margin: 0 0 4px; }
+  .lede { color: var(--muted); margin: 0 0 18px; max-width: 900px; }
+  section { margin-bottom: 26px; }
+  section h2 { font: var(--display-weight) 19px/1 var(--display); color: var(--gold); margin: 0 0 4px; }
+  section p { margin: 0 0 10px; color: var(--muted); max-width: 900px; }
+  .row { display: grid; grid-template-columns: repeat(2, 520px); gap: 14px; }
+
+  .trail { position: relative; height: 230px; border-radius: var(--r-panel); overflow: hidden; background: var(--paper); border: 2px solid var(--line); }
+  .trail svg.bg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .trail .place { position: absolute; left: 14px; top: 10px; font: var(--display-weight) 15px/1 var(--display); color: var(--pink); }
+  .trail .title { position: absolute; left: 14px; top: 30px; font-size: 11px; color: var(--gold); }
+  .pets { position: absolute; left: 34px; bottom: 44px; display: flex; align-items: flex-end; gap: 6px; }
+  .pets img { image-rendering: pixelated; display: block; }
+  .bang { position: absolute; font: 700 22px/1 var(--body); color: var(--pink); animation: hop 1s ease-in-out infinite; }
+  @keyframes hop { 50% { transform: translateY(-4px); } }
+  canvas.px { image-rendering: pixelated; display: block; }
+
+  /* A: pixel sprite on the ground */
+  .thing { position: absolute; bottom: 44px; }
+  .thing.glow { filter: drop-shadow(0 0 6px color-mix(in srgb, var(--cyan) 60%, transparent)); }
+  .shadow { position: absolute; bottom: 40px; height: 6px; border-radius: 50%; background: rgba(0,0,0,.35); }
+  /* B: crayon doodle */
+  svg.doodle { position: absolute; bottom: 38px; overflow: visible; }
+  svg.doodle * { fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  /* C: polaroid sticker on a stick */
+  .polaroid { position: absolute; bottom: 64px; padding: 8px 8px 22px; background: var(--raised); border: 2px solid var(--line); border-radius: 6px; box-shadow: var(--lift); transform: rotate(3deg); }
+  .polaroid .inner { background: var(--deep); border-radius: 3px; padding: 8px 10px; display: grid; place-items: center; }
+  .polaroid b { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; font-weight: 400; font-size: 11px; color: var(--gold); }
+  .polaroid::before { content: ""; position: absolute; top: -7px; left: 50%; width: 34px; height: 12px; margin-left: -17px; background: color-mix(in srgb, var(--pink) 45%, transparent); transform: rotate(-4deg); border-radius: 2px; }
+  .stick { position: absolute; bottom: 44px; width: 3px; height: 26px; background: var(--lilac-seam); border-radius: 2px; }
+</style>
+</head>
+<body>
+<h1>encounter art</h1>
+<p class="lede">When your pets stop at something on the trail, it shows up just ahead of them, to the right, while the adventure card asks what to do. Four samples (the basket, the fox, the glowing mushrooms, the humming chest) in three looks.</p>
+
+<section>
+  <h2>A: pixel things on the trail</h2>
+  <p>Drawn in the same chunky pixels as the pets, standing on the path like they're really there. Glowing things glow. Easiest to read next to the pets.</p>
+  <div class="row" id="a"></div>
+</section>
+<section>
+  <h2>B: crayon doodles</h2>
+  <p>Wobbly crayon lines like the map's place doodles. Softer and more storybook, a bit less "there".</p>
+  <div class="row" id="b"></div>
+</section>
+<section>
+  <h2>C: polaroid on a stick</h2>
+  <p>The pixel thing on a little taped photo stuck in the ground, with its name under it. Reads like a postcard or a sign, and it matches the stickers and postcards.</p>
+  <div class="row" id="c"></div>
+</section>
+
+<script>
+// Sprites as row strings (like the game's pixel icons, so they port straight to Godot).
+// "." is empty; every other letter is a colour from the sprite's palette.
+const SPRITES = {
+  basket: { pal: { d: "#9c7a3c", g: "#ffe08a", w: "#d9b565", h: "#c9a0ff", m: "#8fe8c0", p: "#ff79c6" }, rows: [
+    "......dddddddd......",
+    ".....d........d.....",
+    "....d..........d....",
+    "....d.......p..d....",
+    ".dddddddddddppddddd.",
+    ".dggggggggggggggggd.",
+    "..dwgwgwgwgwgwgwgd..",
+    "..dgwgwgwgwgwgwgwd..",
+    "..dwgwgwgwgwgwgwgd..",
+    "...dgwgwgwgwgwgwd...",
+    "...dwgwgwgwgwgwgd...",
+    "....dddddddddddd....",
+    "m.m..............m.m",
+    ".m................m.",
+  ] },
+  fox: { pal: { o: "#ffb38a", d: "#c7714f", w: "#fff1e6", k: "#1a1024", n: "#592a45", m: "#8fe8c0" }, rows: [
+    "..d...d.............",
+    "..od.odd............",
+    "..oooooo............",
+    ".oooooooo...........",
+    ".okooookoo..........",
+    "wwwooooooo..........",
+    "wnwwooooo....oo.....",
+    ".wwwwoooo...oooo....",
+    "...wwooooooooooow...",
+    "...wwooooooooooww...",
+    "...wwoooooooooww....",
+    "...wwooooooooo......",
+    "...woo.oo.ooo.......",
+    "...dd..dd.dd........",
+    "m.m...........m.m...",
+  ] },
+  mushrooms: { glow: true, pal: { p: "#ff79c6", s: "#a64f81", c: "#8be9fd", b: "#4fa9c9", w: "#f5dcec", t: "#c9b8d9", y: "#ffe08a", m: "#8fe8c0" }, rows: [
+    "........y...........",
+    "....y......cccc.....",
+    "..pppp....cwcccc..y.",
+    ".pwpppp..cccccwcc...",
+    "pppppwpp.bbbbbbbb...",
+    "ssssssss...tt.......",
+    "...tt......tt..pp...",
+    "...tt.....ttt.pwpp..",
+    "..ttt.y...tt..ssss..",
+    "..tt......tt...tt...",
+    "m.tt.m...mtt.m.tt.m.",
+    ".mm.m.m.m.mm.m.mm.m.",
+  ] },
+  chest: { pal: { d: "#4d3466", l: "#6f588c", g: "#ffe08a", k: "#1a1024", p: "#ff79c6", m: "#8fe8c0" }, rows: [
+    "..............pppp..",
+    "..............p..p..",
+    "..............p..p..",
+    ".............pp.pp..",
+    "...ddddddddd.pp.pp..",
+    "..dllllllllld.......",
+    ".dlllllllllllld.....",
+    ".ggggggggggggggg....",
+    ".dlllllgkglllld.....",
+    ".dlllllgggllllld....",
+    ".dllllllllllllld....",
+    ".dllllllllllllld....",
+    ".ggggggggggggggg....",
+    "m.m...........m.m...",
+  ] },
+};
+
+// The trail: a wavy path and the dim pointy trees, like trail_view.gd.
+function trailBg(w, h) {
+  let trees = "";
+  for (let x = 30; x < w; x += 86) trees += `<path d="M${x} ${h - 60} l22 -40 l22 40 z" fill="#2c1d3d"/>`;
+  let path = `M0 ${h - 40}`;
+  for (let x = 0; x <= w; x += 20) path += ` L${x} ${h - 40 + Math.sin(x / 40) * 2}`;
+  let bits = "";
+  for (let x = 12; x < w; x += 57) bits += `<circle cx="${x}" cy="${h - 46}" r="3" fill="#6d2f58"/>`;
+  return `<svg class="bg" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">${trees}<path d="${path}" stroke="#6d2f58" stroke-width="3" fill="none"/>${bits}</svg>`;
+}
+
+function spriteCanvas(name, px) {
+  const s = SPRITES[name];
+  const w = Math.max(...s.rows.map(r => r.length)), h = s.rows.length;
+  const c = document.createElement("canvas");
+  c.width = w * px; c.height = h * px; c.className = "px";
+  const g = c.getContext("2d");
+  s.rows.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch === "." || !s.pal[ch]) return;
+    g.fillStyle = s.pal[ch]; g.fillRect(x * px, y * px, px, px);
+  }));
+  return c;
+}
+
+const PETS = ["lilac-blob", "mint-bear", "sky-bunny"];
+const SAMPLES = [
+  { id: "basket", place: "the meadow", title: "a little basket" },
+  { id: "fox", place: "the woods", title: "a hungry fox" },
+  { id: "mushrooms", place: "the woods", title: "glowing mushrooms" },
+  { id: "chest", place: "the garden path", title: "a humming chest" },
+];
+
+// crayon versions (B): a couple of wobbly passes, colours from the theme
+const DOODLES = {
+  basket: `<path d="M18 30 Q40 2 62 30" stroke="var(--lilac)" stroke-width="3"/><path d="M6 32 L74 31 L66 62 L14 63 Z" stroke="var(--gold)" stroke-width="3"/><path d="M8 33 L73 33 L65 61 L15 62 Z" stroke="var(--gold)" stroke-width="1.5" opacity=".6"/><path d="M12 44 L70 43 M15 53 L67 53" stroke="var(--gold)" stroke-width="2" opacity=".7"/><circle cx="52" cy="24" r="4" stroke="var(--pink)" stroke-width="2.5"/>`,
+  fox: `<path d="M10 22 L14 6 L22 16 L30 6 L32 22 Q36 38 22 40 Q8 38 10 22 Z" stroke="var(--peach, #ffb38a)" stroke-width="3"/><circle cx="17" cy="24" r="1.6" fill="var(--text)" stroke="none"/><circle cx="27" cy="24" r="1.6" fill="var(--text)" stroke="none"/><path d="M22 40 Q24 62 44 62 Q62 60 60 44 Q58 34 48 36" stroke="#ffb38a" stroke-width="3"/><path d="M60 44 Q80 30 84 50 Q80 62 64 58" stroke="#ffb38a" stroke-width="3"/><path d="M78 44 Q84 50 80 56" stroke="var(--text)" stroke-width="2"/>`,
+  mushrooms: `<path d="M4 30 Q18 8 34 30 Z" stroke="var(--pink)" stroke-width="3"/><path d="M16 30 L15 58 M22 30 L23 58" stroke="var(--muted)" stroke-width="2.5"/><path d="M40 20 Q56 -2 72 20 Z" stroke="var(--cyan)" stroke-width="3"/><path d="M53 20 L52 58 M59 20 L60 58" stroke="var(--muted)" stroke-width="2.5"/><path d="M74 42 Q82 32 90 42 Z" stroke="var(--pink)" stroke-width="2.5"/><path d="M81 42 L81 58" stroke="var(--muted)" stroke-width="2.5"/><circle cx="36" cy="10" r="2" stroke="var(--gold)" stroke-width="2"/><circle cx="88" cy="26" r="1.5" stroke="var(--gold)" stroke-width="2"/>`,
+  chest: `<path d="M6 26 Q40 4 74 26" stroke="var(--lilac)" stroke-width="3"/><path d="M6 26 L74 26 L73 60 L7 61 Z" stroke="var(--lilac)" stroke-width="3"/><path d="M6 34 L74 34" stroke="var(--gold)" stroke-width="2.5"/><path d="M36 30 L44 30 L44 40 L36 40 Z" stroke="var(--gold)" stroke-width="2.5"/><path d="M82 14 L82 0 L90 3 M82 14 Q78 16 78 12 Q80 9 82 12" stroke="var(--pink)" stroke-width="2"/><path d="M92 26 L92 16 M92 26 Q88 28 88 24 Q90 21 92 24" stroke="var(--pink)" stroke-width="2"/>`,
+};
+
+function trailFor(sample, style) {
+  const el = document.createElement("div");
+  el.className = "trail";
+  el.innerHTML = trailBg(560, 230) + `<div class="place">${sample.place}</div>`;
+  const pets = document.createElement("div");
+  pets.className = "pets";
+  PETS.forEach((p, i) => pets.insertAdjacentHTML("beforeend", `<img src="../assets/pets/${p}.png" width="${i === 2 ? 64 : 50}" height="${i === 2 ? 72 : 56}">`));
+  el.appendChild(pets);
+  el.insertAdjacentHTML("beforeend", `<div class="bang" style="left:${34 + 50 + 6 + 50 + 6 + 26}px;bottom:${44 + 78}px">!</div>`);
+  const x = 280;
+  if (style === "a") {
+    const c = spriteCanvas(sample.id, 5);
+    const thing = document.createElement("div");
+    thing.className = "thing" + (SPRITES[sample.id].glow ? " glow" : "");
+    thing.style.left = x + "px";
+    thing.appendChild(c);
+    el.insertAdjacentHTML("beforeend", `<div class="shadow" style="left:${x + 10}px;width:${c.width - 20}px"></div>`);
+    el.appendChild(thing);
+  } else if (style === "b") {
+    el.insertAdjacentHTML("beforeend", `<svg class="doodle" style="left:${x}px" width="110" height="80" viewBox="0 -8 96 72">${DOODLES[sample.id]}</svg>`);
+  } else {
+    const card = document.createElement("div");
+    card.className = "polaroid";
+    card.style.left = (x - 10) + "px";
+    const inner = document.createElement("div");
+    inner.className = "inner";
+    inner.appendChild(spriteCanvas(sample.id, 4));
+    card.appendChild(inner);
+    card.insertAdjacentHTML("beforeend", `<b>${sample.title}</b>`);
+    el.insertAdjacentHTML("beforeend", `<div class="stick" style="left:${x + 50}px"></div>`);
+    el.appendChild(card);
+  }
+  return el;
+}
+
+for (const style of ["a", "b", "c"])
+  for (const s of SAMPLES) document.getElementById(style).appendChild(trailFor(s, style));
+</script>
+</body>
+</html>

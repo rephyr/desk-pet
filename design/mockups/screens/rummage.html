@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rummage</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* the pet's room: a doodled room on the page; things found on trips become furniture */
+  .room { position: relative; height: 100%; border-radius: var(--r-panel); overflow: hidden; background: var(--paper); border: 2px solid var(--line); }
+  .room svg.scene { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .scene .wall-line { fill: none; stroke: var(--lilac-seam); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .scene .soft { fill: none; stroke: var(--line); stroke-width: 2.5; stroke-linecap: round; }
+  .scene .floor { fill: var(--page); }
+  .scene .skyfill { fill: var(--sky); }
+  .scene .moon { fill: var(--gold); }
+  .scene .rug { fill: color-mix(in srgb, var(--pink) 16%, var(--page)); stroke: var(--pink-seam); stroke-width: 2.5; stroke-dasharray: 6 5; stroke-linecap: round; }
+  .scene .cushion { fill: var(--pink-seam); stroke: var(--pink); stroke-width: 2.5; }
+  .scene .basket { fill: color-mix(in srgb, var(--gold) 30%, var(--page)); stroke: var(--gold); stroke-width: 2.5; stroke-linejoin: round; }
+  .scene .shelf { stroke: var(--lilac-seam); stroke-width: 3; stroke-linecap: round; }
+  .scene .jar { fill: color-mix(in srgb, var(--mint) 25%, var(--page)); stroke: var(--mint); stroke-width: 2.2; }
+  .scene .blanket { fill: color-mix(in srgb, var(--lilac) 30%, var(--page)); stroke: var(--lilac); stroke-width: 2.2; }
+  .find { cursor: help; }
+
+  .pet { position: absolute; width: 96px; height: 108px; }
+  .card { position: absolute; left: 22px; bottom: 20px; width: 200px; padding: 12px 14px; transform: rotate(-1.5deg); }
+  .pet img { width: 96px; height: 108px; animation: breathe 3s ease-in-out infinite; transform-origin: bottom; cursor: pointer; }
+  @keyframes breathe { 50% { transform: scaleY(.97) scaleX(1.02); } }
+  .card .name { font: var(--display-weight) 18px/1 var(--display); color: var(--pink); margin: 0 0 10px; }
+  .needs { width: 100%; display: grid; grid-template-columns: auto 1fr; gap: 5px 8px; align-items: center; font-size: 11px; color: var(--muted); }
+  .needs .bar { height: 9px; border-radius: 5px; background: var(--deep); border: 2px solid var(--line); overflow: hidden; }
+  .needs .bar i { display: block; height: 100%; border-radius: 4px; }
+  .care { display: flex; gap: 8px; margin-top: 10px; }
+  .care small { color: var(--cyan); display: inline-flex; align-items: center; gap: 3px; }
+
+  /* sticky notes pinned to the wall: what needs you */
+  .notes { position: absolute; right: 18px; top: 16px; display: grid; grid-template-columns: 150px 150px; gap: 16px 12px; }
+  .note {
+    position: relative; display: block; padding: 14px 12px 10px; min-height: 76px; text-decoration: none; color: var(--text);
+    background: var(--raised); border: 2px solid var(--line); border-radius: 4px 4px 10px 4px; box-shadow: var(--lift);
+    transform: rotate(var(--tilt)); transition: transform .15s var(--ease-out), border-color .12s;
+  }
+  .note::before { content: ""; position: absolute; top: -8px; left: 50%; width: 40px; height: 14px; margin-left: -20px; border-radius: 2px; background: color-mix(in srgb, var(--accent) 45%, transparent); transform: rotate(-3deg); }
+  .note:hover { transform: rotate(0) translateY(-3px); border-color: var(--accent); }
+  .note b { display: block; font: var(--display-weight) 14px/1.1 var(--display); color: var(--accent); margin-bottom: 4px; font-weight: 400; }
+  .note span { display: block; font-size: 12px; line-height: 1.3; }
+  .note em { display: block; margin-top: 5px; font-style: normal; font-size: 11px; color: var(--muted); }
+  .note.quiet { opacity: .55; }
+  .note.quiet::before { opacity: .4; }
+
+  .hover-tip { position: absolute; padding: 4px 9px; border-radius: 8px; background: var(--deep); border: 2px solid var(--line); font-size: 11px; color: var(--text); pointer-events: none; opacity: 0; transition: opacity .15s; white-space: nowrap; }
+
+  .scene .wood { fill: color-mix(in srgb, var(--lilac) 22%, var(--page)); stroke: var(--lilac-seam); stroke-width: 2.5; stroke-linejoin: round; }
+  .scene .soft.w, .scene .soft.s { stroke: var(--lilac-seam); stroke-width: 2; }
+  .scene .knob { fill: var(--lilac); }
+  .scene .leaf { fill: color-mix(in srgb, var(--mint) 30%, var(--page)); stroke: var(--mint); stroke-width: 2.2; stroke-linejoin: round; }
+  .scene .pot { fill: color-mix(in srgb, var(--pink) 25%, var(--page)); stroke: var(--pink-seam); stroke-width: 2.5; stroke-linejoin: round; }
+  .scene .sock1 { fill: color-mix(in srgb, var(--cyan) 22%, var(--page)); stroke: var(--cyan); stroke-width: 2.2; }
+  .scene .sock2 { fill: color-mix(in srgb, var(--pink) 22%, var(--page)); stroke: var(--pink); stroke-width: 2.2; }
+  .scene .toy { fill: color-mix(in srgb, var(--gold) 18%, var(--page)); stroke: var(--gold); stroke-width: 2.5; stroke-linejoin: round; }
+  .scene .toylid { fill: color-mix(in srgb, var(--gold) 28%, var(--page)); stroke: var(--gold); stroke-width: 2.5; stroke-linejoin: round; }
+  .spot { cursor: pointer; }
+  .spot[data-ready="0"] { opacity: .45; cursor: default; }
+  .peekcoin { display: none; fill: var(--gold); stroke: var(--deep); stroke-width: 1.5; }
+  /* look A: sparkles over ready spots */
+  .twinkle { position: absolute; width: 14px; height: 14px; pointer-events: none; animation: tw 1.4s ease-in-out infinite; }
+  .twinkle::before, .twinkle::after { content: ""; position: absolute; left: 6px; top: 0; width: 2px; height: 14px; background: var(--gold); border-radius: 1px; }
+  .twinkle::after { transform: rotate(90deg); }
+  @keyframes tw { 0%,100% { transform: scale(.4); opacity: .3; } 50% { transform: scale(1); opacity: 1; } }
+  /* look B: the pet's crayon circle and "!!" */
+  .crayon { position: absolute; pointer-events: none; border: 2.5px dashed var(--pink); border-radius: 50% 46% 52% 48%; transform: rotate(-4deg); }
+  .crayon b { position: absolute; right: -14px; top: -18px; font: 400 18px/1 var(--display); color: var(--pink); transform: rotate(8deg); }
+  /* look C: a coin peeks out and the spot wiggles now and then */
+  body.look-c .spot[data-ready="1"] .peekcoin { display: inline; }
+  body.look-c .spot[data-ready="1"] { animation: wig 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: bottom center; }
+  @keyframes wig { 0%,80%,100% { transform: none; } 84% { transform: rotate(-2deg); } 88% { transform: rotate(2deg); } 92% { transform: rotate(-1deg); } }
+  .float { position: absolute; font: 400 18px/1 var(--display); color: var(--gold); pointer-events: none; text-shadow: 0 2px 0 var(--deep); display: flex; gap: 4px; align-items: center; }
+  .bits { position: absolute; width: 8px; height: 8px; border-radius: 2px; pointer-events: none; }
+  .label-look { position: absolute; left: 14px; top: 10px; font: 400 13px/1 var(--display); color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="app" data-tab="home" data-say="bean is still out… ooh, is something in the toy box?">
+  <div class="room">
+    <svg class="scene" viewBox="0 0 790 470" preserveAspectRatio="xMinYMin slice" aria-hidden="true">
+      <!-- floor -->
+      <path class="floor" d="M0 332 Q200 326 395 330 Q590 334 790 328 L790 470 L0 470 Z"/>
+      <path class="wall-line" d="M-5 332 Q200 326 395 330 Q590 334 795 328"/>
+      <!-- window with the night outside -->
+      <path class="skyfill" d="M42 58 Q108 54 176 57 L178 196 Q110 199 44 197 Z"/>
+      <g class="stars">
+        <rect x="70" y="84" width="2" height="2" fill="var(--text)" opacity=".6"/><rect x="130" y="72" width="2" height="2" fill="var(--text)" opacity=".4"/>
+        <rect x="96" y="130" width="2" height="2" fill="var(--text)" opacity=".5"/><rect x="152" y="160" width="2" height="2" fill="var(--text)" opacity=".35"/>
+        <rect x="60" y="170" width="2" height="2" fill="var(--text)" opacity=".45"/>
+      </g>
+      <path class="moon" d="M146 92 Q132 104 140 120 Q150 132 164 126 Q146 124 144 108 Q144 98 146 92 Z"/>
+      <path class="wall-line" d="M42 58 Q108 54 176 57 L178 196 Q110 199 44 197 Z"/>
+      <path class="wall-line" d="M110 56 L111 197 M43 126 Q110 124 177 127"/>
+      <path class="soft" d="M34 202 Q110 206 186 201"/>
+      <!-- the rug, and the cushion found on a trip -->
+      <ellipse class="rug" cx="403" cy="388" rx="170" ry="46"/>
+      <!-- rummage spots: your pet digs in them while trips are out -->
+      <g class="spot" id="dresser" data-tip="the little dresser" data-ready="1">
+        <path class="wood" d="M222 262 Q262 259 304 262 L306 334 L220 334 Z"/>
+        <path class="soft w" d="M226 286 L300 286 M226 310 L300 310"/>
+        <circle class="knob" cx="263" cy="274" r="2.5"/><circle class="knob" cx="263" cy="298" r="2.5"/><circle class="knob" cx="263" cy="322" r="2.5"/>
+        <circle class="peekcoin" cx="300" cy="298" r="6"/>
+      </g>
+      <g transform="translate(-112 0)"><g class="spot" id="plant" data-tip="the big plant pot" data-ready="1">
+        <path class="leaf" d="M738 318 Q712 268 726 236 Q744 272 742 316 Z"/>
+        <path class="leaf" d="M744 316 Q748 262 774 246 Q772 290 750 318 Z"/>
+        <path class="leaf" d="M740 318 Q736 284 750 262 Q758 292 748 318 Z"/>
+        <circle class="peekcoin" cx="732" cy="316" r="6"/>
+        <path class="pot" d="M718 316 L772 316 L764 352 L726 352 Z"/>
+      </g></g>
+      <g class="spot" id="socks" data-tip="the sock pile (back in a bit)" data-ready="0">
+        <path class="sock1" d="M254 436 Q256 418 276 420 Q300 414 310 428 Q314 444 290 446 Q262 448 254 436 Z"/>
+        <path class="sock2" d="M270 422 Q282 404 300 412 L306 424 Q290 420 276 428 Z"/>
+        <path class="soft s" d="M266 432 L300 430"/>
+      </g>
+      <g transform="translate(-26 58)"><g class="spot" id="toybox" data-tip="the toy box" data-ready="1">
+        <circle class="peekcoin" cx="640" cy="346" r="6"/>
+        <path class="toy" d="M586 356 L650 354 L652 400 L588 402 Z"/>
+        <path class="toylid" d="M582 346 L654 344 L656 358 L584 360 Z"/>
+        <circle cx="604" cy="380" r="7" fill="none" stroke="var(--cyan)" stroke-width="2"/><path d="M624 372 l8 14 l-16 0 z" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linejoin="round"/>
+      </g></g>
+    </svg>
+
+    <div class="pet"><img class="px" src="../assets/pets/lilac-blob.png" alt="lilac blob, your active pet" title="pat me!"></div>
+    <div class="card sticker">
+      <div class="name">lilac blob</div>
+      <div class="needs">
+        <span>food</span><span class="bar"><i style="width: 72%; background: var(--pink)"></i></span>
+        <span>mood</span><span class="bar"><i style="width: 88%; background: var(--lilac)"></i></span>
+      </div>
+      <div class="care">
+        <button class="btn">feed <small><span data-icon="coin" data-px="1.2"></span>3</small></button>
+        <button class="btn">pat</button>
+      </div>
+    </div>
+
+    <div class="notes">
+      <a class="note quiet" href="trips.html" style="--tilt: -2deg; --accent: var(--mint)"><b>trips</b><span>1 out and about</span><em>watch them go</em></a>
+      <a class="note quiet" href="boxes.html" style="--tilt: 1.5deg; --accent: var(--cyan)"><b>boxes</b><span>your pile is empty</span><em>buy some</em></a>
+     <a class="note quiet" href="trips.html" style="--tilt: -1.5deg; --accent: var(--gold)"><b>map</b><span>the map</span><em>plan an adventure</em></a>
+    </div>
+    <div class="hover-tip"></div>
+    <div class="label-look"></div>
+  </div>
+</div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  const content = mountFrame();
+  const room = content.querySelector(".room"), tip = content.querySelector(".hover-tip");
+  content.querySelectorAll(".spot").forEach(f => {
+    f.addEventListener("mousemove", e => {
+      const r = room.getBoundingClientRect();
+      tip.textContent = f.dataset.tip; tip.style.opacity = 1;
+      tip.style.left = e.clientX - r.left + 12 + "px"; tip.style.top = e.clientY - r.top - 30 + "px";
+    });
+    f.addEventListener("mouseleave", () => tip.style.opacity = 0);
+  });
+  // sit the pet on its cushion, wherever the room scaled it to
+  function seat() {
+    const r = room.getBoundingClientRect(), c = content.querySelector(".rug").getBoundingClientRect(), box = content.querySelector(".pet");
+    box.style.left = c.left - r.left + c.width / 2 - 48 + "px";
+    box.style.top = c.top - r.top + c.height * 0.45 - 108 + "px";
+  }
+  
+  const q = new URLSearchParams(location.search), look = q.get("look") || "a";
+  document.body.classList.add("look-" + look);
+  content.querySelector(".label-look").textContent = { a: "A: sparkles", b: "B: crayon circle", c: "C: a coin peeks out", dig: "tapping the toy box" }[look] || "";
+  function marks() {
+    room.querySelectorAll(".twinkle,.crayon,.float,.bits").forEach(e => e.remove());
+    const r = room.getBoundingClientRect();
+    content.querySelectorAll('.spot[data-ready="1"]').forEach(sp => {
+      if (look === "dig" && sp.id === "toybox") return;
+      const b = sp.getBoundingClientRect();
+      if (look === "a" || look === "dig") {
+        [[.15, -.05, 0], [.85, .15, .5], [.5, -.2, .9]].forEach(([fx, fy, d]) => {
+          const t = document.createElement("i"); t.className = "twinkle";
+          t.style.left = b.left - r.left + b.width * fx - 7 + "px"; t.style.top = b.top - r.top + b.height * fy - 7 + "px"; t.style.animationDelay = d + "s";
+          room.appendChild(t);
+        });
+      } else if (look === "b") {
+        const c = document.createElement("div"); c.className = "crayon"; c.innerHTML = "<b>!!</b>";
+        c.style.left = b.left - r.left - 10 + "px"; c.style.top = b.top - r.top - 10 + "px";
+        c.style.width = b.width + 20 + "px"; c.style.height = b.height + 20 + "px";
+        room.appendChild(c);
+      }
+    });
+    if (look === "dig") {
+      const tb = content.querySelector("#toybox"), box = content.querySelector(".pet");
+      tb.querySelector(".toylid").setAttribute("transform", "rotate(-28 582 352)");
+      tb.style.animation = "none";
+      const b = tb.getBoundingClientRect();
+      box.style.left = b.left - r.left + b.width / 2 - 48 + "px"; box.style.top = b.top - r.top - 50 + "px";
+      box.querySelector("img").style.transformOrigin = "center"; box.querySelector("img").style.transform = "rotate(172deg)"; box.querySelector("img").style.animation = "none";
+      box.style.height = "62px"; box.style.overflow = "hidden";
+      [["+4", -52, -56, '<span data-icon="coin" data-px="1.4"></span>'], ["xp", 58, -84, "✦"]].forEach(([t, x, y, ic]) => {
+        const f = document.createElement("div"); f.className = "float";
+        f.innerHTML = t === "xp" ? '<span style="color: var(--cyan)">✦ xp</span>' : t + " " + ic;
+        f.style.left = b.left - r.left + b.width / 2 + x + "px"; f.style.top = b.top - r.top + y + "px"; room.appendChild(f);
+      });
+      [[-40, -20, "var(--cyan)"], [44, -30, "var(--pink)"], [-20, -70, "var(--lilac)"], [30, -10, "var(--gold)"]].forEach(([x, y, c]) => {
+        const d = document.createElement("i"); d.className = "bits"; d.style.background = c;
+        d.style.left = b.left - r.left + b.width / 2 + x + "px"; d.style.top = b.top - r.top + y + "px"; d.style.transform = `rotate(${x}deg)`;
+        room.appendChild(d);
+      });
+      paintIcons(room);
+      document.querySelector(".top .bubble").textContent = "rummage rummage… a coin! and a sparkly thing!";
+    }
+  }
+  seat(); marks(); addEventListener("resize", () => { seat(); marks(); });
+  const pet = content.querySelector(".pet img");
+  pet.addEventListener("click", () => { pet.animate([{ transform: "scale(1.1, .85)" }, { transform: "none" }], { duration: 260, easing: "cubic-bezier(.3,1.6,.5,1)" }); document.querySelector(".top .bubble").textContent = "hehe. again!"; });
+  applyLook(loadLook());
+</script>
+</body>
+</html>

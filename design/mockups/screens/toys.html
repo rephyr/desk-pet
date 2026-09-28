@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toy Shelf</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* collectibles tab, toys page: the display shelf, the set, and one toy up close */
+  .toys { display: grid; grid-template-columns: 1fr 250px; grid-template-rows: minmax(0, 1fr); gap: 14px; height: 100%; }
+  .main { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .bar { display: flex; align-items: center; gap: 10px; }
+  .seg { display: inline-flex; background: var(--deep); border: 2px solid var(--line); border-radius: var(--r-md); padding: 2px; }
+  .seg button { background: none; border: 0; color: var(--muted); padding: 4px 12px; border-radius: 6px; cursor: pointer; font: inherit; font-size: 12px; }
+  .seg button.on { background: var(--pink-pressed); color: var(--text); }
+
+  /* the display shelf: toys that are "on", their bonuses work */
+  .shelf { position: relative; display: flex; align-items: flex-end; gap: 18px; padding: 12px 18px 16px; border-radius: var(--r-lg); background: var(--raised); border: 2px solid var(--line); }
+  .shelf::after { content: ""; position: absolute; left: 12px; right: 12px; bottom: 12px; height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--lilac) 30%, var(--page)); border: 2px solid var(--lilac-seam); }
+  .shelf h3 { position: absolute; left: 16px; top: 10px; margin: 0; font: 400 14px/1 var(--display); color: var(--lilac); }
+  .shelf .slots { display: flex; gap: 14px; margin-left: 150px; align-items: flex-end; }
+  .slot { position: relative; width: 70px; height: 70px; display: grid; place-items: end center; z-index: 1; }
+  .slot.empty { border: 2px dashed var(--line); border-radius: 10px; height: 60px; place-items: center; color: var(--locked); font-size: 11px; text-align: center; margin-bottom: 8px; }
+  .slot.empty span { display: block; }
+  .shelf .now { margin-left: auto; z-index: 1; max-width: 250px; padding-bottom: 8px; font-size: 12px; color: var(--muted); }
+  .shelf .now b { display: block; color: var(--mint); font-weight: 400; margin-bottom: 2px; }
+
+  .sethead { display: flex; align-items: baseline; gap: 10px; }
+  .sethead h2 { margin: 0; font: 400 18px/1 var(--display); color: var(--pink); }
+  .sethead .count { font-size: 12px; color: var(--muted); white-space: nowrap; }
+  .sethead .setbonus:last-child { margin-left: auto; }
+  .setbonus { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .setbonus .meter { width: 90px; height: 9px; border-radius: 5px; background: var(--deep); border: 2px solid var(--line); overflow: hidden; }
+  .setbonus .meter i { display: block; height: 100%; background: var(--gold); }
+  .setbonus b { color: var(--gold); font-weight: 400; }
+
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; overflow: auto; padding: 4px 6px 10px 4px; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--lilac-seam) transparent; }
+  .toy { position: relative; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px 9px; border-radius: var(--r-lg); background: var(--raised); border: 2px solid var(--tier); cursor: pointer; transform: rotate(var(--tilt)); transition: transform .15s var(--ease-out); }
+  .toy:hover { transform: rotate(0) translateY(-3px); }
+  .toy.on { outline: 2px dashed var(--pink); outline-offset: 3px; transform: rotate(0); }
+  .toy.missing { border-color: var(--line); background: color-mix(in srgb, var(--raised) 60%, var(--page)); }
+  .toy .nm { font-size: 12px; }
+  .toy .tr { font-size: 11px; color: var(--tier); }
+  .toy.missing .nm, .toy.missing .tr { color: var(--locked); }
+  .toy .lv { position: absolute; top: 6px; left: 8px; font: 400 12px/1 var(--display); color: var(--gold); }
+  .toy .ct { position: absolute; top: -7px; right: -7px; padding: 0 6px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); font-size: 11px; color: var(--text); }
+  .toy .eds { display: flex; gap: 3px; margin-top: 3px; }
+  .ed { width: 9px; height: 9px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--deep); }
+  .ed.normal.have { background: var(--text); border-color: var(--text); }
+  .ed.holo.have { background: linear-gradient(135deg, var(--pink), var(--gold), var(--mint), var(--cyan)); border-color: var(--lilac); }
+  .ed.foil.have { background: linear-gradient(135deg, #8a6a1f, var(--gold), #fff6d6); border-color: var(--gold); }
+  .ed.ghost.have { background: color-mix(in srgb, var(--cyan) 40%, transparent); border-color: var(--cyan); box-shadow: 0 0 4px var(--cyan); }
+  .toy .ready { position: absolute; bottom: -9px; padding: 1px 8px; border-radius: 999px; background: var(--mint); color: var(--deep); font-size: 11px; }
+
+  /* one toy up close */
+  .detail { display: flex; flex-direction: column; align-items: center; padding: 14px 16px 12px; min-height: 0; overflow: auto; }
+  .detail .big { margin: 2px 0 4px; }
+  .detail h2 { margin: 0; font: 400 20px/1.1 var(--display); color: var(--pink); }
+  .detail .tr { font-size: 12px; margin-top: 2px; }
+  .detail .does { margin: 6px 0 2px; font-size: 12px; text-align: center; color: var(--text); }
+  .detail .does b { color: var(--mint); font-weight: 400; }
+  .editions { width: 100%; margin-top: 6px; display: flex; flex-direction: column; gap: 5px; }
+  .edition { display: grid; grid-template-columns: 24px 1fr auto; gap: 0 8px; align-items: center; padding: 4px 8px; border-radius: 8px; background: var(--deep); border: 2px solid var(--line); font-size: 12px; }
+  .edition.none { opacity: .45; }
+  .edition .fn { color: var(--text); }
+  .edition small { grid-column: 2; font-size: 11px; color: var(--muted); }
+  .edition .lvl { grid-row: span 2; font: 400 13px/1 var(--display); color: var(--gold); }
+  .edition .ed { grid-row: span 2; width: 14px; height: 14px; justify-self: center; }
+  .detail .btns { width: 100%; display: flex; gap: 6px; margin-top: 10px; }
+  .detail .btns .btn { flex: 1; padding-left: 4px; padding-right: 4px; }
+  .detail .btns .btn { width: 100%; }
+  .label-look { position: fixed; left: 12px; bottom: 8px; font: 400 12px/1 var(--display); color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="app" data-tab="collection" data-say="the snail's on the shelf! it's making the capsules pop faster. i think.">
+  <div class="toys">
+    <div class="main">
+      <div class="bar">
+        <div class="seg"><button>pets</button><button class="on">toys</button><button>book</button></div>
+        <span style="font-size: 12px; color: var(--muted)">toys come out of the capsule machine</span>
+      </div>
+      <div class="shelf">
+        <h3>on display</h3>
+        <div class="slots" id="slots"></div>
+        <div class="now"><b>snail (holo, level 2)</b>capsules pop open 0.15 s sooner</div>
+      </div>
+      <div class="sethead">
+        <h2>backyard friends</h2><span class="count" id="count"></span><span class="setbonus"><span class="meter"><i id="meter"></i></span></span>
+        <span class="setbonus">finish the set: <b>+1 coin in every capsule, forever</b></span>
+      </div>
+      <div class="grid" id="grid"></div>
+    </div>
+    <div class="detail sticker" id="detail"></div>
+  </div>
+</div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script src="../shared/toys.js"></script>
+<script>
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "inventory").label = "upgrading";
+  const content = mountFrame();
+  // what you have: toy -> { edition: count }, and each edition's level
+  const HAVE = {
+    snail: { normal: { n: 2, lv: 2 }, holo: { n: 1, lv: 2 } },
+    ladybug: { normal: { n: 2, lv: 1 } },
+    mushroom: { normal: { n: 1, lv: 1 } },
+    acorn: { normal: { n: 3, lv: 1 } },
+    bee: { normal: { n: 1, lv: 1 }, ghost: { n: 1, lv: 1 } },
+    gnome: { normal: { n: 1, lv: 1 } },
+  };
+  const q = new URLSearchParams(location.search);
+  let picked = q.get("toy") || "snail";
+  const TILTS = [-1.5, 1.2, 2, -1, 1.6, -2, 1, -1.4];
+
+  function best(id) {
+    const h = HAVE[id]; if (!h) return null;
+    const order = ["ghost", "foil", "holo", "normal"];
+    return order.find(f => h[f]) || null;
+  }
+  function draw() {
+    const owned = TOY_SET.toys.filter(t => HAVE[t.id]).length;
+    content.querySelector("#count").textContent = `${owned} of ${TOY_SET.toys.length}`;
+    content.querySelector("#meter").style.width = owned / TOY_SET.toys.length * 100 + "%";
+    content.querySelector("#slots").innerHTML =
+      `<div class="slot">${toySvg("snail", "holo", 66)}</div>` +
+      `<div class="slot empty"><span>🔒</span><span>a bigger shelf</span></div>`;
+    content.querySelector("#grid").innerHTML = TOY_SET.toys.map((t, i) => {
+      const h = HAVE[t.id], f = best(t.id), secret = t.tier === "secret";
+      const total = h ? Object.values(h).reduce((a, e) => a + e.n, 0) : 0;
+      const ready = h && Object.values(h).some(e => e.n >= 3);
+      const lv = h ? Math.max(...Object.values(h).map(e => e.lv)) : 0;
+      return `<div class="toy ${h ? "" : "missing"} ${t.id === picked ? "on" : ""}" data-id="${t.id}" style="--tier: ${TOY_TIERS[t.tier]}; --tilt: ${TILTS[i]}deg">
+        ${h ? `<span class="lv">lv ${lv}</span><span class="ct">x${total}</span>` : ""}
+        ${toySvg(t.id, f || "normal", 58, !h)}
+        <span class="nm">${h || !secret ? t.name : "???"}</span>
+        <span class="tr">${h || !secret ? t.tier : "a secret one"}</span>
+        <span class="eds">${Object.keys(TOY_FINISHES).map(fn => `<i class="ed ${fn} ${h && h[fn] ? "have" : ""}" title="${TOY_FINISHES[fn].name}"></i>`).join("")}</span>
+        ${ready ? `<span class="ready">3 of a kind!</span>` : ""}
+      </div>`;
+    }).join("");
+    const t = TOY_SET.toys.find(t => t.id === picked), h = HAVE[picked];
+    content.querySelector("#detail").innerHTML = h ? `
+      <div class="big">${toySvg(t.id, best(t.id), 96)}</div>
+      <h2>${t.name}</h2>
+      <span class="tr" style="color: ${TOY_TIERS[t.tier]}">${t.tier}</span>
+      <p class="does">on display: <b>${t.does}</b><br><span style="color: var(--muted)">(${t.per})</span></p>
+      <div class="editions">${Object.keys(TOY_FINISHES).map(fn => {
+        const e = h[fn];
+        return `<div class="edition ${e ? "" : "none"}"><i class="ed ${fn} ${e ? "have" : ""}"></i>
+          <span class="fn">${TOY_FINISHES[fn].name}${e ? ` x${e.n}` : ""}</span>
+          ${e ? `<span class="lvl">lv ${e.lv}</span>` : `<span></span>`}
+          <small>${e ? (e.n >= 3 ? "3 of a kind: level up at the workbench!" : `${3 - e.n} more for level ${e.lv + 1}`) : "not found yet"}</small></div>`;
+      }).join("")}</div>
+      <div class="btns">
+        <button class="btn">${picked === "snail" ? "on display ✓" : "display it"}</button>
+        <button class="btn">workbench →</button>
+      </div>` : `
+      <div class="big">${toySvg(t.id, "normal", 120, true)}</div>
+      <h2>${t.tier === "secret" ? "???" : t.name}</h2>
+      <span class="tr" style="color: var(--locked)">${t.tier === "secret" ? "a secret one" : "not found yet"}</span>
+      <p class="does" style="color: var(--muted)">${t.tier === "secret" ? "something's hiding in the capsule machine…" : "keep pulling! it's in there somewhere."}</p>`;
+    content.querySelectorAll(".toy").forEach(el => el.addEventListener("click", () => { picked = el.dataset.id; draw(); }));
+  }
+  draw();
+  applyLook(loadLook());
+</script>
+</body>
+</html>
