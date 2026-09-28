@@ -1,4 +1,4 @@
-# PRICES: done
+# PRICES: done (verified)
 
 Errand tools and boxes are priced in capsules. Their coin price is the base in capsules times
 `Machine.coin_value` (the same unit errand pay uses, with no toy boost), times grow^level for tools.
@@ -75,6 +75,8 @@ value 8): it loaded as 1000 capsules and showed "8,000". The test saves (v12, no
 load as 50 capsules. Prices themselves are computed, not saved.
 
 ## Checks run
+
+- Step verified 2026-09-29 (tests, balance and the prices flow reviewed after the build).
 
 - test_core: ALL PASSED (3399 checks)
 - balance.gd: runs
