@@ -63,3 +63,4 @@ expect text "+10% coins"
 expect text "errands 10% faster"      # the wardrobe, on the same spread
 expect fits
 shot finishes_open
+boosts                                # book parts: blanket (automation), paint set + glitter jar (coins), tape + wardrobe (errands), glass (luck)

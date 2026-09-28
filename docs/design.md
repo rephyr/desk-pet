@@ -132,7 +132,9 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
 - **Page rewards** (built, data/book.json): each part page and the first finishes page ends with
   a gift spot; filling the page opens its reward sticker for good, a small permanent boost (coins,
   luck, automation speed or errands speed, +10% each for now). Stickers multiply with each other
-  and with toys (toys x1.25 x book x1.10 = x1.375). **Open:** stickers for the other bodies'
+  and with toys and knacks (toys x1.25 x book x1.10 = x1.375): each is a `book` part of its boost
+  kind, so the blanket (automation) also speeds your pet's box opening on screen. **Open:**
+  stickers for the other bodies'
   finishes pages.
 
 ## Care (active side)
@@ -178,6 +180,27 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   wear for coins, and SACRIFICES 3 spares for a chance at a special finish (odds shown, gone
   either way). Max level = a FAVOURITE: always on, never wears (the late-game permanent buffs).
   Rerolling toys was cut (too strong). Mockups: toys.html, upgrading.html, toy-designs.html (B).
+  **Boosts (plumbing built, B2; no receipt yet):** every boost is a KIND from data/boosts.json
+  (coins, xp, luck, capsule speed, fever, toy drops, adventure loot, errand speed, automation
+  speed: your pet's crank and box opening and the workers' jobs, not adventures).
+  Each thing boosting a kind is a part (toys, book stickers, your active pet's knacks, and the
+  kitchen for errand speed) and parts from different sources MULTIPLY. Gear stays inside adventures (not a shared kind). The
+  receipt by the coin pill that lists the parts waits for its look.
+  **Knacks (D1, built; look C, sewn badges):** every part has a named knack (data/knacks.json, the
+  35 from design/mockups/screens/knacks.html; no accessory has none): the bunny's "big ears"
+  (+spotting), the cat's "lucky paws" (+luck)... Size = the kind's step x the part's rarity
+  (common 1, uncommon 2, rare 3, epic 5, legendary 8, mythic 12) x the pet's finish (shiny x1.25,
+  holo x1.5, ghost x1.75, glitch x2, prismatic x2.5), rounded to a whole %. Knacks of the same kind
+  on a pet add up. Your ACTIVE pet's knacks are the `knacks` boost source (shared kinds; the hum
+  counts for coins, xp and luck like an "all" toy); other pets' count a quarter on their own work
+  (errand speed, worker speed, their trips). Knack-only kinds: spotting, adventure speed, tougher,
+  safe home, bits and parts, trail pickups, treat length, while away, rummaging, shiny capsules,
+  pet boxes. Traits stay beside knacks (traits per pet, knacks per part). Hidden until earned:
+  nothing shows before parts open (40 trips), and a knack for something you haven't got (fever
+  before the lights, errands, automation, toys, the shiny branch; power until fights) stays hidden.
+  Shown as round sewn badges under the pet on its details (tap one: a card reads it out, "one big
+  eye", "+30% spotting", "eyes: cyclops"), and each collection grid card wears its best badge on
+  the top-right corner. Numbers are placeholders.
   **The broken machine and its tree (Emilia, built):** the machine is an old broken one you fix
   up (machine tab: machine | upgrades). The upgrade TREE (data/machine_tree.json) has a trunk of
   repairs (tape up the crack, oil the lever, unstick the flap, new glass, rewire the lights, better
@@ -302,7 +325,9 @@ Nobody is ever lost on an errand, and errands never bring rare parts or new plac
     burst, never the stream. Tools: a bigger jar, a wider slot.
   - **Kitchen:** brings nothing, every other job works faster: 0.3 x cooks / (cooks + 2) (1 cook
     +10%, 2 +15%, 4 +20%, 10 +25%, never past 30%), capped at what those cooks would add on a real
-    job ((1 + cooks / others)^crew_power − 1), so it never beats one. Each full meter is a meal for
+    job ((1 + cooks / others)^crew_power − 1), so it never beats one. It's a part of the errand
+    speed boost, so it multiplies with the tools' speed ((1 + tools) x (1 + kitchen)) and never
+    speeds the kitchen itself. Each full meter is a meal for
     your pet (+10 food, +2 mood), but only up to 70 (`meal_upto`, `Jobs.feed`): the kitchen keeps
     it from going hungry, filling it up is still yours to do. No tools, no level. The note says
     "every job 12% faster"; with a big crew elsewhere it keeps one decimal ("0.4%") and never

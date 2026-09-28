@@ -28,7 +28,8 @@ var scout := {}  # the scout note it took when it set off ({} if none, see Jobs.
 var scouted: bool:  # it took a scout note: better odds of spotting places and hearing rumours
 	get:
 		return not scout.is_empty()
-var walk := 0.0  # share of the walking the gear's comfy boots take off (worked out once from `gear`, not saved)
+var knacks := {}  # knack kind -> multiplier this trip set off with (GameState.trip_knacks: the kinds marked "trip" in data/boosts.json); missing = x1
+var walk := 0.0  # share of the walking the gear's comfy boots and "trip" knacks take off (worked out once, not saved)
 
 
 ## The event the party is standing at, or {} while walking between them.
@@ -43,8 +44,13 @@ func to_dict() -> Dictionary:
 		"location": location_id, "chooser": chooser, "party": party.to_dict(), "seed": rng_seed, "events": events, "step": step,
 		"started": started, "next_at": next_at, "status": status, "waiting_since": waiting_since,
 		"answer": answer, "log": history, "loot": loot, "went_home": went_home, "xp": xp, "auto": auto, "slot": slot,
-		"gear": gear, "saves_used": saves_used, "scout": scout,
+		"gear": gear, "saves_used": saves_used, "scout": scout, "knacks": knacks,
 	}
+
+
+## What knacks do for this trip for one kind (1.0 when nothing does).
+func knack(kind: String) -> float:
+	return float(knacks.get(kind, 1.0))
 
 
 ## Returns null for runs that can't be loaded any more (e.g. the location was removed from data/).
@@ -73,7 +79,10 @@ static func from_dict(d: Dictionary, catalog: Catalog) -> RunState:
 	var packed: Dictionary = d.get("gear", {})
 	for id in packed:
 		s.gear[str(id)] = int(packed[id])
-	s.walk = Gear.value(catalog, s.gear, "walk")
+	var packed_knacks: Dictionary = d.get("knacks", {})
+	for kind in packed_knacks:
+		s.knacks[str(kind)] = float(packed_knacks[kind])
+	s.walk = AdventureRunner.walk_of(catalog, s.gear, s.knacks)
 	s.saves_used = int(d.get("saves_used", 0))
 	var note: Dictionary = d.get("scout", {})
 	for key in note:

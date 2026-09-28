@@ -1,8 +1,9 @@
 class_name Book
 extends RefCounted
 ## The collection book's reward stickers (data/book.json): filling a page opens its sticker for
-## good, a small permanent boost of one kind (coins, luck, automation, errands). Pure rules; the
-## stickers you've opened are a list of page ids kept in the save (GameState.stickers).
+## good, a small permanent boost of one kind (coins, luck, automation, errands; a Boosts part, see
+## GameState.boost_parts). Pure rules; the stickers you've opened are a list of page ids kept in
+## the save (GameState.stickers).
 ## A page is a part slot's page ("slot") or one body's finishes page ("finishes_of").
 
 
@@ -54,13 +55,13 @@ static func newly_full(catalog: Catalog, collection: Collection, stickers: Array
 	return out
 
 
-## What the open stickers multiply one kind by (1.0 with none); different pages multiply.
-static func multiplier(catalog: Catalog, stickers: Array, kind: String) -> float:
-	var x := 1.0
+## The open stickers' parts of one boost kind (see Boosts): one per open sticker of that kind.
+static func parts(catalog: Catalog, stickers: Array, kind: String) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
 	for p in pages(catalog):
 		if stickers.has(str(p.id)) and str(p.kind) == kind:
-			x *= float(p.x)
-	return x
+			out.append(Boosts.part("book", str(p.id), float(p.x)))
+	return out
 
 
 ## The line under a sticker's name, e.g. "+10% coins" (built from its x, so it always matches).

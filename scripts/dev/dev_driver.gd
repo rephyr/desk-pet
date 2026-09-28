@@ -45,6 +45,9 @@ extends Node
 ##   stickers off          full book pages open their stickers without a popup from now on, and
 ##                         any sticker popups waiting go away (for flows with big `pets` steps,
 ##                         where how many pages fill is random)
+##   boosts                logs every boost kind's total and its parts (data/boosts.json)
+##   dress <slot>=<id> ... [finish=<id>]   your active pet gets these parts (and finish), e.g.
+##                         dress body=bunny eyes=cyclops finish=holo (for knacks, data/knacks.json)
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -188,6 +191,7 @@ func _step(w: PackedStringArray) -> String:
 			GameState.toys_changed.emit()
 		"fix":  # fix <node> [levels]: that machine tree node, for free (skips the building-up)
 			GameState.machine.bought[w[1]] = Machine.owned(GameState.machine, w[1]) + (int(w[2]) if w.size() > 2 else 1)
+			GameState._knack_gates_changed()  # like a real fix (no sparkles: machine_upgraded isn't sent)
 			GameState.changed.emit()
 		"coins":  # coins <n>: you have exactly n coins
 			GameState.coins = int(w[1])
@@ -259,6 +263,32 @@ func _step(w: PackedStringArray) -> String:
 				return "stickers takes: off"
 			for p in _all(UnlockPopup):
 				p.quiet_stickers()
+		"boosts":  # boosts: every boost kind's total and parts, in the log
+			for k in Boosts.kinds(GameState.catalog):
+				var parts := GameState.boost_parts(k)
+				var bits: Array[String] = []
+				for p in parts:
+					bits.append("%s %s x%.3f" % [p.source, p.id, float(p.x)])
+				_write(("boost %s x%.3f %s" % [k, Boosts.total(parts), ", ".join(bits)]).strip_edges())
+		"dress":  # dress body=bunny eyes=cyclops finish=holo: your active pet's parts and finish
+			var pet := GameState.collection.active()
+			if pet == null:
+				return "no active pet"
+			for pair in w.slice(1):
+				var kv := pair.split("=")
+				if kv.size() != 2:
+					return "dress wants slot=id, not %s" % pair
+				if kv[0] == "finish":
+					if GameState.catalog.finish(kv[1]).id != kv[1]:
+						return "unknown finish %s" % kv[1]
+					pet.finish = kv[1]
+				elif not kv[0] in Catalog.SLOTS or GameState.catalog.part(kv[0], kv[1]).is_empty():
+					return "unknown part %s" % pair
+				else:
+					pet.parts[kv[0]] = kv[1]
+			GameState.collection.pet_changed.emit(pet)
+			GameState.collection.active_changed.emit(pet)
+			GameState.save_game()
 		"quit":
 			_finish()
 		_:

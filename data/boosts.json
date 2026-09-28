@@ -1,0 +1,26 @@
+{
+	"_note": "Boost kinds (scripts/core/boosts.gd). Every multiplier on a kind comes from a source (toys, the book's stickers, your active pet's knacks, the kitchen's cooks: errands only) as a part { source, id, x }; parts from every source multiply. `all`: an 'all' toy counts for this kind. 'automation' speeds every timed automation job: your pet's crank and box opening (in and out of sight) and the workers' machines and tables; adventures run on the trip's own clock. Only knacks feed spots (lead chance), trip (trip time divided), tough (hurt and injured counts divided), safe (lost counts divided), finds (extra bits and parts), pickups (trail pickups), treats (treat zoom), away (time away counts more: errands, the crank, the coin trickle), rummage (rummage coins), shiny (shiny capsule chance) and pet_boxes (pet box weight) so far; `trip`: the kind is packed on a trip when it sets off (Boosts.trip_kinds, RunState.knacks). `sources` and `name` are the order and wording for the boost receipt later (not shown yet).",
+	"sources": ["toys", "book", "knacks", "kitchen"],
+	"kinds": [
+		{ "id": "coins", "name": "coins", "all": true },
+		{ "id": "xp", "name": "xp", "all": true },
+		{ "id": "luck", "name": "luck", "all": true },
+		{ "id": "speed", "name": "capsule speed" },
+		{ "id": "fever", "name": "fever" },
+		{ "id": "toys", "name": "toy drops" },
+		{ "id": "loot", "name": "adventure loot", "trip": true },
+		{ "id": "errands", "name": "errand speed" },
+		{ "id": "automation", "name": "automation speed" },
+		{ "id": "spots", "name": "spotting", "trip": true },
+		{ "id": "trip", "name": "adventure speed", "trip": true },
+		{ "id": "tough", "name": "fewer bumps", "trip": true },
+		{ "id": "safe", "name": "safe home", "trip": true },
+		{ "id": "finds", "name": "bits and parts", "trip": true },
+		{ "id": "pickups", "name": "trail pickups", "trip": true },
+		{ "id": "treats", "name": "treat length", "trip": true },
+		{ "id": "away", "name": "while away" },
+		{ "id": "rummage", "name": "rummaging" },
+		{ "id": "shiny", "name": "shiny capsules" },
+		{ "id": "pet_boxes", "name": "pet boxes" }
+	]
+}

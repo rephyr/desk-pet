@@ -6,9 +6,7 @@ extends RefCounted
 ##   { owned: { "snail:holo": { level, spares, wear } }, playing: [ { key, until, wear } ] }
 ## Every toy you own is an edition (toy + finish), keyed "toy id:finish id".
 
-## Bonus kinds a toy can have; "all" counts for coins, xp and luck.
-const KINDS := ["coins", "luck", "xp", "speed", "fever", "toys", "loot"]
-const ALL_COVERS := ["coins", "xp", "luck"]
+## A toy's bonus is a boost kind (data/boosts.json) or "all" (the kinds marked "all" there).
 
 
 static func data(catalog: Catalog) -> Dictionary:
@@ -123,14 +121,16 @@ static func active(state: Dictionary, catalog: Catalog, now: float) -> Array:
 	return out
 
 
-## Everything working right now multiplied together for one bonus kind (1.0 when nothing is).
-static func multiplier(state: Dictionary, catalog: Catalog, kind: String, now: float) -> float:
-	var m := 1.0
+## The toys' parts of one boost kind (see Boosts): one for every edition working on it right now.
+static func parts(state: Dictionary, catalog: Catalog, kind: String, now: float) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var covers_all := Boosts.all_covers(catalog, kind)
 	for k in active(state, catalog, now):
 		var bonus: String = toy(catalog, split(k)[0]).get("bonus", "")
-		if bonus == kind or (bonus == "all" and kind in ALL_COVERS):
-			m *= boost(state, catalog, k)
-	return m
+		if bonus == kind or (bonus == "all" and covers_all):
+			out.append(Boosts.part("toys", k, boost(state, catalog, k)))
+	return out
+
 
 
 static func play_info(catalog: Catalog, play_id: String) -> Dictionary:

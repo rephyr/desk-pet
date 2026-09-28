@@ -1,7 +1,8 @@
 class_name PetCard
 extends PanelContainer
 ## One pet as a sticker: outlined in its rarity colour, with a soft glow for the very rare ones.
-## It lifts and tilts a little under the mouse; the chosen one gets a pink ring.
+## It lifts and tilts a little under the mouse; the chosen one gets a pink ring. In the collection
+## grid it wears its best knack's badge on the top-right corner (see Knacks, KnackBadge).
 
 signal pressed(pet: Pet)
 
@@ -9,11 +10,15 @@ const WIDTH := 92
 
 var pet: Pet
 var _selected := false
+var _best := {}  # the knack on the corner badge ({} for none)
 
 
-func _init(p_pet: Pet, pixel := 3, animated := false) -> void:
+## `knack`: wear the best knack's badge on the corner (the collection grid).
+func _init(p_pet: Pet, pixel := 3, animated := false, knack := false) -> void:
 	pet = p_pet
 	var catalog := Catalog.shared()
+	if knack:
+		_best = Knacks.best(catalog, pet, GameState.knack_gate)
 	var color := catalog.tier_color(pet.rarity)
 	var rank := catalog.rank(pet.rarity)
 	mouse_filter = MOUSE_FILTER_STOP
@@ -67,6 +72,10 @@ func _lift(up: bool) -> void:
 func _draw() -> void:
 	if _selected:
 		draw_style_box(UiTheme.box(Color(0, 0, 0, 0), UiTheme.PINK, 14, 2, 0), Rect2(Vector2(-5, -5), size + Vector2(10, 10)))
+	if not _best.is_empty():
+		# 24 px, poking out over the top-right corner, tilted a little
+		draw_circle(Vector2(size.x - 4, 5), 13.0, UiTheme.SHADOW)
+		KnackBadge.draw_badge(self, _best, Vector2(size.x - 4, 4), 24.0, 10.0)
 
 
 func _gui_input(event: InputEvent) -> void:

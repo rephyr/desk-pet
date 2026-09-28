@@ -50,6 +50,7 @@ job kitchen 2
 wait 1
 expect text "every job 1*"
 expect text "a meal every*"
+boosts                        # errands: the kitchen part
 scroll 400
 wait 0.5
 shot kitchen
