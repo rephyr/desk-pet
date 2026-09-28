@@ -10,7 +10,8 @@ extends RefCounted
 ## and moves timestamps onto it by hand (trips, fever, rummage), and runs errands with
 ## _work_for(seconds). A few rules ARE copied here and have to be kept in step with GameState by hand
 ## (if they change, the numbers drift without any error):
-##   _automation: the lines of GameState._work_for_automation (so your pet and the workers count apart)
+##   _automation: the lines of GameState._work_for_automation (so your pet and the workers count apart,
+##     book stickers included)
 ##   _zoom: GameState._zoom_runs (treats on the trail)
 ##   _passive: the coin and hunger/happiness decay part of GameState._process
 ## Saving is off (a scratch save path), and the game starts fresh.
@@ -149,7 +150,7 @@ func _passive() -> void:
 func _automation() -> void:
 	var a: Dictionary = gs.automation
 	if a.task == "machine":
-		var pulls := Automation.crank(catalog, a, 1.0)
+		var pulls := Automation.crank(catalog, a, 1.0, gs.book_x("automation"))  # the book's automation stickers
 		if pulls > 0:
 			var c0: int = gs.coins
 			gs._pet_cranks(pulls, false)
