@@ -1,11 +1,15 @@
 # MERGE done: lanes/plushie (F1) + lanes/c1-c3 (C3) into the sewing lane (E1 dungeon)
 
+**Status: VERIFIED 2026-09-29** (after the review fixes below; SAVE_VERSION 26 = v24 dungeon,
+v25 plushie, v26 new homes, all three renumber at the main merge).
+
 One branch now has the E1 dungeon (on the herd + knacks), the F1 plushie machine and C3 new homes +
 the sorting rule, working together. E3 can open the plushie machine (`find:plushie_machine`, its
 `given_by` note in data/unlocks.json) and add keep lines to the sorting rule.
 
 1. `git merge --no-ff lanes/plushie` (committed: "merge the plushie machine into the sewing lane")
-2. `git merge --no-ff lanes/c1-c3` (resolved and staged, commit pending)
+2. `git merge --no-ff lanes/c1-c3` (committed with the review fixes: "merge new homes into the
+   sewing lane, with review fixes")
 
 ## Save chain
 
@@ -115,6 +119,15 @@ CLAUDE.md "where we left off":
 - Can the plushie keeper also go down the well in the army? [No: one place at a time.]
 - Wisp colour: two nearly equal values. [Kept the dungeon lane's.]
 - The keeper can still be put on errands / worker jobs (as in the plushie lane). OK? [Left as is.]
+
+## Verified
+
+- Step verified: test_core ALL PASSED (3901 checks, rerun at verify), balance clean, flows fits,
+  tutorial, dungeon, knacks, plushie, new_homes, pets_shelves, errands, errands_crowd, automation,
+  workers PASSED.
+- Commits on lanes/sewing: "merge the plushie machine into the sewing lane", "merge new homes into
+  the sewing lane, with review fixes", plus this note. Not pushed.
+- Save bumps to renumber on the main merge: v24 (E1), v25 (F1, no migration), v26 (C3).
 
 
 ---
