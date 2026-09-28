@@ -1,5 +1,7 @@
 # B3 done: automation layer 2, the whistle (look A, the to-do list)
 
+**Verified 2026-09-28:** test_core ALL PASSED (3313 checks); flows whistle, workers, automation, fits pass.
+
 ## What was built
 - **The find:** a tiny whistle at the old well (event `well_whistle`, auto find) once you have
   **30 workers** (all jobs added up). New event key `after_workers` (AdventureRunner.pick_events /
