@@ -29,6 +29,7 @@ static var LILAC_SEAM := Color("6f588c")
 static var CYAN := Color("8be9fd")  # coins, always
 static var GOLD := Color("ffe08a")  # xp and sparkles, always
 static var MINT := Color("8fe8c0")  # healing and growth
+static var WISP := Color("ff9e7d")  # wisps, the darker currency (candy floss coral), always
 static var SHADOW := Color(0.02, 0.01, 0.05, 0.6)
 static var DARK := true  # the theme is a dark one
 # older names for the same roles
@@ -66,6 +67,7 @@ static func apply() -> void:
 	PINK = _c(c, "pink", PINK); PINK_SEAM = _c(c, "pink_seam", PINK_SEAM); PINK_PRESSED = _c(c, "pink_pressed", PINK_PRESSED)
 	LILAC = _c(c, "lilac", LILAC); LILAC_SEAM = _c(c, "lilac_seam", LILAC_SEAM)
 	CYAN = _c(c, "cyan", CYAN); GOLD = _c(c, "gold", GOLD); MINT = _c(c, "mint", MINT); SHADOW = _c(c, "shadow", SHADOW)
+	WISP = _c(c, "wisp", WISP)
 	DARK = str(t.get("kind", "dark")) == "dark"
 	BG = PAGE; BG_DEEP = DEEP; BG_RAISED = RAISED
 	var tiers := {}
@@ -405,6 +407,7 @@ static func named_color(color_name: String) -> Color:
 		"lilac": return LILAC
 		"mint": return MINT
 		"gold": return GOLD
+		"wisp": return WISP
 	return PINK
 
 
@@ -509,6 +512,12 @@ const DOODLES := {
 	"knack_shiny": '<path d="M11 3 Q12 10 19.6 11.2 Q12 12.4 11 20 Q10 12.4 2.8 11.2 Q10 10 11 3 Z"/><path d="M18.6 3.2 L18.6 7 M16.7 5.1 L20.5 5.1"/>',
 	"knack_pet_boxes": '<path d="M4.6 10.8 Q4.4 15.5 5 19.8 Q12 20.6 19.2 19.7 Q19.7 15 19.5 10.5"/><path d="M3.4 7.4 Q12 6.8 20.5 7.1 L20.4 10.5 Q12 11 3.6 10.7 Z"/><path d="M12 7.3 L12.1 20.1"/>',
 	"knack_power": '<path d="M12 3.6 L19 6.2 Q19.2 15 12 20.6 Q4.8 15 5 6.2 Z"/><path d="M9 11.6 L11.4 14 L15.2 9.6"/>',
+	# the plushie machine (design/mockups/screens/sacrifice-reels.html): a button, a blank, a crack
+	# with stuffing coming out, and a puff of wisps (always in their own colours)
+	"button": '<circle cx="12" cy="12" r="8.4" fill="{pink}" fill-opacity=".35" stroke="{pink}" stroke-width="2.2"/><circle cx="12" cy="12" r="5.2" stroke="{pink}" stroke-width="1.2" opacity=".6"/><circle cx="10" cy="10" r="1.3" fill="{deep}" stroke="none"/><circle cx="14" cy="10" r="1.3" fill="{deep}" stroke="none"/><circle cx="10" cy="14" r="1.3" fill="{deep}" stroke="none"/><circle cx="14" cy="14" r="1.3" fill="{deep}" stroke="none"/>',
+	"reel_blank": '<path d="M8 12.4 Q12 11.2 16 12.4" stroke="{muted}" stroke-width="2.4" opacity=".7"/>',
+	"reel_crack": '<path d="M4.5 13 L8 9.5 L11 13.5 L14 9 L17 13 L19.5 10.5" stroke="{text}" stroke-width="2.2"/><circle cx="11" cy="16.6" r="2.6" fill="{wisp}" stroke="none"/><circle cx="13.6" cy="17.4" r="2" fill="{wisp}" stroke="none"/><circle cx="9" cy="17.6" r="1.7" fill="{wisp}" stroke="none"/>',
+	"wisp": '<circle cx="9" cy="13.5" r="5" fill="{wisp}" stroke="none"/><circle cx="14.5" cy="11" r="5.6" fill="{wisp}" stroke="none"/><circle cx="17.5" cy="15.4" r="3.8" fill="{wisp}" stroke="none"/><path d="M6 17.8 Q12 19.6 20 17.6" stroke="{page}" stroke-width="1.2" opacity=".5"/>',
 	"star": '<path d="M12 2.5 L14.6 9 L21.5 9.4 L16.2 13.8 L17.9 20.6 L12 16.9 L6.1 20.6 L7.8 13.8 L2.5 9.4 L9.4 9 Z" fill="{c}"/>',
 	"bag": '<path d="M8.4 8.2 Q8.5 3.7 12 3.8 Q15.5 3.8 15.6 8.1"/><path d="M4.7 8.3 Q12 7.6 19.3 8.2 L18.7 19.6 Q12 20.5 5.3 19.7 Z"/><path d="M9.5 12.5 Q12 14.1 14.5 12.4"/>',
 	"lock": '<path d="M7.4 11 Q7 4.3 12 4.2 Q17 4.2 16.7 11"/><path d="M5 11.1 Q12 10.5 19 10.9 L18.7 19.8 Q12 20.5 5.3 19.9 Z"/><path d="M12 14.2 L12 16.4"/>',
@@ -548,7 +557,7 @@ static func icon(icon_name: String, size := 18, color := TEXT, style := "") -> T
 	if style == "pixel" and PIXELS.has(icon_name):
 		tex = _pixel_texture(icon_name, size * 2, color)
 	elif DOODLES.has(icon_name):
-		var body: String = DOODLES[icon_name].replace("{c}", _hex(color)).replace("{cyan}", _hex(CYAN)).replace("{gold}", _hex(GOLD)).replace("{pink}", _hex(PINK)).replace("{page}", _hex(PAGE)).replace("{mint}", _hex(MINT)).replace("{lilac}", _hex(LILAC))
+		var body: String = DOODLES[icon_name].replace("{c}", _hex(color)).replace("{cyan}", _hex(CYAN)).replace("{gold}", _hex(GOLD)).replace("{pink}", _hex(PINK)).replace("{page}", _hex(PAGE)).replace("{mint}", _hex(MINT)).replace("{lilac}", _hex(LILAC)).replace("{wisp}", _hex(WISP)).replace("{deep}", _hex(DEEP)).replace("{muted}", _hex(MUTED)).replace("{text}", _hex(TEXT))
 		var svg := '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%s" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">%s</svg>' % [_hex(color), body]
 		tex = _svg_texture(svg, size * 2 / 24.0)
 	_icons[key] = tex

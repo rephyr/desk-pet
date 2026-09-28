@@ -1,0 +1,107 @@
+# The plushie machine (F1/F2, look A: the cabinet): out of sight on the workbench until the sewing
+# room gives it (the find), then it opens with a popup and sews a free button onto your active pet.
+# Feed pets from the herd, spin, hold, bank, nudge, buy nudges, holds and the wild reel with wisps;
+# the next pet hops in; swap the keeper; feed a card. The buttons show on the knack badges.
+# Everything stays inside the window.
+from after_tutorial
+view full
+unlock feature:parts
+dress body=bunny palette=toxic pattern=stars eyes=cyclops accessory=crown
+pets 8
+fav 1
+herd common normal 40
+herd uncommon normal 12
+herd rare shiny 3
+herd epic normal 2
+unlock tab:inventory
+tab inventory
+wait 1
+expect no-text "plushie machine"     # hidden until it's found
+expect fits
+shot hidden
+open-plushie
+wait popup
+expect text "new: the plushie machine!"
+expect fits
+shot opened
+click "show me"
+wait 1
+expect tab inventory
+expect text "keeper"
+expect text "1 button"               # the free button
+expect text "empty!"
+expect fits
+shot empty
+click "+"                            # a hopper row's +
+hopper epic 1
+hopper common 3
+hopper uncommon 2
+hopper rare 1
+wisps 5000
+wait 1
+expect text "next!"
+spin                                 # the best one hops in: the epic
+expect text "spin!"
+land body=button palette=crack pattern=blank eyes=button accessory=blank
+spin
+wait 0.3
+expect fits
+shot mid_try
+hold body
+land body=button palette=blank pattern=button accessory=crack
+spin                                 # eyes banks by itself, the held body gets two more
+wait 0.3
+expect fits
+shot held
+buy nudge
+buy hold
+buy wild
+land body=blank palette=button pattern=blank accessory=button wild=button
+spin
+nudge palette
+wait 0.5
+expect fits
+shot shop
+bank accessory
+wait 0.5
+expect text "kept!"
+spin                                 # the epic's last spin
+expect text "next!"
+spin                                 # whatever's held is banked, the next pet hops in
+wait 0.5
+expect fits
+shot next
+keeper next
+wait 0.5
+expect fits
+shot keeper
+keeper prev
+cards on
+wait 0.5
+expect text "done"
+expect fits
+shot cards
+feed-card 1
+cards off
+wait 0.5
+expect fits
+pets 40                               # lots of card pets: the picker pages through them
+cards on
+wait 0.5
+expect text "1/*"
+expect fits
+shot cards_pages
+cards off
+tab collection
+wait 1
+click MiniCard#1                     # your active pet: its knack badges wear their buttons
+wait 1
+expect fits
+shot badges
+part body:bunny@3                    # a part that came off a pet with buttons keeps them
+part eyes:round
+tab inventory
+page inventory 0
+wait 1
+expect fits
+shot bag

@@ -6,28 +6,28 @@
 			"page": "#1a1024", "deep": "#120a19", "raised": "#241634", "paper": "#1b1324", "sky": "#0f0816",
 			"line": "#2c1d3d", "dot": "#2a1c3b", "text": "#f5dcec", "muted": "#9a88ad", "muted_seam": "#4d4457", "locked": "#76688a",
 			"pink": "#ff79c6", "pink_seam": "#a64f81", "pink_pressed": "#592a45", "lilac": "#c9a0ff", "lilac_seam": "#6f588c",
-			"cyan": "#8be9fd", "gold": "#ffe08a", "mint": "#8fe8c0", "shadow": "#06020c99" } },
+			"cyan": "#8be9fd", "gold": "#ffe08a", "mint": "#8fe8c0", "wisp": "#ff9e7d", "shadow": "#06020c99" } },
 		{ "id": "blueberry", "name": "blueberry night", "kind": "dark", "colors": {
 			"page": "#151a33", "deep": "#0e1226", "raised": "#1f2547", "paper": "#161b36", "sky": "#0a0d1f",
 			"line": "#262d52", "dot": "#222a4c", "text": "#eae6ff", "muted": "#8e92bd", "muted_seam": "#3f4466", "locked": "#6d7299",
 			"pink": "#ff8fc8", "pink_seam": "#a3598a", "pink_pressed": "#4f2a55", "lilac": "#a9b4ff", "lilac_seam": "#545e9a",
-			"cyan": "#7fe6ff", "gold": "#ffd98a", "mint": "#8ff0c8", "shadow": "#03051099" } },
+			"cyan": "#7fe6ff", "gold": "#ffd98a", "mint": "#8ff0c8", "wisp": "#ffa487", "shadow": "#03051099" } },
 		{ "id": "cocoa", "name": "cocoa strawberry", "kind": "dark", "colors": {
 			"page": "#1e1417", "deep": "#150d10", "raised": "#2a1c20", "paper": "#1d1316", "sky": "#110a0c",
 			"line": "#3a262c", "dot": "#33222a", "text": "#fbe6e4", "muted": "#ab8e92", "muted_seam": "#57414a", "locked": "#86686e",
 			"pink": "#ff7e9d", "pink_seam": "#a3505f", "pink_pressed": "#5a2632", "lilac": "#f2b8a0", "lilac_seam": "#7a5048",
-			"cyan": "#8be9e0", "gold": "#ffd98a", "mint": "#9fe8b8", "shadow": "#0a040699" } },
+			"cyan": "#8be9e0", "gold": "#ffd98a", "mint": "#9fe8b8", "wisp": "#ff9c7a", "shadow": "#0a040699" } },
 		{ "id": "lilac_milk", "name": "lilac milk", "kind": "light", "colors": {
 			"page": "#efe5f6", "deep": "#e4d6ef", "raised": "#faf5fd", "paper": "#f1e8f7", "sky": "#e0d0ec",
 			"line": "#d6c3e6", "dot": "#dccbea", "text": "#3b2750", "muted": "#7b6690", "muted_seam": "#c3b2d3", "locked": "#a896ba",
 			"pink": "#d9468f", "pink_seam": "#e79ac3", "pink_pressed": "#f7cfe3", "lilac": "#8b5fd0", "lilac_seam": "#c7aee6",
-			"cyan": "#1a86a8", "gold": "#b07a0c", "mint": "#2e9b6d", "shadow": "#5a348229" },
+			"cyan": "#1a86a8", "gold": "#b07a0c", "mint": "#2e9b6d", "wisp": "#d4603c", "shadow": "#5a348229" },
 			"tiers": { "common": "#8d80a0", "uncommon": "#2fae73", "rare": "#2e8fd0", "epic": "#9152e0", "legendary": "#cf8f0f", "mythic": "#e0337f" } },
 		{ "id": "peach_sorbet", "name": "peach sorbet", "kind": "light", "colors": {
 			"page": "#fbece4", "deep": "#f3dccf", "raised": "#fff7f2", "paper": "#fcefe8", "sky": "#f0d6c8",
 			"line": "#efcdbd", "dot": "#f1d6c8", "text": "#4a2b35", "muted": "#8f6b72", "muted_seam": "#dcbfb6", "locked": "#b89a98",
 			"pink": "#e05a7e", "pink_seam": "#f0a3b3", "pink_pressed": "#fbd3dc", "lilac": "#9a5e88", "lilac_seam": "#e2bcae",
-			"cyan": "#178a9b", "gold": "#b8740a", "mint": "#2f9a6a", "shadow": "#8c463c26" },
+			"cyan": "#178a9b", "gold": "#b8740a", "mint": "#2f9a6a", "wisp": "#c2502c", "shadow": "#8c463c26" },
 			"tiers": { "common": "#9a8a8f", "uncommon": "#2fae73", "rare": "#2e8fd0", "epic": "#9152e0", "legendary": "#cf8f0f", "mythic": "#e0337f" } }
 	],
 	"fonts": [

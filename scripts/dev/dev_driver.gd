@@ -8,7 +8,8 @@ extends Node
 ##   view full | corner    the full game or the small corner panel
 ##   tab <id>              show a tab straight away (home, boxes, collection, adventures, ...)
 ##   page <tab> <n>        flips a tab's page switch (machine | upgrades, adventures | upgrades) to page n
-##                         (0 or 1), like a click on it (the spine's tab has the same name as page 0)
+##                         (0 or 1), like a click on it (the spine's tab has the same name as page 0);
+##                         page inventory <n>: the workbench (your pet | toys | plushie machine, 0-2)
 ##   click <target>        clicks it (see _find, _click): "text", tab:<id>, Class#n, guide
 ##   key <name>            a key press: space, escape, enter
 ##   wait <seconds>        or: wait ritual | wait popup | wait text "..." | wait tutorial <step> | wait event
@@ -46,6 +47,19 @@ extends Node
 ##   boosts                logs every boost kind's total and its parts (data/boosts.json)
 ##   dress <slot>=<id> ... [finish=<id>]   your active pet gets these parts (and finish), e.g.
 ##                         dress body=bunny eyes=cyclops finish=holo (for knacks, data/knacks.json)
+##   open-plushie          a pet brings home the plushie machine (its real unlock: the popup, the free button)
+##   wisps <n>             you have exactly n wisps
+##   buttons <slot>=<n> ...  your active pet's parts get that many buttons (the plushie machine's)
+##   hopper <rarity> <n>   n pets of that rarity from the herd go into the plushie machine's hopper
+##   cards on | off        the plushie machine's card pets picker
+##   feed-card <n>         the picker's nth card goes into the hopper
+##   land <slot>=<symbol> ...  what the plushie machine's next spin lands on (button, blank, crack;
+##                         slot "wild" for the wild reel)
+##   spin [n]              pulls the plushie machine's lever n times (waits for the reels each time)
+##   bank <slot> | hold <slot> | nudge <slot>   the plushie machine's reel for that part
+##   buy <nudge | hold | wild>  buys one with wisps at the plushie machine
+##   keeper <next | prev>  the plushie machine's next or previous keeper
+##   part <slot:id[@n]> [count]  parts in your bag (slot:id@n: a part with n buttons on it)
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -133,6 +147,7 @@ func _step(w: PackedStringArray) -> String:
 			match w[1]:
 				"machine": home.full_game().machine.show_page(int(w[2]))
 				"adventures": home.full_game().adventures.show_page(int(w[2]))
+				"inventory": home.full_game()._tabs.inventory.show_page(int(w[2]))
 				_: return "no page switch on %s" % w[1]
 		"click":
 			var target := _find(w[1])
@@ -286,11 +301,96 @@ func _step(w: PackedStringArray) -> String:
 			GameState.collection.pet_changed.emit(pet)
 			GameState.collection.active_changed.emit(pet)
 			GameState.save_game()
+		"open-plushie":  # the plushie machine comes home: its real unlock (popup, free button)
+			GameState.grant({ "find:plushie_machine": 1 })
+		"wisps":  # wisps <n>: you have exactly n wisps
+			GameState.wisps = int(w[1])
+			GameState.changed.emit()
+		"buttons":  # buttons body=2 eyes=5: your active pet's buttons
+			var pet := GameState.collection.active()
+			if pet == null:
+				return "no active pet"
+			for pair in w.slice(1):
+				var kv := pair.split("=")
+				if kv.size() != 2 or not kv[0] in Catalog.SLOTS:
+					return "buttons wants slot=n, not %s" % pair
+				var n := clampi(int(kv[1]), 0, Plushie.max_buttons(GameState.catalog))
+				if n > 0:
+					pet.buttons[kv[0]] = n
+				else:
+					pet.buttons.erase(kv[0])
+			GameState.collection.pet_changed.emit(pet)
+			GameState.collection.active_changed.emit(pet)
+			GameState.save_game()
+		"hopper":  # hopper <rarity> <n>: pets from the herd into the hopper
+			for i in int(w[2]) if w.size() > 2 else 1:
+				if not GameState.plushie_feed_herd(w[1]):
+					return "couldn't feed a %s (%d went in)" % [w[1], i]
+		"cards":  # cards on | off: the card pets picker
+			_plushie().show_cards(w[1] == "on")
+		"feed-card":  # feed-card <n>: the picker's nth card
+			if not _plushie().pick_card(int(w[1])):
+				return "no card %s to feed" % w[1]
+		"land":  # land body=button eyes=crack wild=blank: the next spin lands on these
+			for pair in w.slice(1):
+				var kv := pair.split("=")
+				if kv.size() != 2 or not (kv[0] in Catalog.SLOTS or kv[0] == "wild") or not kv[1] in Plushie.SYMBOLS:
+					return "land wants slot=button|blank|crack, not %s" % pair
+				GameState.debug_land[kv[0]] = kv[1]
+		"spin":  # spin [n]: the lever, n times, each once the reels have landed
+			home.full_game().show_tab("inventory")
+			var machine := _plushie()
+			for i in int(w[1]) if w.size() > 1 else 1:
+				await _plushie_still(machine)
+				if machine.spin().is_empty():
+					return "the lever didn't do anything (spin %d)" % (i + 1)
+				await get_tree().process_frame
+				await _plushie_still(machine)
+		"bank", "hold", "nudge":  # bank body: that part's reel
+			var i := Catalog.SLOTS.find(w[1])
+			if i < 0:
+				return "no part %s" % w[1]
+			await _plushie_still(_plushie())
+			match w[0]:
+				"bank":
+					if GameState.plushie_bank(i) <= 0:
+						return "the %s reel holds nothing to bank" % w[1]
+				"hold":
+					if not GameState.plushie_hold(i):
+						return "can't hold the %s reel" % w[1]
+				"nudge":
+					if GameState.plushie_nudge(i) == "":
+						return "can't nudge the %s reel" % w[1]
+			await get_tree().process_frame
+			await _plushie_still(_plushie())
+		"buy":  # buy <nudge | hold | wild>: with wisps
+			if not GameState.plushie_buy(w[1]):
+				return "can't buy a %s (%d wisps, it costs %d)" % [w[1], GameState.wisps, GameState.plushie_price(w[1])]
+		"part":  # part body:bunny@3 [n]: parts in the bag
+			if not Grafting.valid_key(w[1], GameState.catalog):
+				return "no part %s" % w[1]
+			GameState.parts[w[1]] = int(GameState.parts.get(w[1], 0)) + (int(w[2]) if w.size() > 2 else 1)
+			GameState.changed.emit()
+		"keeper":  # keeper next | prev
+			if not GameState.plushie_swap(1 if w[1] == "next" else -1):
+				return "can't swap the keeper now"
 		"quit":
 			_finish()
 		_:
 			return "unknown step %s" % w[0]
 	return ""
+
+
+func _plushie() -> PlushieMachine:
+	return get_parent().full_game()._tabs.inventory.plushie
+
+
+## Waits until the plushie machine's reels have landed.
+func _plushie_still(machine: PlushieMachine) -> void:
+	var waited := 0.0
+	while machine.busy() and waited < 10.0:
+		await get_tree().create_timer(0.05).timeout
+		waited += 0.05
 
 
 func _wait(w: PackedStringArray) -> String:

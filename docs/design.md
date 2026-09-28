@@ -213,6 +213,30 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   eye", "+30% spotting", "eyes: cyclops"), and each card in an opened shelf wears its best badge on
   the bottom-right corner (not on the cushion). Herd counts have no looks, so their knacks don't
   count (x1); stand-ins are whole pets and count theirs. Numbers are placeholders.
+  **The plushie machine (F1/F2, built; look A, the cabinet; sacrifice-reels.html):** the mid-game
+  layer that makes a perfect pet hard again. A page in the workbench (your pet | toys | plushie
+  machine), fully hidden until the sewing room's last room (E3) brings the machine home and sews one
+  free BUTTON onto your active pet (its best knack's part). Pick the KEEPER (‹ ›: your active pet,
+  pets with buttons, favourites, the other cards), feed pets into the HOPPER (from the herd by
+  shelf with +, plain first then shiny, resting ones first; or card pets from a picker, never your
+  active pet, favourites or pets with buttons). A fed pet leaves for good the moment it goes in (a
+  night-sky star, never explained). The best pet in the hopper hops in: its rarity = spins (1-6),
+  its finish = nudges added to the pool (shiny 1 ... prismatic 5), its traits tilt the reels (lucky
+  fewer cracks, curious more buttons, greedy more wisps, zoomy a spin; placeholders). Five reels,
+  one per part, each landing on a button, a blank or a crack, odds SHOWN under each reel (button
+  34/26/18/11/5% by the part's buttons, crack 8-24%). BANK a reel (it stops) or HOLD it (two at
+  once to start): a held reel that lands a button gets two more; a crack takes what's held away; an
+  unheld button banks itself at the next spin, and whatever's held when the spins run out is banked.
+  A part holds 0-5 buttons; each makes its knack x1.5 bigger (5 = x3.5) and they stay on the part
+  (a grafted part keeps them: it goes back in the bag with its buttons). A pet with buttons is
+  always a card. Misses puff WISPS (candy floss coral), the darker currency (the dungeon's lanterns
+  are wisps too): puff by the fed pet's rarity (common 1 ... mythic 10k), x2 on a crack, x
+  perfection (1 + 0.1 per keeper button, placeholder). Wisps buy nudges (60, x1.3), holds (400,
+  x2.5) and a wild 6th reel for one pet (250 x rarity step; its button goes straight onto the part
+  you pick with ‹ ›). A failed try costs only the fed pets and held buttons; the keeper is safe
+  (it stays home: it can't go on adventures while it's the keeper). Banked reels stay banked for
+  the fed pet across a keeper swap.
+  Your pet cheers every spin. Pets don't play it for you yet. Numbers in data/plushie.json.
   **The broken machine and its tree (Emilia, built):** the machine is an old broken one you fix
   up (machine tab: machine | upgrades). The upgrade TREE (data/machine_tree.json) has a trunk of
   repairs (tape up the crack, oil the lever, unstick the flap, new glass, rewire the lights, better

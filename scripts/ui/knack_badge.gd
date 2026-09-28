@@ -70,7 +70,37 @@ static func draw_badge(item: CanvasItem, k: Dictionary, centre: Vector2, px: flo
 	var tex := UiTheme.icon(str(k.get("icon", "")), icon_px, UiTheme.TEXT)
 	if tex:
 		item.draw_texture_rect(tex, Rect2(Vector2(-icon_px, -icon_px) / 2.0, Vector2(icon_px, icon_px)), false)
+	draw_buttons(item, int(k.get("buttons", 0)), r)
 	item.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## The plushie machine's buttons on a badge's rim: up to 5 tiny pink buttons round the bottom
+## (drawn around the current transform's origin, `r` the badge's radius).
+static func draw_buttons(item: CanvasItem, n: int, r: float) -> void:
+	if n <= 0:
+		return
+	var br := maxf(2.2, r * 0.2)
+	for i in n:
+		var a := PI / 2.0 + (i - (n - 1) / 2.0) * 0.62  # fanned out round the bottom
+		var at := Vector2(cos(a), sin(a)) * (r - 0.5)
+		item.draw_circle(at, br + 1.2, UiTheme.DEEP)
+		item.draw_circle(at, br, UiTheme.PINK)
+		_holes(item, at, br)
+
+
+## `n` tiny pink buttons in a row from `start` (the centre of the first), each `br` round.
+static func draw_button_row(item: CanvasItem, n: int, start: Vector2, br: float) -> void:
+	for i in n:
+		var at := start + Vector2(i * (br * 2.0 + 3.0), 0)
+		item.draw_circle(at, br + 1.2, UiTheme.DEEP)
+		item.draw_circle(at, br, UiTheme.PINK)
+		_holes(item, at, br)
+
+
+static func _holes(item: CanvasItem, at: Vector2, br: float) -> void:
+	if br >= 2.6:
+		for h in [Vector2(-0.35, -0.35), Vector2(0.35, -0.35), Vector2(-0.35, 0.35), Vector2(0.35, 0.35)]:
+			item.draw_circle(at + h * br * 1.1, maxf(0.5, br * 0.16), UiTheme.DEEP)
 
 
 func _gui_input(event: InputEvent) -> void:
