@@ -33,7 +33,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `"rarity:finish"` -> count, see `Herd` and data/herd.json). `add()` marks `new_part` and calls
   `refold()`: past `keep_cards` plain cards a shelf, the oldest that may fold (not `always_card`,
   not in `busy`, a Callable GameState sets: away, pinned, party leaders) become counts, and
-  `pets_folded(uids, keys)` lets GameState move their errand or machine place to a count. Totals
+  `pets_folded(uids, keys)` lets GameState move their errand or machine place to a count.
+  `refold()` only walks `_plain_cards` (the plain-finish cards), so piles of holo+ cards cost it
+  nothing. Totals
   (`count`, `count_of`, `shiny_of`, `plain_count`) are running numbers: nothing loops over the herd.
   `get_pet("h:<rarity>:<finish>:<n>")` gives a **stand-in** (`Herd.stand_in`: seeded look, average
   stats, no traits); removing one takes it off its count. Stars are `fallen` (palettes, the first
