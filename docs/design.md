@@ -300,7 +300,9 @@ Nobody is ever lost on an errand, and errands never bring rare parts or new plac
     +10%, 2 +15%, 4 +20%, 10 +25%, never past 30%), capped at what those cooks would add on a real
     job ((1 + cooks / others)^crew_power − 1), so it never beats one. Each full meter is a meal for
     your pet (+10 food, +2 mood), but only up to 70 (`meal_upto`, `Jobs.feed`): the kitchen keeps
-    it from going hungry, filling it up is still yours to do. No tools, no level.
+    it from going hungry, filling it up is still yours to do. No tools, no level. The note says
+    "every job 12% faster"; with a big crew elsewhere it keeps one decimal ("0.4%") and never
+    says "0% faster" (`Jobs.faster_words`).
   - **Scouting:** each full meter is a scout note (hold 2, a map case holds more; a full hold stops
     the meter). A trip you send yourself to a place with something left to spot or hear takes one:
     +0.15 on each lead's spot chance and rumours x1.5 (the note's numbers ride along on

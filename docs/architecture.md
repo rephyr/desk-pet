@@ -48,7 +48,7 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   gear bought with xp, rules in `Gear`, levels in `GameState.gear`, packed onto each trip as
   `RunState.gear`), `ErrandsTab` (jobs: the corkboard; upgrades:
   `ErrandToolsView`, the pegboard of tools bought with coins; rules in `Jobs`, levels in
-  `GameState.errand_tools`; the kitchen speeds every other job via `GameState.kitchen_bonus()`,
+  `GameState.errand_tools`; the kitchen speeds every other job via `GameState.kitchen_bonus()` (its line: `Jobs.faster_words`),
   scouting fills `GameState.scout_notes` and `send_on_adventure` packs one onto `RunState.scout`,
   read by `Intel.roll` and `AdventureRunner`), `AutomationTab` (a card per job your pet can do, `JobScene` draws each one; rules in
   `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:
