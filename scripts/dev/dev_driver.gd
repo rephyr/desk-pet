@@ -7,6 +7,8 @@ extends Node
 ##   flags <--flag ...>    dev flags to start the game with, e.g. flags --autoplay (read by tools/play.py)
 ##   view full | corner    the full game or the small corner panel
 ##   tab <id>              show a tab straight away (home, boxes, collection, adventures, ...)
+##   page <tab> <n>        flips a tab's page switch (machine | upgrades, adventures | upgrades) to page n
+##                         (0 or 1), like a click on it (the spine's tab has the same name as page 0)
 ##   click <target>        clicks it (see _find, _click): "text", tab:<id>, Class#n, guide
 ##   key <name>            a key press: space, escape, enter
 ##   wait <seconds>        or: wait ritual | wait popup | wait text "..." | wait tutorial <step> | wait event
@@ -18,6 +20,7 @@ extends Node
 ##   pets <n>              n more pets from starter boxes (for testing crowds)
 ##   find <id>             a pet brings home this find (data/unlocks.json), opening what it opens
 ##   send <place> <n>      the first n spare pets go on an adventure there (and you watch it)
+##   place <id>            opens that place's card on the map, as if you tapped it (like --pick)
 ##   pull <n> [seconds]    pulls the capsule machine's lever n times (each once the last capsule
 ##                         has opened; waits 0.6 s after each, or that long)
 ##   toy <id> [finish] [n] you get that capsule toy (n copies: the rest are spares)
@@ -32,6 +35,8 @@ extends Node
 ##   crank <n>             your pet's own machine gives n capsules right away
 ##   unlock <id>           opens that unlock id straight away (e.g. feature:packs), no popup
 ##   spots <job> <n>       n more machines (tables, parties) for a job's workers, for free
+##   xp <n>                you have exactly n xp
+##   gear <id> [levels]    levels of a gear upgrade (data/gear.json), for free
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -115,6 +120,11 @@ func _step(w: PackedStringArray) -> String:
 			home.show_full_game(w[1] == "full")
 		"tab":
 			home.full_game().show_tab(w[1])
+		"page":  # page <tab> <n>: the tab's page switch to page n, as a click would
+			match w[1]:
+				"machine": home.full_game().machine.show_page(int(w[2]))
+				"adventures": home.full_game().adventures.show_page(int(w[2]))
+				_: return "no page switch on %s" % w[1]
 		"click":
 			var target := _find(w[1])
 			if target == null:
@@ -149,6 +159,11 @@ func _step(w: PackedStringArray) -> String:
 				return "couldn't send %d to %s" % [int(w[2]), w[1]]
 			home.full_game().show_tab("adventures")
 			home.full_game().adventures._show_trail(run)  # go along with it
+		"place":  # place <id>: its card on the map, as if tapped
+			if Catalog.shared().location(w[1]).is_empty():
+				return "unknown place %s" % w[1]
+			home.full_game().show_tab("adventures")
+			home.full_game().adventures.pick_place(w[1])
 		"pull":  # pull <n> [seconds]: pulls the machine's lever n times, waiting that long after each
 			home.full_game().show_tab("machine")
 			var stage: MachineTab.MachineStage = home.full_game().machine.stage
@@ -203,6 +218,13 @@ func _step(w: PackedStringArray) -> String:
 				while GameState.automation.parties.size() < Automation.spots(GameState.automation, w[1]):
 					GameState.automation.parties.append({ "place": "", "n": 0 })
 			GameState.automation_changed.emit()
+		"xp":  # xp <n>: you have exactly n xp
+			GameState.xp = int(w[1])
+			GameState.changed.emit()
+		"gear":  # gear <id> [levels]: levels of a gear upgrade, for free
+			if Gear.info(GameState.catalog, w[1]).is_empty():
+				return "unknown gear %s" % w[1]
+			GameState.set_gear_level(w[1], GameState.gear_level(w[1]) + (int(w[2]) if w.size() > 2 else 1))
 		"quit":
 			_finish()
 		_:

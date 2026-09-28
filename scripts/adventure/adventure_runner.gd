@@ -26,7 +26,8 @@ const HOME_OPTION := {
 
 ## `found` lists special items already found: events that give them don't turn up any more.
 ## `fixed` is the capsule machine's fixed nodes (node id -> levels), for events that wait on one.
-static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: int, catalog: Catalog, found := {}, fixed := {}) -> RunState:
+## `gear` is the gear the trip packs (Gear.for_trip): it's kept on the run for the whole trip.
+static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: int, catalog: Catalog, found := {}, fixed := {}, gear := {}) -> RunState:
 	var location := catalog.location(location_id)
 	var s := RunState.new()
 	s.location_id = location_id
@@ -35,7 +36,9 @@ static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: i
 	s.rng_seed = rng_seed
 	s.events = pick_events(location, rng_seed, found, catalog, fixed)
 	s.started = now
-	s.next_at = now + gap(location, s.party, s.events.size())
+	s.gear = gear
+	s.walk = Gear.value(catalog, gear, "walk")
+	s.next_at = now + run_gap(s, catalog)
 	return s
 
 
@@ -74,16 +77,21 @@ static func event_count(location: Dictionary) -> int:
 
 
 ## Seconds between events: the trip's time spread over its events plus the walk home. Faster
-## parties go a bit quicker.
-static func gap(location: Dictionary, party: Party, events: int) -> float:
+## parties go a bit quicker; comfy boots (`walk`, see Gear) take a share off after that.
+static func gap(location: Dictionary, party: Party, events: int, walk := 0.0) -> float:
 	var need := Rewards.STAT_NEED * float(location.difficulty)
 	var pace := clampf(1.0 - (party.average("speed") - need) * 0.01, 0.5, 1.25)
-	return float(location.minutes) * 60.0 * pace / (events + 1)
+	return float(location.minutes) * 60.0 * pace / (events + 1) * (1.0 - walk)
 
 
-## About how long a party would take, for showing before sending.
-static func duration(location: Dictionary, party: Party) -> float:
-	return gap(location, party, event_count(location)) * (event_count(location) + 1)
+## A run's gap between events, with the boots it packed (RunState.walk).
+static func run_gap(state: RunState, catalog: Catalog) -> float:
+	return gap(catalog.location(state.location_id), state.party, state.events.size(), state.walk)
+
+
+## About how long a party would take, for showing before sending (`walk` from its gear).
+static func duration(location: Dictionary, party: Party, walk := 0.0) -> float:
+	return gap(location, party, event_count(location), walk) * (event_count(location) + 1)
 
 
 ## Moves a run on to `now`: every event whose time has come is played, until the run is done
@@ -115,7 +123,7 @@ static func resolve(state: RunState, chooser: Chooser, now: float, catalog: Cata
 		added.append(play(event, pick, state, catalog))
 		state.answer = -1
 		state.status = RunState.Status.WALKING
-		state.next_at = decided + gap(location, state.party, state.events.size())
+		state.next_at = decided + run_gap(state, catalog)
 		if state.party.size() == 0:
 			state.next_at = decided  # nobody left to walk on: it ends right here
 	return added
@@ -131,6 +139,12 @@ static func _finish_treat(state: RunState, location: Dictionary, catalog: Catalo
 	var loot := {}
 	for reward in treat:
 		Rewards.add(loot, Rewards.roll(reward, state.party, location, rng, catalog, Rewards.depth_boost(state.history.size())))
+	# sharper eyes: every bit found rolls again for one more
+	var eyes := Gear.value(catalog, state.gear, "bits")
+	if eyes > 0.0:
+		for key: String in loot.keys():
+			if key.begins_with("bit:"):
+				loot[key] = int(loot[key]) + Rewards.count(int(loot[key]) * eyes, rng)
 	Rewards.add(state.loot, loot)
 	state.xp += roundi(XP_FINISH * float(location.get("xp", 1.0)))
 	state.history.append({ "event": "finish", "title": "", "option": "", "success": true, "lost": 0, "injured": 0,
@@ -168,23 +182,36 @@ static func allowed_options(event: Dictionary, party: Party, location: Dictionar
 
 ## Chance (0..1) that the party pulls an option off. Options with their own "chance" start from
 ## it, tilted a little by the pet's stat and down if it's hurt; older options compare the party's
-## total stat with a difficulty. No stat and no chance: it always works.
-static func success_chance(option: Dictionary, party: Party, location: Dictionary) -> float:
+## total stat with a difficulty. No stat and no chance: it always works. `luck` (the lucky charm,
+## see Gear) helps with risky options only, still under MAX_CHANCE.
+static func success_chance(option: Dictionary, party: Party, location: Dictionary, luck := 0.0) -> float:
 	var stat_name := str(option.get("stat", ""))
+	var charm := luck if luck > 0.0 and risky(option, location) else 0.0
 	if option.has("chance"):
 		var chance := float(option.chance)
 		if stat_name != "":
 			var need := Rewards.STAT_NEED * float(location.difficulty)
 			chance += clampf((party.average(stat_name) - need) * 0.01, -STAT_TILT, STAT_TILT)
 		chance -= HURT_PENALTY * party.injured_count() / maxf(1.0, party.size())
-		return clampf(chance, MIN_CHANCE, MAX_CHANCE)
+		return clampf(chance + charm, MIN_CHANCE, MAX_CHANCE)
 	if stat_name == "":
 		return 1.0
 	var have := party.total(stat_name)
 	var need := float(option.difficulty) * float(location.difficulty) * pow(maxf(1.0, party.size()), SIZE_SCALING)
 	if have <= 0.0:
 		return MIN_CHANCE
-	return clampf(0.5 + CHANCE_SLOPE * log(have / need) / log(2.0), MIN_CHANCE, MAX_CHANCE)
+	return clampf(0.5 + CHANCE_SLOPE * log(have / need) / log(2.0) + charm, MIN_CHANCE, MAX_CHANCE)
+
+
+## Whether failing an option here would hurt, injure or lose someone (never at a safe place).
+static func risky(option: Dictionary, location: Dictionary) -> bool:
+	if location.get("safe", false):
+		return false
+	var failure: Dictionary = option.get("failure", {})
+	for key in ["hurt", "injured", "lost", "leave_injured"]:
+		if failure.has(key):
+			return true
+	return false
 
 
 ## Plays one option of an event on the run and returns what happened.
@@ -195,7 +222,7 @@ static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog
 	# each event has its own dice, so when it's resolved doesn't change how it goes
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([state.rng_seed, state.step])
-	var ok := rng.randf() < success_chance(option, party, location)
+	var ok := rng.randf() < success_chance(option, party, location, Gear.value(catalog, state.gear, "luck"))
 	var outcome: Dictionary = option.success if ok else option.get("failure", option.success)
 	var entry := {
 		"event": event.id, "title": event.title, "option": option.label, "success": ok,
@@ -203,6 +230,7 @@ static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog
 		"lost": 0, "injured": 0, "loot": {},
 	}
 	var danger := float(location.danger)
+	var keep := 1.0 - Gear.value(catalog, state.gear, "harm")  # the comfy harness: fewer hurt or lost
 	# a "safe" place (the garden, where you learn how adventures go): a failure costs nothing
 	# but the reward, nobody gets hurt or lost there
 	if location.get("safe", false) and not ok:
@@ -213,15 +241,25 @@ static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog
 	if outcome.get("leave_injured", false):
 		entry.lost += party.leave_injured()
 	if outcome.has("lost"):
-		entry.lost += party.lose(Rewards.count(_between(outcome.lost, rng) * danger * party.size(), rng), rng).size()
+		entry.lost += party.lose(Rewards.count(_between(outcome.lost, rng) * danger * party.size() * keep, rng), rng).size()
 	if outcome.has("injured"):
-		entry.injured = party.injure(Rewards.count(_between(outcome.injured, rng) * danger * party.size(), rng), rng)
+		entry.injured = party.injure(Rewards.count(_between(outcome.injured, rng) * danger * party.size() * keep, rng), rng)
 	if outcome.has("hurt"):
-		# a hurt pet that's hurt again doesn't come back; some things cost both hearts at once
-		var hurt := party.hurt(Rewards.count(_between(outcome.hurt, rng) * danger * party.size(), rng),
-			int(outcome.get("hearts", 1)), rng)
+		# a hurt pet that's hurt again doesn't come back; some things cost both hearts at once. The
+		# first-aid leaf saves a solo pet a few times a trip, and each pet in a party at a chance.
+		var saves := 0
+		var share := 0.0
+		if party.setting_out() == 1:
+			saves = maxi(0, int(Gear.value(catalog, state.gear, "saves")) - state.saves_used)
+		else:
+			share = Gear.value(catalog, state.gear, "save_share")
+		var hurt := party.hurt(Rewards.count(_between(outcome.hurt, rng) * danger * party.size() * keep, rng),
+			int(outcome.get("hearts", 1)), rng, saves, share)
 		entry.injured += hurt.injured
 		entry.lost += hurt.lost
+		if hurt.saved > 0:
+			state.saves_used += hurt.saved if party.setting_out() == 1 else 0
+			entry.text += " " + Gear.leaf_text(catalog)
 	# loot comes from the pets still there
 	for reward in outcome.get("rewards", []):
 		Rewards.add(entry.loot, Rewards.roll(reward, party, location, rng, catalog, Rewards.depth_boost(state.history.size())))
@@ -236,8 +274,8 @@ static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog
 		_:
 			state.step += 1
 	# experience: for getting through it, more for a risk that paid off
-	var risky: bool = option.get("failure", {}).has("hurt") or option.get("failure", {}).has("lost")
-	entry.xp = roundi((XP_EVENT + (XP_BRAVE if ok and risky else 0)) * float(location.get("xp", 1.0)))
+	var brave: bool = option.get("failure", {}).has("hurt") or option.get("failure", {}).has("lost")
+	entry.xp = roundi((XP_EVENT + (XP_BRAVE if ok and brave else 0)) * float(location.get("xp", 1.0)))
 	state.xp += entry.xp
 	state.history.append(entry)
 	return entry
@@ -275,13 +313,13 @@ static func summary(state: RunState) -> String:
 
 
 ## Roughly what share of these pets come home if the default option is taken at every event,
-## from a few quick trial runs. For showing before sending.
-static func estimate_return(location_id: String, pets: Array[Pet], catalog: Catalog, trials := 30) -> float:
+## from a few quick trial runs. For showing before sending (with the gear they'd pack).
+static func estimate_return(location_id: String, pets: Array[Pet], catalog: Catalog, trials := 30, gear := {}) -> float:
 	if pets.is_empty():
 		return 1.0
 	var home := 0.0
 	for t in trials:
-		var s := start(location_id, pets, 0.0, t, catalog)
+		var s := start(location_id, pets, 0.0, t, catalog, {}, {}, gear)
 		resolve(s, PolicyChooser.new(), INF, catalog)
 		home += s.party.size()
 	return home / (trials * pets.size())

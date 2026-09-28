@@ -22,6 +22,9 @@ var went_home := false  # ended early by choice (no treat bag for finishing)
 var xp := 0  # experience from this trip; unlike the bag, it isn't lost with the pet
 var auto := false  # your pet sent it (the automation tab's adventures job): it comes home and goes again by itself
 var slot := -1  # an auto party: -1 your pet's, 0 and up a worker's (automation.parties)
+var gear := {}  # gear id -> level it set off with (see Gear.for_trip): buying more mid-trip helps the next trip
+var saves_used := 0  # times the first-aid leaf saved this (solo) trip's pet
+var walk := 0.0  # share of the walking the gear's comfy boots take off (worked out once from `gear`, not saved)
 
 
 ## The event the party is standing at, or {} while walking between them.
@@ -36,6 +39,7 @@ func to_dict() -> Dictionary:
 		"location": location_id, "chooser": chooser, "party": party.to_dict(), "seed": rng_seed, "events": events, "step": step,
 		"started": started, "next_at": next_at, "status": status, "waiting_since": waiting_since,
 		"answer": answer, "log": history, "loot": loot, "went_home": went_home, "xp": xp, "auto": auto, "slot": slot,
+		"gear": gear, "saves_used": saves_used,
 	}
 
 
@@ -62,6 +66,11 @@ static func from_dict(d: Dictionary, catalog: Catalog) -> RunState:
 	s.xp = int(d.get("xp", 0))
 	s.auto = bool(d.get("auto", false))
 	s.slot = int(d.get("slot", -1))
+	var packed: Dictionary = d.get("gear", {})
+	for id in packed:
+		s.gear[str(id)] = int(packed[id])
+	s.walk = Gear.value(catalog, s.gear, "walk")
+	s.saves_used = int(d.get("saves_used", 0))
 	s.history.assign(d.get("log", []))
 	for key in d.get("loot", {}):
 		s.loot[key] = int(d.loot[key])

@@ -17,9 +17,10 @@ signal toys_changed  # a toy was found, played with, fixed, combined or sacrific
 signal play_ended(editions: Array)  # your pet finished playing with these toys
 signal automation_changed  # a job was taught, your pet moved to another job, or a tool was bought
 signal pet_cranked(result: Dictionary)  # your pet's own little machine gave a capsule (see _pet_capsule)
+signal gear_changed  # a gear upgrade was bought with xp (the adventures' upgrades page)
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
-const SAVE_VERSION := 21
+const SAVE_VERSION := 22
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
 const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
@@ -36,6 +37,7 @@ var catalog := Catalog.shared()
 var collection := Collection.new()
 var coins := 100  # money: what gets spent on stuff (boxes, food, ...)
 var xp := 0  # experience from adventures: buys upgrades to adventuring itself
+var gear := {}  # gear id -> level, bought with xp (the adventures tab's upgrades page, see Gear)
 var hunger := 80.0  # 100 = full
 var happiness := 80.0
 var pet_out := false
@@ -515,6 +517,7 @@ func debug_new_game() -> void:
 	jobs_auto = false
 	jobs_away = {}
 	errand_tools = {}
+	gear = {}
 	_crews_changed()
 	pinned.clear()
 	rummaged.clear()
@@ -1590,7 +1593,10 @@ func send_on_adventure(location_id: String, pets: Array[Pet]) -> RunState:
 			going.append(pet)
 	if not location_open(location) or going.is_empty() or going.size() > max_party(location_id):
 		return null
-	var run := AdventureRunner.start(location_id, going, Time.get_unix_time_from_system(), _rng.randi(), catalog, finds, machine.bought)
+	# every trip packs the gear you have when it sets off (yours, your pet's and the workers' parties;
+	# never dungeons, see Gear.for_trip)
+	var run := AdventureRunner.start(location_id, going, Time.get_unix_time_from_system(), _rng.randi(), catalog, finds, machine.bought,
+		Gear.for_trip(catalog, gear, location))
 	runs.append(run)
 	_take_off(going.map(func(p): return p.uid))
 	_take_off_workers(going.map(func(p): return p.uid))
@@ -1636,7 +1642,7 @@ func collect_run(run: RunState) -> Dictionary:
 			var find_name := str(catalog.finds.get(key.substr(5), {}).get("name", "something"))
 			new_finds.append(find_name)
 			announcements.append("%s found %s!" % [run.party.who(), find_name])
-	_boost_trip_loot(run.loot)
+	_boost_trip_loot(run.loot, run.gear)
 	grant(run.loot, false)
 	collection.remove(run.party.lost)
 	if jobs_auto:  # the pets that came home go back to work
@@ -1668,20 +1674,38 @@ func collect_run(run: RunState) -> Dictionary:
 
 const XP_SPOTTED := 10  # xp for a pet spotting a new place
 const XP_FIND := 25  # xp for bringing home a special find
-const TREAT_ZOOM := 8.0  # seconds pets zoom along after you toss them a treat
 const TREAT_SPEED := 3.0  # how many times as fast they walk while they zoom
-const TREAT_EVERY := 15.0  # seconds before you can toss the next treat
 const TRAIL_COINS := [0.2, 0.5]  # a coin pickup is worth this times the place's loot (garden: about 1)
 
 
 ## You tossed a treat on the trail: the pets chase it and walk TREAT_SPEED times as fast for
-## TREAT_ZOOM seconds. Then the next treat takes TREAT_EVERY seconds. Returns whether it worked.
+## treat_zoom() seconds. Then the next treat takes treat_every() seconds. Returns whether it worked.
 func toss_treat(run: RunState) -> bool:
 	if not run in runs or run.status == RunState.Status.DONE or treat_ready_in(run) > 0.0:
 		return false
 	var now := Time.get_unix_time_from_system()
-	_treats[run] = { "zoom_until": now + TREAT_ZOOM, "ready_at": now + TREAT_EVERY }
+	_treats[run] = { "zoom_until": now + treat_zoom(run), "ready_at": now + treat_every(run) }
 	return true
+
+
+## Seconds before you can toss this trip the next treat (a treat pouch makes it quicker).
+func treat_every(run: RunState) -> float:
+	return Gear.value(catalog, run.gear, "treat_every")
+
+
+## Seconds this trip's pets zoom along after a treat (a treat pouch makes it longer).
+func treat_zoom(run: RunState) -> float:
+	return Gear.value(catalog, run.gear, "treat_zoom")
+
+
+## The most a streak of grabs on the trail multiplies what you grab (sticky paws raise it).
+func streak_max(run: RunState) -> float:
+	return Gear.value(catalog, run.gear, "streak_max")
+
+
+## How much more likely a part is on the trail (sharper eyes), once parts are open.
+func trail_part_x(run: RunState) -> float:
+	return Gear.value(catalog, run.gear, "part_x")
 
 
 ## Seconds until you can toss this trip another treat (0: now).
@@ -1720,13 +1744,14 @@ func trail_pickup(run: RunState, kind: String, bonus := 1.0) -> Dictionary:
 	if not run in runs or run.status == RunState.Status.DONE:
 		return {}
 	var location := catalog.location(run.location_id)
+	var paws := 1.0 + Gear.value(catalog, run.gear, "pickups")  # sticky paws: worth more
 	match kind:
 		"coins":
-			var amount := maxi(1, roundi(_rng.randf_range(TRAIL_COINS[0], TRAIL_COINS[1]) * float(location.loot) * bonus))
+			var amount := maxi(1, roundi(_rng.randf_range(TRAIL_COINS[0], TRAIL_COINS[1]) * float(location.loot) * bonus * paws))
 			Rewards.add(run.loot, { "coins": amount })
 			return { "coins": amount }
 		"xp":
-			var amount := add_xp(maxi(1, roundi(bonus)))
+			var amount := add_xp(maxi(1, roundi(bonus)) if paws <= 1.0 else maxi(1, Rewards.count(bonus * paws, _rng)))
 			changed.emit()
 			return { "xp": amount }
 		"heal":
@@ -2012,9 +2037,67 @@ func add_xp(amount: int) -> int:
 	return real
 
 
-## A trip's haul, boosted as it's collected: toys that bring more home multiply its coins, and
-## those plus luck give a chance of an extra copy of every part and box.
-func _boost_trip_loot(loot: Dictionary) -> void:
+# ---- gear: upgrades to adventuring, bought with xp (see Gear, data/gear.json) ----
+
+func gear_level(id: String) -> int:
+	return Gear.level(gear, id)
+
+
+## The gear stickers on the path right now, in path order (see Gear.shown).
+func shown_gear() -> Array[Dictionary]:
+	return Gear.shown(catalog, gear, is_open)
+
+
+## Why a gear can't take another level ("" if it can, xp aside): "hidden" (not on the path yet) or "max".
+func gear_block(id: String) -> String:
+	var g := Gear.info(catalog, id)
+	if g.is_empty() or not shown_gear().any(func(s): return s.id == id):
+		return "hidden"
+	return "max" if gear_level(id) >= int(g.max) else ""
+
+
+## xp for a gear's next level.
+func gear_price(id: String) -> int:
+	return Gear.price(catalog, id, gear_level(id))
+
+
+## Buys a gear's next level with xp. Returns whether it could.
+func buy_gear(id: String) -> bool:
+	if gear_block(id) != "" or xp < gear_price(id):
+		return false
+	xp -= gear_price(id)
+	gear[id] = gear_level(id) + 1
+	gear_changed.emit()
+	changed.emit()
+	save_game()
+	return true
+
+
+## Sets a gear's level outright (the dev driver's "gear" step).
+func set_gear_level(id: String, level: int) -> void:
+	var g := Gear.info(catalog, id)
+	if g.is_empty():
+		return
+	gear[id] = clampi(level, 0, int(g.max))
+	gear_changed.emit()
+	changed.emit()
+
+
+## The upgrades page opens with the first xp (and stays open once something's bought).
+func gear_page_open() -> bool:
+	return xp > 0 or gear.values().any(func(lv): return int(lv) > 0)
+
+
+## The gear a trip there would pack (for the place card's time and odds).
+func trip_gear(location_id: String) -> Dictionary:
+	return Gear.for_trip(catalog, gear, catalog.location(location_id))
+
+
+## A trip's haul, boosted as it's collected: toys that bring more home multiply its coins (and so
+## does the tote bag in the trip's `packed` gear), and toys plus luck give a chance of an extra copy
+## of every part and box.
+func _boost_trip_loot(loot: Dictionary, packed := {}) -> void:
+	var tote := 1.0 + Gear.value(catalog, packed, "coins")
 	var more := toy_boost("loot")
 	var lucky := more * toy_boost("luck")
 	for key: String in loot.keys():
@@ -2022,7 +2105,7 @@ func _boost_trip_loot(loot: Dictionary) -> void:
 			loot.erase(key)  # parts come much later in the game
 			continue
 		if key == "coins":
-			loot[key] = roundi(int(loot[key]) * more * toy_boost("coins"))
+			loot[key] = roundi(int(loot[key]) * more * toy_boost("coins") * tote)
 		elif key.begins_with("part:") or key.begins_with("box:"):
 			loot[key] = int(loot[key]) + Rewards.count(int(loot[key]) * (lucky - 1.0), _rng)
 
@@ -2167,6 +2250,7 @@ func save_game() -> void:
 		"jobs": jobs,
 		"jobs_auto": jobs_auto,
 		"errand_tools": errand_tools,
+		"gear": gear,
 		"automation": automation,
 		"coin_reserve": coin_reserve,
 		"saved_boxes": saved_boxes.keys(),
@@ -2275,6 +2359,7 @@ func load_game() -> bool:
 		if not Jobs.tool(catalog, str(id)).is_empty():
 			errand_tools[str(id)] = maxi(0, int(saved_tools[id]))
 	_crews_changed()
+	gear = Gear.clean(catalog, data.get("gear", {}))  # v22 added gear: older saves start with none
 	_load_automation(data.get("automation", {}))
 	coin_reserve = int(data.get("coin_reserve", 50))
 	visited.clear()

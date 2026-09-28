@@ -3,7 +3,7 @@
 	"types": [
 		{ "id": "foraging", "name": "foraging", "desc": "little adventures for snacks and shiny things", "risk": "safe" },
 		{ "id": "exploration", "name": "exploring", "desc": "going further to see what's out there", "risk": "low" },
-		{ "id": "dungeon", "name": "dungeons", "desc": "deep places with big treasure", "risk": "deadly" }
+		{ "id": "dungeon", "name": "dungeons", "desc": "deep places with big treasure", "risk": "deadly", "gear": false }
 	],
 	"locations": [
 		{

@@ -16,7 +16,6 @@ const PET_X := 0.28  # where the pet walks, as a share of the width
 const PICKUP_GAP := [150.0, 260.0]  # px of path between things to grab
 const PICKUP_WEIGHTS := { "coins": 60, "xp": 28, "heal": 8, "part": 4 }
 const HIT := 26.0
-const STREAK_MAX := 1.5  # most a streak multiplies what you grab
 const FOLLOWERS := 4  # party pets drawn walking behind the first one (more show as "+N")
 const ART_PIXEL := 5  # the event's art is drawn at the pets' pixel size
 const ART_GAP := 60.0  # px between the first pet and the event's art
@@ -105,8 +104,7 @@ func _refresh_followers() -> void:
 
 
 func _world_x() -> float:
-	var location := Catalog.shared().location(run.location_id)
-	var gap := AdventureRunner.gap(location, run.party, run.events.size())
+	var gap := AdventureRunner.run_gap(run, Catalog.shared())
 	var elapsed := gap
 	if run.status == RunState.Status.WALKING:
 		elapsed = clampf(gap - (run.next_at - Time.get_unix_time_from_system()), 0.0, gap)
@@ -245,7 +243,7 @@ func _autoplay(delta: float, walking: bool) -> void:
 func _grab(p: Dictionary) -> void:
 	p.gone = true
 	_streak += 1
-	var got := GameState.trail_pickup(run, p.kind, minf(1.0 + 0.1 * (_streak - 1), STREAK_MAX))
+	var got := GameState.trail_pickup(run, p.kind, minf(1.0 + 0.1 * (_streak - 1), GameState.streak_max(run)))
 	var at := _pickup_at(p)
 	var text := ""
 	if got.has("coins"):
@@ -367,7 +365,12 @@ func _draw() -> void:
 			hint = "something's up! pick what to do on the adventure card"
 		RunState.Status.DONE:
 			hint = "back home! say welcome back" if run.party.size() > 0 else "the adventure is over. say welcome back"
-	draw_string(_note_font, Vector2(16, size.y - 18.0), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, UiTheme.LILAC)
+	# never under the treat button: a smaller hand when it's tight
+	var room := (_treat.position.x if _treat.visible else size.x) - 28.0
+	var hint_size := 14
+	while hint_size > 10 and _note_font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, hint_size).x > room:
+		hint_size -= 1
+	draw_string(_note_font, Vector2(16, size.y - 18.0), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, hint_size, UiTheme.LILAC)
 	if run.status == RunState.Status.WAITING:
 		draw_string(_title_font, Vector2(_pet_x() + 22.0, ground - 90.0), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, UiTheme.PINK)
 	if _streak >= 2:
@@ -468,9 +471,12 @@ func _draw_pickup(kind: String, at: Vector2) -> void:
 				draw_line(at + Vector2(cos(a), sin(a)) * 10.0, at - Vector2(cos(a), sin(a)) * 10.0, c, 2.0)
 
 
-## What the next pickup on the trail is (no parts until they're a thing, much later).
+## What the next pickup on the trail is (no parts until they're a thing, much later; sharper eyes
+## spot more of them after that).
 func _pick_kind() -> String:
 	var weights := PICKUP_WEIGHTS.duplicate()
 	if not GameState.feature_on("parts"):
 		weights.erase("part")
+	elif run != null:
+		weights.part = float(weights.part) * GameState.trail_part_x(run)
 	return Weighted.pick(weights, _rng)

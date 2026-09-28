@@ -72,8 +72,9 @@ static func _pick(pet: Pet, kind: String, rng: RandomNumberGenerator, catalog: C
 ## What the active pet says about one option on a trip, e.g. "bean spotted something shiny!
 ## bean looks a bit wobbly…". Risk is read from the real chance (and how bad failing would be), reward
 ## from what the option can give; neither is ever shown as a number. Each personality says it
-## its own way and some read risk wrong on purpose (see "bias" in data/voice.json).
-static func hint(speaker: Pet, option: Dictionary, party: Party, location: Dictionary, catalog: Catalog, boost := 1.0) -> String:
+## its own way and some read risk wrong on purpose (see "bias" in data/voice.json). `luck` is the
+## trip's lucky charm (see Gear): it changes the real chance, so the words shift by themselves.
+static func hint(speaker: Pet, option: Dictionary, party: Party, location: Dictionary, catalog: Catalog, boost := 1.0, luck := 0.0) -> String:
 	var h: Dictionary = _personality(speaker, catalog).get("hints", {})
 	if h.is_empty():
 		return ""
@@ -81,13 +82,10 @@ static func hint(speaker: Pet, option: Dictionary, party: Party, location: Dicti
 	if option.get("home", false):
 		return str(h.home).replace("{trip}", trip)
 	var parts: Array[String] = []
-	var risky := false
 	var failure: Dictionary = option.get("failure", {})
-	for key in ["hurt", "lost", "injured"]:
-		risky = risky or failure.has(key)
 	var band := 0
-	if risky:
-		var chance := AdventureRunner.success_chance(option, party, location)
+	if AdventureRunner.risky(option, location):
+		var chance := AdventureRunner.success_chance(option, party, location, luck)
 		band = 4
 		for i in RISK_STEPS.size():
 			if chance >= RISK_STEPS[i]:
@@ -148,7 +146,7 @@ static func feeling(speaker: Pet, party: Party, history: Array[Dictionary], cata
 
 ## What the pet on a trip spotted at an event: the tempting option's reward and how dangerous it
 ## looks, in the active pet's words. With nothing risky it's the best reward on offer.
-static func spotted(speaker: Pet, event: Dictionary, party: Party, location: Dictionary, catalog: Catalog, boost := 1.0) -> String:
+static func spotted(speaker: Pet, event: Dictionary, party: Party, location: Dictionary, catalog: Catalog, boost := 1.0, luck := 0.0) -> String:
 	var tempting := {}
 	var best := -1.0
 	for option in event.options:
@@ -157,7 +155,7 @@ static func spotted(speaker: Pet, event: Dictionary, party: Party, location: Dic
 		if score > best:
 			best = score
 			tempting = option
-	return hint(speaker, tempting, party, location, catalog, boost) if not tempting.is_empty() else ""
+	return hint(speaker, tempting, party, location, catalog, boost, luck) if not tempting.is_empty() else ""
 
 
 ## What your active pet says about having a part sewn on: how it feels about the risk before

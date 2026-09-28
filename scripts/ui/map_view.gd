@@ -345,8 +345,7 @@ func _draw_trips() -> void:
 			RunState.Status.DONE:
 				spot = home + Vector2(-38 - i * 16, 14)
 			_:
-				var location := Catalog.shared().location(run.location_id)
-				var gap := AdventureRunner.gap(location, run.party, run.events.size())
+				var gap := AdventureRunner.run_gap(run, Catalog.shared())
 				var within := clampf(1.0 - (run.next_at - now) / gap, 0.0, 1.0)
 				if run.step >= run.events.size():
 					spot = place.lerp(home, within)

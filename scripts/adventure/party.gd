@@ -83,11 +83,21 @@ func injure(count: int, rng: RandomNumberGenerator) -> int:
 
 
 ## Hurts `count` pets, each losing `hearts` hearts: a pet has two (healthy, then hurt), so a
-## second heart lost means it doesn't come back. Returns { injured, lost }.
-func hurt(count: int, hearts: int, rng: RandomNumberGenerator) -> Dictionary:
-	var out := { "injured": 0, "lost": 0 }
+## second heart lost means it doesn't come back. The first-aid leaf (see Gear) can turn that into
+## staying hurt: `saves` pets for sure, then each other one at `share` chance.
+## Returns { injured, lost, saved }.
+func hurt(count: int, hearts: int, rng: RandomNumberGenerator, saves := 0, share := 0.0) -> Dictionary:
+	var out := { "injured": 0, "lost": 0, "saved": 0 }
 	for uid in _shuffled(uids, rng).slice(0, mini(count, uids.size())):
 		if hearts >= 2 or injured.has(uid):
+			var saved := saves > 0 or (share > 0.0 and rng.randf() < share)
+			if saved:
+				saves = maxi(0, saves - 1)
+				out.saved += 1
+				if not injured.has(uid):
+					injured[uid] = true
+					out.injured += 1
+				continue
 			uids.erase(uid)
 			injured.erase(uid)
 			lost.append(uid)

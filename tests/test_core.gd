@@ -33,6 +33,7 @@ func _init() -> void:
 	_test_toys(catalog)
 	_test_automation(catalog)
 	_test_unlocks(catalog)
+	_test_gear(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -931,6 +932,156 @@ func _test_toys(catalog: Catalog) -> void:
 	for t in catalog.toys.sets[0].toys:
 		Toys.add(full, t.id, "normal")
 	_check(Toys.slots(full, catalog) == int(d.slots) + 1, "a finished set gives another play slot")
+
+
+## Gear: xp upgrades to adventuring (data/gear.json, Gear), and what they do on a trip.
+func _test_gear(catalog: Catalog) -> void:
+	var all := Gear.all(catalog)
+	_check(all.size() == 8, "there are 8 gear upgrades (%d)" % all.size())
+	var opened := {}
+	for entry in catalog.unlock_list:
+		for o in entry.opens:
+			opened[str(o)] = true
+	var base: Dictionary = catalog.gear.base
+	var seen := {}
+	var icons := FileAccess.get_file_as_string("res://scripts/ui/ui_theme.gd")  # UiTheme needs the game running
+	for g in all:
+		for field in ["name", "icon", "color", "does", "xp", "grow", "max", "each", "show"]:
+			_check(g.has(field), "gear %s has %s" % [g.id, field])
+		_check(icons.contains('"%s":' % g.icon), "gear %s has a real icon" % g.id)
+		if g.has("after"):
+			_check(seen.has(str(g.after)), "gear %s comes after an earlier one (%s)" % [g.id, g.after])
+		if g.has("needs"):
+			var needs := str(g.needs)
+			var known := opened.has(needs) or (needs.begins_with("location:") and not catalog.location(needs.substr(9)).is_empty())
+			_check(known, "gear %s waits for something real (%s)" % [g.id, needs])
+		for key in ["show", "show_parts"]:
+			if g.has(key):
+				for m in RegEx.create_from_string("\\{(\\w+)%?\\}").search_all(str(g[key])):
+					_check(g.each.has(m.get_string(1)) or base.has(m.get_string(1)), "gear %s shows %s, a value it changes" % [g.id, m.get_string(1)])
+		for lv in range(1, int(g.max) + 1):
+			var text := Gear.words(catalog, g.id, lv, true)
+			_check(text != "" and not "{" in text, "gear %s lv %d reads: %s" % [g.id, lv, text])
+		seen[g.id] = true
+
+	_check(Gear.price(catalog, "boots", 0) == 30 and Gear.price(catalog, "boots", 1) == 48, "boots cost 30, then x1.6 (%d)" % Gear.price(catalog, "boots", 1))
+	_check(is_equal_approx(Gear.value(catalog, { "boots": 5 }, "walk"), 0.4), "boots lv 5: trips 40% shorter")
+	_check(Gear.value(catalog, {}, "treat_every") == 15.0 and Gear.value(catalog, { "pouch": 3 }, "treat_every") == 9.0
+		and Gear.value(catalog, { "pouch": 3 }, "treat_zoom") == 11.0, "the treat pouch: a treat every 9 s, zoom 11 s at lv 3")
+	_check(is_equal_approx(Gear.value(catalog, { "paws": 3 }, "streak_max"), 2.25), "sticky paws lv 3: streaks up to x2.25")
+	_check(is_equal_approx(Gear.value(catalog, { "eyes": 3 }, "part_x"), 2.5), "sharper eyes lv 3: trail parts x2.5 (4 -> 10)")
+	_check(Gear.words(catalog, "boots", 1) == "trips 8% shorter" and Gear.words(catalog, "boots", 0) == "as usual", "boots read as numbers")
+	_check(Gear.words(catalog, "pouch", 1) == "a treat every 13\u00a0s, zoom 9\u00a0s", "the pouch reads as numbers (%s)" % Gear.words(catalog, "pouch", 1))
+	_check(Gear.words(catalog, "eyes", 3) == "+45% bits" and Gear.words(catalog, "eyes", 3, true) == "+45% bits, trail parts x2.5",
+		"sharper eyes only mention parts once they're open")
+	_check(Gear.clean(catalog, { "boots": 99, "nope": 2, "tote": -1 }) == { "boots": 5 }, "saved gear is clamped and cleaned")
+
+	# the path: boots and the tote first, the rest once their "after" has a level and "needs" is open
+	var closed := func(_id): return false
+	var everything := func(_id): return true
+	var ids := func(list): return list.map(func(g): return g.id)
+	_check(ids.call(Gear.shown(catalog, {}, everything)) == ["boots", "tote"], "a fresh path shows boots and the tote")
+	_check("pouch" in ids.call(Gear.shown(catalog, { "boots": 1 }, closed)), "boots bring the treat pouch onto the path")
+	var mid := { "boots": 1, "tote": 1, "pouch": 1, "paws": 1, "eyes": 1 }
+	_check(not "charm" in ids.call(Gear.shown(catalog, mid, closed)), "the charm waits for the meadow")
+	_check("charm" in ids.call(Gear.shown(catalog, mid, func(id): return id == "location:meadow")), "the charm shows once the meadow is open")
+	var late := mid.merged({ "leaf": 1 })
+	_check(not "harness" in ids.call(Gear.shown(catalog, late, func(id): return id == "location:meadow")), "the harness waits for the wheelbarrow")
+	_check("harness" in ids.call(Gear.shown(catalog, late, everything)), "the harness shows with parties of 5")
+	_check(Gear.for_trip(catalog, { "boots": 3 }, catalog.location("well")).is_empty(), "no gear in dungeons")
+	_check(Gear.for_trip(catalog, { "boots": 3 }, catalog.location("meadow")) == { "boots": 3 }, "trips pack the gear")
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	var roller := PetRoller.new(catalog, rng)
+	var bean: Array[Pet] = [roller.roll("starter", "common")]
+	# comfy boots: shorter walks
+	var plain := AdventureRunner.start("garden", bean, 0.0, 1, catalog)
+	var booted := AdventureRunner.start("garden", bean, 0.0, 1, catalog, {}, {}, { "boots": 5 })
+	_check(is_equal_approx(AdventureRunner.run_gap(booted, catalog), AdventureRunner.run_gap(plain, catalog) * 0.6) and is_equal_approx(booted.next_at, plain.next_at * 0.6),
+		"boots lv 5: 0.6 x the walk")
+	# the lucky charm: only risky options, never past the cap, never at a safe place
+	var meadow := catalog.location("meadow")
+	var party := Party.make(bean, catalog)
+	var risky := { "chance": 0.5, "failure": { "text": "", "hurt": [1, 1] } }
+	var sure := { "chance": 0.9, "failure": { "text": "", "lost": [1, 1] } }
+	var safe := { "chance": 0.5, "failure": { "text": "" } }
+	_check(is_equal_approx(AdventureRunner.success_chance(risky, party, meadow, 0.12), 0.62), "the charm adds its luck to a risky option")
+	_check(is_equal_approx(AdventureRunner.success_chance(sure, party, meadow, 0.12), AdventureRunner.MAX_CHANCE), "the charm stays under the cap")
+	_check(is_equal_approx(AdventureRunner.success_chance(safe, party, meadow, 0.12), 0.5), "the charm does nothing for a safe option")
+	_check(is_equal_approx(AdventureRunner.success_chance(risky, party, catalog.location("garden"), 0.12), 0.5), "nothing's risky in the garden")
+	# the comfy harness: fewer losses on the same trips
+	var lost_plain := _gear_losses("meadow", bean, {}, catalog)
+	var lost_harness := _gear_losses("meadow", bean, { "harness": 3 }, catalog)
+	_check(lost_harness < lost_plain, "the harness means fewer losses (%d vs %d)" % [lost_harness, lost_plain])
+	# the first-aid leaf: a hurt pet hurt again stays (once a trip per level), then it's lost
+	var p2 := Party.make(bean, catalog)
+	p2.hurt(1, 1, rng)
+	var saved := p2.hurt(1, 1, rng, 1, 0.0)
+	_check(p2.size() == 1 and saved.saved == 1 and saved.lost == 0, "the leaf saves a pet hurt again")
+	p2.hurt(1, 1, rng, 0, 0.0)
+	_check(p2.size() == 0, "with no saves left it doesn't come back")
+	var hurt_event := {}
+	var hurt_pick := -1
+	for entry in meadow.pool:
+		var e: Dictionary = catalog.events[entry.event]
+		for j in e.options.size():
+			var fail: Dictionary = e.options[j].get("failure", {})
+			if hurt_pick < 0 and fail.has("hurt") and int(fail.get("hearts", 1)) == 1 and not fail.has("lost"):
+				hurt_event = e
+				hurt_pick = j
+	var leaf_checked := false
+	for t in 100:
+		var run := AdventureRunner.start("meadow", bean, 0.0, t, catalog, {}, {}, { "leaf": 1 })
+		run.party.injured[bean[0].uid] = true
+		var fails := 0
+		for k in 40:
+			if run.party.size() == 0:
+				break
+			var entry := AdventureRunner.play(hurt_event, hurt_pick, run, catalog)
+			if not entry.success:
+				fails += 1
+				if fails == 1:
+					_check(run.party.size() == 1 and run.saves_used == 1 and str(entry.text).ends_with(Gear.leaf_text(catalog)),
+						"the leaf saves a hurt solo pet once (%s)" % entry.text)
+		if fails >= 2:
+			_check(run.party.size() == 0, "a second hit with no saves left loses it")
+			leaf_checked = true
+			var back := RunState.from_dict(JSON.parse_string(JSON.stringify(run.to_dict())), catalog)
+			_check(back.gear == { "leaf": 1 } and back.saves_used == 1, "a run keeps its gear and saves through a save")
+			break
+	_check(leaf_checked, "the leaf test found a trip with two misses")
+	# sharper eyes: more bits in the treat bag
+	var bits := [0, 0]
+	for t in 400:
+		for i in 2:
+			var run := AdventureRunner.start("meadow", bean, 0.0, t, catalog, {}, {}, {} if i == 0 else { "eyes": 3 })
+			AdventureRunner._finish_treat(run, meadow, catalog)
+			bits[i] += Rewards.total(run.loot, "bit")
+	_check(bits[1] > bits[0] * 1.2, "sharper eyes bring more bits home (%d vs %d)" % [bits[1], bits[0]])
+
+
+## Pets lost over 200 meadow trips always taking the riskiest option, with this gear packed.
+func _gear_losses(place_id: String, pets: Array[Pet], gear: Dictionary, catalog: Catalog) -> int:
+	var place := catalog.location(place_id)
+	var lost := 0
+	for t in 200:
+		var run := AdventureRunner.start(place_id, pets, 0.0, t, catalog, {}, {}, gear)
+		var now := 0.0
+		for i in 20:
+			if run.status == RunState.Status.DONE:
+				break
+			if run.status == RunState.Status.WAITING:
+				var options := AdventureRunner.options_of(run.current_event(catalog), place)
+				var riskiest := 0
+				for j in options.size() - 1:
+					if float(options[j].get("chance", 1.0)) < float(options[riskiest].get("chance", 1.0)):
+						riskiest = j
+				run.answer = riskiest
+			AdventureRunner.resolve(run, PlayerChooser.new(), now, catalog)
+			now += 1.0e5
+		lost += run.party.lost.size()
+	return lost
 
 
 func _check(ok: bool, what: String) -> void:
