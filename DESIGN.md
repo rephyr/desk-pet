@@ -212,6 +212,15 @@ Numbers and names keep their own case.
 ("52 pets · page 1 of 3", "greedy · earns more coins"). Give each piece its own element, line or
 label instead, or use plain words and punctuation (a colon, a comma, "and").
 
+**The Show Don't Explain Rule.** Never spell out a rule the game can teach by playing. No
+"one thing at a time", "after you teach them", "your pet learns it first": the player finds out
+when moving the pet stops the job it left. Labels name things; they don't describe the mechanics.
+
+**The Hidden Until Earned Rule.** Anything not unlocked yet is fully hidden: no locked rows, no
+"???" slots, no greyed-out columns, no "unlocks at…" hints. A new thing appears when it's earned
+(the unlock popup is its introduction). Exception: something the player is already working
+towards, like the next node on the machine tree.
+
 **The Display Is A Moment Rule.** The display size (headline and up) never sets a paragraph
 or a button row; one or two uses per screen.
 
@@ -304,6 +313,17 @@ pets a note shows a stacked pile of 3 polaroids, the count in the display font a
 crowd of tiny pets. Resting pets wait in a shoebox sticker on the right. A meter that fills
 faster than you can see becomes a flowing stripe with "N coins a minute".
 
+### Automation: job cards
+A raised card per job (172 px wide, tinted by its job colour; the picked one gets the pink
+stitched outline) with a deep well holding a drawn picture of the job: your pet's little capsule
+machine with its crank going round, the box table with its lid hopping, the adventure gate with
+its flag. Your pet sits in the well of the job it's doing; the others are faded and say "nobody
+here". The side card (236 px) teaches, moves or takes your pet off, and lists the job's tools.
+A pill top right says what your pet is doing. No hint text: moving your pet teaches the rest.
+The workers page (a your pet | workers switch, there once the others know a job): the same cards,
+the well filled with small machines (60%) each with its worker, 6 shown then "+N"; the side card
+counts spots, working and resting pets, buys a spot, and puts pets on (− / + / fill up).
+
 ### Settings: the look (signature)
 Colour themes show as tiny windows drawn in their own theme; fonts show "Aa" and a pet name
 written in that font; icons show four icons in that set. The chosen one gets a dashed pink
@@ -331,6 +351,8 @@ lilac for mood and trip progress.
 - **Don't** glow routine chrome; glow is for rewards and rare pulls.
 - **Don't** show odds, percentages or anything that hints the game is dark in pet speech.
 - **Don't** set paragraphs or button rows in the display size.
+- **Don't** over-explain: no hint lines about how a mechanic works; let play teach it.
+- **Don't** show later features in plain sight (locked tabs, columns, "???" slots) before they unlock.
 - **Don't** use a dot or bullet (·, •) as a separator between pieces of text.
 - **Don't** let anything spill past the window: one-line labels shrink with "…" or wrap, and
   layouts drop columns instead of growing wider.

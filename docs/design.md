@@ -116,6 +116,14 @@ its parts and finish together.
     the rare ritual. All timings and per-tier effects live in `data/reveal.json`.
 - Mass open for large piles, with a summary that highlights the best pulls.
 
+**Sound of one opening:** the tear follows your hand. When the strip comes off the pack breathes
+out (a soft airy shimmer) and a hum starts inside it; each rarity step adds a musical layer on top
+(celesta, strings, choir and harp, brass and glockenspiel, and for mythic a bell that's slightly
+wrong) with a rising harp chime; pulling the pet out brings tremolo strings that want to resolve,
+and the reveal plays the rarity's fanfare (a music-box ta-da for common up to the whole orchestra;
+mythic detours through D flat before it comes home). All cheerful, all in F like the room music,
+which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
+
 ## Collection book
 
 - Tracks every part discovered, and every finish seen for each body.
@@ -132,6 +140,69 @@ its parts and finish together.
   crafting. **Open:** exact list and order.
 - Desktop events while the pet is out: finding coins on window edges, catching falling things,
   rare visitors.
+- **Rummaging** (built): something to do while the first adventures are out. The room on the home
+  tab has spots (little dresser, plant pot, sock pile, toy box, data/rummage.json) that twinkle
+  when something's in them. Tap one and your pet hurries over, dives in head first and comes out
+  with coins (2-4), sometimes an xp, and (once parts are open) now and then a common part. Each spot refills after 2 min
+  (also while the game is closed, holding one find at most). Tap several and it does them in
+  turn. Opens after the tutorial. At most about 6 coins a minute, about half a garden trip
+  (tools/balance.gd); later the coin hunt errand is the automated version of this.
+- **The capsule machine** (built, the machine tab, data/machine.json): the always-there active
+  thing. Grab the pink knob and pull the lever towards you: it clicks past its notches, clunks at
+  the bottom, the machine jolts, the capsules in the glass jump, and ONE capsule drops out of the
+  flap, bounces, wobbles and splits open: one pull, one prize. **One pull at a time** (Emilia): the
+  lever won't budge until the capsule has opened (1.4 s, the springier spring makes it quicker), so
+  it's fewer, better pulls and kinder to your wrist; a capsule starts at 1 coin (mostly a few coins that fly up to the counter;
+  sometimes an xp, a part, a whole box or a golden capsule). Every pull lights one of the lucky
+  lights; all lit = a shiny capsule (only good prizes) and FEVER (10 s where every capsule pays
+  double, the room music steps back for a bouncy fever tune). The upgrade shelf (Cookie Clicker's
+  store): fuller capsules, a springier spring, shinier capsules, luckier lights, and locked ones
+  found on adventures later. **Decided (Emilia):** it is NEVER automated. Pets don't work it (they
+  earn on errands); it stays relevant all game as a side objective you keep building, so the game
+  is never fully automated and sitting there pulling is always best. Its point: coins to get pets.
+  **Capsule toys (built, data/toys.json, Toys):** the machine's own chase. About 1 capsule in 15
+  holds a pixel-art toy from a SET (the first: backyard friends, 4 common, 2 uncommon, 1 rare,
+  1 secret "???"), in a finish (normal, holo, gold foil, ghost). A good prize pops up as a PICTURE.
+  Toys live in the collectibles tab (was pets: pets | toys | book). A toy only boosts while your
+  pet PLAYS with it: pick a quick play (10 min), a long one (30 min) or all afternoon (2 h); it
+  holds the toy on its moon and won't let go ("do not disturb me!"); one play slot, +1 for a
+  finished set. Boosts are multipliers, small early (a common toy x1.1) and big later (levels,
+  finishes: holo x1.25, gold foil x1.5, ghost x2 of the extra): coins, luck (the machine and
+  adventures), xp, faster capsules, longer fever, more toys, more adventure loot, or everything
+  (the moth). Playing WEARS a toy (its boost shrinks, never below half); nothing is ever lost.
+  The WORKBENCH (was the bag: your pet | toys) combines spares into levels (always works), fixes
+  wear for coins, and SACRIFICES 3 spares for a chance at a special finish (odds shown, gone
+  either way). Max level = a FAVOURITE: always on, never wears (the late-game permanent buffs).
+  Rerolling toys was cut (too strong). Mockups: toys.html, upgrading.html, toy-designs.html (B).
+  **The broken machine and its tree (Emilia, built):** the machine is an old broken one you fix
+  up (machine tab: machine | upgrades). The upgrade TREE (data/machine_tree.json) has a trunk of
+  repairs (tape up the crack, oil the lever, unstick the flap, new glass, rewire the lights, better
+  drops) with branches growing off them: coin multipliers, more chutes, double/triple drops, shiny
+  balls (x2, x3, x4), longer fever. Repairs cost coins and BITS (gear, spring, bolt, glass) that
+  pets bring home from backyard adventures, each place its own kind, so machine and adventures
+  both matter and neither idles yet. The map says which: each place has its bit and
+  "bolts here!" under its name, its card says "brings home bolts", and the ? cloud of a place
+  nobody's found yet says "bolts out this way?" while the machine still needs that bit (MapView.bit_of). Everything fixed shows on the machine. After "new glass" a
+  capsule holds a scrap of a map (intel): the page beyond the fence opens. From the start (after
+  the tutorial) a pull's first capsule now and then (about 1 pull in 400) holds a **box with a pet inside**, ripped
+  open right at the machine with the real ritual; you can't buy or open boxes yet (the boxes tab
+  waits for better drops), so this is the only way to more pets early. With no pets besides your
+  active one, a pet box is sure within 10 pulls (machine.json "pet_box"): losing your pets on
+  adventures can never leave you stuck. Better drops puts boxes
+  and toys in the machine (and opens those). Parts come much later (a "woah" moment once you know
+  how pets roll). Coins go huge (1.2k, 3.4M, 5.6B) and prices keep up (tools/machine_pace.gd).
+  Lore: you're conquering the backyard, then beyond; the voice never says so.
+  **The start (Emilia, built, older):** a new game shows only home, the machine and collectibles (toys
+  locked "???"). Pull the lever; on the 3rd pull your first pet comes out OF THE MACHINE and is your
+  active pet. Then it's you and the machine for a while: it starts bad (1 coin a capsule, slow) and
+  upgrades are quick at first, then expensive and marginal (tools/machine_pace.gd: 19 upgrades is
+  about 20 min of steady pulling). At 19 upgrades (data/tutorial.json) a second pet comes out
+  holding a map: adventures open and you send it. After that new things come through adventures,
+  spaced out: boxes after 4 trips, toys after 10 (data/unlocks.json "trips"), plus the finds as
+  before. The machine only gives what's open (no boxes before the boxes tab, no toys before toys).
+  Settings' dev part shows when each thing opened, in minutes, for pacing tests.
+  Mockup: design/mockups/screens/capsules.html. **Next:** rummaging changes to finding machine bits;
+  pull value grows with the rest of your income; new globes per map page; rewards get tuned.
 
 ## Adventures (idle side)
 
@@ -154,12 +225,14 @@ economy: currency, body parts, and rewards for mechanics not designed yet. Rewar
     on its own. Swarms and policies come with a later **automation** unlock.
 - **Party size grows through finds** (**Decided**, for the first ~2 hours of play): one pet at
   first; the cart (woods) allows 3, the wheelbarrow (orchard) 5, the hay wagon (meadow, only
-  after the wheelbarrow) 10. Each find gets an unlock popup. Why bring more pets is said in plain
+  after the wheelbarrow) 10. Each find gets an unlock popup. Finds are never a choice: the pet
+  says "i found a basket!" and brings it home (the cart can stay stuck in the mud for a later trip,
+  the hay wagon only turns up for 3+ pets). Why bring more pets is said in plain
   words on the place card: more friends bring home more and tricky bits get easier, but more
   friends can get hurt. (Coins grow with each pet, finds with the square root of the party.)
 - **The trail** (**Decided**): one pet or a small party can be watched walking the path. Things to
   grab turn up (coins, xp, a healing leaf, now and then a part). No click-spamming: "toss a
-  treat" makes the pets zoom (3x speed for 8 s), then it takes 30 s to be ready again.
+  treat" makes the pets zoom (3x speed for 8 s), then it takes 15 s to be ready again.
 - **Discovery:** pets spot neighbouring places on the way home; exploration trips (the far
   fields) bring back rumours, word of places further off (the orchard, the well and below). A
   rumour shows on the map; tapping it and saying yes opens the place. The pet explains this the
@@ -177,15 +250,38 @@ economy: currency, body parts, and rewards for mechanics not designed yet. Rewar
 ## Errands (idle side, safe)
 
 **Decided.** The safe, steady floor under adventures: resting pets are put on jobs in the
-errands tab (a corkboard of sticky notes), opened by the little basket found in the meadow.
+errands tab (a corkboard of sticky notes), opened by the little basket found in the meadow. The
+basket only turns up once "unstick the flap" is fixed (event field `after_machine`), so errands open
+when bits start holding the machine up, not in the first minutes.
 Nobody is ever lost on an errand, and errands never bring rare parts or new places.
 
 - **One rule for every job** (`data/errands.json`, `scripts/idle/jobs.gd`): a meter fills once
   every `seconds` with one pet, crew^0.8 times as fast with a bigger crew (each extra pet helps a
   bit less, so spreading beats stacking), and pays each time it's full. A pet's stat for the job
   and its traits nudge its speed (about ±25%; rarer pets have higher stats).
-- **First jobs:** coin hunt (coins; one pet ≈ 2.8 coins a minute, about 30% of a sensible
-  adventure per pet) and the scrapyard (common parts; an uncommon now and then with 5+ pets).
+- **Errands are the idle coin maker and the coin sink** (Emilia, 2026-09-28: coins piled up while
+  bits held the machine back, so pulling felt pointless). Your lever isn't automated in the early
+  stages (later your pet cranks a slow machine of its own, see Automation); errands are. Pay is in **capsules**: a find is worth N of the machine's plain capsules
+  (`Machine.coin_value`), so every machine upgrade raises errands too and idle coins keep up all
+  game while staying well under pulling (one pet on the coin hunt ≈ 2.5 capsules a minute; pulling
+  is 25+).
+- **The basket has a pet asleep in it** (`pet_job` on the unlock): a new player only has two pets
+  then (the active one and the adventurer), so this one starts on the coin hunt.
+- **Jobs:** coin hunt (coins), the lemonade stand (tips: pays by the crew's rarity, so a rare pet
+  pays off early; opens at coin hunt lv 10) and the scrapyard (common parts; an uncommon now and
+  then with 5+ pets). A job with `needs` is not there until that unlock opens: the scrapyard waits
+  for parts (a late feature). Nothing hands out parts before then (GameState.grant drops them); a
+  v19 save closes parts again under 40 trips.
+- **Upgrades page: the pegboard** (`ErrandToolsView`, mockup errands-upgrades.html look A). Coins
+  buy tools, each with levels that cost more every time (some never end): a job's own (coin hunt:
+  sniffier noses +1 capsule a find, quicker paws, deeper pockets = big finds; lemonade: sweeter
+  lemons, a bigger sign, fancy cups = rare pets tip double) and ones for everyone (snack break,
+  comfy naps = longer full speed while away, shiny pebbles = shiny finds once the machine has
+  shiny balls, teamwork = better crew power). Buy x1 / x10 / max. The top of the tab always shows
+  "◆ N a minute on errands", and the card shows before → after, so every buy is visible progress.
+- **Job levels and goals:** a job's level is its tools' levels added up; gold stars along a dotted
+  track mark its goals (coin hunt: lv 10 the lemonade stand, lv 25 and 50 x2 coins, lv 100 x3). An
+  unlock can wait for a level (`earn.job_level`).
 - **The player assigns pets** (tap a resting pet then a job, or + / −). "Your pet shares out new
   pets" is an opt-in switch, off by default. Going on an adventure takes a pet off its job.
 - **Scales from a couple of pets to thousands:** up to 6 on a job each get a polaroid; past that
@@ -193,6 +289,43 @@ Nobody is ever lost on an errand, and errands never bring rare parts or new plac
 - **Offline:** full speed for 8 h, then half, up to the 12 h cap; the tab notes what came in.
 - **Later jobs** (ideas, **Open**): savings jar, recycling, kitchen, digging, show-off, training,
   scouting, mapmaking, stargazing, a lab; the dark twist shows only in what jobs describe.
+
+## Automation (idle side, your pet)
+
+**Decided (Emilia, 2026-09-28), first layer built.** The automation tab: your active pet does ONE
+job at a time for you; moving it stops the job it left (the game never explains this, the pet just
+says what it stopped). Later layers hand whole stages off to pets (workers, packs, pets per second);
+see the memory note on the automation tab for the plan.
+
+- **Opens** when the machine is fully fixed ("better drops"): a pet brings home a tiny, broken,
+  pet-sized capsule machine from the far fields (event `fields_tiny_machine`, `after_machine`
+  drops), and your pet fixes it by itself ("i watched you fix every single gear"). Hidden until then.
+- **Jobs are taught with coins** (`data/automation.json`, `scripts/idle/automation.gd`), and a job
+  that isn't there yet is fully hidden:
+  - **crank a machine** (with the tab): your pet cranks its own little machine, a pull every 48 s
+    at first (you pull about 2 a second), each a plain capsule worth what yours are (coins, toys, a
+    box now and then), no lucky lights, fever or pet boxes. Tools: a smoother crank (faster), a comfy
+    stool (keeps cranking while the game is closed, an hour a level; without it the machine stops).
+  - **run adventures** (after 60 trips once the machine job is taught, `feature:auto_adventures`):
+    pick a place (‹ ›) and how many pets (− +); the party is welcomed back quietly when it's home and
+    sent out again, events take their usual pick.
+  - **open boxes** (the cushion, which now waits for the tab too): your pet opens your pile, but
+    only while it's on this job. It can't buy boxes until the piggy bank.
+- **Look:** a card per job (mockup automation.html look C), your pet sits in the card of the job
+  it's doing, the side card teaches it, moves it or takes it off, and holds the tools.
+- **Workers (built):** "teach the others" turns up in a job's upgrades once your pet's tools are far
+  enough (the machine: crank lv 3); buying it opens a second page, **your pet | workers** (hidden
+  until then). Workers need a spot each, bought with coins (machines, box tables, adventure
+  parties; each costs more), and you put resting pets on them yourself (+ / − / fill up, best
+  pets first). Pets can't buy spots or boxes (on purpose: you restock). A worker is slower than
+  your pet: a common half speed, +0.1 a rarity step (a mythic keeps up), so good pets are worth
+  putting to work. Machine workers pull capsules, box workers open your pile (not the boxes you
+  save), each party spot keeps a party going (its worker leads it, pick place and size per
+  party). Workers keep going while the game is closed as long as your pet's stool lets it. Going on
+  an adventure or becoming your active pet takes a pet off its spot. Worker tools: grease for
+  everyone (machines), sharper cutters (tables).
+- **Open:** spot prices grow fast (placeholders): thousands of workers will need a later layer
+  (pets buying machines, "more machines from conquered places").
 
 ## Risk and crafting
 

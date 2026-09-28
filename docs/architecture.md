@@ -9,7 +9,8 @@ data/*.json          what exists: parts, rarities, finishes, traits, boxes (tune
 scripts/core/        generic helpers with no game rules (Catalog loads data/, Weighted picks)
 scripts/pets/        pet rules and pet visuals (Pet, PetRoller, Collection, PetLook, PetView)
 scripts/adventure/   adventure rules: runs, events, parties, rewards, rumours, the pet's voice
-scripts/idle/        errands (Jobs): pure rules for idle jobs, see data/errands.json
+scripts/idle/        errands (Jobs) and automation (Automation): pure rules for idle jobs, see data/errands.json, data/automation.json
+scripts/machine/     the capsule machine (Machine) and capsule toys (Toys): pure rules, see data/machine.json, data/toys.json
 scripts/dev/         debug-only: launch flags, test profiles, scripted test flows (DevDriver)
 scripts/game_state   the player's progress + saving (autoload "GameState")
 scripts/ui/          screens and widgets; they read GameState and call its functions
@@ -39,10 +40,16 @@ knows the UI exists; state changes are announced with signals (`GameState.change
 
 - `CompactView` - the small idle panel (active pet opening packs, needs, feed / pat / let out).
 - `ExpandedView` - the full game: the `Spine` of tabs and the page. Tabs: `HomeTab` (the pet's
-  room), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
+  room), `MachineTab` (the capsule machine: `MachineStage` draws it and runs the lever, `Machine` in
+  scripts/machine has its rules, `GameState.pull_lever()` pays out; a pet box out of a capsule is opened right there with a
+  `PackOpening`), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
   `CollectionTab` (pets grid + `PetDetails`, and the `BookView`), `AdventuresTab` (`MapView`,
-  the place card, trip cards, and `TrailView` for watching a trip), `ErrandsTab` (the corkboard of
-  jobs), `InventoryTab` (the bag and sewing) and `SettingsTab` (general and video pages).
+  the place card, trip cards, and `TrailView` for watching a trip), `ErrandsTab` (jobs: the corkboard; upgrades:
+  `ErrandToolsView`, the pegboard of tools bought with coins; rules in `Jobs`, levels in
+  `GameState.errand_tools`), `AutomationTab` (a card per job your pet can do, `JobScene` draws each one; rules in
+  `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:
+  `WorkerCard` / `WorkerSpot`, `GameState.put_workers` / `buy_spots` / `teach_others`), `InventoryTab`
+  (the bag and sewing) and `SettingsTab` (general and video pages).
   Tabs can be locked or hidden until something opens them (`data/unlocks.json`).
 - The full game is laid out at 920x600 (`home.gd` `EXPANDED_SIZE`) and scaled to the chosen
   resolution with `content_scale_factor`, never past what fits the screen. Nothing may need more
@@ -71,6 +78,17 @@ small GDExtension; nothing else should need to change.
 `GameState` saves to `user://save.json` every 30 s, after opening boxes and on quit. The file
 has a `version`; `GameState._migrate` upgrades older files step by step, so bump
 `SAVE_VERSION` and add a migration step whenever the format changes.
+
+Gates live in data: an unlock id opens things (`GameState.is_unlocked`), an adventure event can
+wait for a find (`after`) or a fixed machine node (`after_machine`, checked in
+`AdventureRunner.pick_events`), and an errand can wait for an unlock (`needs`, see
+`GameState.open_jobs`). The machine tree's card says where a missing bit comes from
+(`GameState.bit_hint`, from the places' `finish_rewards` and `leads_to`).
+An unlock's `earn` can also wait for another unlock (`open`, e.g. the workbench from parts waits
+for `feature:parts`). Save v20 re-gates saves from v15-v19: whatever `data/unlocks.json` opens
+closes again unless something earned opens it (`UnlockRules.stale`); places stay open, older
+saves (and the test saves) keep what their migrations gave them. Save v21 moves your pet opening boxes
+into automation: a save with the cushion gets the automation tab and the boxes job (doing it if it was on).
 
 ## Testing
 
