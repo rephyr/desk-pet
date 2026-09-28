@@ -44,7 +44,10 @@ if "--show" not in sys.argv and shutil.which("xvfb-run"):
     env = {k: v for k, v in os.environ.items() if k not in ("WAYLAND_DISPLAY", "HYPRLAND_INSTANCE_SIGNATURE")}
     env["__GLX_VENDOR_LIBRARY_NAME"] = "mesa"
     env["__EGL_VENDOR_LIBRARY_FILENAMES"] = "/usr/share/glvnd/egl_vendor.d/50_mesa.json"
-    args = ["xvfb-run", "-a", "-s", "-screen 0 2560x1440x24"] + args
+    # its own display number per lane + flow: `xvfb-run -a` races when several flows start at once
+    import zlib
+    display = 100 + zlib.crc32(f"{lane}:{name}".encode()) % 800
+    args = ["xvfb-run", "-n", str(display), "-s", "-screen 0 2560x1440x24"] + args
 try:
     result = subprocess.run(args, cwd=project, capture_output=True, text=True, timeout=300, env=env)
     code = result.returncode
