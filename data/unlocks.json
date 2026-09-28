@@ -33,7 +33,7 @@
 			"earn": { "find": "cart" }, "announce": "a cart! three friends can go on adventures together now!" },
 		{ "id": "beyond", "opens": ["page:beyond"], "show": "hidden",
 			"popup": { "title": "new: beyond the fence!", "text": "a scrap of a map came out of the capsule machine! someone drew what's past the fence. there's a whole new page on the map!", "go": "adventures" },
-			"earn": { "find": "intel_fence" }, "announce": "a map of past the fence! there's so much out there. it should all be ours! i mean, we should visit!" },
+			"earn": { "find": "intel_fence" }, "announce": "a map of past the fence! there's so much out there. let's go see all of it!" },
 		{ "id": "parts", "opens": ["feature:parts"], "show": "hidden",
 			"popup": { "title": "new: parts!", "text": "pets can bring body parts home from adventures now. on the workbench you can sew them onto your pet. every part rolls its own little bonus!", "go": "adventures" },
 			"earn": { "trips": 40 }, "announce": "i found an ear on the path! a spare one. can i wear it?" },

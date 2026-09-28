@@ -2,16 +2,17 @@
 from rich
 view full
 tab boxes
-click "10"                  # the amount chip on the starter row (the first "10" on screen)
-click "buy 10"
+expect fits
+click name:amount_starter_10
+click name:buy_starter
 expect pile starter 10
 shot bought
-click "open 1"
+click name:open_starter_1
 key space
 wait ritual
 click "lovely!"
 expect pile starter 9
-click "open all"
+click name:open_starter_all
 wait 4
 shot opened_all
 click "lovely!"

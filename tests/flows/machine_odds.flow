@@ -1,0 +1,52 @@
+# The capsule machine's prize card: the "prizes" tag in the corner flips over into the odds of a
+# capsule (like the back of a box); a lucky column once the lights are rewired, shiny once fixed.
+from after_tutorial
+view full
+tab machine
+expect fits
+shot tag
+click name:odds_tag
+wait 0.5
+expect text "coins"
+expect no-text "lucky"
+expect fits
+shot odds_early
+click name:odds_card
+wait 0.5
+expect no-text "a capsule"
+bits spring 1
+bits glass 2
+bits bolt 2
+bits gear 2
+fix tape
+fix oil
+fix flap
+fix glass
+fix wires
+fix shiny 3
+fix fever 3
+fix drops 2
+unlock tab:boxes
+wait 0.3
+click name:odds_tag
+wait 0.5
+expect text "lucky"
+expect text "shiny"
+expect text "sunny box"
+expect fits
+shot odds_lucky
+click name:odds_card
+wait 0.5
+pull 1 0.3
+shot after_pull
+expect fits
+# while the card is open, a second chute fixes itself in: the card refills, the pet box gets "a pull"
+click name:odds_tag
+wait 0.5
+expect no-text "a pull"
+fix chute2
+wait 0.3
+expect text "a pull"
+expect text "a pet in a box"
+expect fits
+shot odds_many

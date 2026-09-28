@@ -12,7 +12,9 @@ func _init() -> void:
 	var catalog := Catalog.new()
 	_test_data_is_consistent(catalog)
 	_test_odds_match_box(catalog, "starter")
-	_test_odds_match_box(catalog, "lucky")
+	_test_odds_match_box(catalog, "sunset")
+	_test_odds_match_box(catalog, "midnight")
+	_test_box_tiers(catalog)
 	var tutorial_roller := PetRoller.new(catalog)
 	for i in 500:
 		var first := tutorial_roller.roll("tutorial")
@@ -145,6 +147,114 @@ func _test_odds_match_box(catalog: Catalog, box_id: String) -> void:
 		_check(absf(got - expected[t]) < _tolerance(expected[t]), "%s rarity %s odds" % [box_id, t])
 
 
+## Box tiers (B1): the shop sells a tier once its map page is open, a better tier holds more pets,
+## finishes and looks are gated by tier, workers count boxes (not the pets in them), and old saves'
+## lucky boxes become sunset boxes.
+func _test_box_tiers(catalog: Catalog) -> void:
+	var shop := catalog.shop_boxes()
+	_check(shop.size() == 3 and shop[0].id == "starter" and shop[1].id == "sunset" and shop[2].id == "midnight", "the shop's tiers are sunny, sunset, midnight")
+	_check(catalog.box("lucky").is_empty(), "the lucky box is retired")
+	for i in range(1, shop.size()):
+		_check(int(shop[i].price) >= 5 * int(shop[i - 1].price) and int(shop[i].price) <= 10 * int(shop[i - 1].price), "%s costs about x8 the tier before" % shop[i].id)
+		_check(Weighted.chances(shop[i].tiers).get("common", 0.0) < Weighted.chances(shop[i - 1].tiers).get("common", 0.0), "%s has better odds than the tier before" % shop[i].id)
+		for f in shop[i - 1].finishes:
+			_check(shop[i].finishes.has(f), "%s keeps every finish of the tier before (%s)" % [shop[i].id, f])
+		_check(shop[i].has("arrives") and str(shop[i].arrives) != "", "%s has a line for arriving" % shop[i].id)
+	_check(not shop[0].finishes.has("glitch") and not shop[0].finishes.has("prismatic"), "sunny boxes have no glitch or prismatic")
+	_check(shop[1].finishes.has("glitch") and not shop[1].finishes.has("prismatic"), "sunset boxes add glitch, not prismatic")
+	_check(shop[2].finishes.has("prismatic"), "midnight boxes add prismatic")
+	var page_ids := catalog.pages.map(func(p): return p.id)
+	for b in shop:
+		_check(b.has("page") and b.has("stamp") and b.has("pets"), "box %s has a page, a stamp and a pet count" % b.id)
+	# which tiers the shop sells: a page that doesn't exist yet keeps its tier out
+	var only_start := func(page: String): return catalog.pages.any(func(p): return p.id == page and p.get("start", false))
+	var with_beyond := func(page: String): return page in ["backyard", "beyond"]
+	var every := func(_page: String): return true
+	_check(BoxShop.open_tiers(catalog, only_start).map(func(b): return b.id) == ["starter"], "a new game's shop sells only sunny boxes")
+	_check(BoxShop.open_tiers(catalog, with_beyond).map(func(b): return b.id) == ["starter", "sunset"], "beyond the fence brings sunset boxes")
+	_check(not "next_door" in page_ids or BoxShop.open_tiers(catalog, with_beyond).size() == 2, "midnight boxes wait for next door")
+	_check(BoxShop.open_tiers(catalog, only_start, true).size() == 3, "the dev switch puts every tier in")
+	_check(BoxShop.open_tiers(catalog, every).size() == 3, "every page open: every tier")
+	# pets per box, and what they can be
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 99
+	var roller := PetRoller.new(catalog, rng)
+	var counts := {}
+	for i in 600:
+		counts[roller.roll_box("sunset").size()] = true
+	_check(counts.keys().all(func(n): return n in [2, 3]) and counts.size() == 2, "a sunset box holds 2 or 3 pets (%s)" % str(counts.keys()))
+	_check(roller.roll_box("starter").size() == 1, "a sunny box holds one pet")
+	_check(roller.roll_box("tutorial").size() == 1, "the tutorial box holds one pet")
+	var gated := {}  # part key -> the box it comes from
+	for slot in Catalog.SLOTS:
+		for p in catalog.slots[slot]:
+			if p.has("from"):
+				_check(not catalog.box(str(p.from)).is_empty() and not catalog.box(str(p.from)).get("hidden", false), "look %s comes from a real shop box" % p.id)
+				gated["%s:%s" % [slot, p.id]] = str(p.from)
+	_check(gated.values().has("sunset") and gated.values().has("midnight"), "sunset and midnight boxes have new looks")
+	for t in catalog.tiers:
+		_check(Catalog.SLOTS.any(func(sl): return not catalog.parts_in(sl, t.id, "starter").is_empty()), "a sunny box can still roll a %s pet" % t.id)
+	var seen := { "starter": {}, "sunset": {} }
+	for box_id in seen:
+		for t in catalog.tiers:
+			for i in 300:
+				var pet := roller.roll(box_id, t.id)
+				_check_parts_fit_rarity(catalog, pet)
+				for slot in Catalog.SLOTS:
+					seen[box_id]["%s:%s" % [slot, pet.parts[slot]]] = true
+				seen[box_id]["finish:" + pet.finish] = true
+	for key in gated:
+		if gated[key] != "starter":
+			_check(not seen.starter.has(key), "a sunny box never has %s" % key)
+		if gated[key] == "midnight":
+			_check(not seen.sunset.has(key), "a sunset box never has %s" % key)
+	_check(seen.sunset.has("body:fox"), "a sunset box can have a fox")
+	for f in ["glitch", "prismatic"]:
+		_check(not seen.starter.has("finish:" + f), "a sunny box never rolls %s" % f)
+	_check(not seen.sunset.has("finish:prismatic"), "a sunset box never rolls prismatic")
+	var sunny_place: Dictionary = catalog.locations.filter(func(l): return l.box == "starter")[0]
+	var trip_gated := false
+	for i in 3000:
+		var got := Rewards.roll_part(str(sunny_place.box), rng, catalog)
+		trip_gated = trip_gated or gated.has("%s:%s" % got)
+	_check(not trip_gated, "trips to sunny places never bring a look from a better box")
+	# workers open boxes, not pets: 5 boxes from sunny 2 + sunset 10 is sunny 2, sunset 3
+	var split := BoxShop.split_open({ "starter": 2, "sunset": 10 }, ["starter", "sunset"], 5)
+	_check(split == { "starter": 2, "sunset": 3 }, "workers open 5 boxes, not 5 pets (%s)" % str(split))
+	_check(BoxShop.split_open({ "starter": 4, "sunset": 10 }, ["sunset"], 3) == { "sunset": 3 }, "workers skip boxes saved for you")
+	_check(BoxShop.split_open({ "sunset": 1 }, ["starter", "sunset"], 5) == { "sunset": 1 }, "workers stop when the pile runs out")
+	# lucky boxes become sunset boxes (any save version, twice is the same as once)
+	var old := { "version": 24, "bag": { "starter": 4, "lucky": 3 }, "saved_boxes": ["lucky"],
+		"runs": [{ "loot": { "box:lucky": 2, "coins": 5 }, "log": [{ "loot": { "box:lucky": 1 } }] },
+			{ "boxes": { "lucky": 2 } }] }
+	BoxShop.fix_retired(old)
+	BoxShop.fix_retired(old)
+	_check(old.bag == { "starter": 4, "sunset": 3 }, "old lucky boxes are sunset boxes now (%s)" % str(old.bag))
+	_check(old.saved_boxes == ["sunset"], "saved-for-you lucky boxes stay saved as sunset boxes")
+	_check(old.runs[0].loot == { "box:sunset": 2, "coins": 5 } and old.runs[0].log[0].loot == { "box:sunset": 1 }, "adventures still out bring sunset boxes")
+	_check(old.runs[1].boxes == { "sunset": 2 }, "pre-v5 runs' boxes turn into sunset boxes too")
+	_check(old.boxes_bought.has("sunset") and old.boxes_bought.has("starter"), "tiers already on the pile don't show up as new")
+	var newer := { "bag": { "sunset": 2 }, "boxes_bought": {}, "boxes_greeted": [] }
+	BoxShop.fix_retired(newer)
+	_check(newer.boxes_bought.is_empty() and newer.boxes_greeted.is_empty(), "a save with tiers keeps what it had bought")
+	# "new" looks: two pets in one box sharing a look you'd never had still show it as new
+	var c := Collection.new()
+	var first := Pet.new()
+	first.parts = { "body": "blob", "palette": "lilac", "pattern": "plain", "eyes": "round", "accessory": "none" }
+	c.add([first] as Array[Pet])
+	var twin_a := Pet.new()
+	twin_a.parts = { "body": "blob", "palette": "gold", "pattern": "plain", "eyes": "round", "accessory": "none" }
+	twin_a.finish = "holo"
+	var twin_b := Pet.new()
+	twin_b.parts = { "body": "fox", "palette": "gold", "pattern": "plain", "eyes": "round", "accessory": "none" }
+	var box_pets: Array[Pet] = [twin_a, twin_b]
+	c.add(box_pets)
+	var fresh := c.new_keys(box_pets)
+	_check(fresh.has(Collection.part_key("palette", "gold")), "a new look two pets in one box share is new")
+	_check(fresh.has(Collection.part_key("body", "fox")) and fresh.has(Collection.finish_key("blob", "holo")), "each pet's own new looks are new")
+	_check(not fresh.has(Collection.part_key("body", "blob")) and not fresh.has(Collection.part_key("eyes", "round")), "looks you already had aren't new")
+
+
 ## Exactly the pet's rarity at the top: one part matches it and none go above it.
 func _check_parts_fit_rarity(catalog: Catalog, pet: Pet) -> void:
 	var best := 0
@@ -161,7 +271,7 @@ func _test_save_round_trip(catalog: Catalog) -> void:
 	var c := Collection.new()
 	var batch: Array[Pet] = []
 	for i in 50:
-		batch.append(roller.roll("lucky"))
+		batch.append(roller.roll("sunset"))
 	c.add(batch)
 	c.set_active(c.pets[10].uid)
 
@@ -981,6 +1091,66 @@ func _test_machine(catalog: Catalog) -> void:
 	for i in 1000:
 		balls += Machine.balls_from_chute({ "bought": { "double": 5 } }, catalog, rng)
 	_check(balls > 1100, "double drop sometimes gives two balls (%d from 1000)" % balls)
+	# the prize card: odds add up, follow better drops, swap kinds that aren't open for coins
+	var all_open := func(_k): return true
+	var early := Machine.odds(fresh, catalog, all_open)
+	var total := 0.0
+	for id in early:
+		total += float(early[id])
+	_check(absf(total - 1.0) < 0.0001, "the machine's odds add up to 1 (%.4f)" % total)
+	var dropped := { "bought": { "drops": 2 } }
+	for p in m.prizes:
+		var waits := float(p.get("drops", 0)) > 0.0
+		_check(early.has(p.id) != waits, "prize %s %s the odds before better drops" % [p.id, "is missing from" if waits else "is on"])
+		_check(Machine.odds(dropped, catalog, all_open).has(p.id), "prize %s is on the odds with better drops" % p.id)
+	var no_boxes := Machine.odds(dropped, catalog, func(k): return k != "box")
+	var box_w := 0.0
+	var all_w := 0.0
+	for p in m.prizes:
+		all_w += float(p.weight)
+		if p.kind == "box":
+			box_w += float(p.weight)
+	_check(not no_boxes.has("box") and absf(float(no_boxes.coins) - (float(m.prizes[0].weight) + box_w) / all_w) < 0.0001, "a kind that isn't open yet counts as coins on the odds")
+	var lucky_odds := Machine.odds(dropped, catalog, all_open, true, 2.0, 1.5)
+	var lucky_total := 0.0
+	for id in lucky_odds:
+		lucky_total += float(lucky_odds[id])
+		var p: Dictionary = m.prizes.filter(func(x): return x.id == id)[0]
+		_check(p.get("lucky", false), "lucky odds only hold lucky prizes (%s)" % id)
+	_check(absf(lucky_total - 1.0) < 0.0001, "lucky odds add up to 1")
+	var rate_up := Machine.odds(dropped, catalog, all_open, false, 1.0, 3.0)
+	_check(float(rate_up.toy) > float(Machine.odds(dropped, catalog, all_open).toy), "toys that make toys show on the odds")
+	# fever stays a burst: even fully upgraded with big toys it ends before the lights relight
+	var maxed_fever := { "bought": { "wires": 1 } }
+	for n in catalog.machine_tree.nodes:
+		if n.each.has("fever_s"):
+			maxed_fever.bought[n.id] = int(n.get("max", 1))
+	var relight := func(speed: float) -> float: return Machine.lights_needed(maxed_fever, catalog) * Machine.reveal_seconds(maxed_fever, catalog) / speed
+	_check(Machine.fever_for(maxed_fever, catalog, 5.0, 3.0) < relight.call(3.0), "fever ends before the lights relight, even with a 5x fever toy and a 3x speed toy")
+	_check(Machine.fever_for(maxed_fever, catalog) < relight.call(1.0), "fully upgraded fever ends before the lights relight")
+	_check(is_equal_approx(Machine.fever_for(maxed_fever, catalog), Machine.fever_seconds(maxed_fever, catalog)), "fully upgraded fever without toys isn't cut short (%.1f s)" % Machine.fever_for(maxed_fever, catalog))
+	_check(Machine.fever_for(fresh, catalog) > 0.0, "fever lasts a while")
+	# a speed toy never cancels longer fever: every level still adds fever pulls
+	var fever_node := ""
+	for n in catalog.machine_tree.nodes:
+		if n.each.has("fever_s"):
+			fever_node = str(n.id)
+	for speed in [1.0, 1.1, 1.5, 3.0]:
+		var last := 0.0
+		for lv in int(Machine.node(catalog, fever_node).get("max", 1)) + 1:
+			var st := { "bought": { "wires": 1, fever_node: lv } }
+			var pulls: float = Machine.fever_for(st, catalog, 1.0, speed) * speed / Machine.reveal_seconds(st, catalog)
+			_check(pulls > last + 0.01, "longer fever level %d still adds fever pulls with a x%.1f speed toy (%.2f pulls)" % [lv, speed, pulls])
+			last = pulls
+	_check(is_equal_approx(Machine.fever_for(maxed_fever, catalog, 1.0, 1.5) * 1.5, Machine.fever_for(maxed_fever, catalog)), "a speed toy gives the same fever pulls in less time")
+	# a pet box only comes in a pull's first capsule: in the others it counts as coins
+	var later := Machine.odds(dropped, catalog, all_open, false, 1.0, 1.0, false)
+	var first_odds := Machine.odds(dropped, catalog, all_open)
+	_check(not later.has("pet_box") and first_odds.has("pet_box"), "a pet box is only on the first capsule's odds")
+	_check(absf(float(later.coins) - float(first_odds.coins) - float(first_odds.pet_box)) < 0.0001, "a later capsule's pet box chance goes to coins")
+	_check(not Machine.many_capsules(fresh, catalog) and Machine.many_capsules({ "bought": { "chute2": 1 } }, catalog) and Machine.many_capsules({ "bought": { "double": 1 } }, catalog), "a second chute or double drop means more capsules a pull")
+	for p in m.prizes:
+		_check(p.has("name") or (p.kind == "box" and catalog.box(str(p.box)).has("name")), "prize %s has a name for the prize card" % p.id)
 
 
 ## Capsule toys: every toy has art and a real tier and bonus, rolls give real toys, boosts start
@@ -1288,10 +1458,12 @@ func _test_book(catalog: Catalog) -> void:
 	gs.coins = 0
 	gs.grant({ "coins": 100 })
 	_check(gs.coins == 121, "a coins toy and the paint set multiply (x1.1 x1.1: %d)" % gs.coins)
+	var golden_before: float = gs.machine_odds().get("golden", 0.0)
 	for k in keys:
 		gs.collection.see(k)
 	gs.check_book()
 	_check(is_equal_approx(gs.boost("luck"), gs.toy_boost("luck") * 1.1), "luck is the toys' luck times the magnifying glass")
+	_check(float(gs.machine_odds().get("golden", 0.0)) > golden_before, "the magnifying glass shows on the prize card's odds too (%.4f to %.4f)" % [golden_before, gs.machine_odds().get("golden", 0.0)])
 	# errands: every job's meter fills faster
 	gs.unlocks["feature:errands"] = true
 	var uid: String = gs.collection.pets[2].uid
@@ -1324,9 +1496,37 @@ func _test_book(catalog: Catalog) -> void:
 	_check(got3.is_empty(), "loading opens no sticker halfway through (%s)" % [got3])
 	gs3.check_book()
 	_check(got3 == ["eyes"] and gs3.stickers == ["eyes"], "a v23 save with a full page gets its sticker after loading (%s)" % [got3])
+	# a v22 save (before scout notes, stickers and box tiers) with a lucky box and a full page
+	var v22 := { "version": 22, "bag": { "lucky": 2, "starter": 1 }, "collection": { "seen": {} } }
+	for k in keys:
+		v22.collection.seen[k] = 1
+	SaveFile.write(path, v22)
+	var gs4: Node = GS.new()
+	gs4.save_path = path
+	gs4.load_game()
+	gs4.check_book()
+	_check(gs4.bag == { "sunset": 2, "starter": 1 }, "a v22 save's lucky boxes load as sunset boxes (%s)" % [gs4.bag])
+	_check(gs4.stickers == ["eyes"], "a v22 save with a full page gets its sticker (%s)" % [gs4.stickers])
+	_check(gs4.scout_notes == 0, "a v22 save starts with no scout notes")
+	gs4._can_save = true
+	gs4.save_game()
+	_check(int(SaveFile.read(path).get("version", 0)) == GS.SAVE_VERSION, "a v22 save is saved back at v%d" % GS.SAVE_VERSION)
+	# every pet out of a box counts: two pets of one sunset box finish a page together
+	var gs5: Node = GS.new()
+	var got5: Array[String] = []
+	gs5.sticker_opened.connect(func(id): got5.append(id))
+	for k in keys.slice(0, keys.size() - 2):
+		gs5.collection.see(k)
+	var box_pair: Array[Pet] = []
+	for k in keys.slice(keys.size() - 2):
+		var pet := Pet.new()
+		pet.parts = { "body": "blob", "palette": "lilac", "pattern": "plain", "eyes": str(k).get_slice(":", 2), "accessory": "none" }
+		box_pair.append(pet)
+	gs5.collection.add(box_pair)
+	_check(got5 == ["eyes"], "the last two eyes out of one box open the eyes sticker (%s)" % [got5])
 	for f in [path, path + ".bak"]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
-	for n in [gs, gs2, gs3]:
+	for n in [gs, gs2, gs3, gs4, gs5]:
 		n.free()
 
 

@@ -1,0 +1,50 @@
+# Box tiers (B1): only the sunny box at first; beyond the fence brings the sunset box (it pops in
+# with a "new!" tag until you buy one), a sunset box holds 2-3 pets (the ritual for the best one,
+# the rest are "also inside"), your pet's job card gets a switch per tier, and all three tiers fit.
+from rich
+view full
+stickers off
+tab boxes
+expect fits
+expect no-text "sunset box"
+shot sunny_only
+find intel_fence
+wait popup
+click "lovely"
+wait text "new boxes!*"
+wait 1.5
+expect text "sunset box"
+expect text "new!"
+expect fits
+shot sunset_new
+coins 100000
+click name:amount_sunset_10
+click name:buy_sunset
+expect pile sunset 10
+expect no-text "new!"
+teach boxes
+wait 0.5
+expect text "opening boxes"
+click name:let_sunset
+wait 0.3
+shot job_card
+click name:let_sunset
+click name:open_sunset_1
+key space
+wait ritual
+expect text "also inside"
+expect fits
+shot also_inside
+click "lovely!"
+expect pile sunset 9
+click name:open_sunset_all
+wait 5
+shot many
+click "lovely!"
+expect pile sunset 0
+unlock feature:shopping
+tiers all
+wait 1.5
+expect text "midnight box"
+expect fits
+shot three_tiers

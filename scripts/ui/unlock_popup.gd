@@ -20,6 +20,9 @@ var _buttons := HBoxContainer.new()
 var _showing := false
 var _sticker_showing := false
 var _quiet_stickers := false  # the dev driver's "stickers off"
+## A card is up or waiting to show (other things that pop, like a new box tier arriving, wait for it).
+## Set when one is queued, not when it shows, so nothing slips in the frame before it pops.
+static var up := false
 
 
 func _init() -> void:
@@ -50,7 +53,9 @@ func _init() -> void:
 	_buttons.alignment = BoxContainer.ALIGNMENT_END
 	col.add_child(_buttons)
 	add_child(Tilted.new(_card, -1.5))
-	GameState.unlocked.connect(func(entry): _queue.append(entry))
+	GameState.unlocked.connect(func(entry):
+		_queue.append(entry)
+		up = true)
 	GameState.sticker_opened.connect(_queue_sticker)
 
 
@@ -99,6 +104,7 @@ func _show(entry: Dictionary) -> void:
 	_buttons.add_child(lovely)
 	_showing = true
 	_sticker_showing = entry.has("sticker")
+	up = true
 	visible = true
 	# centre the card, then pop it in
 	var holder := _card.get_parent() as Control
@@ -118,8 +124,15 @@ func quiet_stickers() -> void:
 	_queue = _queue.filter(func(e): return not e.has("sticker"))
 	if _showing and _sticker_showing:
 		_close()
+	up = _showing or not _queue.is_empty()
 
 
 func _close() -> void:
 	_showing = false
+	up = not _queue.is_empty()  # the next card shows the following frame
 	visible = false
+
+
+func _exit_tree() -> void:
+	if _showing or not _queue.is_empty():
+		up = false  # freed while up or waiting (a look change rebuilds the panel): the new one starts clear

@@ -4,8 +4,8 @@
 from no_bag_tab
 view full
 tab boxes
-click "buy 1"
-click "open 1"
+click name:buy_starter
+click name:open_starter_1
 find basket
 key space
 wait popup

@@ -1,29 +1,50 @@
 {
-	"_note": "Box types. 'hidden' boxes aren't sold in the shop (the tutorial box: what your first two pets come from, only commons). 'tiers' are weights for each part's rarity roll, 'finishes' for the finish roll, 'traits' for how many traits (index = count). 'art' colours the pack (the shop sticker and the one you rip open).",
+	"_note": "Box types, one per tier in the shop (in order, cheapest first). A tier shows up in the shop once its map 'page' opens (data/unlocks.json pages; a page that doesn't exist yet keeps the box out of the shop), with a gold 'new!' tag until you buy one, and your pet says 'arrives' the first time you see it. 'stamp' is the doodle on its counter stamp (Crayon). 'pets' is how many pets one box holds, [min, max]. 'hidden' boxes aren't sold in the shop (the tutorial box: what your first two pets come from, only commons). 'tiers' are weights for the pet's rarity roll, 'finishes' for the finish roll (a finish a box doesn't list never comes out of it), 'traits' for how many traits (index = count). Parts with 'from' in data/parts.json only come out of that box or a later one. 'art' colours the pack (the shop sticker and the one you rip open), 'stars' are printed on its front. Numbers are placeholders.",
 	"boxes": [
 		{
 			"id": "starter",
-			"name": "starter box",
+			"name": "sunny box",
+			"page": "backyard",
+			"stamp": "house",
 			"price": 50,
-			"art": { "foil": "#6b4fa0", "foil_light": "#8e6fd0", "foil_dark": "#3d2a63", "edge": "#c9a0ff", "logo": "#ff79c6" },
+			"pets": [1, 1],
+			"art": { "foil": "#e0a040", "foil_light": "#ffc46b", "foil_dark": "#a8701f", "edge": "#fff0c9", "logo": "#ff5f9e", "stars": 1 },
 			"tiers": { "common": 600, "uncommon": 250, "rare": 110, "epic": 32, "legendary": 7, "mythic": 1 },
-			"finishes": { "normal": 800, "shiny": 150, "holo": 38, "ghost": 9, "glitch": 2.5, "prismatic": 0.5 },
+			"finishes": { "normal": 803, "shiny": 150, "holo": 38, "ghost": 9 },
 			"traits": [0, 60, 30, 10]
 		},
 		{
-			"id": "lucky",
-			"name": "lucky box",
-			"price": 250,
-			"art": { "foil": "#c98a2e", "foil_light": "#ffc46b", "foil_dark": "#7a4f16", "edge": "#fff0c9", "logo": "#ff5f9e" },
-			"tiers": { "common": 300, "uncommon": 330, "rare": 230, "epic": 100, "legendary": 32, "mythic": 8 },
-			"finishes": { "normal": 600, "shiny": 250, "holo": 100, "ghost": 35, "glitch": 12, "prismatic": 3 },
-			"traits": [0, 30, 45, 25]
+			"id": "sunset",
+			"name": "sunset box",
+			"page": "beyond",
+			"stamp": "fence",
+			"price": 400,
+			"pets": [2, 3],
+			"arrives": "new boxes! they came all the way from beyond the fence.",
+			"art": { "foil": "#e57f68", "foil_light": "#ff9f8a", "foil_dark": "#a24a36", "edge": "#ffe0d6", "logo": "#b77dff", "stars": 2 },
+			"tiers": { "common": 380, "uncommon": 310, "rare": 200, "epic": 80, "legendary": 24, "mythic": 6 },
+			"finishes": { "normal": 717, "shiny": 200, "holo": 60, "ghost": 18, "glitch": 5 },
+			"traits": [0, 40, 40, 20]
+		},
+		{
+			"id": "midnight",
+			"name": "midnight box",
+			"page": "next_door",
+			"stamp": "moon",
+			"price": 3200,
+			"pets": [2, 3],
+			"arrives": "boxes from next door! they're so dark and sparkly.",
+			"art": { "foil": "#36316e", "foil_light": "#4b4690", "foil_dark": "#1e1a48", "edge": "#c3beff", "logo": "#ffe08a", "stars": 3 },
+			"tiers": { "common": 180, "uncommon": 300, "rare": 280, "epic": 160, "legendary": 60, "mythic": 20 },
+			"finishes": { "normal": 560, "shiny": 280, "holo": 110, "ghost": 35, "glitch": 12, "prismatic": 3 },
+			"traits": [0, 25, 45, 30]
 		},
 		{
 			"id": "tutorial",
-			"name": "starter box",
+			"name": "sunny box",
 			"hidden": true,
 			"price": 50,
+			"art": { "foil": "#e0a040", "foil_light": "#ffc46b", "foil_dark": "#a8701f", "edge": "#fff0c9", "logo": "#ff5f9e", "stars": 1 },
 			"tiers": { "common": 1 },
 			"finishes": { "normal": 1 },
 			"traits": [0, 70, 30, 0]

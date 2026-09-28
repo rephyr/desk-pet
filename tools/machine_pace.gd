@@ -52,7 +52,7 @@ func _init() -> void:
 						c *= Machine.shiny_pay(state, catalog)
 					coins += c
 			if lucky:
-				fever_until = t + Machine.fever_seconds(state, catalog)
+				fever_until = t + Machine.fever_for(state, catalog)
 			# adventures bring bits once they're open
 			if next_bit < 0.0 and Machine.owned(state, "oil") > 0:
 				next_bit = t + BIT_EVERY
