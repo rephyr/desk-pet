@@ -1,0 +1,543 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wish List</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* F3: the wish list, on the book (collectibles). Pin one look you've found, send pets by shelf
+     (they never come back), fill 4 steps (200, 600, 2k, 6k). Each full step makes that look turn up
+     more often inside its own tier in every box. Needs its own picture and word (not "pages").
+     Three looks stacked, each its own game window. */
+  body { display: block; padding: 28px 16px 60px; }
+  .looks { display: flex; flex-direction: column; align-items: center; gap: 44px; }
+  .intro { width: 920px; max-width: 100%; }
+  .intro h1 { margin: 0 0 4px; font: var(--display-weight) 26px/1.1 var(--display); color: var(--pink); }
+  .intro p { margin: 0; color: var(--muted); font-size: 12px; }
+  .look { display: flex; flex-direction: column; gap: 10px; }
+  .look > header { display: flex; align-items: baseline; gap: 12px; width: 920px; max-width: 100%; }
+  .look > header b { font: var(--display-weight) 20px/1 var(--display); color: var(--pink); white-space: nowrap; }
+  .look > header span { color: var(--muted); font-size: 12px; }
+  .content { flex: 1; min-height: 0; }
+
+  /* the full tab row of this stage: squeeze the spine a little so settings still fits */
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+  .sky .fresh { animation: twinkle-in 1.4s ease-out; }
+  @keyframes twinkle-in { 0% { opacity: 0; } 30% { opacity: 1; } }
+
+  /* ---------- shared bits ---------- */
+  .page2 { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+  .bar { display: flex; align-items: center; gap: 10px; min-height: 30px; }
+  .bar .seg button { padding: 4px 12px; font-size: 12px; }
+  .bar .found { color: var(--muted); font-size: 12px; margin-left: auto; }
+  .bar .found b { color: var(--text); font-weight: inherit; }
+  .muted { color: var(--muted); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* bookmarks + the open book (as book.html) */
+  .bookcol { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+  .marks { display: flex; gap: 4px; padding-left: 14px; margin-bottom: -12px; position: relative; z-index: 1; }
+  .mark { position: relative; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px 12px; border-radius: 8px 8px 0 0; background: var(--deep); border: 2px solid var(--line); border-bottom: 0; color: var(--muted); font-size: 11px; cursor: pointer; white-space: nowrap; transition: transform .15s var(--ease-out), color .12s; }
+  .mark:hover { color: var(--pink); transform: translateY(-2px); }
+  .mark.on { background: var(--raised); color: var(--pink); border-color: var(--pink-seam); transform: translateY(-4px); }
+  .mark .star { color: var(--gold); line-height: 0; }
+  .mark svg { width: 13px; height: 13px; }
+  .spread { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 1fr; background: var(--raised); border: 2px solid var(--lilac-seam); border-radius: var(--r-panel); box-shadow: var(--lift); }
+  .spread::after { content: ""; position: absolute; left: 50%; top: 10px; bottom: 10px; width: 2px; margin-left: -1px; background: repeating-linear-gradient(to bottom, var(--pink-seam) 0 6px, transparent 6px 11px); pointer-events: none; }
+  .spread .page-l { border-right: 2px solid var(--line); }
+  .bpage { position: relative; padding: 14px 16px 12px; min-height: 0; min-width: 0; overflow: hidden; }
+  .bpage h2 { display: flex; align-items: baseline; gap: 10px; margin: 0 0 12px; font: var(--display-weight) 18px/1 var(--display); color: var(--pink); }
+  .bpage h2 small { font: var(--body-weight) 11px/1 var(--body); color: var(--muted); }
+  .bpage h2 small.full { color: var(--gold); }
+  .slots { display: grid; grid-template-columns: repeat(var(--cols, 4), 1fr); gap: 12px 10px; }
+
+  /* a sticker you've found, stuck in a little crooked */
+  .slot { position: relative; height: var(--slot-h, 86px); display: flex; flex-direction: column; align-items: center; justify-content: flex-end; padding-bottom: 5px; border-radius: var(--r-lg); min-width: 0; }
+  .slot .art { margin-bottom: 3px; }
+  .slot .nm { font-size: 11px; line-height: 1.2; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; padding: 0 3px; }
+  .slot .ct { font-size: 10px; color: var(--muted); line-height: 1.2; }
+  .slot.got { background: var(--page); border: 2px solid var(--tier); box-shadow: var(--lift); transform: rotate(var(--tilt)); transition: transform .15s var(--ease-out); cursor: pointer; }
+  .slot.got:hover { transform: rotate(0) translateY(-3px); }
+  .slot.got.fin { cursor: default; }
+  .slot.got.fin:hover { transform: rotate(var(--tilt)); }
+  .slot .newdot { position: absolute; top: -5px; right: -5px; width: 12px; height: 12px; border-radius: 50%; background: var(--gold); border: 2px solid var(--raised); }
+  .slot.missing { border: 2px dashed var(--line); background: color-mix(in srgb, var(--deep) 50%, transparent); }
+  .slot.missing .art { filter: brightness(0); opacity: .28; }
+  .slot.reward { border: 2px dashed color-mix(in srgb, var(--gold) 60%, var(--line)); color: var(--gold); justify-content: center; gap: 5px; text-align: center; padding: 6px; }
+  .slot.reward.open { border-style: solid; border-color: var(--gold); background: var(--page); box-shadow: var(--lift), 0 0 16px color-mix(in srgb, var(--gold) 35%, transparent); transform: rotate(2deg); }
+  .slot.reward .nm { color: var(--gold); white-space: normal; }
+  .slot.reward .does { font-size: 10px; color: var(--muted); line-height: 1.25; }
+  /* the one you wished for */
+  .slot.wished { outline: 2px dashed var(--pink); outline-offset: 3px; }
+  .slot .wishmark { position: absolute; top: -9px; left: -8px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; background: var(--raised); border: 2px solid var(--pink-seam); color: var(--pink); z-index: 2; }
+  .slot .wishmark svg { width: 12px; height: 12px; }
+
+  /* pixel stickers (a blob wearing the part); moth wings drawn right here */
+  .art { position: relative; display: block; flex: none; }
+  .art img { position: absolute; top: 0; image-rendering: pixelated; }
+  .art svg { position: absolute; inset: 0; }
+  .fx-ghost img { opacity: .55; filter: drop-shadow(0 0 4px var(--lilac)); }
+  .fx-glitch img { filter: drop-shadow(2px 0 0 #5cf2ff) drop-shadow(-2px 0 0 #ff4f9a); }
+  .fx-shiny, .fx-holo { overflow: hidden; }
+  .fx-holo::after, .fx-shiny::after { content: ""; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(115deg, transparent 30%, rgba(255, 255, 255, .35) 50%, transparent 70%); background-size: 250% 100%; animation: sheen 2.2s linear infinite; }
+  .fx-holo::after { background-image: linear-gradient(115deg, transparent 25%, rgba(255, 140, 220, .35) 40%, rgba(140, 230, 255, .35) 52%, rgba(255, 240, 150, .35) 64%, transparent 78%); }
+  @keyframes sheen { from { background-position: 150% 0; } to { background-position: -100% 0; } }
+
+  /* shelves as chips, then 1 / 10 / 100 / all */
+  .chips { display: flex; gap: 4px; }
+  .chipshelf { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 4px 2px 3px; border-radius: 9px; background: var(--raised); border: 2px solid color-mix(in srgb, var(--tc) 50%, var(--line)); box-shadow: var(--lift); cursor: pointer; transition: transform .15s var(--ease-out); }
+  .chipshelf:hover { transform: translateY(-2px); }
+  .chipshelf img { width: 24px; height: 27px; }
+  .chipshelf b { font: 400 12px/1 var(--display); color: var(--tc); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .chipshelf.on { border: 2px dashed var(--pink); transform: rotate(-3deg); }
+  .chipshelf.hop img { animation: hop .4s var(--ease-out); }
+  @keyframes hop { 40% { transform: translateY(-5px); } }
+  .takes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 5px; }
+  .takes .btn { padding: 4px 0; }
+  .takes .btn.all { border-color: var(--pink-seam); }
+  .meter { position: relative; height: 12px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--pink) 40%, var(--line)); }
+  .meter i { position: absolute; inset: 0 auto 0 0; width: calc(var(--f) * 100%); background: var(--pink); border-radius: 999px; transition: width .35s var(--ease-out); }
+  .frac { font-size: 11px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .frac b { color: var(--text); font-weight: 400; }
+
+  .flyer { position: absolute; width: 24px; height: 27px; z-index: 8; pointer-events: none; transition: transform .8s cubic-bezier(.5, -0.3, .6, 1), opacity .8s ease-in; }
+  .rise { position: absolute; pointer-events: none; font: 400 16px/1 var(--display); color: var(--gold); white-space: nowrap; animation: rise 1.4s var(--ease-out) forwards; z-index: 9; }
+  @keyframes rise { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, -38px); opacity: 0; } }
+
+  /* ---------- LOOK A: the wishing jar beside the book ---------- */
+  .a-body { display: grid; grid-template-columns: 1fr 236px; gap: 12px; flex: 1; min-height: 0; }
+  .a-body .spread { --cols: 3; --slot-h: 84px; }
+  .a-body .slot .nm, .c-body .slot .nm { font-size: 10px; letter-spacing: -.4px; padding: 0 1px; }
+  .jar-card { position: relative; padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .jar-card h3 { margin: 0; text-align: center; font: 400 18px/1 var(--display); color: var(--pink); }
+  .jarwrap { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; }
+  .jarwrap svg.jar { width: 196px; height: 244px; overflow: visible; }
+  .jarwrap .label { position: absolute; left: 50%; top: 45%; transform: translate(-50%, -50%) rotate(-3deg); display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 5px 8px 4px; min-width: 84px;
+    background: var(--raised); border: 2px solid color-mix(in srgb, var(--tier) 60%, var(--line)); border-radius: 7px; box-shadow: var(--lift); }
+  .jarwrap .label .nm { font-size: 11px; line-height: 1.2; white-space: nowrap; }
+  .jarwrap .label .tr { font-size: 10px; color: var(--tier); line-height: 1.1; }
+  .jar-card .count { text-align: center; }
+  .jar-card.done .jar .lid { filter: drop-shadow(0 0 8px color-mix(in srgb, var(--gold) 60%, transparent)); }
+
+  /* ---------- LOOK B: the wish kite, its own bookmark in the book ---------- */
+  .b-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .b-body .spread { --slot-h: 48px; }
+  .b-left { display: flex; flex-direction: column; gap: 10px; }
+  .pick { display: grid; grid-template-columns: repeat(7, 1fr); gap: 9px 8px; }
+  .pick .slot { justify-content: center; padding: 0; }
+  .pick .slot .art { margin: 0; }
+  .pick .slot { padding-bottom: 4px; }
+  .pick .slot.got { background: var(--page); }
+  .pick .slot .wishmark { top: -8px; left: -7px; width: 18px; height: 18px; }
+  .b-send { margin-top: auto; display: flex; flex-direction: column; gap: 8px; padding: 10px 10px 10px; border-radius: 10px; background: var(--page); border: 2px solid var(--line); }
+  .b-send .row { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 8px; }
+  .b-send .row svg { width: 22px; height: 22px; }
+  .skypage { padding: 0; background: color-mix(in srgb, var(--sky, var(--deep)) 60%, var(--raised)); border-radius: 0 12px 12px 0; }
+  .skypage svg.kite { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .skypage .climber { position: absolute; width: 16px; height: 18px; z-index: 3; pointer-events: none; transition: transform 1.3s cubic-bezier(.45, .05, .55, .95), opacity 1.3s ease-in; }
+  .kite-done .kitebody { filter: drop-shadow(0 0 10px color-mix(in srgb, var(--gold) 55%, transparent)); }
+  .b-body .bpage.page-l { display: flex; flex-direction: column; }
+
+  /* ---------- LOOK C: dandelions under the book ---------- */
+  .c-body { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
+  .c-body .spread { --cols: 5; --slot-h: 74px; }
+  .c-body .bpage { padding: 12px 14px 10px; }
+  .c-body .bpage h2 { margin-bottom: 10px; }
+  .dstrip { height: 170px; flex: none; display: grid; grid-template-columns: 128px 1fr 232px; gap: 0; padding: 0; overflow: hidden; }
+  .dstrip .wishcell { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px; padding: 8px 6px; border-right: 2px dashed var(--line); }
+  .dstrip .wishcell h3 { margin: 0; font: 400 16px/1 var(--display); color: var(--pink); }
+  .dstrip .wishcell .card { display: flex; flex-direction: column; align-items: center; padding: 6px 8px 4px; border-radius: 9px; background: var(--page); border: 2px solid var(--tier); transform: rotate(-3deg); box-shadow: var(--lift); }
+  .dstrip .wishcell .nm { font-size: 11px; line-height: 1.2; }
+  .dstrip .wishcell .tr { font-size: 10px; color: var(--tier); line-height: 1.1; }
+  .dstrip .field { position: relative; background: var(--paper); }
+  .dstrip .field svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .dstrip .sendcell { display: flex; flex-direction: column; justify-content: center; gap: 8px; padding: 10px 12px; border-left: 2px dashed var(--line); }
+  .no-anim *, .no-anim *::before, .no-anim *::after { animation-duration: 0s !important; transition: none !important; }
+</style>
+</head>
+<body>
+<div class="looks">
+  <div class="intro">
+    <h1>the wish list</h1>
+    <p>F3 on the book. Tap a sticker you've found to wish for it, pick a shelf, send 1 / 10 / 100 / all. Steps of 200, 600, 2k, 6k. Numbers are placeholders.</p>
+  </div>
+
+  <section class="look">
+    <header><b>Look A: the wishing jar</b><span>a jar stands beside the book; pets hop in and fill it in their colours, a star lights on its side for each full step; the wished sticker is the jar's label.</span></header>
+    <div class="frame" data-look="A" data-tab="pets" data-say="moth wings, moth wings, moth wings..."></div>
+  </section>
+
+  <section class="look">
+    <header><b>Look B: the wish kite</b><span>its own bookmark in the book: pick a sticker on the left page, pets climb the string on the right; each full step ties a bow on the kite's tail.</span></header>
+    <div class="frame" data-look="B" data-tab="pets" data-say="higher! higher!"></div>
+  </section>
+
+  <section class="look">
+    <header><b>Look C: the dandelions</b><span>a strip sewn under the book: four dandelions, pets are the fluff; a full one blows away with a sparkle and the next opens.</span></header>
+    <div class="frame" data-look="C" data-tab="pets" data-say="make a wish! ♪"></div>
+  </section>
+</div>
+
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  if (params.has("shot")) document.body.classList.add("no-anim");
+
+  // the game's tabs at this stage (as in new-homes.html)
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "boxes").news = false;
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+
+  // ---------------- placeholder numbers (would live in data/*.json) ----------------
+  const STEPS = [200, 600, 2000, 6000];              // each step's size
+  const ENDS = STEPS.map((_, i) => STEPS.slice(0, i + 1).reduce((a, b) => a + b, 0));   // 200, 800, 2800, 8800
+  const SHELVES = [
+    { id: "common",    n: 41208, pets: ["mint-blob", "peach-cat", "lilac-cat"] },
+    { id: "uncommon",  n: 12530, pets: ["mint-bear", "peach-bear"] },
+    { id: "rare",      n: 3114,  pets: ["sky-bunny", "midnight-bear", "lilac-blob"] },
+    { id: "epic",      n: 402,   pets: ["bubblegum-fox", "toxic-cat"] },
+    { id: "legendary", n: 37,    pets: ["gold-dragon"] },
+  ];
+  const TINT = { "mint-blob": "#8fe8c0", "peach-cat": "#ffb59a", "lilac-cat": "#c9a0ff", "mint-bear": "#8fe8c0", "peach-bear": "#ffb59a",
+    "sky-bunny": "#8cc8ff", "midnight-bear": "#8c8cff", "lilac-blob": "#c9a0ff", "bubblegum-fox": "#ff8fc8", "toxic-cat": "#b8ff6b", "gold-dragon": "#ffe08a" };
+  const TINTS = ["#c9a0ff", "#ffb59a", "#8fe8c0", "#8cc8ff", "#ff8fc8", "#f5dcec"];
+
+  // the book (as book.html), plus moth wings: a found accessory, drawn below
+  const P = (slot, id, tier, got, count, isNew) => ({ slot, id, tier, got, count, isNew, key: `${slot}:${id}` });
+  const SECTIONS = [
+    { id: "bodies", title: "bodies", reward: { name: "a cozy blanket", does: "rest a bit faster" }, parts: [
+      P("body", "blob", "common", true, 2140), P("body", "cat", "common", true, 2311), P("body", "bear", "uncommon", true, 905),
+      P("body", "bunny", "rare", true, 212), P("body", "fox", "epic", true, 31), P("body", "dragon", "legendary", true, 2), P("body", "void", "mythic")] },
+    { id: "palettes", title: "palettes", reward: { name: "a paint set", does: "shinies a bit more" }, parts: [
+      P("palette", "lilac", "common", true, 1919), P("palette", "mint", "common", true, 1804), P("palette", "peach", "common", true, 1702),
+      P("palette", "sky", "uncommon", true, 530), P("palette", "bubblegum", "uncommon", true, 481), P("palette", "midnight", "rare", true, 122),
+      P("palette", "toxic", "epic", true, 14), P("palette", "gold", "legendary"), P("palette", "abyss", "mythic")] },
+    { id: "patterns", title: "patterns", reward: { name: "sticky notes", does: "finds a bit more" }, parts: [
+      P("pattern", "plain", "common", true, 2600), P("pattern", "spots", "common", true, 1313), P("pattern", "stripes", "uncommon", true, 610),
+      P("pattern", "checker", "rare", true, 97), P("pattern", "stars", "epic", true, 9), P("pattern", "circuit", "legendary", true, 1)] },
+    { id: "eyes", title: "eyes", reward: { name: "a magnifying glass", does: "spots places sooner" }, parts: [
+      P("eyes", "round", "common", true, 3030), P("eyes", "sleepy", "common", true, 1212), P("eyes", "happy", "uncommon", true, 707),
+      P("eyes", "sparkle", "rare", true, 142), P("eyes", "cyclops", "epic"), P("eyes", "x", "legendary")] },
+    { id: "accessories", title: "accessories", reward: { name: "a little wardrobe", does: "more room in the bag" }, parts: [
+      P("accessory", "none", "common", true, 3100), P("accessory", "bow", "common", true, 1206), P("accessory", "leaf", "uncommon", true, 403),
+      P("accessory", "moth", "uncommon", true, 4, true), P("accessory", "headphones", "rare"), P("accessory", "halo", "epic"),
+      P("accessory", "crown", "legendary"), P("accessory", "horns", "mythic")] },
+    { id: "finishes", title: "finishes", reward: { name: "a glitter jar", does: "finishes a bit more" }, parts: [
+      P("finish", "normal", "common", true, 9044), P("finish", "shiny", "uncommon", true, 606), P("finish", "holo", "rare", true, 41),
+      P("finish", "ghost", "epic"), P("finish", "glitch", "legendary"), P("finish", "prismatic", "mythic")] },
+  ];
+  const ALL = SECTIONS.flatMap(s => s.parts);
+  const byKey = k => ALL.find(p => p.key === k);
+  const NAME = { "accessory:none": "no hat", "accessory:moth": "moth wings" };
+  const nameOf = p => NAME[p.key] || p.id;
+  const found = s => s.parts.filter(p => p.got).length;
+  const full = s => found(s) === s.parts.length;
+  const tilt = i => [-2.5, 1.5, -1, 2.2, -1.8, 1, 2.6, -2.2, 0.8, -1.4][i % 10];
+
+  // moth wings, as row strings (left half, mirrored), 24 x 18, the blob sits in columns 4-19
+  const WING_PAL = { a: "#f3d9c4", b: "#9c7a8f", e: "#ff9ec9", c: "#b89aae" };
+  const WING_ROWS = [
+    "............", ".........c..", "..bbb.....c.", ".baaab......", "baaeaab.....", "baeeeaab....", "baaeaaab....", "baaaaaab....",
+    ".baaaab.....", "..bbbb......", ".baab.......", "baaaab......", "baaeab......", ".baab.......", "..bb........", "............"];
+  const WING_RECTS = (() => { let out = "";
+    WING_ROWS.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === ".") return;
+      out += `<rect x="${x}" y="${y}" width="1" height="1" fill="${WING_PAL[ch]}"/><rect x="${23 - x}" y="${y}" width="1" height="1" fill="${WING_PAL[ch]}"/>`; }));
+    return out; })();
+  const artSrc = p => p.slot === "finish" || p.id === "moth" ? "../assets/book/body-blob.png" : `../assets/book/${p.slot}-${p.id}.png`;
+  // a sticker in HTML: w = the blob's width (16 px art at a whole-number scale)
+  function art(p, w = 32) {
+    const h = w * 18 / 16;
+    if (p.id === "moth") { const ww = w * 1.5;
+      return `<span class="art" style="width:${ww}px;height:${h}px"><svg viewBox="0 0 24 18" width="${ww}" height="${h}" shape-rendering="crispEdges">${WING_RECTS}</svg><img src="${artSrc(p)}" alt="" style="left:${w * .25}px;width:${w}px;height:${h}px"></span>`; }
+    return `<span class="art${p.slot === "finish" ? " fx-" + p.id : ""}" style="width:${w}px;height:${h}px"><img src="${artSrc(p)}" alt="" style="left:0;width:${w}px;height:${h}px"></span>`;
+  }
+  // the same sticker inside an SVG scene, centred on (cx, cy), s = pixel scale
+  function artSvg(p, cx, cy, s) {
+    const x = cx - 8 * s, y = cy - 9 * s;
+    const img = `<image href="${artSrc(p)}" x="${x}" y="${y}" width="${16 * s}" height="${18 * s}" style="image-rendering: pixelated" preserveAspectRatio="none"/>`;
+    if (p.id !== "moth") return img;
+    return `<g transform="translate(${x - 4 * s} ${y}) scale(${s})" shape-rendering="crispEdges">${WING_RECTS}</g>${img}`;
+  }
+
+  // small drawings
+  const JAR_ICO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3.5 L16 3.5 M9 3.5 L9 6.5 Q4.6 8 4.8 13 L5.2 18.6 Q12 21 18.8 18.6 L19.2 13 Q19.4 8 15 6.5 L15 3.5"/><path d="M8 14 L10 12 L12 14 L14 12 L16 14" opacity=".8"/></svg>`;
+  const KITE_ICO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2.6 L20.4 9.4 L13.6 16.6 L7.4 9.4 Z"/><path d="M13.6 16.6 Q11 19 12.6 21 M10 19.4 L12 18.2 L11.4 20.6 Z"/></svg>`;
+  const SEED_ICO = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.4 L12 11"/><path d="M12 11 L6 4.4 M12 11 L9 3 M12 11 L12 2.6 M12 11 L15 3 M12 11 L18 4.4"/></svg>`;
+  const BOW_ICO = `<svg viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12 L4 7 L4.6 17 Z M12 12 L20 7 L19.4 17 Z"/><circle cx="12" cy="12" r="2" fill="var(--pink)"/></svg>`;
+  const STAR = (x, y, r, on) => `<path d="M${x} ${y - r} Q${x + r * .22} ${y - r * .22} ${x + r} ${y} Q${x + r * .22} ${y + r * .22} ${x} ${y + r} Q${x - r * .22} ${y + r * .22} ${x - r} ${y} Q${x - r * .22} ${y - r * .22} ${x} ${y - r} Z" style="fill:${on ? "var(--gold)" : "none"};stroke:${on ? "var(--gold)" : "var(--muted-seam)"}" stroke-width="1.8" stroke-linejoin="round"/>`;
+
+  const num = n => n < 1000 ? String(n) : n < 1e6 ? `${(n / 1e3).toFixed(n < 1e4 ? 1 : 0).replace(/\.0$/, "")}k` : `${(n / 1e6).toFixed(1).replace(/\.0$/, "")}M`;
+  const fmt = n => n.toLocaleString("en");
+  const pet = (id, cls = "") => `<img class="px ${cls}" src="../assets/pets/${id}.png" alt="">`;
+
+  // every frame mounts the shared game frame (mountFrame takes the first .app, so the others step aside)
+  function mountAt(el) {
+    const others = [...document.querySelectorAll(".app")];
+    others.forEach(a => a.classList.remove("app"));
+    el.classList.add("app");
+    const c = mountFrame();
+    c.removeAttribute("id"); c.classList.add("content");
+    others.forEach(a => a.classList.add("app"));
+    return c;
+  }
+
+  // ---------------- one look = one little game state ----------------
+  function makeLook(frame) {
+    const look = frame.dataset.look;
+    const content = mountAt(frame);
+    const S = { pin: "accessory:moth", sent: { "accessory:moth": Number(params.get("sent") || 612) }, counts: Object.fromEntries(SHELVES.map(s => [s.id, s.n])), pick: "common", spread: 2, pickKind: 0 };
+    const MARK = { A: JAR_ICO, B: KITE_ICO, C: SEED_ICO }[look];
+    const say = t => { frame.querySelector(".top .bubble").textContent = t; };
+    const sentNow = () => S.sent[S.pin] || 0;
+    // where the wish is: full steps, the step being filled and how far along
+    const where = () => { const n = sentNow(); let i = ENDS.findIndex(e => n < e); const done = i === -1;
+      if (done) i = STEPS.length; const start = i ? ENDS[i - 1] : 0;
+      return { full: i, done, have: done ? 0 : n - start, need: done ? 0 : STEPS[i], f: done ? 1 : (n - start) / STEPS[i] }; };
+
+    const foundTotal = () => ALL.filter(p => p.got).length;
+    const bar = () => `<div class="bar"><div class="seg"><button>pets</button><button>toys</button><button class="on">book</button></div><span class="found">found <b>${foundTotal()} of ${ALL.length}</b> stickers</span></div>`;
+
+    function slotHtml(p, i) {
+      if (!p.got) return `<div class="slot missing" title="not found yet">${art(p, 32)}<span class="nm">&nbsp;</span></div>`;
+      const wished = p.key === S.pin, fin = p.slot === "finish";
+      return `<div class="slot got${fin ? " fin" : ""}${wished ? " wished" : ""}" ${fin ? "" : `data-pin="${p.key}"`} style="--tier: var(--tier-${p.tier}); --tilt: ${tilt(i)}deg" title="${nameOf(p)}">
+        ${wished ? `<span class="wishmark">${MARK}</span>` : p.isNew ? `<span class="newdot" title="new!"></span>` : ""}
+        ${art(p, 32)}<span class="nm">${nameOf(p)}</span><span class="ct">×${num(p.count)}</span></div>`;
+    }
+    const rewardHtml = s => full(s)
+      ? `<div class="slot reward open"><span class="nm">${s.reward.name}</span><span class="does">${s.reward.does}</span></div>`
+      : `<div class="slot reward"><span data-icon="boxes"></span></div>`;
+    const pageHtml = (s, side) => `<section class="bpage page-${side}">
+      <h2>${s.title} <small class="${full(s) ? "full" : ""}">${full(s) ? "page full!" : `${found(s)} of ${s.parts.length}`}</small></h2>
+      <div class="slots">${s.parts.map(slotHtml).join("")}${rewardHtml(s)}</div></section>`;
+    const marks = (extra = "") => `<div class="marks">${SECTIONS.map((s, i) => `<button class="mark${Math.floor(i / 2) === S.spread ? " on" : ""}" data-s="${Math.floor(i / 2)}">${s.title}${full(s) ? `<span class="star" data-icon="xp" data-px="1.2"></span>` : ""}</button>`).join("")}${extra}</div>`;
+
+    const chips = () => `<div class="chips">${SHELVES.map(x => `<div class="chipshelf${x.id === S.pick ? " on" : ""}" data-shelf="${x.id}" style="--tc: var(--tier-${x.id})" title="${x.id}">${pet(x.pets[0])}<b>${num(S.counts[x.id])}</b></div>`).join("")}</div>`;
+    const takes = () => { const w = where();
+      return `<div class="takes">${[1, 10, 100, "all"].map(n => `<button class="btn${n === "all" ? " all" : ""}" data-take="${n}" ${S.counts[S.pick] && !w.done ? "" : "disabled"}>${n}</button>`).join("")}</div>`; };
+    const frac = () => { const w = where(); return w.done ? `<span class="frac"><b>${fmt(ENDS[ENDS.length - 1])}</b></span>` : `<span class="frac"><b>${fmt(w.have)}</b> / ${fmt(w.need)}</span>`; };
+
+    // ---------- A: the wishing jar ----------
+    function jarSvg() {
+      const w = where(), p = byKey(S.pin);
+      const top = 44, bot = 200, band = (bot - top) / 4;
+      const level = Math.min(4, w.full + w.f), fillY = bot - level * band;
+      const lines = [1, 2, 3].map(k => `<path d="M26 ${bot - k * band} Q86 ${bot - k * band + 3} 146 ${bot - k * band}" style="stroke:var(--lilac-seam)" stroke-width="1.6" stroke-dasharray="4 5" fill="none"/>`).join("");
+      const stars = [1, 2, 3, 4].map(k => STAR(160, bot - k * band + 4, 7, w.full >= k)).join("");
+      let seed = 3; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      let dots = ""; for (let i = 0; i < 70; i++) dots += `<circle cx="${(24 + rnd() * 124).toFixed(1)}" cy="${(top + rnd() * (bot - top)).toFixed(1)}" r="${(2 + rnd() * 2.2).toFixed(1)}" fill="${TINTS[i % TINTS.length]}" opacity=".85"/>`;
+      return `<svg class="jar" viewBox="0 0 172 214" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <defs><clipPath id="jarIn"><rect x="22" y="${fillY}" width="128" height="${bot - fillY + 8}"/></clipPath>
+          <clipPath id="jarGlass"><path d="M40 40 Q18 48 18 80 L20 186 Q22 206 46 207 L126 207 Q150 206 152 186 L154 80 Q154 48 132 40 Z"/></clipPath></defs>
+        <path d="M40 40 Q18 48 18 80 L20 186 Q22 206 46 207 L126 207 Q150 206 152 186 L154 80 Q154 48 132 40 Z" style="fill:color-mix(in srgb, var(--lilac) 6%, var(--page));stroke:var(--lilac-seam)" stroke-width="2.6"/>
+        <g clip-path="url(#jarGlass)"><g clip-path="url(#jarIn)"><rect x="18" y="30" width="140" height="190" style="fill:color-mix(in srgb, var(--pink) 16%, var(--deep))"/>${dots}</g>
+          ${w.done ? "" : `<path d="M20 ${fillY} Q52 ${fillY - 4} 86 ${fillY} T152 ${fillY}" style="stroke:var(--pink)" stroke-width="2"/>`}</g>
+        ${lines}
+        <path d="M32 72 Q30 110 33 150" style="stroke:var(--text)" stroke-width="3" opacity=".14"/>
+        <rect x="46" y="30" width="80" height="12" rx="3" style="fill:var(--deep);stroke:var(--lilac-seam)" stroke-width="2.4"/>
+        <g class="lid"><rect x="40" y="10" width="92" height="22" rx="6" style="fill:color-mix(in srgb, var(--pink) 30%, var(--raised));stroke:var(--pink-seam)" stroke-width="2.6"/>
+          <path d="M52 17 L52 25 M64 17 L64 25 M76 17 L76 25 M88 17 L88 25 M100 17 L100 25 M112 17 L112 25 M124 17 L124 25" style="stroke:var(--pink-seam)" stroke-width="2"/></g>
+        ${stars}
+      </svg>`;
+    }
+    function renderA() {
+      const w = where(), p = byKey(S.pin), [l, r] = [SECTIONS[S.spread * 2], SECTIONS[S.spread * 2 + 1]];
+      content.innerHTML = `<div class="page2">${bar()}<div class="a-body">
+        <div class="bookcol">${marks()}<div class="spread">${pageHtml(l, "l")}${pageHtml(r, "r")}</div></div>
+        <div class="jar-card sticker${w.done ? " done" : ""}" data-target>
+          <h3>wishing jar</h3>
+          <div class="jarwrap">${jarSvg()}<div class="label" style="--tier: var(--tier-${p.tier})">${art(p, 32)}<span class="nm">${nameOf(p)}</span><span class="tr">${p.tier}</span></div></div>
+          <div class="count">${frac()}</div>
+          ${chips()}${takes()}
+        </div></div></div>`;
+    }
+
+    // ---------- B: the wish kite ----------
+    const PICKABLE = ALL.filter(p => p.got && p.slot !== "finish");
+    function kiteSvg() {
+      const w = where(), p = byKey(S.pin);
+      // tail from the kite's bottom corner, a bow at four points along it
+      const bows = [[236, 222], [206, 262], [214, 306], [184, 346]];
+      const bow = ([x, y], k) => { const st = k < w.full ? "on" : k === w.full && !w.done ? "cur" : "off";
+        const shape = `<path d="M${x} ${y} L${x - 15} ${y - 9} L${x - 13} ${y + 10} Z M${x} ${y} L${x + 15} ${y - 9} L${x + 13} ${y + 10} Z"/>`;
+        const col = st === "on" ? "var(--pink)" : "var(--line)";
+        let out = `<g style="fill:${st === "on" ? "var(--pink)" : "color-mix(in srgb, var(--deep) 60%, transparent)"};stroke:${st === "off" ? "var(--muted-seam)" : "var(--pink-seam)"}" stroke-width="2" stroke-linejoin="round">${shape}</g>`;
+        if (st === "cur") out += `<clipPath id="bowcut"><rect x="${x - 16}" y="${y - 12}" width="${32 * w.f}" height="24"/></clipPath><g clip-path="url(#bowcut)" style="fill:var(--pink)">${shape}</g>`;
+        out += `<circle cx="${x}" cy="${y}" r="3.4" style="fill:${st === "off" ? "var(--muted-seam)" : "var(--pink)"}"/>`;
+        return out; };
+      return `<svg class="kite" viewBox="0 0 380 420" preserveAspectRatio="xMidYMid meet" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M40 70 Q52 58 66 66 Q78 56 90 68 Q100 70 96 78 L42 78 Q34 76 40 70 Z" style="stroke:var(--lilac-seam)" stroke-width="2.2" opacity=".8"/>
+        <path d="M300 300 Q310 290 322 296 Q332 288 342 298 Q350 300 346 306 L302 306 Q294 304 300 300 Z" style="stroke:var(--lilac-seam)" stroke-width="2.2" opacity=".6"/>
+        <path d="M120 30 L122 26 L124 30 M348 150 L350 146 L352 150 M70 200 L72 196 L74 200" style="stroke:var(--gold)" stroke-width="1.8" opacity=".6"/>
+        <path d="M-10 404 Q60 360 150 392 Q230 414 400 396 L400 430 L-10 430 Z" style="fill:color-mix(in srgb, var(--mint) 10%, var(--paper));stroke:var(--mint)" stroke-width="2.4"/>
+        <path d="M62 386 Q140 250 262 104" style="stroke:var(--text)" stroke-width="1.4" opacity=".45" data-string/>
+        <path d="M250 190 Q220 214 236 222 Q250 240 206 262 Q180 284 214 306 Q236 326 184 346 Q160 360 170 380" style="stroke:var(--lilac)" stroke-width="2" opacity=".85"/>
+        ${bows.map(bow).join("")}
+        ${SHELVES.find(x => x.id === S.pick).pets.concat(SHELVES.find(x => x.id === S.pick).pets).slice(0, 4).map((id, i) => `<image href="../assets/pets/${id}.png" x="${20 + i * 20}" y="${372 - (i % 2) * 3}" width="24" height="27" style="image-rendering: pixelated"/>`).join("")}
+        <g class="kitebody"><path d="M262 14 L342 100 L250 196 L178 104 Z" style="fill:color-mix(in srgb, var(--pink) 18%, var(--raised));stroke:var(--pink-seam)" stroke-width="3"/>
+          <path d="M262 14 L250 196 M178 104 L342 100" style="stroke:var(--pink-seam)" stroke-width="2" opacity=".7"/>
+          <circle cx="259" cy="104" r="42" style="fill:var(--page);stroke:var(--tier-${p.tier})" stroke-width="2.4"/>
+          ${artSvg(p, 259, 106, 3)}</g>
+      </svg>`;
+    }
+    function renderB() {
+      const w = where();
+      content.innerHTML = `<div class="page2">${bar()}<div class="b-body">
+        ${marks(`<button class="mark on" data-kite>${KITE_ICO}wish kite</button>`).replace(/mark on" data-s/g, 'mark" data-s')}
+        <div class="spread">
+          <section class="bpage page-l"><div class="b-left" style="flex:1;min-height:0">
+            <h2>wish for</h2>
+            <div class="pick">${PICKABLE.map((p, i) => `<div class="slot got${p.key === S.pin ? " wished" : ""}" data-pin="${p.key}" style="--tier: var(--tier-${p.tier}); --tilt: ${tilt(i)}deg" title="${nameOf(p)}">${p.key === S.pin ? `<span class="wishmark">${KITE_ICO}</span>` : ""}${art(p, 32)}</div>`).join("")}</div>
+            <div class="b-send">
+              <div class="row">${BOW_ICO}<div class="meter"><i style="--f:${w.f}"></i></div>${frac()}</div>
+              ${chips()}${takes()}
+            </div>
+          </div></section>
+          <section class="bpage page-r skypage${w.done ? " kite-done" : ""}" data-target>${kiteSvg()}</section>
+        </div></div></div>`;
+    }
+
+    // ---------- C: the dandelions ----------
+    function fieldSvg() {
+      const w = where(), X = [50, 132, 214, 296], groundY = 128, headY = 52, R = 24, SEEDS = 18;
+      const stem = (x, y) => `<path d="M${x} ${groundY} Q${x - 4} ${(groundY + y) / 2} ${x} ${y}" style="stroke:var(--mint)" stroke-width="2.4"/><path d="M${x - 1} ${groundY - 16} Q${x - 12} ${groundY - 22} ${x - 16} ${groundY - 14} M${x + 1} ${groundY - 24} Q${x + 10} ${groundY - 30} ${x + 15} ${groundY - 22}" style="stroke:var(--mint)" stroke-width="2.2" opacity=".8"/>`;
+      let seed = 11; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+      const parts = X.map((x, k) => {
+        if (k < w.full) {           // blown: a bare stem, a little sparkle, fluff drifting off
+          let drift = ""; for (let i = 0; i < 3; i++) { const dx = x + 14 + i * 12 + rnd() * 6, dy = headY - 18 - i * 9;
+            drift += `<path d="M${dx} ${dy + 6} L${dx} ${dy} M${dx} ${dy} L${dx - 3} ${dy - 3} M${dx} ${dy} L${dx + 3} ${dy - 3} M${dx} ${dy} L${dx} ${dy - 4}" style="stroke:${TINTS[(k + i) % TINTS.length]}" stroke-width="1.4" opacity=".7"/>`; }
+          return stem(x, headY + 8) + `<circle cx="${x}" cy="${headY + 6}" r="4" style="fill:color-mix(in srgb, var(--mint) 40%, var(--paper));stroke:var(--mint)" stroke-width="2"/>` + drift + STAR(x - 12, headY - 12, 6, true);
+        }
+        if (k === w.full && !w.done) {   // the one filling: each seed is a pet
+          const on = Math.round(w.f * SEEDS); let head = "";
+          for (let i = 0; i < SEEDS; i++) { const a = -Math.PI / 2 + i / SEEDS * Math.PI * 2, ex = x + Math.cos(a) * R, ey = headY + Math.sin(a) * R;
+            const lit = i < on;
+            head += `<path d="M${x} ${headY} L${ex.toFixed(1)} ${ey.toFixed(1)}" style="stroke:${lit ? "var(--text)" : "var(--muted-seam)"}" stroke-width="1.3" opacity="${lit ? .55 : .7}"/>`
+              + `<circle cx="${ex.toFixed(1)}" cy="${ey.toFixed(1)}" r="${lit ? 3.4 : 2.4}" style="fill:${lit ? TINTS[i % TINTS.length] : "none"};stroke:${lit ? "none" : "var(--muted-seam)"}" stroke-width="1.4"/>`; }
+          return stem(x, headY) + head + `<circle cx="${x}" cy="${headY}" r="4.5" style="fill:var(--page);stroke:var(--text)" stroke-width="1.8"/>`;
+        }
+        // still a closed bud
+        return stem(x, headY + 22) + `<path d="M${x - 7} ${headY + 22} Q${x - 8} ${headY + 8} ${x} ${headY + 4} Q${x + 8} ${headY + 8} ${x + 7} ${headY + 22} Z" style="fill:color-mix(in srgb, var(--lilac) 18%, var(--paper));stroke:var(--lilac-seam)" stroke-width="2"/><path d="M${x - 8} ${headY + 22} L${x - 3} ${headY + 16} M${x + 8} ${headY + 22} L${x + 3} ${headY + 16}" style="stroke:var(--mint)" stroke-width="2"/>`;
+      }).join("");
+      const labels = X.map((x, k) => { const cur = k === w.full && !w.done;
+        return `<text x="${x}" y="${groundY + 12}" text-anchor="middle" style="font: 10px var(--body); fill:${cur ? "var(--text)" : "var(--muted)"}">${cur ? `${fmt(w.have)} / ${fmt(w.need)}` : num(STEPS[k])}</text>`; }).join("");
+      return `<svg viewBox="0 0 346 146" preserveAspectRatio="xMidYMid meet" fill="none" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M-10 ${groundY} Q90 ${groundY - 5} 180 ${groundY} T360 ${groundY - 2}" style="stroke:var(--mint)" stroke-width="2.4" opacity=".6"/>
+        ${parts}${labels}</svg>`;
+    }
+    function renderC() {
+      const p = byKey(S.pin), [l, r] = [SECTIONS[S.spread * 2], SECTIONS[S.spread * 2 + 1]];
+      content.innerHTML = `<div class="page2">${bar()}<div class="c-body">
+        <div class="bookcol" style="flex:1">${marks()}<div class="spread">${pageHtml(l, "l")}${pageHtml(r, "r")}</div></div>
+        <div class="dstrip sticker">
+          <div class="wishcell"><h3>dandelions</h3><div class="card" style="--tier: var(--tier-${p.tier})">${art(p, 32)}<span class="nm">${nameOf(p)}</span><span class="tr">${p.tier}</span></div></div>
+          <div class="field" data-target>${fieldSvg()}</div>
+          <div class="sendcell">${chips()}${takes()}</div>
+        </div></div></div>`;
+    }
+
+    const render = () => { ({ A: renderA, B: renderB, C: renderC })[look](); paintIcons(frame); wire(); };
+
+    // a pet leaving adds a star to the night sky, never explained
+    let seed = 99 + look.charCodeAt(0);
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    function addStars(ids) {
+      const sky = frame.querySelector(".sky");
+      ids.forEach(id => {
+        const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        r.setAttribute("x", Math.floor(rnd() * 74) + 2); r.setAttribute("y", Math.floor(rnd() * 590) + 4);
+        r.setAttribute("width", 1); r.setAttribute("height", 1); r.setAttribute("fill", TINT[id] || "#f5dcec");
+        r.setAttribute("opacity", (0.3 + rnd() * 0.35).toFixed(2)); r.classList.add("fresh"); sky.appendChild(r);
+      });
+    }
+
+    // pets hop from the shelf chip to the jar / up the kite string / into the dandelion
+    function fly(fromEl, ids) {
+      const target = content.querySelector("[data-target]");
+      if (!fromEl || !target) return;
+      const fr = frame.getBoundingClientRect(), a = fromEl.getBoundingClientRect(), b = target.getBoundingClientRect();
+      if (look === "B") {           // climb the string, from the hill up to the kite
+        const svg = target.querySelector("svg"), m = svg.getScreenCTM();
+        const pt = (x, y) => { const q = svg.createSVGPoint(); q.x = x; q.y = y; const r = q.matrixTransform(m); return [r.x - b.left, r.y - b.top]; };
+        const [x0, y0] = pt(62, 386), [x1, y1] = pt(252, 118);
+        ids.slice(0, 8).forEach((id, i) => {
+          const img = document.createElement("img"); img.className = "px climber"; img.src = `../assets/pets/${id}.png`;
+          img.style.left = `${x0 - 8}px`; img.style.top = `${y0 - 18}px`; target.appendChild(img);
+          setTimeout(() => { img.style.transform = `translate(${x1 - x0}px, ${y1 - y0}px) scale(.6)`; img.style.opacity = "0"; }, 40 + i * 130);
+          setTimeout(() => img.remove(), 1500 + i * 130);
+        });
+        return;
+      }
+      ids.slice(0, 8).forEach((id, i) => {
+        const img = document.createElement("img");
+        img.className = "px flyer"; img.src = `../assets/pets/${id}.png`;
+        img.style.left = `${a.left - fr.left + a.width / 2 - 12}px`; img.style.top = `${a.top - fr.top}px`;
+        frame.appendChild(img);
+        const tx = look === "A" ? b.left + b.width / 2 : b.left + b.width * (0.15 + 0.23 * Math.min(3, where().full));
+        const ty = look === "A" ? b.top + 70 : b.top + 50;
+        const dx = tx - a.left - a.width / 2 + (i - 4) * 5, dy = ty - a.top;
+        setTimeout(() => { img.style.transform = `translate(${dx}px, ${dy}px) scale(.6)`; img.style.opacity = "0"; }, 30 + i * 70);
+        setTimeout(() => img.remove(), 1000 + i * 70);
+      });
+    }
+
+    function rise(text) {
+      const t = content.querySelector("[data-target]"); if (!t) return;
+      const fr = frame.getBoundingClientRect(), r = t.getBoundingClientRect();
+      const p = document.createElement("span"); p.className = "rise"; p.textContent = text;
+      p.style.left = `${r.left - fr.left + r.width / 2}px`; p.style.top = `${r.top - fr.top + 30}px`;
+      frame.appendChild(p); setTimeout(() => p.remove(), 1500);
+    }
+
+    const CHEER = { A: ["in you go! ♪", "plop!", "it's filling up!"], B: ["up, up, up!", "hold on tight!", "higher! higher!"], C: ["whoosh! ♪", "fluffy!", "one more puff!"] }[look];
+    const STEP_SAY = { A: "a star!!", B: "a new bow!", C: "wheee! look at it go!" }[look];
+    const DONE_SAY = { A: "all the stars! it's full!", B: "our kite has all its bows!", C: "all four! i wished so hard!" }[look];
+    function take(n) {
+      const w = where(); if (w.done) return;
+      const sh = SHELVES.find(s => s.id === S.pick), have = S.counts[sh.id];
+      const room = ENDS[ENDS.length - 1] - sentNow();
+      const k = Math.min(room, n === "all" ? have : Math.min(have, Number(n)));
+      if (!k) return;
+      const ids = Array.from({ length: Math.min(k, 8) }, (_, i) => sh.pets[i % sh.pets.length]);
+      fly(content.querySelector(`[data-shelf="${sh.id}"]`), ids);
+      const before = w.full;
+      S.counts[sh.id] -= k; S.sent[S.pin] = sentNow() + k;
+      addStars(Array.from({ length: Math.min(k, 40) }, (_, i) => sh.pets[i % sh.pets.length]));
+      const after = where();
+      say(after.done ? DONE_SAY : after.full > before ? STEP_SAY : CHEER[Math.floor(rnd() * CHEER.length)]);
+      setTimeout(() => { render(); if (after.full > before) rise("✦"); }, look === "B" ? 900 : 560);
+    }
+
+    function wire() {
+      content.querySelectorAll("[data-shelf]").forEach(el => el.addEventListener("click", () => { S.pick = el.dataset.shelf; render(); }));
+      content.querySelectorAll("[data-take]").forEach(b => b.addEventListener("click", () => take(b.dataset.take)));
+      content.querySelectorAll("[data-pin]").forEach(el => el.addEventListener("click", () => {
+        if (S.pin === el.dataset.pin) return;
+        S.pin = el.dataset.pin; say(`${nameOf(byKey(S.pin))}! ooh, good one.`); render();
+      }));
+      content.querySelectorAll("[data-s]").forEach(b => b.addEventListener("click", () => { S.spread = Number(b.dataset.s); if (look !== "B") render(); }));
+    }
+
+    render();
+  }
+
+  document.querySelectorAll(".frame").forEach(makeLook);
+  applyLook(loadLook());
+</script>
+</body>
+</html>

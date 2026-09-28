@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Room House</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* room upgrades: the house card. Tap the room pill on the bookcase (pets-shelves.html look A) and
+     a small card opens under it: a cut-away house that grows a step at a time. Coin steps first,
+     then wisp "squeeze in" steps. Every plain pet counts toward the room, pets on jobs too.
+     Three looks stacked, each its own game window. */
+  :root { --wisp: #ff9e7d; }   /* candy floss coral, as on the plushie machine */
+  body { display: block; padding: 28px 16px 60px; }
+  .looks { display: flex; flex-direction: column; align-items: center; gap: 44px; }
+  .intro { width: 920px; max-width: 100%; display: flex; flex-direction: column; gap: 8px; }
+  .intro h1 { margin: 0; font: var(--display-weight) 26px/1.1 var(--display); color: var(--pink); }
+  .intro p { margin: 0; color: var(--muted); font-size: 12px; }
+  .picker { display: flex; gap: 6px; flex-wrap: wrap; }
+  .picker a { padding: 3px 12px; border-radius: 999px; color: var(--muted); border: 2px solid var(--line); text-decoration: none; font-size: 12px; background: var(--backdrop); white-space: nowrap; }
+  .picker a.on { color: var(--pink); border-color: var(--pink); }
+  .look { display: flex; flex-direction: column; gap: 10px; }
+  .look > header { display: flex; align-items: baseline; gap: 12px; width: 920px; max-width: 100%; }
+  .look > header b { font: var(--display-weight) 20px/1 var(--display); color: var(--pink); white-space: nowrap; }
+  .look > header span { color: var(--muted); font-size: 12px; }
+  .content { flex: 1; min-height: 0; position: relative; }
+
+  /* the full tab row of this stage: squeeze the spine a little so settings still fits */
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+  .chip.wisps { color: var(--wisp); }
+  .wisp { display: inline-block; line-height: 0; vertical-align: middle; }
+
+  /* ================= the bookcase behind (pets-shelves.html look A) ================= */
+  .wrap { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+  .bar { display: flex; align-items: center; gap: 10px; min-height: 30px; }
+  .bar .seg button { padding: 4px 12px; font-size: 12px; }
+  .bar .right { margin-left: auto; }
+  .px.flip { transform: scaleX(-1); }
+  .mini { position: relative; flex: none; width: 76px; padding: 6px 2px 5px; display: flex; flex-direction: column; align-items: center;
+    background: var(--raised); border: 2px solid var(--tier); border-radius: var(--r-lg); box-shadow: var(--lift); transform: rotate(var(--t, 0deg)); }
+  .mini img { width: 32px; height: 36px; }
+  .mini .nm { margin-top: 3px; font-size: 10px; line-height: 1.2; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70px; }
+  .mini .tr { font-size: 10px; line-height: 1.2; color: var(--tier); white-space: nowrap; }
+  .mini .tr em { font-style: normal; color: var(--gold); }
+  .mini.glow { box-shadow: var(--lift), 0 0 14px color-mix(in srgb, var(--tier) 45%, transparent); }
+  .pile { position: relative; flex: none; z-index: 0; }
+  .pile img { position: absolute; width: 16px; height: 18px; }
+  .cushion { position: relative; display: flex; gap: 10px; align-items: flex-end; padding: 12px 14px 10px; border-radius: var(--r-panel);
+    background: color-mix(in srgb, var(--pink) 7%, var(--raised)); border: 2px solid var(--pink-seam); box-shadow: var(--lift); }
+  .cushion::before { content: ""; position: absolute; inset: 4px; border: 2px dashed color-mix(in srgb, var(--pink) 30%, transparent); border-radius: 10px; pointer-events: none; }
+  .case { flex: 1; min-height: 0; display: flex; flex-direction: column; padding: 4px 12px 8px; border-radius: var(--r-panel);
+    background: var(--paper); border: 2px solid var(--lilac-seam); box-shadow: inset 0 0 0 4px color-mix(in srgb, var(--lilac) 8%, var(--paper)); }
+  .plank { position: relative; flex: 1; min-height: 0; display: grid; grid-template-columns: 138px 1fr; align-items: end; gap: 12px; padding: 0 6px 0 4px; }
+  .plank::after { content: ""; position: absolute; left: -6px; right: -6px; bottom: 0; height: 7px; border-radius: 3px;
+    background: color-mix(in srgb, var(--lilac) 22%, var(--page)); border: 2px solid var(--lilac-seam); }
+  .plank .tag { align-self: center; justify-self: start; margin-top: 2px; padding: 3px 10px 3px; border-radius: 6px; background: var(--raised);
+    border: 2px solid color-mix(in srgb, var(--tier) 55%, var(--line)); transform: rotate(var(--t)); box-shadow: var(--lift); line-height: 1.1; }
+  .plank .tag span { display: block; font-size: 10px; color: var(--tier); }
+  .plank .tag b { display: block; font: 400 17px/1.05 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+  .plank .stand { display: flex; align-items: flex-end; gap: 4px; padding-bottom: 7px; min-width: 0; overflow: hidden; }
+  .plank .stand > img { width: 32px; height: 36px; flex: none; }
+  .plank .stand .pile { margin-left: 8px; }
+  .plank .shine { margin-left: auto; align-self: center; font-size: 11px; color: var(--gold); white-space: nowrap; }
+  .roompill { position: relative; display: flex; align-items: center; gap: 8px; padding: 3px 12px 3px 8px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--lilac) 35%, var(--line)); color: var(--lilac); cursor: pointer; }
+  .roompill:hover { border-color: var(--pink); }
+  .roompill .meter { width: 90px; height: 10px; border-radius: 999px; background: var(--raised); border: 2px solid var(--line); overflow: hidden; }
+  .roompill .meter i { display: block; height: 100%; background: var(--lilac); border-radius: 999px; transition: width .4s var(--ease-out); }
+  .roompill b { font: 400 14px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .roompill b small { font: 11px var(--body); color: var(--muted); }
+  .roompill.snug .meter i { background: var(--pink); }
+  .roompill.on { z-index: 4; border-color: var(--pink); color: var(--pink); background: var(--pink-pressed); }
+  .roompill.on .meter { background: var(--deep); }
+  .dim { position: absolute; inset: 0; z-index: 3; border-radius: var(--r-panel); background: color-mix(in srgb, var(--backdrop) 58%, transparent); }
+
+  /* ================= shared card bits ================= */
+  .hcard { position: absolute; z-index: 5; top: 44px; right: 0; width: 400px; }
+  .hcard.enter { animation: cardin .3s var(--ease-out) both; }
+  @keyframes cardin { from { transform: translateY(-8px) scale(.97); opacity: 0; } }
+  .hcard .x { position: absolute; top: 6px; right: 6px; width: 24px; height: 24px; border: 0; background: none; color: var(--muted); border-radius: var(--r-sm); cursor: pointer; z-index: 2; }
+  .hcard .x:hover { color: var(--pink); background: var(--deep); }
+  .hhead { display: flex; align-items: center; gap: 8px; min-height: 26px; padding-right: 26px; }
+  .hhead h3 { margin: 0; font: var(--display-weight) 18px/1 var(--display); color: var(--pink); white-space: nowrap; }
+  .hhead .ico { color: var(--lilac); line-height: 0; }
+  .ico svg { display: block; }
+  .count { font: 400 15px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .count small { font: 11px var(--body); color: var(--muted); }
+  .count.snug { color: var(--pink); }
+  .who { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px 1px 5px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); font-size: 11px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .who b { font-weight: 400; color: var(--text); }
+  .who svg { width: 14px; height: 14px; color: var(--lilac); }
+  .capjump { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .capjump b { font-weight: 400; color: var(--text); }
+  .capjump svg { width: 14px; height: 14px; color: var(--lilac); }
+  .buy { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .buy .cost { display: inline-flex; align-items: center; gap: 3px; color: var(--cyan); }
+  .buy.w { border-color: color-mix(in srgb, var(--wisp) 55%, var(--line)); }
+  .buy.w .cost { color: var(--wisp); }
+  .buy.w:hover { border-color: var(--wisp); color: var(--wisp); }
+  .buy:disabled .cost { color: var(--muted); }
+  .buy:disabled { border-color: var(--muted-seam); color: var(--muted); }
+
+  /* the cut-away house (svg, drawn 1:1 so the pets stay crisp) */
+  .house { display: block; overflow: visible; }
+  .house .pp { image-rendering: pixelated; }
+  .house .pw { transform-box: fill-box; transform-origin: 50% 100%; }
+  .house .m-ghost path, .house .m-ghost rect, .house .m-ghost circle, .house .m-ghost ellipse { stroke: var(--muted) !important; stroke-dasharray: 4 3; fill: none !important; }
+  .house .m-ghost.w path, .house .m-ghost.w rect, .house .m-ghost.w circle, .house .m-ghost.w ellipse { stroke: var(--wisp) !important; }
+  .house .m-ghost .pw, .house .m-ghost .nopencil { display: none; }
+  .house .m-focus path, .house .m-focus rect:not(.keep), .house .m-focus circle { stroke: var(--pink) !important; }
+  .house .m-dim { opacity: .42; }
+  .house .fresh .pw { animation: hopin .6s cubic-bezier(.3, 1.6, .5, 1) both; }
+  .house .fresh .pw:nth-of-type(2) { animation-delay: .08s; } .house .fresh .pw:nth-of-type(3) { animation-delay: .16s; } .house .fresh .pw:nth-of-type(4) { animation-delay: .24s; }
+  @keyframes hopin { 0% { transform: translateY(-14px) scale(.6); opacity: 0; } 60% { opacity: 1; } }
+  .house .twk { animation: twk 1.1s ease-out both; }
+  @keyframes twk { 0% { opacity: 0; transform: translateY(6px); } 30% { opacity: 1; } 100% { opacity: 0; transform: translateY(-10px); } }
+  .house .lights circle { animation: blink 2.4s ease-in-out infinite; }
+  .house .lights circle:nth-child(2n) { animation-delay: 1.2s; }
+  @keyframes blink { 50% { opacity: .35; } }
+  .house .sway { transform-box: fill-box; transform-origin: 50% 0; animation: sway 3.2s ease-in-out infinite; }
+  @keyframes sway { 50% { transform: rotate(2.5deg); } }
+
+  /* ================= LOOK A: the dollhouse ================= */
+  .a-card { padding: 12px 14px 12px; display: flex; flex-direction: column; gap: 10px; }
+  .a-card::before { content: ""; position: absolute; top: -9px; right: 96px; width: 14px; height: 14px; background: var(--raised); border-left: 2px solid var(--lilac-seam); border-top: 2px solid var(--lilac-seam); transform: rotate(45deg); }
+  .a-card .hhead .count { margin-left: auto; }
+  .a-well { position: relative; height: 232px; border-radius: var(--r-lg); background: var(--deep); border: 2px solid var(--line); display: grid; place-items: center; overflow: hidden; }
+  .a-well .side { position: absolute; top: 8px; display: flex; flex-direction: column; gap: 4px; }
+  .a-well .side.l { left: 8px; } .a-well .side.r { right: 8px; align-items: flex-end; }
+  .a-next { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--r-lg); background: var(--page); border: 2px dashed var(--line); }
+  .a-next.w { border-color: color-mix(in srgb, var(--wisp) 45%, var(--line)); }
+  .a-next .what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .a-next .what b { font: var(--display-weight) 16px/1.05 var(--display); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .a-next.done .what b { color: var(--mint); }
+
+  /* ================= LOOK B: the flip book ================= */
+  .b-card { padding: 12px 14px 12px 22px; display: flex; flex-direction: column; gap: 8px; background: color-mix(in srgb, var(--text) 4%, var(--raised)); }
+  .b-card::before { content: ""; position: absolute; top: -9px; right: 96px; width: 14px; height: 14px; background: color-mix(in srgb, var(--text) 4%, var(--raised)); border-left: 2px solid var(--lilac-seam); border-top: 2px solid var(--lilac-seam); transform: rotate(45deg); }
+  .b-card .bind { position: absolute; left: 8px; top: 12px; bottom: 12px; width: 2px; background: repeating-linear-gradient(to bottom, var(--pink-seam) 0 6px, transparent 6px 11px); }
+  .b-card .corner { position: absolute; right: -2px; bottom: -2px; width: 22px; height: 22px; background: linear-gradient(135deg, color-mix(in srgb, var(--lilac) 18%, var(--raised)) 50%, var(--page) 50%); border-top-left-radius: 6px; border-left: 2px solid var(--lilac-seam); border-top: 2px solid var(--lilac-seam); }
+  .b-card .hhead { gap: 6px; }
+  .b-card .hhead .who { margin-left: auto; }
+  .b-page { position: relative; display: grid; grid-template-columns: 32px 1fr 32px; align-items: center; gap: 6px; height: 226px; }
+  .b-page .flip { width: 32px; height: 32px; padding: 0; border-radius: 50%; font: 400 17px/1 var(--display); }
+  .b-page .flip:disabled { visibility: hidden; }
+  .b-page .pic { display: grid; place-items: center; height: 226px; border-radius: var(--r-md); background: var(--paper); border: 2px solid var(--line); overflow: hidden; }
+  .b-page .pic.flipin { animation: flipin .35s var(--ease-out); }
+  @keyframes flipin { from { transform: perspective(600px) rotateY(-24deg); opacity: .3; } }
+  .b-page .stamp { position: absolute; right: 50px; top: 14px; padding: 3px 10px 2px; border: 2px solid var(--mint); border-radius: 8px; color: var(--mint); font: var(--display-weight) 14px/1.1 var(--display); transform: rotate(-9deg); background: color-mix(in srgb, var(--mint) 10%, var(--paper)); white-space: nowrap; }
+  .b-page .stamp.w { border-color: var(--wisp); color: var(--wisp); background: color-mix(in srgb, var(--wisp) 10%, var(--paper)); }
+  .b-page .stamp.pop { animation: stamp .45s cubic-bezier(.3, 1.6, .5, 1); }
+  @keyframes stamp { 0% { transform: scale(2) rotate(-20deg); opacity: 0; } }
+  .ribbon { position: absolute; bottom: -30px; left: 44px; width: 20px; height: 40px; z-index: -1; background: var(--wisp); clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 80%, 0 100%); }
+  .b-foot { display: flex; align-items: center; gap: 10px; padding-right: 14px; }
+  .b-foot .what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .b-foot .what b { font: var(--display-weight) 17px/1.05 var(--display); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .dots2 { display: flex; align-items: center; justify-content: center; gap: 6px; }
+  .dots2 i { width: 9px; height: 9px; border-radius: 50%; background: var(--lilac-seam); border: 2px solid var(--lilac-seam); cursor: pointer; }
+  .dots2 i.w { background: color-mix(in srgb, var(--wisp) 60%, var(--deep)); border-color: color-mix(in srgb, var(--wisp) 60%, var(--deep)); }
+  .dots2 i.next { background: none; border: 2px dashed var(--muted); }
+  .dots2 i.next.w { border-color: var(--wisp); }
+  .dots2 i.on { outline: 2px solid var(--pink); outline-offset: 2px; }
+
+  /* ================= LOOK C: the house-shaped card ================= */
+  .c-card { width: 400px; filter: drop-shadow(0 6px 10px rgba(6, 2, 12, .6)); }
+  .c-card .x { top: 70px; }
+  .c-roof { display: block; margin-bottom: -2px; position: relative; }
+  .c-top { position: relative; }
+  .c-top .gable { position: absolute; left: 50%; top: 34px; transform: translateX(-50%); display: flex; align-items: center; gap: 6px; padding: 2px 10px 2px 6px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); }
+  .c-top .gable .ico { color: var(--lilac); }
+  .c-top .gable .meter { width: 54px; height: 8px; border-radius: 999px; background: var(--raised); border: 2px solid var(--line); overflow: hidden; }
+  .c-top .gable .meter i { display: block; height: 100%; background: var(--lilac); transition: width .4s var(--ease-out); }
+  .c-top .gable.snug .meter i { background: var(--pink); }
+  .c-body { position: relative; background: var(--raised); border: 2px solid var(--lilac-seam); border-top: 0; border-radius: 0 0 var(--r-xl) var(--r-xl); padding: 0 10px 8px; }
+  .floor { position: relative; display: grid; grid-template-columns: 212px 1fr; gap: 10px; align-items: center; height: 76px; padding: 6px 0 4px; }
+  .floor + .floor { border-top: 3px solid color-mix(in srgb, var(--lilac) 26%, var(--page)); }
+  .floor .vig { height: 62px; border-radius: var(--r-sm); background: color-mix(in srgb, var(--lilac) 7%, var(--paper)); overflow: hidden; }
+  .floor.fresh .vig { animation: rise .45s var(--ease-out); }
+  @keyframes rise { from { transform: translateY(12px); opacity: 0; } }
+  .floor .tags { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+  .floor .nm { display: flex; align-items: center; gap: 5px; font-size: 12px; line-height: 1.25; white-space: nowrap; }
+  .floor .nm.small { font-size: 11px; color: var(--muted); }
+  .floor .nm .tick { color: var(--mint); font-size: 12px; }
+  .floor .nm.w { color: var(--wisp); }
+  .pricetag { position: relative; display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px 3px 16px; border-radius: 4px 8px 8px 4px; font-size: 12px; font-variant-numeric: tabular-nums;
+    background: var(--deep); border: 2px solid var(--lilac-seam); color: var(--cyan); cursor: pointer; transform: rotate(-3deg); white-space: nowrap; transition: transform .12s var(--ease-out), border-color .12s; }
+  .pricetag::before { content: ""; position: absolute; left: 5px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--raised); border: 2px solid var(--lilac-seam); }
+  .pricetag:hover { border-color: var(--pink); transform: rotate(0deg); }
+  .pricetag:active { transform: scale(.95); background: var(--pink-pressed); }
+  .pricetag.w { color: var(--wisp); border-color: color-mix(in srgb, var(--wisp) 55%, var(--line)); border-style: dashed; }
+  .pricetag.w::before { border-color: var(--wisp); }
+  .pricetag:disabled { color: var(--muted); border-color: var(--muted-seam); cursor: default; transform: rotate(-3deg); background: var(--deep); }
+  .pricetag .lbl { color: var(--text); margin-right: 2px; }
+  .pricetag:disabled .lbl { color: var(--muted); }
+  .doormat { display: flex; justify-content: center; gap: 8px; padding-top: 8px; border-top: 2px dashed var(--line); }
+</style>
+</head>
+<body>
+<div class="looks">
+  <div class="intro">
+    <h1>room upgrades: the house card</h1>
+    <p>Tap the room pill on the bookcase and the house card opens under it. Buy the next step and watch the house grow (the pill grows too, pets trickle in). Tap outside or ✕ to close, the pill to open again. Numbers are placeholders.</p>
+    <nav class="picker" id="picker"></nav>
+  </div>
+
+  <section class="look">
+    <header><b>Look A: the dollhouse</b><span>one house that grows, the next step drawn in pencil inside it, one "next up" row with the price under it.</span></header>
+    <div class="frame" data-look="A" data-tab="pets"></div>
+  </section>
+
+  <section class="look">
+    <header><b>Look B: the flip book</b><span>a page per step: flip back through what you built (a "moved in!" stamp on each), the next page has the price; the wisp steps get a coral ribbon.</span></header>
+    <div class="frame" data-look="B" data-tab="pets"></div>
+  </section>
+
+  <section class="look">
+    <header><b>Look C: the house-shaped card</b><span>the card is the house: a floor per step with a price tag on a nail, it gets taller as you build; wisp steps squeeze into floors you already have.</span></header>
+    <div class="frame" data-look="C" data-tab="pets"></div>
+  </section>
+</div>
+
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  // the game's tabs at this stage (as on pets-shelves.html)
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "boxes").news = false;
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+
+  // ---------------- placeholder numbers (would live in data/*.json) ----------------
+  const BASE_CAP = 500;
+  const STEPS = [   // coin steps x1.5 the room, wisp steps x2; each step is ONE currency
+    { id: "plank",    name: "a second plank",      cur: "coin", price: 1500,   cap: 750,   say: "a whole new plank! the commons are thrilled." },
+    { id: "bunks",    name: "bunk beds",           cur: "coin", price: 8000,   cap: 1100,  say: "bunk beds!! i call top bunk!" },
+    { id: "loft",     name: "a loft",              cur: "coin", price: 36000,  cap: 1700,  say: "a loft! the rares already moved up there." },
+    { id: "attic",    name: "the attic",           cur: "coin", price: 160000, cap: 2500,  say: "the attic has a round window. we take turns." },
+    { id: "three",    name: "beds three high",     cur: "wisp", price: 60,     cap: 5000,  say: "three high! the top bunk is very high now." },
+    { id: "hammocks", name: "hammocks",            cur: "wisp", price: 240,    cap: 10000, say: "hammocks! nobody is getting up today." },
+    { id: "drawers",  name: "pets in the drawers", cur: "wisp", price: 960,    cap: 20000, say: "the socks moved out. the pets moved in." },
+  ];
+  const STAGES = {   // built = steps done; shelves + jobs = every plain pet
+    coins: { label: "coin steps",     built: 1, coins: 10421,   wisps: null, shelves: { common: 380, uncommon: 160, rare: 60, epic: 18, legendary: 3 }, jobs: 120 },
+    wisps: { label: "squeeze in",     built: 4, coins: 48210,   wisps: 212,  shelves: { common: 1190, uncommon: 470, rare: 190, epic: 44, legendary: 7, mythic: 1 }, jobs: 586 },
+    done:  { label: "everyone moved in", built: 7, coins: 1204880, wisps: 35, shelves: { common: 11820, uncommon: 4410, rare: 1330, epic: 244, legendary: 35, mythic: 1 }, jobs: 2130 },
+  };
+  const OPEN_LINE = { coins: "our room is getting a bit… snug ♪", wisps: "everyone fits! if we all breathe in.", done: "everyone fits! for now ♪" };
+  const params = new URLSearchParams(location.search);
+  const STAGE = STAGES[params.get("n")] ? params.get("n") : "coins";
+  document.getElementById("picker").innerHTML = Object.entries(STAGES).map(([k, s]) => `<a href="?n=${k}" class="${k === STAGE ? "on" : ""}">${s.label}</a>`).join("");
+
+  const TIERS = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
+  const SPR = { common: ["peach-cat", "lilac-cat", "mint-blob"], uncommon: ["mint-bear", "peach-bear"], rare: ["sky-bunny", "midnight-bear", "lilac-blob"],
+    epic: ["bubblegum-fox", "toxic-cat"], legendary: ["gold-dragon"], mythic: ["abyss-void"] };
+  const PINNED = [
+    { id: "lilac-blob", tier: "rare", active: true }, { id: "gold-dragon", tier: "legendary", fin: "holo", glow: true, fav: true },
+    { id: "bubblegum-fox", tier: "epic", fav: true }, { id: "sky-bunny", tier: "rare", fin: "ghost", glow: true },
+    { id: "toxic-cat", tier: "epic" }, { id: "mint-bear", tier: "uncommon", fin: "holo", glow: true },
+    { id: "lilac-blob-sparkle", name: "sparkle blob", tier: "rare", fin: "shiny", fav: true }, { id: "peach-cat", tier: "common", fav: true },
+  ];
+  const fmt = n => n.toLocaleString("en");
+  const num = n => n >= 1e6 ? (n / 1e6).toFixed(1).replace(/\.0$/, "") + "M" : n >= 1e4 ? (n / 1e3).toFixed(n >= 1e5 ? 0 : 1).replace(/\.0$/, "") + "k" : fmt(n);
+  const img = (id, cls = "") => `<img class="px ${cls}" src="../assets/pets/${id}.png" alt="">`;
+
+  // ---------------- icons ----------------
+  const svgI = (d, s = 16) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+  const HOUSE_D = `<path d="M3.8 11.6 L12 4.1 L20.3 11.2"/><path d="M6 10.2 Q5.8 15 6.3 19.6 Q12 20.4 17.8 19.4 Q18.3 14.8 18 10.1"/>`;
+  const HOUSE = (s = 18) => svgI(HOUSE_D, s);
+  const SHELF = svgI(`<path d="M5 3.8 L5.2 20.2 M18.8 3.8 L18.6 20.2 M5 9 L18.8 8.8 M5.1 14.5 L18.7 14.4 M4.4 20.2 L19.4 20.1"/>`);
+  const BASKET = svgI(DOODLES.errands);
+  const COIN = `<span data-icon="coin" data-px="1.3"></span>`;
+  const WISP = (s = 14) => `<span class="wisp"><svg width="${s}" height="${s}" viewBox="0 0 24 24"><path d="M11.5 16 Q10.6 19 12.8 21.4" fill="none" stroke="var(--wisp)" stroke-width="2" stroke-linecap="round"/><circle cx="8.6" cy="11.8" r="4.8" fill="var(--wisp)"/><circle cx="14.2" cy="9" r="5.6" fill="var(--wisp)"/><circle cx="17.2" cy="13.6" r="3.8" fill="var(--wisp)"/><path d="M8 8.6 Q10 6.8 12 7.4" fill="none" stroke="var(--page)" stroke-width="1.3" stroke-linecap="round" opacity=".45"/></svg></span>`;
+  const cost = s => s.cur === "coin" ? `<span class="cost">${COIN}${fmt(s.price)}</span>` : `<span class="cost">${WISP()}${fmt(s.price)}</span>`;
+
+  // ================= the cut-away house, 260x220, drawn 1:1 =================
+  // every pet is a 16x18 sprite at 1x; a part's pets hop in when it is built
+  const P = (id, x, y, flip) => `<g class="pw"><image class="pp" href="../assets/pets/${id}.png" width="16" height="18" ${flip ? `transform="translate(${2 * x + 16} ${y}) scale(-1 1)" x="${x}" y="0"` : `x="${x}" y="${y}"`}/></g>`;
+  const L = (d, c = "var(--lilac)", w = 2.6) => `<path d="${d}" fill="none" stroke="${c}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const R = (x, y, w, h, fill, c = "var(--lilac)", rx = 1.5) => `<rect x="${x}" y="${y}" width="${w}" height="${h}" rx="${rx}" style="fill:${fill}" stroke="${c}" stroke-width="2"/>`;
+  const BED = "var(--pink-pressed)", BLANKET = "color-mix(in srgb, var(--lilac) 40%, var(--page))", WOOD = "color-mix(in srgb, var(--lilac) 22%, var(--page))";
+
+  const PARTS = {
+    // the room before any step: one low bookcase
+    base: () => L("M34 204 L34 178 M96 204 L96 178") + L("M31 178 L99 178", "var(--lilac)", 3) +
+      P("peach-cat", 40, 184) + P("lilac-cat", 57, 184, 1) + P("mint-blob", 74, 184),
+    plank: () => L("M34 178 L34 158 M96 178 L96 158") + L("M31 158 L99 158", "var(--lilac)", 3) +
+      P("mint-bear", 38, 160) + P("peach-bear", 56, 160, 1) + P("sky-bunny", 74, 160),
+    bunks: (k) => L("M108 204 L108 156 M160 204 L160 156") + R(108, 194, 52, 5, BED, "var(--pink-seam)") + R(108, 172, 52, 5, BED, "var(--pink-seam)") +
+      L("M108 162 L160 162", "var(--lilac)", 2) +
+      P("peach-cat", 114, 176) + P("lilac-blob", 136, 176, 1) + P("mint-blob", 116, 154, 1) + P("peach-bear", 138, 154) +
+      `<g class="nopencil">${R(112, 188, 44, 6, BLANKET, "var(--lilac-seam)", 3)}${R(112, 166, 44, 6, BLANKET, "var(--lilac-seam)", 3)}</g>`,
+    loft: () => L("M166 204 L166 128 M177 204 L177 128") + L("M166 192 L177 192 M166 180 L177 180 M166 168 L177 168 M166 156 L177 156 M166 144 L177 144", "var(--lilac)", 2) +
+      R(24, 128, 156, 5, WOOD) +
+      `<ellipse class="nopencil" cx="62" cy="126" rx="18" ry="3.5" style="fill:color-mix(in srgb, var(--pink) 35%, var(--page))" stroke="none"/>` +
+      P("sky-bunny", 36, 110) + P("midnight-bear", 54, 110, 1) + P("lilac-cat", 72, 110) + P("mint-bear", 118, 110, 1) + P("toxic-cat", 138, 110),
+    attic: () => R(34, 97, 192, 4, WOOD) + `<circle cx="130" cy="62" r="10" style="fill:color-mix(in srgb, var(--cyan) 12%, var(--deep))" stroke="var(--lilac)" stroke-width="2.4"/>` +
+      L("M130 52 L130 72 M120 62 L140 62", "var(--lilac)", 1.8) +
+      `<g class="lights nopencil"><circle cx="58" cy="84" r="1.8" fill="var(--gold)"/><circle cx="80" cy="70" r="1.8" fill="var(--pink)"/><circle cx="102" cy="56" r="1.8" fill="var(--gold)"/><circle cx="158" cy="56" r="1.8" fill="var(--pink)"/><circle cx="180" cy="70" r="1.8" fill="var(--gold)"/><circle cx="202" cy="84" r="1.8" fill="var(--pink)"/></g>` +
+      P("bubblegum-fox", 76, 79) + P("peach-cat", 96, 79, 1) + P("mint-blob", 150, 79),
+    three: () => L("M108 156 L108 136 M160 156 L160 136") + R(108, 150, 52, 5, BED, "var(--wisp)") + L("M108 140 L160 140", "var(--lilac)", 2) +
+      P("lilac-cat", 114, 132) + P("mint-bear", 136, 132, 1) + `<g class="nopencil">${R(112, 144, 44, 6, "color-mix(in srgb, var(--wisp) 45%, var(--page))", "var(--wisp)", 3)}</g>`,
+    hammocks: () => L("M182 128 L182 102", "var(--lilac)", 2.4) +
+      `<g class="sway">${P("peach-bear", 194, 101)}${P("sky-bunny", 212, 101, 1)}<path d="M184 106 Q209 132 234 106 Q209 122 184 106 Z" style="fill:color-mix(in srgb, var(--wisp) 55%, var(--page))" stroke="var(--wisp)" stroke-width="2" stroke-linejoin="round"/></g>` +
+      `<g class="sway">${P("lilac-blob", 172, 70)}<path d="M160 76 Q182 96 204 82 Q182 88 160 76 Z" style="fill:color-mix(in srgb, var(--wisp) 55%, var(--page))" stroke="var(--wisp)" stroke-width="2" stroke-linejoin="round"/></g>`,
+    drawers: () => R(186, 160, 44, 44, "var(--raised)") + L("M188 188 L228 188", "var(--lilac)", 2) +
+      `<circle cx="208" cy="196" r="1.8" fill="var(--lilac)"/><circle cx="208" cy="182" r="1.8" fill="var(--lilac)"/>` +
+      P("mint-blob", 190, 146) + P("peach-cat", 209, 146, 1) +
+      `<rect x="182" y="160" width="52" height="13" rx="2" style="fill:var(--raised)" stroke="var(--wisp)" stroke-width="2"/><circle cx="208" cy="166.5" r="1.8" fill="var(--wisp)"/>` +
+      R(186, 174, 44, 14, "var(--raised)") + L("M230 179 Q236 178 235 184", "var(--pink)", 2.4),
+  };
+
+  function house(k, o = {}) {
+    // k = steps built; o.ghost = step index drawn in pencil; o.focus = step to show as its own page; o.fresh = step that just got built
+    const order = ["base", ...STEPS.map(s => s.id)];
+    const layers = order.map((id, j) => {
+      const i = j - 1;                                // step index (-1 = the room itself)
+      let mode = i < k ? "on" : i === o.ghost ? "ghost" : "";
+      if (!mode) return "";
+      if (o.focus !== undefined && i !== o.focus && mode === "on") mode = "dim";
+      if (o.focus !== undefined && i === o.focus && mode === "on") mode = "focus";
+      const w = i >= 0 && STEPS[i].cur === "wisp" ? " w" : "";
+      return `<g class="m-${mode}${w}${i === o.fresh ? " fresh" : ""}">${PARTS[id](k)}</g>`;
+    });
+    const sparks = o.fresh !== undefined ? [[70, 120], [140, 96], [196, 140]].map(([x, y], n) => `<text class="twk" x="${x}" y="${y}" fill="var(--gold)" font-size="12" style="animation-delay:${n * .15}s">✦</text>`).join("") : "";
+    return `<svg class="house" width="260" height="220" viewBox="0 0 260 220">
+      <path d="M24 204 L24 100 L130 32 L236 100 L236 204 Z" style="fill:color-mix(in srgb, var(--lilac) 7%, var(--paper))"/>
+      ${L("M50 200 L50 86 M76 200 L76 70 M102 200 L102 52 M158 200 L158 52 M184 200 L184 70 M210 200 L210 86", "color-mix(in srgb, var(--lilac) 9%, var(--paper))", 2)}
+      ${L("M52 138 L72 138 L72 154 L52 154 Z", "var(--lilac-seam)", 2)}<path d="M62 151 Q55.5 146.5 57.2 143 Q59.4 140.6 62 143.4 Q64.6 140.6 66.8 143 Q68.5 146.5 62 151 Z" fill="var(--pink)"/>
+      ${L("M188 64 L188 42 L204 42 L204 74")}
+      ${L("M4 206 Q70 202 130 205 T256 205", "var(--mint)", 2.5)}${L("M8 205 L10 199 L12 205 M244 205 L247 198 L250 205 M16 205 L17 201", "var(--mint)", 2)}
+      ${L("M24 204 L24 100 M236 100 L236 204")}${L("M24 204 L236 204", "var(--lilac-seam)", 3)}
+      ${layers.join("")}
+      ${L("M12 106 L130 28 L248 106", "var(--pink-seam)", 3.2)}${sparks}</svg>`;
+  }
+
+  // ================= LOOK C's floors: a strip of the house per floor, 212x62 =================
+  const FLOORS = [   // top to bottom; each floor holds a coin step and maybe a squeeze-in
+    { coin: 3, wisp: null },   // the attic
+    { coin: 2, wisp: 5 },      // the loft + hammocks
+    { coin: 1, wisp: 4 },      // the bunk room + beds three high
+    { coin: 0, wisp: 6 },      // the shelves + pets in the drawers
+  ];
+  function floorVig(f, k, fresh) {
+    const has = i => i < k, g = (i, body) => {
+      const mode = has(i) ? "on" : i === k ? "ghost" : "";
+      return mode ? `<g class="m-${mode}${STEPS[i].cur === "wisp" ? " w" : ""}${i === fresh ? " fresh" : ""}">${body}</g>` : "";
+    };
+    let s = "";
+    if (f.coin === 0) {
+      s += `<g>${L("M12 60 L12 38 M70 60 L70 38")}${L("M9 38 L73 38", "var(--lilac)", 3)}${P("peach-cat", 17, 42)}${P("lilac-cat", 34, 42, 1)}${P("mint-blob", 51, 42)}</g>`;
+      s += g(0, L("M12 38 L12 20 M70 38 L70 20") + L("M9 20 L73 20", "var(--lilac)", 3) + P("mint-bear", 16, 20) + P("peach-bear", 34, 20, 1) + P("sky-bunny", 52, 20));
+      s += `<g>${L("M108 12 L126 12 L126 28 L108 28 Z", "var(--lilac-seam)", 2)}<path d="M117 25 Q110.5 20.5 112.2 17 Q114.4 14.6 117 17.4 Q119.6 14.6 121.8 17 Q123.5 20.5 117 25 Z" fill="var(--pink)"/></g>`;
+      s += g(6, R(154, 22, 44, 38, "var(--raised)") + L("M156 46 L196 46", "var(--lilac)", 2) + P("mint-blob", 158, 8) + P("peach-cat", 177, 8, 1) +
+        `<rect x="150" y="22" width="52" height="12" rx="2" style="fill:var(--raised)" stroke="var(--wisp)" stroke-width="2"/>` + L("M198 40 Q204 39 203 45", "var(--pink)", 2.4));
+    }
+    if (f.coin === 1) {
+      const posts = x => L(`M${x} 60 L${x} 14 M${x + 52} 60 L${x + 52} 14`);
+      s += g(1, posts(12) + posts(80) + [12, 80].map(x => R(x, 56, 52, 4, BED, "var(--pink-seam)") + R(x, 38, 52, 4, BED, "var(--pink-seam)")).join("") +
+        P("peach-cat", 18, 38) + P("lilac-blob", 40, 38, 1) + P("mint-blob", 20, 20, 1) + P("peach-bear", 42, 20) +
+        P("sky-bunny", 86, 38) + P("mint-bear", 108, 38, 1) + P("lilac-cat", 88, 20) + P("toxic-cat", 110, 20, 1));
+      s += g(4, [12, 80].map(x => R(x, 20, 52, 4, BED, "var(--wisp)")).join("") + P("midnight-bear", 18, 2) + P("peach-cat", 40, 2, 1) + P("mint-blob", 88, 2) + P("lilac-cat", 110, 2, 1));
+      s += `<g>${L("M168 60 L168 40 Q176 32 184 40 L184 60", "var(--lilac-seam)", 2)}<circle cx="176" cy="46" r="3" fill="var(--gold)" opacity=".8"/></g>`;
+    }
+    if (f.coin === 2) {
+      s += g(2, R(0, 56, 170, 5, WOOD) + L("M184 62 L184 30 M195 62 L195 30") + L("M184 52 L195 52 M184 42 L195 42", "var(--lilac)", 2) +
+        `<ellipse class="nopencil" cx="40" cy="55" rx="20" ry="3.5" style="fill:color-mix(in srgb, var(--pink) 35%, var(--page))"/>` +
+        P("sky-bunny", 14, 38) + P("midnight-bear", 32, 38, 1) + P("lilac-cat", 50, 38) + P("mint-bear", 80, 38, 1) + P("toxic-cat", 98, 38));
+      s += g(5, L("M126 50 L126 8 M176 50 L176 8", "var(--lilac)", 2) +
+        `<g class="sway">${P("peach-bear", 136, 10)}${P("sky-bunny", 154, 10, 1)}<path d="M126 14 Q151 40 176 14 Q151 30 126 14 Z" style="fill:color-mix(in srgb, var(--wisp) 55%, var(--page))" stroke="var(--wisp)" stroke-width="2" stroke-linejoin="round"/></g>`);
+    }
+    if (f.coin === 3) {
+      s += g(3, R(0, 57, 212, 4, WOOD) + L("M0 34 L26 4 M212 34 L186 4", "var(--pink-seam)", 3) +
+        `<circle cx="106" cy="26" r="11" style="fill:color-mix(in srgb, var(--cyan) 12%, var(--deep))" stroke="var(--lilac)" stroke-width="2.4"/>` + L("M106 15 L106 37 M95 26 L117 26", "var(--lilac)", 1.8) +
+        `<g class="lights nopencil"><circle cx="36" cy="10" r="1.8" fill="var(--gold)"/><circle cx="60" cy="14" r="1.8" fill="var(--pink)"/><circle cx="152" cy="14" r="1.8" fill="var(--gold)"/><circle cx="176" cy="10" r="1.8" fill="var(--pink)"/></g>` +
+        P("bubblegum-fox", 40, 39) + P("peach-cat", 60, 39, 1) + P("mint-blob", 140, 39) + P("gold-dragon", 160, 39, 1));
+    }
+    const sp = fresh !== undefined && (fresh === f.coin || fresh === f.wisp) ? [[60, 30], [150, 20]].map(([x, y], n) => `<text class="twk" x="${x}" y="${y}" fill="var(--gold)" font-size="12" style="animation-delay:${n * .15}s">✦</text>`).join("") : "";
+    return `<svg class="house" width="212" height="62" viewBox="0 0 212 62">${s}${sp}</svg>`;
+  }
+
+  // ================= the roof for LOOK C =================
+  const ROOF = `<svg class="c-roof" width="400" height="66" viewBox="0 0 400 66">
+    <path d="M300 40 L300 12 L318 12 L318 46" style="fill:var(--raised)" stroke="var(--lilac-seam)" stroke-width="2.6" stroke-linejoin="round"/>
+    <path d="M6 64 L200 4 L394 64 Z" style="fill:var(--raised)" stroke="var(--lilac-seam)" stroke-width="2" stroke-linejoin="round"/>
+    <path d="M2 66 L200 2 L398 66" fill="none" stroke="var(--pink-seam)" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+
+  // ---------------- mounting a game window per look ----------------
+  function mountAt(el) {
+    const others = [...document.querySelectorAll(".app")];
+    others.forEach(a => a.classList.remove("app"));
+    el.classList.add("app");
+    const c = mountFrame();
+    c.removeAttribute("id"); c.classList.add("content");
+    others.forEach(a => a.classList.add("app"));
+    return c;
+  }
+
+  function makeLook(frame) {
+    const look = frame.dataset.look;
+    const content = mountAt(frame);
+    const st = STAGES[STAGE];
+    const S = { built: st.built, coins: st.coins, wisps: st.wisps, shelves: Object.values(st.shelves).reduce((a, b) => a + b, 0), jobs: st.jobs, open: true, page: null, fresh: undefined };
+    S.page = Math.min(S.built, STEPS.length - 1);
+    const say = t => { frame.querySelector(".top .bubble").textContent = t; };
+    const cap = () => S.built ? STEPS[S.built - 1].cap : BASE_CAP;
+    const inRoom = () => S.shelves + S.jobs;
+    const next = () => STEPS[S.built];
+    const canBuy = s => s && (s.cur === "coin" ? S.coins >= s.price : S.wisps !== null && S.wisps >= s.price);
+    const wispsFound = () => S.wisps !== null;
+    // hidden until earned: the wisp steps only show once wisps exist
+    const nextShown = () => { const s = next(); return s && (s.cur === "coin" || wispsFound()) ? s : null; };
+
+    function chips() {
+      const top = frame.querySelector(".top");
+      top.querySelector(".chip.coins").innerHTML = `<span data-icon="coin"></span>${fmt(S.coins)}`;
+      let w = top.querySelector(".chip.wisps");
+      if (wispsFound()) {
+        if (!w) { top.querySelector(".chip.xp").insertAdjacentHTML("afterend", `<span class="chip wisps"></span>`); w = top.querySelector(".chip.wisps"); }
+        w.innerHTML = `${WISP(16)}${fmt(S.wisps)}`;
+      }
+      paintIcons(top);
+    }
+
+    // ---------- the bookcase behind ----------
+    let seed = 11;
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    function pile(tier, count, w, h, maxN) {
+      const n = Math.min(count, Math.max(1, Math.min(maxN, Math.round(Math.log10(count + 1) * maxN / 4.8))));
+      const rows = Math.max(1, Math.floor((h - 18) / 7) + 1), hs = 9, shrink = 2;
+      const fits = b => { let c = 0; for (let r = 0; r < rows; r++) c += Math.max(0, b - shrink * r); return c; };
+      let b = 1; while (fits(b) < n && (b * hs + 16) <= w) b++;
+      const pw = (b - 1) * hs + 16, out = []; let q = 0;
+      for (let r = 0; r < rows && q < n; r++) {
+        const inRow = Math.min(Math.max(0, b - shrink * r), n - q), x0 = (b - inRow) / 2 * hs;
+        for (let c = 0; c < inRow && q < n; c++, q++) {
+          const id = SPR[tier][Math.floor(rnd() * SPR[tier].length)];
+          out.push(`<img class="px${rnd() < .5 ? " flip" : ""}" src="../assets/pets/${id}.png" style="left:${(x0 + c * hs + (rnd() * 3 - 1.5)).toFixed(1)}px; top:${(h - 18 - r * 7 - rnd() * 2).toFixed(1)}px; z-index:${rows - r}" alt="">`);
+        }
+      }
+      return `<div class="pile" style="width:${pw}px; height:${h}px">${out.join("")}</div>`;
+    }
+    const HEART = `<span data-icon="heart" data-px="1.3"></span>`;
+    function mini(p, i) {
+      return `<div class="mini${p.glow ? " glow" : ""}" style="--tier: var(--tier-${p.tier}); --t: ${[-2, 1.5, -1, 2, -1.5, 1][i % 6]}deg">
+        ${p.fav ? `<span class="badge" style="position:absolute; top:-7px; right:-6px; line-height:0">${HEART}</span>` : ""}
+        ${img(p.id)}<div class="nm">${p.name || p.id.replace(/-/g, " ")}</div><div class="tr">${p.fin ? `<em>${p.fin}</em>` : p.tier}</div></div>`;
+    }
+    const pill = () => {
+      const n = inRoom(), c = cap();
+      return `<div class="roompill${n >= c * .97 ? " snug" : ""}${S.open ? " on" : ""}" data-pill>${HOUSE()}<span class="meter"><i style="width:${Math.min(100, n / c * 100)}%"></i></span><b>${num(n)} <small>/ ${num(c)}</small></b></div>`;
+    };
+    function bookcase() {
+      seed = 11;
+      const shown = TIERS.filter(t => st.shelves[t]);
+      const planks = shown.map((t, i) => {
+        const n = st.shelves[t], newest = [0, 1, 2, 3].map(j => SPR[t][(j + i) % SPR[t].length]);
+        return `<div class="plank" style="--tier: var(--tier-${t})">
+          <div class="tag" style="--t:${[-2, 1.5, -1, 2, -1.5, 1][i]}deg"><span>${t}</span><b>${fmt(n)}</b></div>
+          <div class="stand">${newest.slice(0, Math.min(4, n)).map((id, j) => img(id, j % 2 ? "flip" : "")).join("")}${n > 4 ? pile(t, n - 4, 300, 36, 60) : ""}
+            ${n > 40 ? `<span class="shine">✦ ${fmt(Math.round(n * .12))}</span>` : ""}</div></div>`;
+      }).join("");
+      return `<div class="wrap"><div class="bar"><div class="seg"><button class="on">pets</button><button>toys</button><button>book</button></div><div class="right">${pill()}</div></div>
+        <div class="cushion">${PINNED.map(mini).join("")}</div><div class="case">${planks}</div></div>`;
+    }
+
+    // ---------- the card, per look ----------
+    const head = extra => `<div class="hhead"><span class="ico">${HOUSE(20)}</span><h3>our house</h3>${extra}</div>`;
+    const countEl = () => { const n = inRoom(), c = cap(); return `<span class="count${n >= c * .97 ? " snug" : ""}">${fmt(n)} <small>/ ${fmt(c)}</small></span>`; };
+    const whoChips = () => `<span class="who" title="on the shelves">${SHELF}<b>${num(S.shelves)}</b></span><span class="who" title="out on jobs">${BASKET}<b>${num(S.jobs)}</b></span>`;
+    const capJump = (from, to) => `<span class="capjump">${HOUSE(14)}${fmt(from)} <span>›</span> <b>${fmt(to)}</b></span>`;
+    const buyBtn = s => `<button class="btn buy${s.cur === "wisp" ? " w" : ""}" data-buy ${canBuy(s) ? "" : "disabled"}>${s.cur === "wisp" ? "squeeze in" : "build it"}${cost(s)}</button>`;
+    const X = `<button class="x" data-close title="close">✕</button>`;
+
+    function cardA() {
+      const s = nextShown();
+      const row = s
+        ? `<div class="a-next${s.cur === "wisp" ? " w" : ""}"><div class="what"><b>${s.name}</b>${capJump(cap(), s.cap)}</div>${buyBtn(s)}</div>`
+        : `<div class="a-next done"><div class="what"><b>everyone's moved in ♡</b>${capJump(BASE_CAP, cap())}</div></div>`;
+      return `<div class="hcard sticker a-card${S.enter ? " enter" : ""}">${X}${head(countEl())}
+        <div class="a-well">${house(S.built, { ghost: s ? S.built : undefined, fresh: S.fresh })}
+          <div class="side l">${whoChips()}</div></div>
+        ${row}</div>`;
+    }
+
+    function cardB() {
+      const s = nextShown(), last = s ? S.built : S.built - 1;   // pages you can see: built ones + the next
+      const p = Math.min(S.page, last), step = STEPS[p], built = p < S.built;
+      const from = p ? STEPS[p - 1].cap : BASE_CAP;
+      const dots = STEPS.slice(0, last + 1).map((x, i) => `<i class="${x.cur === "wisp" ? "w" : ""}${i >= S.built ? " next" : ""}${i === p ? " on" : ""}" data-page="${i}" title="${x.name}"></i>`).join("");
+      return `<div class="hcard sticker b-card${S.enter ? " enter" : ""}"><span class="bind"></span><span class="corner"></span>${step.cur === "wisp" ? `<span class="ribbon"></span>` : ""}${X}
+        ${head(whoChips())}
+        <div class="b-page">
+          <button class="btn flip" data-flip="-1" ${p > 0 ? "" : "disabled"} title="back">‹</button>
+          <div class="pic${S.flipped ? " flipin" : ""}">${house(built ? S.built : S.built, built ? { focus: p, fresh: S.fresh === p ? p : undefined } : { ghost: p, focus: -2 })}</div>
+          <button class="btn flip" data-flip="1" ${p < last ? "" : "disabled"} title="next">›</button>
+          ${built ? `<span class="stamp${step.cur === "wisp" ? " w" : ""}${S.fresh === p ? " pop" : ""}">moved in!</span>` : ""}
+        </div>
+        <div class="dots2">${dots}</div>
+        <div class="b-foot"><div class="what"><b>${step.name}</b>${capJump(from, step.cap)}</div>${built ? countEl() : buyBtn(step)}</div></div>`;
+    }
+
+    function cardC() {
+      const s = nextShown();
+      const floors = FLOORS.filter(f => f.coin <= S.built).map(f => {
+        const c = STEPS[f.coin], cBuilt = f.coin < S.built;
+        const wNext = f.wisp !== null && s && s === STEPS[f.wisp];
+        let tags = cBuilt ? `<span class="nm${wNext ? " small" : ""}"><span class="tick">✓</span>${c.name}</span>`
+          : `<span class="nm">${c.name}</span><button class="pricetag" data-buy ${canBuy(c) ? "" : "disabled"}>${cost(c)}</button>`;
+        if (f.wisp !== null) {
+          const w = STEPS[f.wisp];
+          if (f.wisp < S.built) tags += `<span class="nm w"><span class="tick">✓</span>${w.name}</span>`;
+          else if (s && s === w) tags += `<span class="nm w">${w.name}</span><button class="pricetag w" data-buy ${canBuy(w) ? "" : "disabled"}><span class="lbl">squeeze in</span>${cost(w)}</button>`;
+        }
+        return `<div class="floor${S.fresh === f.coin || S.fresh === f.wisp ? " fresh" : ""}"><div class="vig">${floorVig(f, s ? S.built : STEPS.length, S.fresh)}</div><div class="tags">${tags}</div></div>`;
+      }).join("");
+      const n = inRoom(), c = cap();
+      const roof = ROOF + `<span class="gable${n >= c * .97 ? " snug" : ""}"><span class="ico">${HOUSE(14)}</span><span class="meter"><i style="width:${Math.min(100, n / c * 100)}%"></i></span>${countEl()}</span>`;
+      return `<div class="hcard c-card${S.enter ? " enter" : ""}">${X}<div class="c-top">${roof}</div>
+        <div class="c-body">${floors}<div class="doormat">${whoChips()}</div></div></div>`;
+    }
+
+    function render() {
+      content.innerHTML = bookcase() + (S.open ? `<div class="dim" data-close></div>` + { A: cardA, B: cardB, C: cardC }[look]() : "");
+      paintIcons(content); chips(); wire();
+      S.fresh = undefined; S.flipped = false; S.enter = false;
+    }
+
+    function buy() {
+      const s = next();
+      if (!canBuy(s)) return;
+      if (s.cur === "coin") S.coins -= s.price; else S.wisps -= s.price;
+      S.fresh = S.built; S.built++; S.page = Math.min(S.built, STEPS.length - 1);
+      if (look === "B") S.page = S.fresh;           // stay on the page you just built, stamp it
+      say(s.say); render();
+    }
+
+    function wire() {
+      content.querySelectorAll("[data-buy]").forEach(b => b.addEventListener("click", buy));
+      content.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => { S.open = false; render(); }));
+      content.querySelector("[data-pill]").addEventListener("click", () => { S.open = !S.open; S.enter = S.open; if (S.open) say(OPEN_LINE[STAGE]); render(); });
+      content.querySelectorAll("[data-flip]").forEach(b => b.addEventListener("click", () => { S.page = Math.max(0, S.page + Number(b.dataset.flip)); S.flipped = true; render(); }));
+      content.querySelectorAll("[data-page]").forEach(b => b.addEventListener("click", () => { S.page = Number(b.dataset.page); S.flipped = true; render(); }));
+    }
+
+    // new pets keep trickling in while there's room (the pill and the card count go up)
+    setInterval(() => {
+      const room = cap() - inRoom();
+      if (room <= 0) return;
+      const add = Math.min(room, Math.max(1, Math.round(cap() / 400 * (1 + rnd() * 2))));
+      if (rnd() < .3) S.jobs += add; else S.shelves += add;
+      content.querySelectorAll("[data-pill] b, .count").forEach(el => { const n = inRoom(), c = cap(); el.innerHTML = el.matches(".count") ? `${fmt(n)} <small>/ ${fmt(c)}</small>` : `${num(n)} <small>/ ${num(c)}</small>`; });
+      content.querySelectorAll("[data-pill] .meter i, .gable .meter i").forEach(i => i.style.width = Math.min(100, inRoom() / cap() * 100) + "%");
+      content.querySelectorAll(".who b").forEach((b, i) => b.textContent = num(i % 2 ? S.jobs : S.shelves));
+    }, 1400);
+
+    say(OPEN_LINE[STAGE]);
+    render();
+  }
+
+  document.querySelectorAll(".frame").forEach(makeLook);
+  applyLook(loadLook());
+</script>
+</body>
+</html>
