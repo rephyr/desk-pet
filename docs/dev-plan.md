@@ -11,23 +11,17 @@ How a step works:
 3. **Done when**: tests pass (tests/test_core.gd), a flow in tests/flows/ plays it with
    screenshots, `expect fits` holds, docs and CLAUDE.md updated, committed and pushed to `test`.
 
-## BRAINSTORM FIRST (Emilia, 2026-09-28)
+## Brainstorms (DONE 2026-09-28)
 
-Everything below still needs brainstorming. Run these first (Emilia runs a brainstorm workflow
-after /clear), then bring the options back to her as questions (AskUserQuestion rounds, she picks;
-no guessed work), and write her picks into the steps.
+The four brainstorms ran (workflow: brainstorm, critique, tie together) and Emilia picked. Her
+picks are written into A2, C3, F1 and F2 below. Options she didn't pick are in
+docs/brainstorms.md, in case they're wanted later.
 
-1. **More gear upgrades** (A2): besides walk speed and bigger bags, what xp buys on the
-   adventures upgrades page. Seed ideas: sharper eyes (more spotting, rumours, trail pickups),
-   comfy harness (hurt less often), trail snacks (heal a heart on the way home), lucky charm
-   (risky choices go well more often), more trip slots.
-2. **Bad pets** (C3): once packs open per second, overflow pets pile up and become obsolete. How
-   do they clear? Seed: auto sacrifice, put to work, feed the sacrifice machine, sell, part them.
-3. **The new layer on pets** (F2): what makes a perfect pet really, really hard again in the mid
-   game, with a gambling loop more complex than a lever (so pets can't automate it at first).
-   Seed: part levels/stars from the sacrifice machine, a new axis (soul, aura, mutation).
-4. **The darker currency** (F2): what it is and what it buys (the name is decided later; "perk
-   points" is the working name).
+1. **More gear upgrades** → A2 (all 8 upgrades picked).
+2. **Bad pets** → C3 (work, then the new homes stand, then feed the sacrifice machine; the herd;
+   room cap + sorting rule).
+3. **The new layer** + 4. **the darker currency** → the **"stuffed toys" bundle**, F1/F2: reels
+   put upgrades on the keeper's parts, dungeons pay lanterns, misses puff stuffing (working names).
 
 Rules every step follows: the game never winks (cute voice, darkness only in what you do);
 show, don't explain (no hint text about mechanics); hidden until earned (no locked "???"
@@ -65,14 +59,34 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   prices for data/automation.json.
 - **Done when:** a report Emilia can read, with suggested numbers (not applied until she says).
 
-### A2. Gear: xp upgrades  (DECIDED 2026-09-28, waits for brainstorm 1)
+### A2. Gear: xp upgrades  (DECIDED 2026-09-28, ready)
 - **Emilia:** an "upgrades" page INSIDE the adventures tab (adventures | upgrades, like machine |
   upgrades), not its own tab. Look: gear.html's crayon path of gear stickers, words not numbers.
   Opens with the first xp. First upgrades: **walk speed** (shorter trips), **bigger bags** (more
   coins/loot home), plus the ones brainstorm 1 picks.
 - **Look (picked 2026-09-28):** gear.html's crayon path (stickers along a path, buying reveals the
   next ones), but **effects show as numbers** ("trips 10% shorter"), like the errands pegboard.
-- **Waits for:** brainstorm 1 (the rest of the upgrade list).
+- **The upgrades (Emilia picked all 8, 2026-09-28).** Nothing spends xp yet; a garden trip gives
+  ~11 xp, so prices of 25-120 xp at x1.6 a level (as in gear.html) fit. Path order:
+  - early (garden/backyard): **comfy boots** (AdventureRunner.gap() x (1 - 0.08/lv), 5 levels,
+    "trips 8% ... 40% shorter"), **a tote bag** (trip coins +15%/lv, 4 levels, in
+    _boost_trip_loot; coins only), **a treat pouch** (TREAT_EVERY 15 → 13/11/9 s, TREAT_ZOOM 8 →
+    9/10/11 s; the consts become functions), **sticky paws** (trail pickups +20%/lv and
+    STREAK_MAX 1.5 +0.25/lv, 3 levels; replaces "bigger basket": worth more, not more clicks),
+    **sharper eyes** (bits, then parts: _finish_treat rolls each bit again at 15%/lv, 3 levels;
+    once feature:parts is open the trail's part weight goes 4 → 6/8/10. NOT spotting/rumours:
+    scouting A3 and the big ears knack own those).
+  - once the meadow (first place that can hurt) is open: **a lucky charm** (+4%/lv on options
+    whose failure hurts or loses, 3 levels, under MAX_CHANCE 0.95; PetVoice's words shift by
+    themselves, no odds shown). **Gear owns luck on risky choices**, toys don't (toy luck stays on
+    the machine and extra loot). **A first-aid leaf** (1 save per trip per level: a pet hurt a
+    second time stays hurt instead of lost; parties save level x 10%; covers "trail snacks", the
+    trail's heal pickups stay the manual version).
+  - late, near parties and swarms: **a comfy harness** (hurt/lost x (1 - 0.1/lv), 3 levels).
+- **Reach:** gear works on your trips AND auto parties (your pet's and the workers'), **never in
+  dungeons** (losses are the cost there). The A1 sim must count boots and the pouch.
+- Dropped: more trip slots (there is no cap to sell back), a little map (the automation job's
+  work), a bigger basket (→ sticky paws), a bit pouch (→ sharper eyes).
 - **Build:** data/gear.json, a pure Gear rules class, GameState xp spending, a GearView page in
   AdventuresTab, flow.
 
@@ -133,11 +147,31 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   currency. Shown as **a pill at the top of the automation tab** ("N pets a minute"), like errands'
   coins a minute, once box workers exist. **Prep:** what spends them first.
 
-### C3. A place for "bad" pets  (NEEDS A BRAINSTORM)
+### C3. A place for "bad" pets  (DECIDED 2026-09-28 after the brainstorm)
 - **Emilia (2026-09-28):** early on they're **put to work** (workers, party fodder), later they
   **feed the sacrifice machine**. But once packs open per second, bad pets become obsolete and
-  pile up: they need a way to clear, e.g. **auto sacrifice**. Brainstorm what to do with them
-  (options with pros and cons) before designing.
+  pile up: they need a way to clear, e.g. **auto sacrifice**.
+- **Picked, in order:**
+  1. **Busy paws:** new pets go straight to work: each job gets a "new pets join here" switch
+     (grows out of jobs_auto / share out and "fill up" on worker spots). Nobody is lost.
+  2. **New homes:** a stand on the pets tab takes pets by the shelf (1, 10, 100, all) and **pays
+     in boxes** (e.g. 25 commons or 5 rares = a starter box; always less than one pet per pet, or
+     it becomes a box engine and kills the piggy bank / B1 restock irritant). Your pet cheers
+     ("they'll have a big garden!"), the words never change.
+  3. **Feed the machine** (after F1): spare pets are the fuel for the sacrifice machine's spins.
+- **The herd** (under C1's shelves): plain pets fold into a **count per rarity x finish**
+  ("common 48,210"), so millions fit in the save (a full pet is ~284 bytes) and the tab. **Always
+  a card:** favourites, the active pet, holo or better, a pet with a part new to the book, pets
+  with F2 upgrades; each shelf also keeps its last ~20 as cards (no re-roll cheat). Jobs, crews and
+  parties draw from the counts. Big technical change (Collection, crews/workers as uid lists,
+  save migration, night sky placement from an index instead of the uid).
+- **The irritant: a room cap + the sorting rule.** Shelves hold ~500 plain pets; past that box
+  tables stop and boxes wait in the pile (nothing lost). Clear by hand at first; after enough
+  clearing a **sorting rule card** turns up ("new pets below rare go to work / new homes / the
+  machine", keeps: new parts, holo+, favourites always; off by default; only touches pets pulled
+  after you switch it on, so every loss is chosen; a "sorted today" number on the shelf).
+- **Night sky:** **every pet that leaves** (new homes, fed) adds a star, never explained.
+- **Prep:** the stand's and the rule card's look (mockups), the exact cap and box payback numbers.
 
 ---
 
@@ -166,6 +200,8 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   **Dungeons scale forever:** the first floors unlock things, but you can always go deeper into
   any dungeon, and there will be more dungeons, to farm better gear and drops while difficulty
   scales.
+- **Decided 2026-09-28 (brainstorms):** dungeons pay the darker currency as **lanterns** (see
+  F2); **gear (A2) doesn't work in dungeons**.
 - **Prep:** the first dungeon (floors, what it asks for), the policies UI.
 
 ### E2. The next map page (zone 3) and the invasion lore  (needs prep)
@@ -178,19 +214,53 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
 
 ## Phase F: mid game, a new layer on pets
 
-### F1. The sacrifice machine: upgrading parts  (needs mockup)
+### F1. The sacrifice machine: upgrading parts  (DECIDED 2026-09-28; needs mockup)
 - **Emilia:** old perfect pets go into a machine; the better the pet, the more likely one of its
   parts gets upgraded; probably a slot machine UI. Pitched: the reels are the pet's parts, where
   they stop picks the part; a better pet gives an extra reel or a nudge.
-- **Prep:** mockup 2-3 looks; what "upgraded" means for a part (depends on F2).
+- **Picked: the "stuffed toys" bundle** (plushie logic: a miss just "lets out some stuffing",
+  your pet cheers every spin; what you really do is feed pets to a machine to upgrade one
+  favourite, and the game never says so). The machine runs F2's reels, see below.
+- **Prep:** mockup 2-3 looks; the upgrade's name (see F2).
 
-### F2. A new layer on pets: perfect is hard again  (needs design)
+### F2. A new layer on pets: perfect is hard again  (DECIDED 2026-09-28)
 - **Emilia:** the mid-game main goal: a new layer so a perfect pet is really, really hard again;
   a new gambling loop more complex than a lever (so pets can't automate it at first); it earns
   something darker than coins (maybe "perk points"), slowly at first, billions later. Old layers
   get abstracted and handed off to pets.
-- **Emilia (2026-09-28):** brainstorm the layer (options with mockups later); the darker
-  currency's name is decided later ("perk points" is the working name).
+- **The layer: reels (working name "Star Reels").** Each part of a pet gets 0-5 upgrades, and
+  they multiply its knack (D1, so D1 comes first). Upgrades stay on the part, so a grafted part
+  keeps them (dungeon parts and grafting join the loop). A try: pick the keeper, feed pets in. The
+  fed pet's rarity = how many spins, its finish = nudges, its traits tilt the reels. One reel per
+  part; each lands on an upgrade, a blank or a crack. **Bank** it (that reel stops) or **hold** for
+  a double next spin; a crack takes a held one away. A 5th upgrade is ~1-2% a try; perfect = 5 on
+  all 5 parts.
+  - **Not called stars:** "star" stays the night sky's word. Name picked later (pips, sparkles,
+    stitches...).
+  - **Per pet** (a deep chase), not per part kind.
+  - **Shows odds**, like boxes and the workbench sacrifice (it's a machine).
+  - **A failed try costs only the fed pets and held upgrades.** The keeper is always safe.
+  - **Handoff:** later you give pets rules (bank at 3, never risk the body) and they play worse
+    than you.
+  - One layer now; a second whole-pet axis can come much later (ideas in docs/brainstorms.md).
+- **The darker currency (working names; name and colour decided later, when the machine is
+  mocked up):**
+  - **Lanterns:** dungeon floors (E1), the base source and the first trickle. A cleared floor pays
+    base x ~1.15^floor x pets SENT (never pets lost); the lit dungeon map is the progress bar.
+  - **Stuffing:** each spin that misses puffs stuffing by rarity (common 1 ... mythic 10k) x
+    perfection; stuffing buys nudges, holds and an extra reel, so misses feed the next hit.
+  - **Never pays for a lost pet**, only for pets sent or spent on purpose.
+  - **Spent on both:** gambles (spins, nudges, holds, banners) and a small perk tree you keep.
+  - **May buy multipliers** on coins, xp and pets/sec (so old prices keep scaling), but never turns
+    back into coins, and nothing with a coin/xp price costs it.
+  - Needs a new colour key in all 5 themes (not lilac, not the epic tier colour).
+- **The loop:** pets/sec → spares go to work, then new homes → dungeons pay lanterns → the hard
+  dungeon opens the machine → the sorting rule feeds spares into the hopper → spins upgrade the
+  keeper's parts (knack x upgrades), misses give stuffing → stuffing buys better spins → an
+  upgraded army goes deeper → more lanterns, and you want more pets/sec again. Manual: bank or hold
+  on every reel. Irritant: "one more on the eyes".
+- **Watch out:** only ONE thing may hand out parts from pets (parts flood, see the scrapyard
+  note): the machine gives stuffing, not parts back.
 
 ### F3. Pets as currency, spent everywhere  (needs design)
 - **Emilia:** pets are a stepping stone: spent on automation, dungeons, adventures, scouting,
