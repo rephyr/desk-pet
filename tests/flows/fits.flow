@@ -2,7 +2,7 @@
 # "a part, sometimes uncommon" line once pushed the errands tab past the edge).
 from rich
 view full
-pets 9
+pets 9 7
 find basket
 wait popup
 click "lovely"

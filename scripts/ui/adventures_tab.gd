@@ -406,6 +406,8 @@ func _send_picked() -> void:
 	var run := GameState.send_on_adventure(_location_id, _picked_pets())
 	if run != null:
 		_picked.clear()
+		if run.scouted:
+			PetBubble.say_line(self, "trip_scouted", { "trip": run.party.who() })
 		# small parties go along with you on the trail; big swarms get on by themselves
 		if _watchable(run):
 			_show_trail(run)
@@ -528,6 +530,11 @@ func _rebuild_runs() -> void:
 		var who := run.party.who() if run.party.setting_out() == 1 else "%d pets" % run.party.setting_out()
 		names.add_child(UiTheme.label(who, UiTheme.MUTED, UiTheme.SMALL))
 		top.add_child(names)
+		if run.scouted:  # it took the scouts' note along
+			var note := UiTheme.icon_rect("job_scout", 16, UiTheme.LILAC)
+			note.size_flags_vertical = SIZE_SHRINK_CENTER
+			note.mouse_filter = MOUSE_FILTER_IGNORE
+			top.add_child(note)
 		if _watchable(run) and run.status != RunState.Status.DONE:
 			var watch := UiTheme.small_button("watch ›", _show_trail.bind(run))
 			watch.add_theme_font_size_override("font_size", UiTheme.SMALL + 1)

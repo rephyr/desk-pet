@@ -157,10 +157,12 @@ static func room_level_for(catalog: Catalog, n: int) -> int:
 	return level
 
 
-## What the next room upgrade costs, with `level` bought already.
-static func room_cost(catalog: Catalog, level: int) -> int:
+## What the next room upgrade costs, with `level` bought already and a capsule worth `value` coins
+## (the room is priced in capsules; data without "capsules" falls back to "coins").
+static func room_cost(catalog: Catalog, level: int, value := 1.0) -> int:
 	var r: Dictionary = catalog.herd.get("room", {})
-	return roundi(minf(float(r.get("coins", 500)) * pow(float(r.get("cost_grow", 1.8)), maxi(0, level)), Jobs.MAX_PRICE))
+	var base := float(r.capsules) * value if r.has("capsules") else float(r.get("coins", 500))
+	return maxi(1, roundi(minf(base * pow(float(r.get("cost_grow", 1.8)), maxi(0, level)), Jobs.MAX_PRICE)))
 
 
 ## How many tiny pets a mound shows for `count` pets: grows slowly (about log10), at most mound_max.

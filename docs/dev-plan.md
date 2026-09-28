@@ -103,13 +103,27 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   with the wheelbarrow; gear packed at set-off; the charm's card shows +4%; prices placeholders
   until A1).
 
-### A3. More errand jobs  (DECIDED 2026-09-28, ready)
+### A3. More errand jobs  (DECIDED 2026-09-28, BUILT)
 - **Emilia picked:** savings jar (fills slowly, pays one big chunk), kitchen (brings nothing,
   every job a bit faster, SOFT: a few cooks ~+10-25% diminishing, never beats real jobs; feeds
   your pet), scouting (raises the spot/rumour chance of the next trips; CHANCE ONLY, the map's ?
   clouds stay a surprise).
 - They open through **goals on job levels**, like the lemonade stand (e.g. lemonade lv 10 → the
   savings jar; coin hunt lv 25 → the kitchen; a later goal → scouting).
+- **Built (2026-09-28, plan in docs/plans/A3.md):** data/errands.json jobs `jar`, `kitchen`,
+  `scouting` (per-job `crew_power`, `chunk`, `kitchen`, `scout`, pay kinds `meal` / `note`, tool
+  effect `hold`, `share: false`, goals with both `x` and `text`), unlocks `jar` (lemonade lv 10),
+  `kitchen` (coin hunt lv 25), `scouting` (savings jar lv 10). `Jobs.kitchen_bonus / scout_hold /
+  scout_job / scout_note / feed / takes_note / shared_out`, `GameState.scout_notes` (save v25) / `kitchen_bonus()` / `scout_full()`,
+  `send_on_adventure(..., by_you)` takes a note (`RunState.scout`), `Intel.roll` bonus +
+  `Intel.left_to_find`, `AdventureRunner.scouted` (rumours x1.5). Errands tab: jar / kitchen /
+  scouting note lines, big gold pop + coin burst for the jar, waiting notes and shelves only for an
+  open job's next goal, long job names wrap. Offline food drop now runs before the errands catch
+  up (meals made while away count; meals only fill food up to `meal_upto` 70). Dev steps `job <id> <n>`, `notes <n>`, `scroll <px>`; flow
+  errand_jobs; tests `_test_more_jobs`.
+  **Open questions for Emilia:** see docs/plans/A3.md (scouting opens at jar lv 10; auto parties
+  never take notes; kitchen has no floor at big crews; share out skips kitchen + scouting; hold 2
+  notes; no away bonus for the jar; all numbers placeholders).
 
 ### A4. Book page rewards  (DECIDED 2026-09-28, ready: mockup design/mockups/screens/book.html)
 - Filling a collection book page opens its reward sticker: a **small permanent boost** (the book

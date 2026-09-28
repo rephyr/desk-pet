@@ -60,7 +60,12 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   gear bought with xp, rules in `Gear`, levels in `GameState.gear`, packed onto each trip as
   `RunState.gear`), `ErrandsTab` (jobs: the corkboard; upgrades:
   `ErrandToolsView`, the pegboard of tools bought with coins; rules in `Jobs`, levels in
-  `GameState.errand_tools`), `AutomationTab` (a card per job your pet can do, `JobScene` draws each one; rules in
+  `GameState.errand_tools`; tool, box and room prices are in capsules x `GameState.capsule_value()`
+  (`Jobs.tool_cost(tool, have, n, value)`, `GameState.box_price` / static `box_cost`,
+  `Herd.room_cost(catalog, level, value)` via `GameState.room_price()`); errand crews are cards +
+  herd counts everywhere (`job_size`, `_crew_speed`), the kitchen's cooks too; the kitchen speeds every other job via `GameState.kitchen_bonus()`,
+  scouting fills `GameState.scout_notes` and `send_on_adventure` packs one onto `RunState.scout`,
+  read by `Intel.roll` and `AdventureRunner`), `AutomationTab` (a card per job your pet can do, `JobScene` draws each one; rules in
   `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:
   `WorkerCard` / `WorkerSpot`, `GameState.put_workers` / `buy_spots` / `teach_others`), `InventoryTab`
   (the bag and sewing) and `SettingsTab` (general and video pages).
@@ -119,8 +124,8 @@ Who's resting is worked out once (`GameState._resting`: cards, herd counts minus
 stand-ins away or leading) until `_rest_changed()`.
 Save v24 adds new homes (C3): top-level `new_homes` `{ points, by_hand, sorted, room_was_full,
 rule { on, below, to, keep }, today { day, n } }` (`NewHomes`, data/new_homes.json), `jobs[id].join`
-and `automation.wjoin` ("new pets join here"); `jobs_auto` is gone (a v23 save with it on gets every
-open errand's switch on; a v23 save whose room is full has `room_was_full`, so the stall is there).
+and `automation.wjoin` ("new pets join here"); `jobs_auto` is gone (a v23 save with it on gets the switch on
+for every open errand that shares out (not the kitchen or scouting); a v23 save whose room is full has `room_was_full`, so the stall is there).
 `Collection.add(pets, sorter)` asks the sorter about each pet after the book counts it ("homes": it
 never joins, a star); `Collection.leave(counts, uids)` takes pets off for good (a star each, the
 stand-in looks of a count leaving never come back) and emits `pets_left(n)` (the night sky redraws).
@@ -131,6 +136,11 @@ openings only: `open_boxes`, the machine's pet box), `_place_new(uids)` (busy pa
 `room: "full"` / `homes_by_hand`. UI: `NewHomesStall`, `SortingCard`, the pets page's side column in
 `CollectionTab`, `Bookcase.stall_on` / `picked` (tap picks, tap again opens), `ShelfPlank` picked
 border and "sorted today" tag.
+Save v25 adds `scout_notes` (older saves start with 0); runs save the scout note they took
+(`RunState.scout`). The new jobs' crews and tool levels ride in the existing `jobs` / `errand_tools`.
+Save v26 keeps your pet's box reserve in capsules (`reserve_capsules`, replacing `coin_reserve`; only a save that still has `coin_reserve` converts):
+the coins an older save kept become capsules at what one was worth on its machine (at least 1 if
+it kept any). `GameState.coin_reserve()` is the coins that means now.
 
 ## Testing
 

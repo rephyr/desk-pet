@@ -122,9 +122,6 @@ func toggle_card() -> void:
 	_card.visible = not _card.visible
 	if _card.visible:
 		_fill_card()
-		_card.reset_size()
-		# right under the pill, its right edge lined up with the pill's
-		_card.global_position = global_position + Vector2(size.x - _card.get_combined_minimum_size().x, size.y + 8.0)
 
 
 func hide_card() -> void:
@@ -143,6 +140,10 @@ func _fill_card() -> void:
 			_card_price.add_theme_color_override(state, UiTheme.LOCKED)
 		else:
 			_card_price.remove_theme_color_override(state)
+	# right under the pill, its right edge lined up with the pill's (again on every refresh: a machine
+	# fix can make the price wider while the card is open)
+	_card.reset_size()
+	_card.global_position = global_position + Vector2(size.x - _card.get_combined_minimum_size().x, size.y + 8.0)
 
 
 func _buy() -> void:

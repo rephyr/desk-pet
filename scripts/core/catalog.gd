@@ -14,6 +14,7 @@ var slots := {}  # slot -> Array[Dictionary] of parts
 var finishes: Array[Dictionary] = []  # lowest to highest
 var traits: Array[Dictionary] = []
 var boxes: Array[Dictionary] = []
+var box_rules := {}  # data/boxes.json around the boxes (the pet's coin reserve)
 var reveal := {}  # how opening a box looks, see data/reveal.json
 var sounds := {}  # what plays when, see data/sounds.json
 var adventure_types: Array[Dictionary] = []  # see data/adventures.json
@@ -73,7 +74,8 @@ func _init() -> void:
 	_finish_by_id = _index(finishes)
 	traits.assign(_load("traits.json").traits)
 	_trait_by_id = _index(traits)
-	boxes.assign(_load("boxes.json").boxes)
+	box_rules = _load("boxes.json")
+	boxes.assign(box_rules.boxes)
 	_box_by_id = _index(boxes)
 	reveal = _load("reveal.json")
 	sounds = _load("sounds.json")

@@ -13,7 +13,7 @@ func _init() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1
 	var roller := PetRoller.new(catalog, rng)
-	var box_price := float(catalog.box("starter").price)
+	var box_price := float(catalog.box("starter").capsules)  # at the start (a capsule worth 1 coin)
 	print("one pet (a common), %d trips each. a box costs %d. passive income is about 6 coins a minute." % [TRIPS, box_price])
 	print("%-10s %-9s %8s %8s %8s %8s %8s" % ["place", "style", "coins", "per min", "parts", "boxes", "lost"])
 	for location in catalog.locations:
@@ -69,15 +69,59 @@ func _errands(catalog: Catalog, rng: RandomNumberGenerator) -> void:
 	print("\nerrands, common pets (speed about 0.95). one hour each.")
 	print("%-10s %6s %10s %10s %8s" % ["job", "crew", "per min", "per pet", "uncommon"])
 	for job in catalog.jobs:
+		if not (job.pay.has("capsules") or job.pay.has("coins") or job.pay.has("part")):
+			continue  # the kitchen and scouting bring no coins or parts (see below)
 		for crew in [1, 3, 5, 10, 100, 1000]:
 			var got: Dictionary = Jobs.work(job, { "fill": 0.0 }, crew, Jobs.rate(job, crew, 0.95, power), 3600.0, rng, catalog)
-			var kind := "coins" if job.pay.has("coins") else "part"
+			var kind := "coins" if job.pay.has("coins") or job.pay.has("capsules") else "part"
 			var per_min := Rewards.total(got.loot, kind) / 60.0
 			var uncommon := 0
 			for key: String in got.loot:
 				if key.begins_with("part:") and catalog.part(key.split(":")[1], key.split(":")[2]).rarity == "uncommon":
 					uncommon += int(got.loot[key])
 			print("%-10s %6d %10.2f %10.3f %8d" % [job.id, crew, per_min, per_min / crew, uncommon])
+	# the savings jar against the coin hunt (capsules' worth an hour, a capsule = 1 coin here)
+	var coin: Dictionary = catalog.job("coin_hunt")
+	var jar: Dictionary = catalog.job("jar")
+	print("\nsavings jar vs coin hunt, capsules' worth an hour")
+	for crew in [1, 2, 5, 10, 100]:
+		var c := Jobs.rate(coin, crew, 0.95, power) * 3600.0 * float(coin.pay.capsules)
+		var j := Jobs.rate(jar, crew, 0.95, power) * 3600.0 * float(jar.pay.capsules)
+		print("crew %4d: coin hunt %8.0f  jar %8.0f  %s" % [crew, c, j, "jar" if j > c else "coin hunt"])
+	# the kitchen: how much faster the other jobs get, with this many pets on them
+	var kitchen: Dictionary = catalog.job("kitchen")
+	print("\nkitchen: every other job this much faster (cooks at speed 1)")
+	print("%-6s %8s %8s %8s %8s" % ["cooks", "10", "100", "1000", "nobody"])
+	for cooks in [1, 2, 4, 10]:
+		print("%-6d %7.1f%% %7.1f%% %7.1f%% %7.1f%%" % [cooks, 100.0 * Jobs.kitchen_bonus(kitchen, cooks, 10, power),
+			100.0 * Jobs.kitchen_bonus(kitchen, cooks, 100, power), 100.0 * Jobs.kitchen_bonus(kitchen, cooks, 1000, power),
+			100.0 * Jobs.kitchen_bonus(kitchen, cooks, 0, power)])
+	# the kitchen's meals against your pet getting hungry (it only tops food up to meal_upto)
+	var decay := float(load("res://scripts/game_state.gd").HUNGER_DECAY) * 3600.0
+	print("kitchen meals: food an hour vs %.0f an hour lost to hunger, meals stop at %.0f" % [decay, float(kitchen.get("meal_upto", 100.0))])
+	for cooks in [1, 3, 10]:
+		var food := Jobs.rate(kitchen, cooks, 0.95, power) * 3600.0 * float(kitchen.pay.meal)
+		print("  %2d cooks: +%.0f food an hour" % [cooks, food])
+	# the room: "more room" is priced in capsules, so it grows with the machine like boxes do
+	var maxed := { "bought": {} }
+	for n in catalog.machine_tree.nodes:
+		maxed.bought[n.id] = maxi(1, int(n.get("max", 1)))
+	var values := [1.0, Machine.coin_value({ "bought": { "tape": 1, "oil": 1, "flap": 1 } }, catalog), 75.0, Machine.coin_value(maxed, catalog)]
+	print("\nmore room: coins for the next level (in starter boxes: capsules / %d)" % int(catalog.box("starter").capsules))
+	print("%-6s %8s %10s %10s %12s   %s" % ["level", "holds", "fresh", "flap", "errands", "maxed machine (a capsule = %s)" % _short(values[3])])
+	for level in [0, 1, 2, 5, 10, 20]:
+		print("%-6d %8s %10s %10s %12s   %s" % [level, _short(Herd.room_cap(catalog, level + 1)), _short(Herd.room_cost(catalog, level, values[0])),
+			_short(Herd.room_cost(catalog, level, values[1])), _short(Herd.room_cost(catalog, level, values[2])), _short(Herd.room_cost(catalog, level, values[3]))])
+
+
+## 1234567 -> "1.2M": short numbers for the tables.
+static func _short(n: float) -> String:
+	var units := ["", "k", "M", "B", "T", "q", "Q"]
+	var i := 0
+	while absf(n) >= 1000.0 and i < units.size() - 1:
+		n /= 1000.0
+		i += 1
+	return ("%d" % roundi(n) if i == 0 else "%.1f%s" % [n, units[i]])
 
 
 func _pick(style: String, run: RunState, location: Dictionary, catalog: Catalog) -> int:

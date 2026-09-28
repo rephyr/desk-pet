@@ -13,11 +13,11 @@ extends Node
 ##   key <name>            a key press: space, escape, enter
 ##   wait <seconds>        or: wait ritual | wait popup | wait text "..." | wait tutorial <step> | wait event
 ##   expect <what>         tutorial <step> | tab <id> | text "..." | no-text "..." | pile <box> <n>
-##                         | fits (the full game fits its window)
+##                         | fits (the full game fits its window); in "...", \n is a line break
 ##   shot <name>           a screenshot of the game, from inside it (works while it's off-screen)
 ##   say "<text>"          your pet says it (for testing the bubble)
 ##   answer                every adventure waiting at an event takes its first choice
-##   pets <n>              n more pets from starter boxes (for testing crowds)
+##   pets <n> [seed]       n more pets from starter boxes (for testing crowds; a seed makes the rolls the same every run)
 ##   find <id>             a pet brings home this find (data/unlocks.json), opening what it opens
 ##   send <place> <n>      the first n spare pets go on an adventure there (and you watch it)
 ##   place <id>            opens that place's card on the map, as if you tapped it (like --pick)
@@ -27,7 +27,11 @@ extends Node
 ##   fix <node> [levels]   a node on the machine's upgrade tree, for free (data/machine_tree.json)
 ##   bits <id> <n>         n machine bits (gear, spring, bolt, glass)
 ##   coins <n>             you have exactly n coins
+##   reserve <n>           your pet keeps n capsules' worth of coins when it buys boxes
 ##   tool <id> [levels]    levels of an errand tool (data/errands.json "tools"), for free
+##   job <id> <n>          the n best resting pets go on that errand
+##   notes <n>             you hold n scout notes (the scouting errand)
+##   scroll <px>           every scroll box on screen scrolls down that far (for shots of what's below)
 ##   next-prize <id>       the next capsule from the machine is this prize (e.g. toy, golden)
 ##   teach <job>           your pet knows an automation job (data/automation.json), for free
 ##   task <job | none>     your pet does that automation job (or nothing)
@@ -157,7 +161,9 @@ func _step(w: PackedStringArray) -> String:
 				if run.status == RunState.Status.WAITING:
 					var catalog := Catalog.shared()
 					GameState.answer_event(run, AdventureRunner.allowed_options(run.current_event(catalog), run.party, catalog.location(run.location_id))[0])
-		"pets":
+		"pets":  # pets <n> [seed]: n more pets from a starter box (with a seed, the same pets every run)
+			if w.size() > 2:
+				GameState._roller.rng.seed = int(w[2])
 			GameState.debug_give_pets(int(w[1]))
 		"find":
 			GameState.grant({ "find:" + w[1]: 1 })
@@ -195,10 +201,26 @@ func _step(w: PackedStringArray) -> String:
 		"coins":  # coins <n>: you have exactly n coins
 			GameState.coins = int(w[1])
 			GameState.changed.emit()
+		"reserve":  # reserve <n>: your pet keeps n capsules' worth of coins when it buys boxes
+			GameState.set_reserve(int(w[1]))
+			GameState.changed.emit()
 		"tool":  # tool <id> [levels]: levels of an errand tool (data/errands.json), for free
 			if Jobs.tool(GameState.catalog, w[1]).is_empty():
 				return "unknown tool %s" % w[1]
 			GameState.set_errand_tool_level(w[1], GameState.errand_tool_level(w[1]) + (int(w[2]) if w.size() > 2 else 1))
+		"job":  # job <id> <n>: the n best resting pets go on that errand
+			if GameState.catalog.job(w[1]).is_empty():
+				return "unknown job %s" % w[1]
+			var before := GameState.job_size(w[1])
+			GameState.put_on_job(w[1], int(w[2]) if w.size() > 2 else 1)
+			if GameState.job_size(w[1]) == before:
+				return "nobody went on %s (is it open? anyone resting?)" % w[1]
+		"scroll":  # scroll <px>: every scroll box on screen scrolls down to there (to see what's below)
+			for c in _all(ScrollContainer):
+				if c.is_visible_in_tree():
+					c.scroll_vertical = int(w[1])
+		"notes":  # notes <n>: you hold n scout notes (up to what you can hold)
+			GameState.set_scout_notes(int(w[1]))
 		"bits":  # bits <id> <n>: n machine bits of that kind (gear, spring, bolt, glass)
 			GameState.grant({ "bit:" + w[1]: int(w[2]) })
 		"next-prize":  # next-prize <id>: the next capsule is this prize (data/machine.json)
@@ -375,7 +397,7 @@ func _find(what: String) -> Control:
 			return pa.y < pb.y - 4.0 or (absf(pa.y - pb.y) <= 4.0 and pa.x < pb.x))
 		var i := int(bits[1]) - 1
 		return kind[i] if i >= 0 and i < kind.size() else null
-	var text := what.trim_prefix('"').trim_suffix('"').to_lower()
+	var text := what.trim_prefix('"').trim_suffix('"').to_lower().replace("\\n", "\n")  # \n: a two-line button
 	var starts := text.ends_with("*")  # "next treat in*": text that starts with this
 	text = text.trim_suffix("*")
 	var found: Control = null

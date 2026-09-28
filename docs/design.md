@@ -96,6 +96,13 @@ its parts and finish together.
 
 - Bought with coins, found on adventures, given as check-in rewards. Never sold for money.
   **Decided**
+- **Priced in capsules** (built): a box's price is a number of the machine's plain capsules
+  (boxes.json "capsules", starter 50; the room's "more room" too) times what a capsule is worth now (Machine.coin_value), shown
+  in coins. So 50 coins on a fresh machine, and the shop keeps up with the machine all game instead
+  of getting 2500x cheaper (GameState.box_price / box_cost). One box's price is rounded first, so
+  10 boxes always cost 10x the chip. What your pet keeps when it buys boxes itself ("keep at
+  least") is in the same capsules (boxes.json "reserve": starts at 50, -/+ step 50, slider top
+  2000), shown in coins, so it keeps meaning something as prices grow.
 - Different box types have different odds (starter box, part-focused boxes, boss boxes).
 - The odds are always visible in game.
 - **Opening one box** (the first hours are all about this moment, so it gets a real ritual).
@@ -142,7 +149,9 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   the counts; an adventure takes **stand-ins** (a pet from a count, its rarity's average stats, no
   traits, a look from a seed) that come home into the count or leave it (a star).
 - **The room** (built, simple first version): one cap for every plain pet together (500 at first,
-  x1.5 per upgrade, bought with coins; placeholders in data/herd.json). A pill on the pets tab
+  x1.5 per upgrade, bought with coins; placeholders in data/herd.json). "More room" is priced in
+  capsules like boxes and errand tools (herd.json room "capsules" 500 x1.8 per level, x what a
+  capsule is worth now): 10 starter boxes a level, all game, and the open card follows the machine. A pill on the pets tab
   shows it once the first pet folds; full, it turns pink and wiggles, box openings wait on the pile
   (by hand, your pet, box workers, the machine's pet box: nothing is lost) and your pet squishes.
   Gifts (the tutorial's pets, the basket's pet) always come in.
@@ -314,6 +323,9 @@ Nobody is ever lost on an errand, and errands never bring rare parts or new plac
   comfy naps = longer full speed while away, shiny pebbles = shiny finds once the machine has
   shiny balls, teamwork = better crew power). Buy x1 / x10 / max. The top of the tab always shows
   "◆ N a minute on errands", and the card shows before → after, so every buy is visible progress.
+  Tools are priced in capsules like errands pay (errands.json tool "capsules" x Machine.coin_value,
+  x "grow" per level): set so a capsule worth 75 coins (about when the basket opens) gives the old
+  coin prices, and they keep up with the pay as the machine grows (Jobs.tool_base / tool_cost).
 - **Job levels and goals:** a job's level is its tools' levels added up; gold stars along a dotted
   track mark its goals (coin hunt: lv 10 the lemonade stand, lv 25 and 50 x2 coins, lv 100 x3). An
   unlock can wait for a level (`earn.job_level`).
@@ -327,8 +339,29 @@ Nobody is ever lost on an errand, and errands never bring rare parts or new plac
 - **Scales from a couple of pets to thousands:** up to 6 on a job each get a polaroid; past that
   a pile, the count and a little crowd, and + / − move 1, 10, 100 or all.
 - **Offline:** full speed for 8 h, then half, up to the 12 h cap; the tab notes what came in.
-- **Later jobs** (ideas, **Open**): savings jar, recycling, kitchen, digging, show-off, training,
-  scouting, mapmaking, stargazing, a lab; the dark twist shows only in what jobs describe.
+- **More jobs (A3, built 2026-09-28, plan docs/plans/A3.md)**, each opened by a goal on another
+  job's level (lemonade lv 10 → the savings jar, coin hunt lv 25 → the kitchen, savings jar lv 10 →
+  scouting). Only the job that is an open job's NEXT goal shows as a waiting note / waiting shelf,
+  so there's never a row of locked notes.
+  - **Savings jar:** fills slowly (30 min with one pet) and pays one big lump (100 capsules' worth),
+    with its own crew power 0.5: one pet there beats one on the coin hunt, a crew doesn't. The note
+    says "7.4k coins when full" and "full in 24m 10s"; a full jar pops a big gold number and a coin
+    burst, never the stream. Tools: a bigger jar, a wider slot.
+  - **Kitchen:** brings nothing, every other job works faster: 0.3 x cooks / (cooks + 2) (1 cook
+    +10%, 2 +15%, 4 +20%, 10 +25%, never past 30%), capped at what those cooks would add on a real
+    job ((1 + cooks / others)^crew_power − 1), so it never beats one. Each full meter is a meal for
+    your pet (+10 food, +2 mood), but only up to 70 (`meal_upto`, `Jobs.feed`): the kitchen keeps
+    it from going hungry, filling it up is still yours to do. No tools, no level.
+  - **Scouting:** each full meter is a scout note (hold 2, a map case holds more; a full hold stops
+    the meter). A trip you send yourself to a place with something left to spot or hear takes one:
+    +0.15 on each lead's spot chance and rumours x1.5 (the note's numbers ride along on
+    `RunState.scout`, from `Jobs.scout_note`; the scouting job is whichever has a `scout` block,
+    `Jobs.scout_job`; `Intel.roll` bonus, `AdventureRunner.scouted`). Never auto parties, never dungeons (`"scout": false` on the type).
+    Chance only: the map's ? clouds stay a surprise; no odds shown. The away card gets a tiny note
+    doodle. Tools: a map case, field glasses.
+  - Share out and your pet's sharing skip the kitchen and scouting (`"share": false`).
+- **Later jobs** (ideas, **Open**): recycling, digging, show-off, training, mapmaking,
+  stargazing, a lab; the dark twist shows only in what jobs describe.
 
 ## Automation (idle side, your pet)
 

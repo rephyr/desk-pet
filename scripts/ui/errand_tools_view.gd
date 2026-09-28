@@ -121,9 +121,9 @@ func _rebuild() -> void:
 		if job.get("tools", []).is_empty():
 			continue
 		var is_open := open.any(func(j): return j.id == job.id)
-		var wait := ErrandsTab.level_wait(job)
+		var wait := ErrandsTab.shown_wait(job)
 		if not is_open and wait.is_empty():
-			continue  # jobs that come much later don't show their tools yet
+			continue  # only the next job to open shows its tools early, the rest stay hidden
 		var sub := "lv %d" % GameState.job_level(job.id) if is_open else "opens at %s lv %d" % [wait.job.name, wait.level]
 		_shelves.add_child(_shelf(str(job.name), sub, UiTheme.named_color(str(job.get("color", ""))), job.tools.map(func(t):
 			var tool: Dictionary = t.duplicate()
@@ -199,6 +199,13 @@ func _rebuild_card() -> void:
 		if tool.each.has("away_hours"):
 			var h := GameState.errands_away_hours()
 			_add_row(now, "full speed away", "%s h → %s h" % [UiTheme.num(h), UiTheme.num(h + float(tool.each.away_hours) * plan[0])], UiTheme.MINT)
+		elif tool.each.has("hold"):
+			var held := GameState.scout_hold()
+			_add_row(now, "notes held", "%d → %d" % [held, held + roundi(float(tool.each.hold)) * plan[0]], UiTheme.MINT)
+		elif tool.job != "" and not job.get("pay", {}).has("capsules"):  # a job that brings no coins: how often it fills
+			var rate := GameState.job_rate(str(tool.job))
+			var after := GameState.job_rate_with(str(tool.job), _picked, plan[0])
+			_add_row(now, "every", ErrandsTab._time(1.0 / rate) + " → " + ErrandsTab._time(1.0 / after) if rate > 0.0 else "nobody on it", UiTheme.MINT if rate > 0.0 else UiTheme.MUTED)
 		else:
 			var before := GameState.errands_per_minute()
 			var after := GameState.errands_per_minute_with(_picked, plan[0])

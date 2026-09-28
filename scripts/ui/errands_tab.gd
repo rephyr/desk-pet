@@ -24,6 +24,8 @@ var _steps_row := HBoxContainer.new()
 var _subtitle: Label
 var _box := VBoxContainer.new()
 var _meters := {}  # job id -> Meter
+var _countdowns := {}  # job id -> the "full in 24m 10s" label of a job that pays in one chunk (the jar)
+var _tick := 0.0  # seconds until the countdowns move on
 var _step := 1
 var _picked := ""  # uid of a resting pet waiting to be put on a job (a stand-in's: one from its count)
 var _dirty := true
@@ -99,7 +101,7 @@ func _init() -> void:
 	pad.size_flags_horizontal = SIZE_EXPAND_FILL
 	pad.add_theme_constant_override("margin_top", 10)
 	pad.add_theme_constant_override("margin_left", 4)
-	pad.add_theme_constant_override("margin_right", 4)
+	pad.add_theme_constant_override("margin_right", 14)  # the level sticker pokes out past the note
 	pad.add_theme_constant_override("margin_bottom", 8)
 	_notes.columns = 3
 	_notes.size_flags_horizontal = SIZE_EXPAND_FILL
@@ -218,6 +220,12 @@ func _process(delta: float) -> void:
 		_rebuild()
 	for job_id in _meters:
 		_meters[job_id].fill = GameState.job_fill_now(job_id)
+	_tick -= delta
+	if _tick <= 0.0:
+		_tick = 0.5
+		for job_id in _countdowns:
+			if is_instance_valid(_countdowns[job_id]):
+				_countdowns[job_id].text = _full_in(job_id)
 
 
 # ---- building it ----------------------------------------------------------------
@@ -225,6 +233,7 @@ func _process(delta: float) -> void:
 func _rebuild() -> void:
 	_dirty = false
 	_meters.clear()
+	_countdowns.clear()
 	_resting_n = GameState.resting_count()
 	_resting = GameState.resting_faces(RESTING_POLAROIDS + 1)
 	_away_count = GameState.away().size()
@@ -240,8 +249,8 @@ func _rebuild() -> void:
 	for job in GameState.open_jobs():
 		notes.append(_job_note(job))
 	for job in catalog.jobs:
-		var wait := level_wait(job)
-		if not wait.is_empty() and not GameState.is_unlocked(str(job.needs)):
+		var wait := shown_wait(job)
+		if not wait.is_empty():
 			notes.append(_waiting_note(job, wait))
 	var coming: Dictionary = catalog.errands.get("coming", {})
 	if not coming.is_empty():
@@ -269,7 +278,12 @@ func _job_note(job: Dictionary) -> Control:
 	head.add_child(UiTheme.icon_rect(str(job.doodle), 34, color))
 	var names := VBoxContainer.new()
 	names.add_theme_constant_override("separation", 0)
-	names.add_child(UiTheme.title(job.name, 17, color))
+	names.size_flags_horizontal = SIZE_EXPAND_FILL
+	var title := UiTheme.title(job.name, 17, color)
+	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART  # a long name wraps rather than widening the board
+	title.custom_minimum_size = Vector2(60, 0)
+	title.add_theme_constant_override("line_spacing", -4)
+	names.add_child(title)
 	names.add_child(UiTheme.label("brings " + str(job.brings), UiTheme.MUTED, UiTheme.SMALL))
 	head.add_child(names)
 	col.add_child(head)
@@ -279,10 +293,23 @@ func _job_note(job: Dictionary) -> Control:
 
 	var meter := Meter.new()
 	meter.color = color
-	meter.stream = rate > STREAM_AFTER
+	meter.stream = rate > STREAM_AFTER and _streams(job)
 	_meters[job.id] = meter
 	col.add_child(meter)
-	if meter.stream:
+	var pay: Dictionary = job.get("pay", {})
+	if job.get("chunk", false):  # the jar: one big lump, and how long until it's full
+		col.add_child(_shrinkable(UiTheme.label(_pay_words(job, size), color, UiTheme.SMALL)))
+		var countdown := _shrinkable(UiTheme.label(_full_in(job.id), UiTheme.MUTED, UiTheme.SMALL))
+		_countdowns[job.id] = countdown
+		col.add_child(countdown)
+	elif pay.has("meal"):  # the kitchen: how much faster every other job is, and the meals
+		if size > 0:  # nobody cooking: just "nobody on it"
+			col.add_child(_shrinkable(UiTheme.label("every job %d%% faster" % roundi(GameState.kitchen_bonus() * 100.0), color, UiTheme.SMALL)))
+		col.add_child(_shrinkable(UiTheme.label(("a meal " + _every(rate)) if rate > 0.0 else _every(rate), UiTheme.MUTED, UiTheme.SMALL)))
+	elif pay.has("note"):  # scouting: the notes waiting for your next trips
+		col.add_child(_shrinkable(UiTheme.label("notes ready %d / %d" % [GameState.scout_notes, GameState.scout_hold()], color, UiTheme.SMALL)))
+		col.add_child(_shrinkable(UiTheme.label(("a note " + _every(rate)) if rate > 0.0 else _every(rate), UiTheme.MUTED, UiTheme.SMALL)))
+	elif meter.stream:
 		col.add_child(_shrinkable(UiTheme.label(_per_minute(job, rate), color, UiTheme.SMALL)))
 	else:
 		col.add_child(_shrinkable(UiTheme.label(_pay_words(job, size), color, UiTheme.SMALL)))
@@ -337,6 +364,25 @@ func _crew_photos(job: Dictionary, crew: Array, color: Color) -> Control:
 	return grid
 
 
+## Whether a job's meter may turn into the flowing stream when it's fast: not one that pays in a
+## lump (the jar), meals or scout notes.
+static func _streams(job: Dictionary) -> bool:
+	var pay: Dictionary = job.get("pay", {})
+	return not job.get("chunk", false) and not pay.has("meal") and not pay.has("note")
+
+
+## A job still to come that shows as a waiting note (and a waiting shelf of tools): only when it's
+## the NEXT goal of a job that's open, so there's never a row of locked notes. { job, level } or {}.
+static func shown_wait(job: Dictionary) -> Dictionary:
+	var wait := level_wait(job)
+	if wait.is_empty() or GameState.is_unlocked(str(job.needs)):
+		return {}
+	if not GameState.open_jobs().any(func(j): return j.id == wait.job.id):
+		return {}
+	var next := Jobs.next_goal(wait.job, GameState.job_level(wait.job.id))
+	return wait if not next.is_empty() and int(next.at) == int(wait.level) else {}
+
+
 ## A job that opens at another job's level (the lemonade stand at coin hunt lv 10): what it
 ## waits for, as { job, level }, or {} if it waits for something else.
 static func level_wait(job: Dictionary) -> Dictionary:
@@ -362,7 +408,7 @@ func _waiting_note(job: Dictionary, wait: Dictionary) -> Control:
 	var icon := UiTheme.icon_rect(str(job.doodle), 34, color)
 	icon.size_flags_horizontal = SIZE_SHRINK_CENTER
 	col.add_child(icon)
-	var name_label := UiTheme.title("a " + str(job.name), 15, color)
+	var name_label := UiTheme.title(str(job.get("one", "a " + str(job.name))), 15, color)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(name_label)
@@ -431,7 +477,7 @@ func _rebuild_box() -> void:
 	if GameState.spare_count() > STEPS_AFTER:
 		# busy paws: a switch per errand (the notes are full already), new pets start on the ones on
 		_box.add_child(_heading("new pets join", -1))
-		for job in GameState.open_jobs():
+		for job in GameState.open_jobs().filter(func(j): return Jobs.shared_out(j)):  # not the kitchen or scouting
 			var sw := join_switch(GameState.job_joins(job.id), func(on):
 				GameState.set_job_join(job.id, on)
 				PetBubble.say_line(self, "join_on" if on else "join_off"))
@@ -492,10 +538,27 @@ func _paid(job_id: String, loot: Dictionary) -> void:
 	if not is_visible_in_tree() or not _meters.has(job_id) or not is_instance_valid(_meters[job_id]):
 		return
 	var meter: Meter = _meters[job_id]
+	var job := Catalog.shared().job(job_id)
 	var coins := Rewards.total(loot, "coins")
 	var parts := Rewards.total(loot, "part")
 	var text := "+%s" % ExpandedView._thousands(coins) if coins > 0 else ("+ a part" if parts == 1 else "+%s parts" % ExpandedView._thousands(parts))
-	var pop := UiTheme.title(text, 14, meter.color)
+	if loot.has("meal"):
+		if int(loot.meal) <= 0:
+			return  # your pet wasn't hungry: the kitchen's snack waits
+		text = "+ a meal" if int(loot.meal) <= int(job.pay.meal) else "+ meals"
+		if _rng.randf() < 0.4:
+			PetBubble.say_line(self, "errands_meal")
+	elif loot.has("note"):
+		if int(loot.note) <= 0:
+			return
+		text = "+ a note" if int(loot.note) == 1 else "+%d notes" % int(loot.note)
+		_dirty = true  # "notes ready" moves on
+	var chunk: bool = job.get("chunk", false) and coins > 0
+	if chunk:  # the jar tipped out: a big gold number and a little burst of coins
+		_coin_burst(meter)
+		if _rng.randf() < 0.5:
+			PetBubble.say_line(self, "errands_jar_full")
+	var pop := UiTheme.title(text, 22 if chunk else 14, UiTheme.GOLD if chunk else meter.color)
 	pop.top_level = true
 	pop.mouse_filter = MOUSE_FILTER_IGNORE
 	meter.add_child(pop)
@@ -509,6 +572,23 @@ func _paid(job_id: String, loot: Dictionary) -> void:
 			if key.begins_with("part:"):
 				var bits := key.split(":")
 				PetBubble.say_line(self, "errands_part", { "part": "a " + str(Catalog.shared().part(bits[1], bits[2]).get("name", bits[2])) + " " + bits[1] })
+
+
+## A handful of coins popping out of a meter and falling away.
+func _coin_burst(meter: Control) -> void:
+	for i in 7:
+		var coin := UiTheme.icon_rect("coin", 14, UiTheme.GOLD)
+		coin.top_level = true
+		coin.mouse_filter = MOUSE_FILTER_IGNORE
+		meter.add_child(coin)
+		var from := meter.global_position + Vector2(meter.size.x / 2.0 - 7.0, -6.0)
+		coin.global_position = from
+		var to := from + Vector2(_rng.randf_range(-50.0, 50.0), _rng.randf_range(-44.0, -18.0))
+		var tween := coin.create_tween().set_parallel()
+		tween.tween_property(coin, "global_position", to, 0.5).set_ease(Tween.EASE_OUT).set_trans(Tween.TRANS_CUBIC)
+		tween.tween_property(coin, "global_position:y", to.y + 40.0, 0.5).set_delay(0.5).set_ease(Tween.EASE_IN).set_trans(Tween.TRANS_QUAD)
+		tween.tween_property(coin, "modulate:a", 0.0, 0.4).set_delay(0.6)
+		tween.chain().tween_callback(coin.queue_free)
 
 
 # ---- little helpers ----------------------------------------------------------------
@@ -617,6 +697,8 @@ static func _pay_words(job: Dictionary, crew: int) -> String:
 	var p: Dictionary = job.get("pay", {})
 	if p.has("capsules"):
 		var each := Jobs.average_fill(job, GameState.job_boost(job.id)) * GameState.toy_boost("coins")
+		if job.get("chunk", false):
+			return "%s coins when full" % UiTheme.num(each)
 		return "%s%s coins a %s" % ["about " if job.has("tips") else "", UiTheme.num(each), "sale" if job.has("tips") else "find"]
 	if p.has("coins"):
 		return "%d coins" % roundi((float(p.coins[0]) + float(p.coins[1])) / 2.0)
@@ -627,8 +709,22 @@ static func _pay_words(job: Dictionary, crew: int) -> String:
 static func _every(rate: float) -> String:
 	if rate <= 0.0:
 		return "nobody on it"
-	var s := maxi(1, roundi(1.0 / rate))
-	return "every %dm %02ds" % [s / 60, s % 60] if s >= 60 else "every %ds" % s
+	return "every " + _time(1.0 / rate)
+
+
+static func _time(seconds: float) -> String:
+	var s := maxi(1, roundi(seconds))
+	if s >= 3600:
+		return "%dh %02dm" % [s / 3600, (s % 3600) / 60]
+	return "%dm %02ds" % [s / 60, s % 60] if s >= 60 else "%ds" % s
+
+
+## "full in 24m 10s": how long until a lump job's meter is full with its crew now.
+static func _full_in(job_id: String) -> String:
+	var rate := GameState.job_rate(job_id)
+	if rate <= 0.0:
+		return "nobody on it"
+	return "full in " + _time((1.0 - GameState.job_fill_now(job_id)) / rate)
 
 
 static func _per_minute(job: Dictionary, rate: float) -> String:

@@ -22,7 +22,7 @@ signal room_full  # you tried to open a box but the room is full (it waits on th
 signal homes_paid(boxes: int)  # pets left for new homes and their points filled this many boxes
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
-const SAVE_VERSION := 24
+const SAVE_VERSION := 26
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
 const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
@@ -74,8 +74,11 @@ var jobs_away := {}  # what errands brought while the game was closed, for the t
 var _job_of := {}  # uid -> job id, for every pet on an errand
 var _job_speed := {}  # job id -> how fast its crew works on average (see Jobs.pet_speed)
 var _job_tip := {}  # job id -> its crew's average tip (jobs with "tips")
-var _job_tools := {}  # job id -> [crew power, speed] with the tools you have
+var _job_tools := {}  # job id -> [crew power, speed (tools + the kitchen), the tools' crew power] with the tools you have
 var errand_tools := {}  # tool id -> levels bought with coins (the errands' upgrades page, see Jobs)
+var _scout_hold := -1  # scout_hold() kept until the tools change (the errands tab asks every frame)
+var scout_notes := 0  # notes the scouting errand has written: your next trips take them along (see Jobs.takes_note)
+var _kitchen := -1.0  # how much faster the kitchen makes the other jobs (-1: work it out again)
 var _jobs_at := 0.0  # unix time errands have worked up to
 var _was_active := ""  # the active pet before it changed (it goes back to work)
 var last_moved := ""  # the uid of the last pet put on or taken off an errand (for your pet to name it)
@@ -101,7 +104,7 @@ func set_job(job: String, on: bool) -> void:
 	changed.emit()
 
 
-var coin_reserve := 50  # coins your pet never spends on boxes (once it may buy them)
+var reserve_capsules := 50  # what your pet never spends on boxes (once it may buy them), in plain capsules
 var saved_boxes := {}  # box id -> true: "save for me", your pet leaves these on the pile
 var buying_on := true  # your pet buys more when the pile runs out (once it has the piggy bank)
 var pinned: Array[String] = []  # good pulls your pet opened, waiting for you to see them
@@ -169,7 +172,9 @@ func _init() -> void:
 	collection.pet_changed.connect(func(_p):
 		_worker_speed.clear()
 		_job_speed.clear()
-		_job_tip.clear())
+		_job_tip.clear()
+		_job_tools.clear()  # it holds the kitchen's bonus, which depends on the cooks
+		_kitchen = -1.0)
 	collection.pets_removed.connect(func(uids):
 		_take_off(uids)
 		_take_off_workers(uids)
@@ -214,8 +219,44 @@ func _process(delta: float) -> void:
 
 # ---- boxes ----------------------------------------------------------------
 
+## The coins your pet keeps when it buys boxes itself: its reserve of capsules x what a capsule is
+## worth now, so it keeps up with box prices.
+func coin_reserve() -> int:
+	return roundi(minf(float(reserve_capsules) * capsule_value(), Jobs.MAX_PRICE))
+
+
+## Where the reserve starts, its step and its top, in capsules (data/boxes.json "reserve").
+func default_reserve() -> int:
+	return int(catalog.box_rules.get("reserve", {}).get("capsules", 50))
+
+
+func reserve_step() -> int:
+	return int(catalog.box_rules.get("reserve", {}).get("step", 50))
+
+
+func reserve_max() -> int:
+	return int(catalog.box_rules.get("reserve", {}).get("max", 2000))
+
+
+## Sets the reserve to `capsules` (0 up to reserve_max) and saves.
+func set_reserve(capsules: int) -> void:
+	reserve_capsules = clampi(capsules, 0, reserve_max())
+	save_game()
+
+
+## What `count` of a box cost in coins now (see box_cost).
 func box_price(box_id: String, count := 1) -> int:
-	return int(catalog.box(box_id).price) * count
+	return box_cost(catalog.box(box_id), capsule_value(), count)
+
+
+## What `count` of a box cost in coins with a capsule worth `value`: its 'capsules' x value (so the
+## shop keeps up with the machine, like errands), or a fixed 'price'.
+static func box_cost(box: Dictionary, value: float, count := 1) -> int:
+	var unit := float(box.capsules) * value if box.has("capsules") else float(box.get("price", 0))
+	if unit <= 0.0 or count <= 0:
+		return 0
+	var one := maxi(1, roundi(minf(unit, Jobs.MAX_PRICE)))  # one box's price, rounded: 10 cost 10x that
+	return int(minf(float(one) * count, Jobs.MAX_PRICE))
 
 
 ## Buys boxes: they go on your pile (the bag) to open later, by you or your pet. Returns
@@ -308,7 +349,7 @@ func room_is_cozy() -> bool:
 
 ## What the next room upgrade costs.
 func room_price() -> int:
-	return Herd.room_cost(catalog, room)
+	return Herd.room_cost(catalog, room, capsule_value())
 
 
 ## The room shows (the pill on the pets tab) once a pet has folded into the herd.
@@ -665,7 +706,8 @@ func _spot_places(run: RunState) -> Array[String]:
 		return []
 	var location := catalog.location(run.location_id)
 	var known := func(id): return location_open(catalog.location(id)) or spotted.has(id)
-	var found := Intel.roll(location, known, spot_tries, _rng)
+	var bonus := float(run.scout.get("spot", 0.0))
+	var found := Intel.roll(location, known, spot_tries, _rng, bonus)
 	for id in found:
 		spotted[id] = { "by": run.party.who(), "from": run.location_id }
 	return found
@@ -770,6 +812,8 @@ func debug_new_game() -> void:
 	homes = NewHomes.fresh(catalog)
 	_to_work.clear()
 	errand_tools = {}
+	_tools_changed()
+	scout_notes = 0
 	gear = {}
 	room = 0
 	_crews_changed()
@@ -785,6 +829,7 @@ func debug_new_game() -> void:
 	_worker_speed.clear()
 	visited.clear()
 	saved_boxes.clear()
+	reserve_capsules = default_reserve()
 	buying_on = true
 	idle_log = {}
 	runs.clear()
@@ -818,18 +863,47 @@ func _work_for(seconds: float) -> Dictionary:
 		return total
 	for job in open_jobs():
 		var size := job_size(job.id)
-		if size == 0:
-			continue
+		if size == 0 or (job.has("scout") and scout_full()):
+			continue  # nobody on it, or the scouts' notes are all waiting for trips
 		var got := Jobs.work(job, jobs[job.id], size, job_rate(job.id), seconds, _rng, catalog, job_boost(job.id))
 		if got.fills > 0:
 			if got.loot.has("coins"):
 				got.loot.coins = roundi(int(got.loot.coins) * toy_boost("coins"))  # shown as it lands
-			Rewards.add(total, got.loot)
+			if got.loot.has("meal"):  # the kitchen fed your pet (up to its "meal_upto")
+				var fed := Jobs.feed(job, hunger, happiness, int(got.loot.meal) / maxi(1, int(job.pay.meal)))
+				hunger = fed.food
+				happiness = fed.mood
+				got.loot.meal = roundi(fed.eaten)  # 0: it wasn't hungry enough, nothing to show
+			if got.loot.has("note"):  # the scouts wrote notes, as many as fit
+				got.loot.note = mini(int(got.loot.note), scout_hold() - scout_notes)
+				scout_notes += int(got.loot.note)
 			job_paid.emit(job.id, got.loot)
+			got.loot.erase("meal")
+			got.loot.erase("note")
+			Rewards.add(total, got.loot)
 	if not total.is_empty():
 		grant(total, false)
 		_log_idle({ "coins": Rewards.total(total, "coins"), "parts": Rewards.total(total, "part") })
 	return total
+
+
+## Scout notes you can hold (the scouting errand's hold, and a map case holds more).
+func scout_hold() -> int:
+	if _scout_hold < 0:
+		_scout_hold = Jobs.scout_hold(catalog, errand_tools)
+	return _scout_hold
+
+
+## Whether you hold all the scout notes you can (the scouting meter waits, full).
+func scout_full() -> bool:
+	return scout_notes >= scout_hold()
+
+
+## Sets the scout notes you hold (the dev driver's "notes" step).
+func set_scout_notes(n: int) -> void:
+	scout_notes = clampi(n, 0, scout_hold())
+	jobs_changed.emit()
+	changed.emit()
 
 
 ## The errands you can put pets on: every job whose "needs" is open (data/errands.json).
@@ -1129,6 +1203,8 @@ func job_fill(job_id: String) -> float:
 
 ## How full an errand's meter is right now, between the once-a-second ticks (for drawing it).
 func job_fill_now(job_id: String) -> float:
+	if catalog.job(job_id).has("scout") and scout_full() and job_size(job_id) > 0:
+		return 1.0  # full, waiting for a trip to take a note
 	var since := maxf(0.0, Time.get_unix_time_from_system() - _jobs_at) if _jobs_at > 0.0 else 0.0
 	return fposmod(job_fill(job_id) + job_rate(job_id) * since, 1.0)
 
@@ -1138,7 +1214,21 @@ func job_rate(job_id: String) -> float:
 	var size := job_size(job_id)
 	if size == 0:
 		return 0.0
+	if not _job_tools.has(job_id):  # what the tools do to this job's speed (per frame, so kept)
+		var job := catalog.job(job_id)
+		_job_tools[job_id] = [float(catalog.errands.crew_power) + Jobs.tool_sum(catalog, job_id, "crew_power", errand_tools),
+			1.0 + Jobs.tool_sum(catalog, job_id, "speed", errand_tools) + Jobs.tool_sum(catalog, job_id, "all_speed", errand_tools)
+				+ (0.0 if job.has("kitchen") else kitchen_bonus()),
+			Jobs.tool_sum(catalog, job_id, "crew_power", errand_tools)]
+	return Jobs.rate(catalog.job(job_id), size, _crew_speed(job_id), _job_tools[job_id][0], _job_tools[job_id][2]) * _job_tools[job_id][1]
+
+
+## An errand crew's average speed: its cards, and each herd count at its rarity's template speed.
+func _crew_speed(job_id: String) -> float:
 	if not _job_speed.has(job_id):
+		var size := job_size(job_id)
+		if size == 0:
+			return 0.0
 		var job := catalog.job(job_id)
 		var sum := 0.0
 		for uid in job_crew(job_id):
@@ -1147,10 +1237,33 @@ func job_rate(job_id: String) -> float:
 		for k in h:
 			sum += Jobs.pet_speed(Herd.template(catalog, k), job) * int(h[k])
 		_job_speed[job_id] = sum / size
-	if not _job_tools.has(job_id):  # what the tools do to this job's speed (per frame, so kept)
-		_job_tools[job_id] = [float(catalog.errands.crew_power) + Jobs.tool_sum(catalog, job_id, "crew_power", errand_tools),
-			1.0 + Jobs.tool_sum(catalog, job_id, "speed", errand_tools) + Jobs.tool_sum(catalog, job_id, "all_speed", errand_tools)]
-	return Jobs.rate(catalog.job(job_id), size, _job_speed[job_id], _job_tools[job_id][0]) * _job_tools[job_id][1]
+	return _job_speed[job_id]
+
+
+## How much faster the kitchen's cooks make every other job (0.12 = 12% faster), see Jobs.kitchen_bonus.
+## Cooks are the kitchen's crew size times its average speed (cards and herd counts alike).
+func kitchen_bonus() -> float:
+	if _kitchen >= 0.0:
+		return _kitchen
+	_kitchen = 0.0
+	for job in open_jobs():
+		var size := job_size(job.id)
+		if not job.has("kitchen") or size == 0:
+			continue
+		var cooks := _crew_speed(job.id) * size
+		var others := 0
+		for job_id in jobs:
+			if job_id != job.id:
+				others += job_size(job_id)
+		var power := float(catalog.errands.crew_power) + Jobs.tool_sum(catalog, "", "crew_power", errand_tools)
+		_kitchen = Jobs.kitchen_bonus(job, cooks, others, power)
+	return _kitchen
+
+
+## Coins in a plain capsule on the machine now: what errands pay in, and what errand tools and
+## boxes are priced in.
+func capsule_value() -> float:
+	return Machine.coin_value(machine, catalog)
 
 
 ## What an errand's "capsules" pay is worth now (see Jobs.pay): a capsule's coins on the machine,
@@ -1158,7 +1271,7 @@ func job_rate(job_id: String) -> float:
 func job_boost(job_id: String) -> Dictionary:
 	var job := catalog.job(job_id)
 	var shiny := Jobs.tool_sum(catalog, job_id, "shiny", errand_tools) > 0.0
-	return { "coin_value": Machine.coin_value(machine, catalog),
+	return { "coin_value": capsule_value(),
 		"worth": Jobs.tool_sum(catalog, job_id, "worth", errand_tools),
 		"x": Jobs.goal_x(job, job_level(job_id)) * job_tips(job_id),
 		"big": Jobs.tool_sum(catalog, job_id, "big", errand_tools), "big_x": float(catalog.errands.get("big_x", 5)),
@@ -1209,6 +1322,19 @@ func errands_per_minute_with(id: String, n: int) -> float:
 	return out
 
 
+## How often a job would fill if a tool had `n` more levels (the upgrades card, for jobs that
+## bring no coins).
+func job_rate_with(job_id: String, id: String, n: int) -> float:
+	var real := errand_tools
+	errand_tools = real.duplicate()
+	errand_tools[id] = errand_tool_level(id) + n
+	_tools_changed()
+	var out := job_rate(job_id)
+	errand_tools = real
+	_tools_changed()
+	return out
+
+
 ## Sets a tool's level outright (the dev driver's "tool" step).
 func set_errand_tool_level(id: String, level: int) -> void:
 	errand_tools[id] = maxi(0, level)
@@ -1221,7 +1347,9 @@ func set_errand_tool_level(id: String, level: int) -> void:
 ## The tools changed: what they do to each job is worked out again.
 func _tools_changed() -> void:
 	_job_tools.clear()
+	_scout_hold = -1
 	_job_tip.clear()
+	_kitchen = -1.0
 
 
 ## Hours errands work at full speed while you're away (comfy naps add more).
@@ -1253,17 +1381,19 @@ func errand_tool_plan(id: String, n: int) -> Array:
 	var tool := Jobs.tool(catalog, id)
 	var have := errand_tool_level(id)
 	var levels_left := Jobs.tool_room(tool, have)
+	var value := capsule_value()
 	if n < 0:
+		var base := Jobs.tool_base(tool, value)
 		var k := 0
 		var cost := 0.0
 		while k < mini(levels_left, 1000):
-			cost += float(tool.coins) * pow(float(tool.get("grow", 1.0)), have + k)
+			cost += base * pow(float(tool.get("grow", 1.0)), have + k)
 			if cost > coins:
 				break
 			k += 1
 		n = maxi(1, k)
 	n = mini(n, levels_left)
-	return [n, Jobs.tool_cost(tool, have, n)]
+	return [n, Jobs.tool_cost(tool, have, n, value)]
 
 
 ## Buys `n` levels of an errand tool (-1: as many as you can afford). Returns the levels bought.
@@ -1388,8 +1518,8 @@ func share_out() -> void:
 ## "New pets join here" on an errand: new pets (from boxes, gifts, pets home from adventures) start
 ## on it (see _place_new).
 func set_job_join(job_id: String, on: bool) -> void:
-	if not open_jobs().any(func(j): return j.id == job_id):
-		return
+	if not open_jobs().any(func(j): return j.id == job_id and Jobs.shared_out(j)):
+		return  # not the kitchen or scouting: you staff those
 	_job_state(job_id).join = on
 	jobs_changed.emit()
 	changed.emit()
@@ -1397,7 +1527,7 @@ func set_job_join(job_id: String, on: bool) -> void:
 
 
 func job_joins(job_id: String) -> bool:
-	return bool(jobs.get(job_id, {}).get("join", false))
+	return bool(jobs.get(job_id, {}).get("join", false)) and Jobs.shared_out(catalog.job(job_id))
 
 
 ## "New pets join here" on a job's machines (tables): new pets start there while it has empty
@@ -1498,7 +1628,7 @@ func _place_new(uids: Array) -> void:
 ## Puts these pets (the resting ones; a stand-in's uid is one from its count) and `counts` more from
 ## the resting herd on the errands with the smallest crews (only the errands in `only`, if given).
 func _auto_place(uids: Array, counts := {}, only: Array = []) -> void:
-	var open := open_jobs()
+	var open := open_jobs().filter(func(j): return Jobs.shared_out(j))  # not the kitchen or scouting: you staff those
 	if not only.is_empty():
 		open = open.filter(func(j): return j.id in only)
 	if not feature_on("errands") or tutorial_active() or open.is_empty():
@@ -1590,6 +1720,8 @@ func _crews_changed() -> void:
 			_job_of[uid] = job_id
 	_job_speed.clear()
 	_job_tip.clear()
+	_job_tools.clear()  # the kitchen's bonus depends on the crews
+	_kitchen = -1.0
 	jobs_changed.emit()
 	changed.emit()
 
@@ -1618,7 +1750,7 @@ func next_pet_box() -> String:
 	if not (feature_on("shopping") and buying_on):
 		return ""
 	for box in catalog.boxes:
-		if not box.get("hidden", false) and pet_opens(box.id) and coins - box_price(box.id) >= coin_reserve:
+		if not box.get("hidden", false) and pet_opens(box.id) and coins - box_price(box.id) >= coin_reserve():
 			return box.id
 	return ""
 
@@ -1923,7 +2055,7 @@ func _send_auto_party(slot: int, pools: Array, unseen: Dictionary, used: Diction
 				party_pets.append(pet)
 	if party_pets.is_empty():
 		return false
-	var run := send_on_adventure(str(party.place), party_pets)
+	var run := send_on_adventure(str(party.place), party_pets, false)
 	if run == null:
 		return false
 	run.auto = true
@@ -2409,7 +2541,8 @@ func _sendable_stand_ins(gone: Dictionary) -> Array[Pet]:
 	return out
 
 
-func send_on_adventure(location_id: String, pets: Array[Pet]) -> RunState:
+## `by_you`: you sent it (not your pet's or the workers' auto parties): it may take a scout note.
+func send_on_adventure(location_id: String, pets: Array[Pet], by_you := true) -> RunState:
 	var location := catalog.location(location_id)
 	var allowed := {}
 	for pet in sendable_pets():
@@ -2434,6 +2567,13 @@ func send_on_adventure(location_id: String, pets: Array[Pet]) -> RunState:
 	# never dungeons, see Gear.for_trip)
 	var run := AdventureRunner.start(location_id, going, Time.get_unix_time_from_system(), _rng.randi(), catalog, finds, machine.bought,
 		Gear.for_trip(catalog, gear, location))
+	var known := func(id): return location_open(catalog.location(id)) or spotted.has(id)
+	# the cheap checks first: auto parties and sends with no notes never look up what's left to find
+	if by_you and scout_notes > 0 and Jobs.takes_note(catalog, location, by_you, scout_notes,
+			Intel.left_to_find(location, known, not Rumours.hearable(catalog, heard, is_open).is_empty(), catalog)):
+		scout_notes -= 1
+		run.scout = Jobs.scout_note(catalog)
+		jobs_changed.emit()
 	runs.append(run)
 	_rest_changed()
 	_take_off(going.map(func(p): return p.uid))
@@ -3094,10 +3234,11 @@ func save_game() -> void:
 		"jobs": jobs,
 		"new_homes": homes,
 		"errand_tools": errand_tools,
+		"scout_notes": scout_notes,
 		"gear": gear,
 		"room": room,
 		"automation": automation,
-		"coin_reserve": coin_reserve,
+		"reserve_capsules": reserve_capsules,
 		"saved_boxes": saved_boxes.keys(),
 		"visited": visited.keys(),
 		"buying_on": buying_on,
@@ -3199,7 +3340,7 @@ func load_game() -> bool:
 			"fill": clampf(float(saved_jobs[job_id].get("fill", 0.0)), 0.0, 1.0), "join": bool(saved_jobs[job_id].get("join", false)) }
 	if from_version < 24 and bool(data.get("jobs_auto", false)):
 		# v24: "your pet shares out new pets" became "new pets join here" on each job: every open errand
-		for job in open_jobs():
+		for job in open_jobs().filter(func(j): return Jobs.shared_out(j)):
 			_job_state(job.id).join = true
 	homes = NewHomes.clean(catalog, data.get("new_homes", {}))  # v24 added new homes
 	errand_tools = {}
@@ -3208,6 +3349,7 @@ func load_game() -> bool:
 	for id in saved_tools:
 		if not Jobs.tool(catalog, str(id)).is_empty():
 			errand_tools[str(id)] = maxi(0, int(saved_tools[id]))
+	scout_notes = clampi(int(data.get("scout_notes", 0)), 0, scout_hold())  # v25
 	_crews_changed()
 	gear = Gear.clean(catalog, data.get("gear", {}))  # v22 added gear: older saves start with none
 	room = maxi(0, int(data.get("room", 0)))  # v23 added the room
@@ -3216,7 +3358,7 @@ func load_game() -> bool:
 	_clamp_herd_places()
 	_hold_saves = false
 	_save_held = false
-	coin_reserve = int(data.get("coin_reserve", 50))
+	reserve_capsules = clampi(int(data.get("reserve_capsules", default_reserve())), 0, reserve_max())  # v26
 	visited.clear()
 	for id in data.get("visited", []):
 		visited[str(id)] = true
@@ -3267,6 +3409,13 @@ func load_game() -> bool:
 		if knows_job("boxes"):  # it had the cushion: opening boxes stays (now in the automation tab)
 			unlocks["feature:packs"] = true
 			unlocks["tab:automation"] = true
+	# catch up on time spent closed: coins at the slowest rate, stats to the floor at worst (before
+	# the errands catch up, so the kitchen's meals made while you were away still count)
+	var away := Time.get_unix_time_from_system() - float(data.get("saved_at", 0.0))
+	if away > 0.0:
+		coins += int(minf(away, OFFLINE_CAP) * 0.4 / COIN_INTERVAL)
+		hunger = maxf(STAT_FLOOR, hunger - HUNGER_DECAY * away)
+		happiness = maxf(STAT_FLOOR, happiness - HAPPY_DECAY * away)
 	# errands kept going while the game was closed: full speed for a while, then slower
 	var e: Dictionary = catalog.errands
 	var closed := Jobs.offline_seconds(Time.get_unix_time_from_system() - float(data.get("saved_at", 0.0)),
@@ -3284,12 +3433,6 @@ func load_game() -> bool:
 		_save_held = false
 	_auto_at = Time.get_unix_time_from_system()
 
-	# catch up on time spent closed: coins at the slowest rate, stats to the floor at worst
-	var away := Time.get_unix_time_from_system() - float(data.get("saved_at", 0.0))
-	if away > 0.0:
-		coins += int(minf(away, OFFLINE_CAP) * 0.4 / COIN_INTERVAL)
-		hunger = maxf(STAT_FLOOR, hunger - HUNGER_DECAY * away)
-		happiness = maxf(STAT_FLOOR, happiness - HAPPY_DECAY * away)
 	# v23: plain pets fold into the herd (old saves: crews and workers of uids become counts here)
 	_rest_changed()
 	collection.refold()
@@ -3428,6 +3571,15 @@ func _migrate(data: Dictionary) -> Dictionary:
 			a.taught["boxes"] = true
 			a.task = "boxes" if bool(data.get("packs_on", true)) else ""
 			data.automation = a
+	if version < 26 and data.has("coin_reserve"):
+		# v26: your pet's reserve is kept in capsules, like box prices: the coins it kept become
+		# capsules at what one is worth on that save's machine (at least 1 if it kept any). Only a
+		# save that still has coin_reserve (a save with reserve_capsules keeps it)
+		var kept := float(data.get("coin_reserve", 0))
+		var value := Machine.coin_value({ "bought": data.get("machine", {}).get("bought", {}) }, catalog)
+		data.reserve_capsules = maxi(1, roundi(kept / value)) if kept > 0.0 else 0
+		data.erase("coin_reserve")
+	# v25: scout_notes (older saves start with 0, no code)
 	# v24: new homes and "new pets join here" (load_game: jobs_auto switches every open errand's on,
 	# a room that's full already opens the stall)
 	# v23: the herd. Collection.load_from reads the old collection (stars as [uid, palette], the first
