@@ -118,7 +118,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `"rarity:finish"` -> count, see `Herd` and data/herd.json). `add()` marks `new_part` and calls
   `refold()`: past `keep_cards` plain cards a shelf, the oldest that may fold (not `always_card`,
   not in `busy`, a Callable GameState sets: away, pinned, party leaders) become counts, and
-  `pets_folded(uids, keys)` lets GameState move their errand or machine place to a count. Totals
+  `pets_folded(uids, keys)` lets GameState move their errand or machine place to a count.
+  `refold()` only walks `_plain_cards` (the plain-finish cards), so piles of holo+ cards cost it
+  nothing. Totals
   (`count`, `count_of`, `shiny_of`, `plain_count`) are running numbers: nothing loops over the herd.
   `get_pet("h:<rarity>:<finish>:<n>")` gives a **stand-in** (`Herd.stand_in`: seeded look, average
   stats, no traits); removing one takes it off its count. Stars are `fallen` (palettes, the first
@@ -200,7 +202,7 @@ has more plain pets than the first room holds gets room for them plus data/herd.
 `room.old_save_margin` (`Herd.room_level_for`), so box openings and box jobs keep going.
 `Collection.herd_changed(keys)` says which counts changed; the pets tab rebuilds once a frame at
 most and leaves an open shelf of another rarity alone.
-Save v24 adds the plushie machine: top-level `plushie` (see `Plushie.fresh`) and `wisps`, optional
+Save v25 adds the plushie machine: top-level `plushie` (see `Plushie.fresh`) and `wisps`, optional
 `buttons` (slot -> 1..5) on pet dicts, and bag keys `slot:id@n`. Older saves load an empty machine
 and 0 wisps (nothing to move); `Plushie.clean` and `Pet.from_dict` fix up odd values.
 Who's resting is worked out once (`GameState._resting`: cards, herd counts minus errands, workers,
@@ -214,6 +216,32 @@ tick finishes it (`_finish_dungeon_run`: `Collection.remove` / `lose_plain` add 
 migration turns an old save's open cellar/below places into bands, drops rumours about them and moves
 parties going there to the well. Band places have `"band"` in data/adventures.json and are never
 open (`location_open`); retired rumours are never heard (`Rumours.hearable`).
+Save v26 adds new homes (C3): top-level `new_homes` `{ points, by_hand, sorted, room_was_full,
+rule { on, below, to, keep }, today { day, n } }` (`NewHomes`, data/new_homes.json), `jobs[id].join`
+and `automation.wjoin` ("new pets join here"); `jobs_auto` is gone (an older save with it on gets every
+open errand's switch on; an older save whose room is full has `room_was_full`, so the stall is there).
+`Collection.add(pets, sorter)` asks the sorter about each pet after the book counts it ("homes": it
+never joins, a star); `Collection.leave(counts, uids)` takes pets off for good (a star each, the
+stand-in looks of a count leaving never come back) and emits `pets_left(n)` (the night sky redraws).
+`GameState.send_home(rarity, n)` / `homes_pick` (the stall), `_sorter` / `_sort_pet` (the rule, box
+openings only: `open_boxes`, the machine's pet box), `_place_new(uids)` (busy paws, replaces
+`jobs_auto`; the rule's work pets go to every open errand when nothing takes them), `_room_hit()`
+(first full room: unlock `new_homes`). Unlock entries can be `"quiet": true` (no popup card) and earn
+`room: "full"` / `homes_by_hand`. UI: `NewHomesStall`, `SortingCard`, the pets page's side column in
+`CollectionTab`, `Bookcase.stall_on` / `picked` (tap picks, tap again opens), `ShelfPlank` picked
+border and "sorted today" tag. `GameState.homes_rule_changed` fires when the rule changes: the
+sorting card rebuilds its steppers on it (and on new pets), the "sorted today" numbers on the card
+and the planks update in place on `changed` (the pets page never rebuilds for them).
+`Collection.finish_seen(id)` is what the keep stepper offers from; `set_finish` (the dev `dress`
+step) keeps the room count right; `_herd_to_stars` is the one "a count's pets become stars" path
+(`leave`, `lose_plain`).
+One place at a time (the dungeon, the plushie machine and new homes together): `wisps` is one field
+(the dungeon pays through `grant_wisps`, the plushie machine spends). `plushie_keeper_uid()` is left
+out of `sendable_pets`, `army_choices` / `army_best` / `set_army_card`; `plushie_keepers` skips
+`_out()` (away + the army). `_busy_uids` = `_out()` + pinned + party leaders + the keeper, which
+`homes_pick` skips; its working count also leaves out `army_herd_keys()`, so the stall never takes the
+army's herd pets. Pets with buttons are always cards (`Collection.always_card`); the sorting rule
+only sees new pets from boxes.
 
 ## Testing
 

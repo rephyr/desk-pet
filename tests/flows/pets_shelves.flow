@@ -43,6 +43,30 @@ expect text "more room"
 expect fits
 shot room_card
 click RoomPill#1
+# short on coins: the price stays tappable and your pet says so
+room 1
+coins 0
+click RoomPill#1
+wait 0.5
+click "900"
+wait text "more room costs*"
+expect fits
+shot room_poor
+click RoomPill#1
+room 0
+# your pet on the box job with a full room: the boxes still show on the pile
+unlock tab:automation
+unlock feature:packs
+teach boxes
+task boxes
+tab automation
+wait 1
+expect text "squish! 3 boxes on your pile"
+expect fits
+shot auto_full
+tab collection
+wait 1
+coins 1000000
 # later: a much bigger room, thousands on every shelf
 room 12
 herd common normal 46000

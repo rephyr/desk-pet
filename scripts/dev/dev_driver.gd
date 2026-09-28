@@ -36,6 +36,7 @@ extends Node
 ##   crank <n>             your pet's own machine gives n capsules right away
 ##   unlock <id>           opens that unlock id straight away (e.g. feature:packs), no popup
 ##   spots <job> <n>       n more machines (tables, parties) for a job's workers, for free
+##   others <job>          your pet has taught the other pets that job (the workers page), for free
 ##   xp <n>                you have exactly n xp
 ##   gear <id> [levels]    levels of a gear upgrade (data/gear.json), for free
 ##   herd <rarity> <finish> <n>  n plain pets straight into the herd (fast: for thousands or millions)
@@ -68,6 +69,10 @@ extends Node
 ##   buy <nudge | hold | wild>  buys one with wisps at the plushie machine
 ##   keeper <next | prev>  the plushie machine's next or previous keeper
 ##   part <slot:id[@n]> [count]  parts in your bag (slot:id@n: a part with n buttons on it)
+##   homes <rarity> <n|all>  the new homes stall takes n pets of that rarity (like its buttons)
+##   rule on|off [below] [to] [keep]  the sorting rule (below: a rarity, to: homes | work, keep: a finish)
+##   join <job> on|off     "new pets join here" on an errand or a workers' job
+##   homes-points <n>      the new homes jar has exactly n points
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -251,6 +256,12 @@ func _step(w: PackedStringArray) -> String:
 				while GameState.automation.parties.size() < Automation.spots(GameState.automation, w[1]):
 					GameState.automation.parties.append({ "place": "", "n": 0 })
 			GameState.automation_changed.emit()
+		"others":  # others <job>: the other pets know that job (your pet needs to know it)
+			if not GameState.knows_job(w[1]):
+				return "your pet doesn't know %s" % w[1]
+			GameState.automation.others[w[1]] = true
+			GameState.automation_changed.emit()
+			GameState.changed.emit()
 		"xp":  # xp <n>: you have exactly n xp
 			GameState.xp = int(w[1])
 			GameState.changed.emit()
@@ -301,7 +312,7 @@ func _step(w: PackedStringArray) -> String:
 				if kv[0] == "finish":
 					if GameState.catalog.finish(kv[1]).id != kv[1]:
 						return "unknown finish %s" % kv[1]
-					pet.finish = kv[1]
+					GameState.collection.set_finish(pet, kv[1])
 				elif not kv[0] in Catalog.SLOTS or GameState.catalog.part(kv[0], kv[1]).is_empty():
 					return "unknown part %s" % pair
 				else:
@@ -421,6 +432,31 @@ func _step(w: PackedStringArray) -> String:
 		"keeper":  # keeper next | prev
 			if not GameState.plushie_swap(1 if w[1] == "next" else -1):
 				return "can't swap the keeper now"
+		"homes":  # homes <rarity> <n|all>: the stall takes them
+			if not GameState.catalog.tiers.any(func(t): return t.id == w[1]):
+				return "unknown rarity %s" % w[1]
+			var got := GameState.send_home(w[1], -1 if w[2] == "all" else int(w[2]))
+			if int(got.n) <= 0:
+				return "no %s pets could go" % w[1]
+		"rule":  # rule on|off [below] [to] [keep]
+			GameState.set_rule("on", w[1] == "on")
+			for i in range(2, w.size()):
+				var key := "below" if GameState.catalog.tiers.any(func(t): return t.id == w[i]) else ("to" if w[i] in NewHomes.TO else "keep")
+				GameState.set_rule(key, w[i])
+		"join":  # join <job> on|off: new pets join an errand or a workers' job
+			if not GameState.catalog.job(w[1]).is_empty():
+				GameState.set_job_join(w[1], w[2] == "on")
+				if GameState.job_joins(w[1]) != (w[2] == "on"):
+					return "the %s errand isn't open" % w[1]
+			elif not Automation.job(GameState.catalog, w[1]).is_empty():
+				GameState.set_worker_join(w[1], w[2] == "on")
+				if GameState.worker_joins(w[1]) != (w[2] == "on"):
+					return "the others don't know %s" % w[1]
+			else:
+				return "unknown job %s" % w[1]
+		"homes-points":  # homes-points <n>: the jar has exactly n points
+			GameState.homes.points = clampi(int(w[1]), 0, NewHomes.box_at(GameState.catalog) - 1)
+			GameState.changed.emit()
 		"quit":
 			_finish()
 		_:

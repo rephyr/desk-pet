@@ -2,15 +2,27 @@ class_name Bookcase
 extends VBoxContainer
 ## The pets page of collectibles, once there are lots: a pink cushion on top with your active pet,
 ## favourites and best ones, and a bookcase with a plank per rarity you have (ShelfPlank). Tap a
-## plank (or a pet on the cushion) to open that shelf (ShelfView).
-## Design: design/mockups/screens/pets-shelves.html (look A, the bookcase).
+## plank (or a pet on the cushion) to open that shelf (ShelfView). Once the new homes stall is
+## there (`stall_on`, it stands beside the bookcase), a tap on a plank picks that shelf for the
+## stall and a tap on the picked one opens it.
+## Design: design/mockups/screens/pets-shelves.html (look A, the bookcase), new-homes.html (look A).
 
 signal shelf_opened(rarity: String, pet: Pet)
+signal plank_picked(rarity: String)
+
+const CUSHION_NARROW := 6  # pets on the cushion when the stall's column takes some of the width
+
+var stall_on := false  # the new homes stall stands beside the bookcase (narrower planks, picking)
+var picked := ""  # the shelf picked for the stall
 
 var _cushion := PanelContainer.new()
 var _cushion_row := HBoxContainer.new()
 var _case := PanelContainer.new()
 var _planks := VBoxContainer.new()
+
+## A plank never gets taller than this: with only a shelf or two the bookcase stays short
+## instead of stretching one plank over the whole page.
+const PLANK_MAX := 76.0
 
 
 func _init() -> void:
@@ -40,17 +52,34 @@ func _init() -> void:
 	case_sb.content_margin_top = 4
 	case_sb.content_margin_bottom = 10
 	_case.add_theme_stylebox_override("panel", case_sb)
-	_case.size_flags_vertical = SIZE_EXPAND_FILL
+	_case.size_flags_vertical = SIZE_SHRINK_BEGIN
 	_planks.add_theme_constant_override("separation", 0)
 	_case.add_child(_planks)
 	add_child(_case)
+	resized.connect(_fit_planks)
+	_cushion.resized.connect(_fit_planks)
+
+
+## Shares the page's height out between the planks, each at most PLANK_MAX.
+func _fit_planks() -> void:
+	var n := _planks.get_child_count()
+	if n == 0:
+		return
+	var sb := _case.get_theme_stylebox("panel")
+	var avail := size.y - (sb.get_minimum_size().y if sb else 0.0)
+	if _cushion.visible:
+		avail -= _cushion.size.y + get_theme_constant("separation")
+	var h := clampf(floorf(avail / n), ShelfPlank.MIN_H, PLANK_MAX)
+	for plank in _planks.get_children():
+		if not plank.is_queued_for_deletion():
+			plank.custom_minimum_size.y = h
 
 
 func rebuild() -> void:
 	var c := GameState.collection
 	var catalog := Catalog.shared()
 	UiTheme.clear(_cushion_row)
-	var on_top := cushion_pets()
+	var on_top := cushion_pets(CUSHION_NARROW if stall_on else -1)
 	for i in on_top.size():
 		var mini := MiniCard.new(on_top[i])
 		mini.pressed.connect(func(p: Pet): shelf_opened.emit(p.rarity, p))
@@ -63,18 +92,40 @@ func rebuild() -> void:
 	for tier in catalog.tiers:
 		if c.count_of(tier.id) <= 0:
 			continue  # hidden until found: no empty mythic shelf
-		var plank := ShelfPlank.new(str(tier.id), i)
-		plank.opened.connect(func(r): shelf_opened.emit(r, null))
+		var plank := ShelfPlank.new(str(tier.id), i, stall_on)
+		plank.picked = stall_on and str(tier.id) == picked
+		plank.opened.connect(_plank_tapped)
 		_planks.add_child(plank)
 		i += 1
+	_fit_planks.call_deferred()
 
 
-## The pets on the cushion (data/herd.json "cushion" at most): your active pet, favourites (newest
-## first), then the best cards (rarest finish and rarity first, then a part new to the book).
-static func cushion_pets() -> Array[Pet]:
+## A plank was tapped: with the stall there, the first tap picks it and a tap on the picked one
+## opens it; without, it opens.
+func _plank_tapped(rarity: String) -> void:
+	if not stall_on or rarity == picked:
+		shelf_opened.emit(rarity, null)
+		return
+	pick(rarity)
+	plank_picked.emit(rarity)
+
+
+## Picks a shelf for the stall (its plank gets the dashed border).
+func pick(rarity: String) -> void:
+	picked = rarity
+	for plank in _planks.get_children():
+		if plank is ShelfPlank:
+			plank.picked = stall_on and plank.rarity == picked
+
+
+## The pets on the cushion (data/herd.json "cushion" at most, or `most`): your active pet,
+## favourites (newest first), then the best cards (rarest finish and rarity first, then a part new
+## to the book).
+static func cushion_pets(most := -1) -> Array[Pet]:
 	var c := GameState.collection
 	var catalog := Catalog.shared()
-	var most := int(catalog.herd.get("cushion", 9))
+	if most < 0:
+		most = int(catalog.herd.get("cushion", 9))
 	var out: Array[Pet] = []
 	if c.active():
 		out.append(c.active())

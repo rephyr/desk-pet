@@ -146,6 +146,25 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   shows it once the first pet folds; full, it turns pink and wiggles, box openings wait on the pile
   (by hand, your pet, box workers, the machine's pet box: nothing is lost) and your pet squishes.
   Gifts (the tutorial's pets, the basket's pet) always come in.
+- **New homes** (C3 look A, built): the first time the room is full a striped stall turns up in a
+  side column beside the bookcase (no popup; your pet mentions it). Tap a plank to pick that shelf
+  (dashed pink border), tap it again to open it; the stall takes 1 / 10 / 100 / all of the shelf's
+  plain pets (normal before shiny, resting before working, counts before the oldest cards; never
+  favourites, the active pet, new parts, pets with buttons, holo and better, pets away, the dungeon's
+  army (cards and its herd pets), the plushie machine's keeper). Points per rarity (common 1,
+  uncommon 2, rare 5, epic 12, legendary 20, mythic 40; data/new_homes.json) fill a box jar, 25 = a
+  starter box on your pile (the sunny box once B1 is in). Every take your pet says "they'll have a
+  big garden!", always those words. An opened shelf takes the whole width (the stall steps aside).
+- **The sorting rule** (built): after 300 pets sent by hand a tilted index card turns up under the
+  stall: off | on, "new pets below ‹rare› go to ‹new homes / work›", keeps "✦ ‹holo› and up" (a
+  finish stepper), new parts and favourites (always). Off by default; only pets out of boxes (yours,
+  your pet's, the box tables', the machine's pet box) that arrive after it's on are sorted: new homes
+  = they leave at once (points, stars; the reveal still shows them), work = they start where "new
+  pets join here" is on, or on every open errand. "sorted today N" on the card and on each plank
+  under the line (local day).
+- **Stars:** every pet that leaves (new homes, lost on an adventure or down the well, fed to the
+  plushie machine) adds a night-sky star, never
+  explained.
 - **Open:** completion rewards (per page, per body, per finish set).
 
 ## Care (active side)
@@ -234,7 +253,8 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   perfection (1 + 0.1 per keeper button, placeholder). Wisps buy nudges (60, x1.3), holds (400,
   x2.5) and a wild 6th reel for one pet (250 x rarity step; its button goes straight onto the part
   you pick with ‹ ›). A failed try costs only the fed pets and held buttons; the keeper is safe
-  (it stays home: it can't go on adventures while it's the keeper). Banked reels stay banked for
+  (it stays home: it can't go on adventures or down the well in the dungeon's army while it's the
+  keeper, and a pet in the army can't be the keeper). Banked reels stay banked for
   the fed pet across a keeper swap.
   Your pet cheers every spin. Pets don't play it for you yet. Numbers in data/plushie.json.
   **The broken machine and its tree (Emilia, built):** the machine is an old broken one you fix
@@ -346,8 +366,13 @@ Nobody is ever lost on an errand, and errands never bring rare parts or new plac
 - **Job levels and goals:** a job's level is its tools' levels added up; gold stars along a dotted
   track mark its goals (coin hunt: lv 10 the lemonade stand, lv 25 and 50 x2 coins, lv 100 x3). An
   unlock can wait for a level (`earn.job_level`).
-- **The player assigns pets** (tap a resting pet then a job, or + / −). "Your pet shares out new
-  pets" is an opt-in switch, off by default. Going on an adventure takes a pet off its job.
+- **The player assigns pets** (tap a resting pet then a job, or + / −). **Busy paws** (C3): each
+  errand and each workers' job (machines, box tables; not adventures) has a "new pets join here"
+  switch, off by default (errands: in the shoebox under "new pets join", one per errand; workers:
+  on the job's side card). New pets (boxes, gifts, pets home from adventures, your old active pet)
+  fill switched-on machines with room first (the best workers), the rest spread over switched-on
+  errands (smallest crew first); nothing on: they rest. "Share them out" stays. Going on an
+  adventure takes a pet off its job.
 - **Scales from a couple of pets to thousands:** up to 6 on a job each get a polaroid; past that
   a pile, the count and a little crowd, and + / − move 1, 10, 100 or all.
 - **Offline:** full speed for 8 h, then half, up to the 12 h cap; the tab notes what came in.
@@ -449,7 +474,8 @@ All opt-in, with odds shown before confirming:
     0.4 of its strength can't be passed. Pets that don't come back become stars, never named.
   - **Wisps (the darker currency, candy floss coral):** each cleared floor pays 0.01 x 1.15^floor
     x pets SENT (at most the entrance), never per pet lost. Lit landings are the progress bar.
-    Nothing spends wisps yet (widening the entrance is the first buy, later).
+    The plushie machine spends them (nudges, holds, the wild reel); widening the entrance is the
+    dungeon's own first buy, later.
   - **Firsts:** floor 10 gives the first dungeon part (an epic) and your pet learns "lead the
     army" (automation: it takes the same army down again whenever it's home, while the game runs);
     floor 20 gives a tiny key (E3's), fully hidden until found. While parts aren't open yet

@@ -1,0 +1,146 @@
+# New homes (C3 look A, the stall): the first time the room is full a striped stall turns up beside
+# the bookcase. Pick a shelf, take 1 / 10 / 100 / all: points fill the box jar, full jars drop boxes
+# on the pile, your pet cheers. After enough by hand the sorting card turns up (off | on, below,
+# go to, keeps, sorted today). Busy paws: "new pets join here" on errand notes and workers' jobs.
+from rich
+view full
+pets 150
+herd common normal 190
+herd common shiny 40
+herd uncommon normal 60
+herd uncommon shiny 12
+herd rare normal 12
+herd epic normal 3
+fav 2
+tab collection
+wait 1
+expect no-text "new homes"
+# the room fills up and stops a box: the stall turns up (no popup)
+fill-room
+give-box starter 3
+tab boxes
+wait 1
+click "open 1"
+wait 0.5
+expect pile starter 3
+tab collection
+wait 1
+expect text "new homes"
+expect no-text "sorting"
+expect fits
+shot stall_open
+# a tap picks a shelf for the stall
+click ShelfPlank#2
+wait 0.5
+expect text "uncommon"
+expect fits
+shot picked
+# commons: 10, then 100 (110 points: 4 boxes and 10 in the jar), your pet cheers
+click ShelfPlank#1
+homes-points 0
+click "10"
+wait text "they'll have a big garden!"
+expect text "10/25"
+click "100"
+wait 0.2
+shot box_pop
+wait 1
+expect text "10/25"
+expect pile starter 7
+expect fits
+shot taken
+click "all"
+wait 1
+expect fits
+shot all_commons
+# enough by hand: the sorting card turns up under the stall (off by default)
+herd common normal 400
+homes common 300
+wait 1
+expect text "sorting"
+expect fits
+shot rule_card
+click "on"
+wait text "i'll sort*"
+click "‹"                        # a stepper's arrow on the card
+wait 0.5
+expect fits
+shot rule_on
+rule on rare homes holo
+# new pets from boxes below rare leave as they arrive; the shelves under the line say so
+room 2
+give-box starter 30
+tab boxes
+wait 1
+click "open 10"
+wait text "lovely!"
+shot sorted_reveal
+click "lovely!"
+tab collection
+wait 1
+expect text "sorted today"
+expect fits
+shot sorted
+# to work: sorted pets start where "new pets join here" is on
+rule on work
+unlock feature:errands
+unlock tab:errands
+join coin_hunt on
+tab boxes
+wait 1
+click "open 10"
+wait text "lovely!"
+click "lovely!"
+tab errands
+wait 1
+expect text "new pets join"
+expect text "coin hunt"
+expect fits
+shot join_errands
+# the workers page: the switch on a job's side card
+unlock tab:automation
+teach machine
+others machine
+spots machine 30
+join machine on
+tab automation
+wait 1
+click "workers"
+wait 1
+expect text "new pets join here"
+expect fits
+shot join_workers
+join machine off
+join coin_hunt off
+# an opened shelf takes the whole width (the stall steps aside), and comes back after
+tab collection
+wait 1
+click ShelfPlank#2
+click ShelfPlank#2
+wait 1
+expect text "‹ shelves"
+expect no-text "new homes"
+expect fits
+shot shelf_open
+click "‹ shelves"
+wait 0.5
+expect text "new homes"
+# a million commons, all off to new homes in one go (a star each)
+room 22
+herd common normal 1000000
+tab boxes
+tab collection
+wait 1
+click ShelfPlank#1
+expect fits
+shot million
+click "all"
+wait 1
+expect fits
+shot million_gone
+tab home
+wait 1
+shot sky
+view corner
+wait 1
+shot corner_sky

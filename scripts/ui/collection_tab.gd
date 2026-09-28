@@ -5,11 +5,22 @@ extends VBoxContainer
 ## top, and a plank per rarity with the newest standing and the herd piled up beside them. Tap a
 ## plank to open that shelf (ShelfView: the herd's counts, the always-cards, the newest, and the
 ## chosen pet's sticker). The room pill on the right (RoomPill) shows how full the room is.
+## Once the room has been full, the new homes stall stands in a side column beside the bookcase
+## (NewHomesStall: pick a plank, take its pets), and later the sorting rule card under it
+## (SortingCard). An opened shelf gets the whole width (its sticker needs it).
 ## No dropdowns: a dropdown is a separate OS popup window (embed_subwindows is off), which doesn't
 ## open properly on Hyprland.
-## Design: design/mockups/screens/pets-shelves.html (look A).
+## Design: design/mockups/screens/pets-shelves.html (look A), new-homes.html (look A, the stall).
 
-var _pets_view := VBoxContainer.new()
+const SIDE_WIDTH := 252
+
+var _pets_view := HBoxContainer.new()
+var _left := VBoxContainer.new()
+var _side := VBoxContainer.new()
+var stall := NewHomesStall.new()
+var sorting := SortingCard.new()
+var _sorting_holder: Tilted
+var _homes_key := ""
 var _bookcase := Bookcase.new()
 var _shelf := ShelfView.new()
 var _book := BookView.new()
@@ -36,11 +47,24 @@ func _init() -> void:
 	bar.add_child(_room)
 
 	_pets_view.size_flags_vertical = SIZE_EXPAND_FILL
-	_pets_view.add_child(_bookcase)
-	_pets_view.add_child(_shelf)
+	_pets_view.add_theme_constant_override("separation", 14)
+	_left.size_flags_horizontal = SIZE_EXPAND_FILL
+	_left.size_flags_vertical = SIZE_EXPAND_FILL
+	_left.add_child(_bookcase)
+	_left.add_child(_shelf)
+	_pets_view.add_child(_left)
 	_shelf.visible = false
+	# the new homes stall and the sorting card, once they're found
+	_side.custom_minimum_size = Vector2(SIDE_WIDTH, 0)
+	_side.add_theme_constant_override("separation", 12)
+	_side.add_child(stall)
+	_sorting_holder = Tilted.new(sorting, -1.2)
+	_side.add_child(_sorting_holder)
+	_side.visible = false
+	_pets_view.add_child(_side)
 	add_child(_pets_view)
 	_bookcase.shelf_opened.connect(open_shelf)
+	_bookcase.plank_picked.connect(func(r): stall.set_rarity(r))
 	_shelf.closed.connect(close_shelf)
 	add_child(toys)
 	toys.visible = false
@@ -58,6 +82,10 @@ func _init() -> void:
 	c.herd_changed.connect(func(keys: Array): _mark_dirty(keys.map(func(k): return Herd.rarity_of(k))))
 	c.pets_removed.connect(func(_u): _mark_dirty())
 	c.active_changed.connect(func(_p): _mark_dirty())
+	GameState.unlocked.connect(func(_e): _mark_dirty())
+	GameState.changed.connect(func():  # the sorting rule changed: the planks under its line change
+		if _homes_state() != _homes_key:
+			_mark_dirty())
 	GameState.new_game.connect(func():
 		close_shelf()
 		_mark_dirty())
@@ -120,6 +148,7 @@ func open_shelf(rarity: String, pet: Pet = null) -> void:
 	if GameState.collection.count_of(rarity) <= 0:
 		return
 	_bookcase.visible = false
+	_side.visible = false  # an opened shelf takes the whole width (its sticker needs the room)
 	_shelf.visible = true
 	_shelf.open(rarity, pet)
 	if pet == null:
@@ -129,6 +158,7 @@ func open_shelf(rarity: String, pet: Pet = null) -> void:
 func close_shelf() -> void:
 	_shelf.visible = false
 	_bookcase.visible = true
+	_side.visible = GameState.homes_open()
 	_shelf.rarity = ""
 	_dirty = true
 	_rebuild_if_visible()
@@ -172,16 +202,44 @@ func _rebuild_if_visible() -> void:
 		_rebuild()
 
 
+## What the pets page's new homes part depends on (the planks show the rule's line; their
+## "sorted today" number updates itself).
+func _homes_state() -> String:
+	if not GameState.homes_open():
+		return ""
+	return "%s|%s" % [str(GameState.homes.rule), str(GameState.feature_on("sorting"))]
+
+
+## The shelf the stall takes from: the one picked, else the lowest rarity you have.
+func _stall_rarity() -> String:
+	var c := GameState.collection
+	if _bookcase.picked != "" and c.count_of(_bookcase.picked) > 0:
+		return _bookcase.picked
+	for tier in GameState.catalog.tiers:
+		if c.count_of(tier.id) > 0:
+			return str(tier.id)
+	return ""
+
+
 func _rebuild() -> void:
 	_dirty = false
 	_knacks_seen = _knacks_key()
+	_homes_key = _homes_state()
 	_room.visible = GameState.room_shown()
 	_room.refresh()
+	var homes := GameState.homes_open()
+	_bookcase.stall_on = homes
+	_bookcase.picked = _stall_rarity() if homes else ""
+	_sorting_holder.visible = GameState.feature_on("sorting")
+	if homes:
+		stall.set_rarity(_bookcase.picked)
 	if _shelf.visible and GameState.collection.count_of(_shelf.rarity) > 0:
+		_side.visible = false
 		_shelf.rebuild()
 	else:
 		_shelf.visible = false
 		_bookcase.visible = true
+		_side.visible = homes
 		_bookcase.rebuild()
 
 

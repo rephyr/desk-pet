@@ -519,6 +519,7 @@ const DOODLES := {
 	"reel_blank": '<path d="M8 12.4 Q12 11.2 16 12.4" stroke="{muted}" stroke-width="2.4" opacity=".7"/>',
 	"reel_crack": '<path d="M4.5 13 L8 9.5 L11 13.5 L14 9 L17 13 L19.5 10.5" stroke="{text}" stroke-width="2.2"/><circle cx="11" cy="16.6" r="2.6" fill="{wisp}" stroke="none"/><circle cx="13.6" cy="17.4" r="2" fill="{wisp}" stroke="none"/><circle cx="9" cy="17.6" r="1.7" fill="{wisp}" stroke="none"/>',
 	"wisp": '<circle cx="9" cy="13.5" r="5" fill="{wisp}" stroke="none"/><circle cx="14.5" cy="11" r="5.6" fill="{wisp}" stroke="none"/><circle cx="17.5" cy="15.4" r="3.8" fill="{wisp}" stroke="none"/><path d="M6 17.8 Q12 19.6 20 17.6" stroke="{page}" stroke-width="1.2" opacity=".5"/>',
+	"new_part": '<path d="M5 9 L5 5 L9 5 M15 5 L19 5 L19 9 M19 15 L19 19 L15 19 M9 19 L5 19 L5 15"/><circle cx="12" cy="12" r="2.5"/>',
 	"star": '<path d="M12 2.5 L14.6 9 L21.5 9.4 L16.2 13.8 L17.9 20.6 L12 16.9 L6.1 20.6 L7.8 13.8 L2.5 9.4 L9.4 9 Z" fill="{c}"/>',
 	"bag": '<path d="M8.4 8.2 Q8.5 3.7 12 3.8 Q15.5 3.8 15.6 8.1"/><path d="M4.7 8.3 Q12 7.6 19.3 8.2 L18.7 19.6 Q12 20.5 5.3 19.7 Z"/><path d="M9.5 12.5 Q12 14.1 14.5 12.4"/>',
 	"lock": '<path d="M7.4 11 Q7 4.3 12 4.2 Q17 4.2 16.7 11"/><path d="M5 11.1 Q12 10.5 19 10.9 L18.7 19.8 Q12 20.5 5.3 19.9 Z"/><path d="M12 14.2 L12 16.4"/>',

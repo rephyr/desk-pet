@@ -84,7 +84,7 @@ func hop_progress() -> float:
 func tap() -> bool:
 	if job != Job.SHOW:
 		return false
-	GameState.dismiss_pinned()
+	GameState.dismiss_pinned(held.uid if held else "")
 	held = null
 	said = ""
 	_rest = REST_TIME
@@ -114,7 +114,7 @@ func _pop() -> void:
 		_rest = REST_TIME
 		job = Job.SIT
 		return
-	if GameState.is_good_pull(pet):
+	if GameState.pinned.has(pet.uid):  # a good pull that's still yours (not sorted off)
 		_show(pet)
 		return
 	held = pet

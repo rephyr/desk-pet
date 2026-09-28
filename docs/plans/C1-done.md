@@ -1,5 +1,7 @@
 # C1 + the herd: done notes (lane c1-c3)
 
+**Status: VERIFIED 2026-09-29** (after review rounds 1 and 2; save still v23, one bump from 22).
+
 Built from docs/plans/C1.md, dev-plan C1/C3 (the herd part only: the new homes stand and the
 sorting rule are not in this step) and picks.md (C1 look A, one room cap).
 
@@ -140,6 +142,30 @@ room -> opens; 1M plain pets: save 1 ms, load 1 ms, a job 0 ms, 8 KB save). Bala
 - New core checks: old active pet back to work, tapped stand-in named, 700-pet v22 save gets room,
   `room_level_for`.
 
+## C1 review fixes, round 2 (still v23, no new save bump)
+
+- Automation tab, open boxes job: with a full room it no longer says "the pile is empty". It shows
+  "squish! N boxes on your pile" (full room) or "N boxes on your pile" (the pet can't open them for
+  another reason), and "the pile is empty" only when it is. `GameState.boxes_on_pile()` (home tab
+  uses it too); the tab's rebuild key includes the pile count and the full room.
+- Room card: the coin button stays tappable when you're short (price and coin drawn in the locked
+  colour), so the `room_poor` line fires.
+- Bookcase: planks no longer stretch. `Bookcase._fit_planks` shares the page height out, each plank
+  at most `Bookcase.PLANK_MAX` (76 px, at least `ShelfPlank.MIN_H` 48); the case shrinks to its
+  planks, so one pet = one short plank under the cushion, and 5-6 rarities still fill the page.
+- Scaling: `Collection._plain_cards` (plain-finish cards in pull order) is all `refold()` walks,
+  and it returns at once when no shelf has more than keep_cards plain cards (skips the busy call
+  too). Folded cards leave `pets` by native erase (a few) or one rebuild (many). `_is_plain` caches
+  plain-ness per finish. `GameState.shelf_split` buckets by rank instead of sorting.
+  Probe (check profile, 20k holo cards + 1M herd): 200 refolds 27.4 s -> 5 ms, shelf_split common
+  482 -> 26-34 ms, an opening without saving 0.4 ms. What's left is the save itself: JSON of 20k
+  cards is ~200-270 ms per opening. That scales with the always-cards, so it waits on Q1 (fewer
+  always-cards) or a save throttle.
+- Flow pets_shelves: + room card when short on coins (`room_poor` shot), + the box job with a full
+  room (`auto_full` shot). Core test: 100 adds next to 10k holo cards (fold still right, quick).
+- tools/play.py: its own Xvfb display number per lane + flow (committed separately; it was sitting
+  uncommitted in the worktree).
+
 ## Questions for Emilia (smallest safe pick used for now)
 
 1. Holo and better are always cards. The starter box rolls holo+ about 15% of the time, so a late
@@ -158,3 +184,5 @@ room -> opens; 1M plain pets: save 1 ms, load 1 ms, a job 0 ms, 8 KB save). Bala
    looked like resting pets for that moment).
 10. Saves from before the room get room for their pets plus 10% (free). Smallest safe pick; could
     be exactly their pets instead.
+11. (not from this step) the collectibles switch shows a padlock "???" for toys until toys open,
+    which goes against "hidden until earned". Hide the toys switch until then?
