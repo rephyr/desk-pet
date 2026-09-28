@@ -1,0 +1,683 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Old Well</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* E1: the first dungeon, the old well all the way down. A third page in adventures
+     (adventures | upgrades | dungeon). The well: rope floors 1-10, the cellar 11-20 (doors,
+     tiny doors, knock-back doors), further down 21+ (stairs, a guard every 10th). Lit landings
+     are the progress bar. The army: your best 20 card pets in the front row, the herd behind
+     (taken by the shelf), the entrance fits 300. The orders card: sentences with steppers.
+     Floor strength is never a number, only a feeling word. Three looks stacked. */
+  body { display: block; padding: 28px 16px 60px; }
+  .looks { display: flex; flex-direction: column; align-items: center; gap: 44px; }
+  .intro { width: 920px; max-width: 100%; }
+  .intro h1 { margin: 0 0 4px; font: var(--display-weight) 26px/1.1 var(--display); color: var(--pink); }
+  .intro p { margin: 0; color: var(--muted); font-size: 12px; }
+  .look { display: flex; flex-direction: column; gap: 10px; }
+  .look > header { display: flex; align-items: baseline; gap: 12px; width: 920px; max-width: 100%; }
+  .look > header b { font: var(--display-weight) 20px/1 var(--display); color: var(--pink); white-space: nowrap; }
+  .look > header span { color: var(--muted); font-size: 12px; }
+  .content { flex: 1; min-height: 0; }
+
+  /* the full tab row of this stage: squeeze the spine a little so settings still fits */
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+  .sky .fresh { animation: twinkle-in 1.4s ease-out; }
+  @keyframes twinkle-in { 0% { opacity: 0; } 30% { opacity: 1; } }
+
+  /* lanterns: the darker currency's first trickle. Candy floss coral, the colour picked for stuffing */
+  :root { --lamp: #ff9e7d; }
+
+  /* ---------- shared bits ---------- */
+  .page2 { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; user-select: none; }
+  .bar { display: flex; align-items: center; gap: 10px; }
+  .muted { color: var(--muted); }
+  .num { font-variant-numeric: tabular-nums; }
+  .lampchip { margin-left: auto; position: relative; display: flex; align-items: center; gap: 7px; padding: 2px 14px 2px 8px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--lamp) 40%, var(--line)); color: var(--lamp); }
+  .lampchip b { font: 400 18px/1 var(--display); color: var(--lamp); font-variant-numeric: tabular-nums; }
+  .lampchip.bump b { animation: bump .5s var(--ease-out); }
+  @keyframes bump { 30% { transform: scale(1.2); color: var(--text); } }
+  .lampico { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .rise { position: absolute; pointer-events: none; font: 400 15px/1 var(--display); color: var(--lamp); white-space: nowrap; animation: rise 1.3s var(--ease-out) forwards; z-index: 9; }
+  @keyframes rise { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, -30px); opacity: 0; } }
+  .h3 { margin: 0; font: 400 15px/1 var(--display); color: var(--lilac); white-space: nowrap; }
+  .panel { border-radius: var(--r-panel); border: 2px solid var(--line); background: var(--paper); overflow: hidden; position: relative; }
+
+  /* steppers, never dropdowns (as on the sorting rule card) */
+  .step { display: inline-flex; align-items: center; gap: 2px; background: var(--deep); border: 2px solid var(--line); border-radius: var(--r-md); padding: 1px; flex: none; }
+  .step button { width: 20px; height: 22px; border: 0; background: none; color: var(--muted); border-radius: 6px; cursor: pointer; padding: 0; line-height: 1; }
+  .step button:hover:not(:disabled) { color: var(--pink); background: var(--raised); }
+  .step button:disabled { opacity: .35; cursor: default; }
+  .step output { min-width: 40px; text-align: center; font-size: 12px; color: var(--tc, var(--text)); white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .step.wide output { min-width: 84px; }
+  .step.floor output { min-width: 26px; }
+
+  /* the feeling word for a floor */
+  .feel { display: inline-flex; align-items: center; padding: 0 8px; border-radius: 999px; font-size: 11px; line-height: 18px; background: var(--deep); border: 2px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .feel.mid { color: var(--text); border-color: color-mix(in srgb, var(--lilac) 35%, var(--line)); }
+  .feel.hot { color: var(--pink); border-color: var(--pink-seam); }
+
+  /* the orders card */
+  .orders { display: flex; flex-direction: column; gap: 9px; padding: 10px 12px 12px; }
+  .orders .ohead { display: flex; align-items: center; gap: 8px; }
+  .orders .ohead b { font: 400 16px/1 var(--display); color: var(--lilac); }
+  .oline { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; row-gap: 4px; font-size: 11px; white-space: nowrap; }
+  .orders { padding-left: 10px; padding-right: 10px; }
+  .orders .step button { width: 17px; }
+  .orders .step output { min-width: 30px; font-size: 11px; }
+  .orders .step.floor output { min-width: 22px; }
+  .orders .step.wide output { min-width: 76px; }
+  .orders .feel { padding: 0 5px; font-size: 10.5px; }
+  .go { padding: 7px 14px; margin-top: 2px; }
+  .go:disabled { border-color: var(--pink-seam); color: var(--pink); opacity: .8; }
+  .index { transform: rotate(-1.2deg); border-top: 6px solid color-mix(in srgb, var(--lilac) 45%, var(--line)); }
+
+  /* the front row: little card pets */
+  .fcards { display: grid; gap: 4px; }
+  .fcard { position: relative; width: 36px; height: 42px; display: grid; place-items: end center; padding-bottom: 2px; border-radius: 8px; background: var(--raised); border: 2px solid color-mix(in srgb, var(--tc) 80%, var(--deep)); box-shadow: 0 3px 6px rgba(6, 2, 12, .5); }
+  .fcard img { width: 32px; height: 36px; }
+  .fcard .lead { position: absolute; top: -7px; left: -5px; width: 14px; height: 14px; transform: rotate(-12deg); }
+  .fcard.new { animation: stepup .5s var(--ease-out); }
+  @keyframes stepup { from { transform: translateY(8px); opacity: 0; } }
+
+  /* the herd: a mound of tiny pets, taken by the shelf */
+  .mound { position: relative; flex: none; }
+  .mound img { position: absolute; width: 16px; height: 18px; }
+  .mound img.flip { transform: scaleX(-1); }
+  .hrows { display: flex; flex-direction: column; gap: 5px; }
+  .hrow { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; font-size: 12px; }
+  .hrow .tname { color: var(--tc); display: flex; flex-direction: column; line-height: 1.15; }
+  .hrow .tname small { font-size: 10px; color: var(--muted); }
+  .gate { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+  .gate b { font: 400 15px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+  .gate b small { font: 11px var(--body); color: var(--muted); }
+  .meter { position: relative; height: 10px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--lilac) 45%, var(--line)); }
+  .meter i { position: absolute; inset: 0 auto 0 0; width: calc(var(--f) * 100%); background: var(--lilac); border-radius: 999px; }
+  .gate.full .meter i { background: var(--pink); }
+  .gate.full b { color: var(--pink); }
+
+  /* the well (drawn) */
+  .well { display: block; }
+  .well .soil { fill: color-mix(in srgb, var(--deep) 40%, var(--paper)); }
+  .well .pebble { fill: none; stroke: var(--line); stroke-width: 1.6; }
+  .well .root { fill: none; stroke: var(--line); stroke-width: 2; stroke-linecap: round; }
+  .well .shaft { fill: var(--deep); }
+  .well .wall { fill: none; stroke: var(--lilac-seam); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+  .well .wall.tail { stroke-dasharray: 3 5; opacity: .6; }
+  .well .brick { stroke: var(--lilac-seam); stroke-width: 2; opacity: .5; stroke-linecap: round; }
+  .well .rope { fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; }
+  .well .land { fill: none; stroke: var(--lilac-seam); stroke-width: 2; stroke-dasharray: 3 4; opacity: .75; stroke-linecap: round; stroke-linejoin: round; }
+  .well .land.lit { stroke: var(--lamp); stroke-dasharray: none; opacity: 1; stroke-width: 2.4; }
+  .well .door { fill: var(--raised); stroke: var(--lilac); stroke-width: 1.7; }
+  .well .boing { fill: none; stroke: var(--lilac); stroke-width: 1.5; stroke-linecap: round; opacity: .8; }
+  .well .glow { fill: var(--lamp); opacity: .17; }
+  .well .lamp { fill: var(--lamp); }
+  .well .hook { stroke: var(--muted); stroke-width: 1.4; }
+  .well .fl { font: 10px var(--body); fill: var(--muted); }
+  .well .fl.lit { fill: var(--lamp); }
+  .well .fw { font: 10px var(--body); fill: var(--muted); }
+  .well .fw.mid { fill: var(--text); }
+  .well .fw.hot { fill: var(--pink); }
+  .well .band { font: 12px var(--display); fill: var(--lilac); }
+  .well .bracket { fill: none; stroke: var(--lilac-seam); stroke-width: 2; stroke-linecap: round; }
+  .well .guard { fill: var(--raised); stroke: var(--muted); stroke-width: 1.7; stroke-linejoin: round; }
+  .well .eye { fill: var(--pink); }
+  .well .spark { fill: var(--gold); }
+  .well .spark.dim { fill: none; stroke: var(--gold); stroke-width: 1.4; opacity: .75; }
+  .well .flag { fill: var(--pink); }
+  .well .pole { stroke: var(--pink); stroke-width: 2; stroke-linecap: round; }
+  .well .grass { fill: none; stroke: var(--mint); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .well .tuft { fill: none; stroke: var(--mint); stroke-width: 2; stroke-linecap: round; opacity: .8; }
+  .well .stone { fill: var(--raised); stroke: var(--lilac); stroke-width: 2.4; }
+  .well .roof { fill: color-mix(in srgb, var(--pink-seam) 40%, var(--raised)); stroke: var(--pink-seam); stroke-width: 2.4; stroke-linejoin: round; }
+  .well .post { fill: none; stroke: var(--lilac); stroke-width: 2.4; stroke-linecap: round; }
+  .well .line { fill: none; stroke: var(--lilac-seam); stroke-width: 2; stroke-dasharray: 3 4; stroke-linecap: round; }
+  .well .line.lit { stroke: var(--lamp); stroke-dasharray: none; stroke-width: 2.6; }
+  .well .stop { fill: var(--deep); stroke: var(--lilac-seam); stroke-width: 1.6; }
+  .well .stop.lit { fill: var(--lamp); stroke: var(--lamp); }
+
+  /* the army on its way down: your pet leads */
+  .party { position: absolute; display: flex; align-items: flex-end; pointer-events: none; z-index: 4; animation: hopdown .28s var(--ease-out); }
+  .party img { width: 16px; height: 18px; margin-right: -4px; }
+  .party img:first-child { width: 16px; }
+  @keyframes hopdown { from { transform: translateY(-6px); } }
+
+  /* ---------- LOOK A: the cross-section column ---------- */
+  .a-body { display: grid; grid-template-columns: 230px 1fr 262px; gap: 12px; flex: 1; min-height: 0; }
+  .a-well { display: flex; flex-direction: column; }
+  .a-well h2 { margin: 0; padding: 8px 12px 6px; font: 400 18px/1 var(--display); color: var(--pink); border-bottom: 2px dashed var(--line); }
+  .a-scroll { position: relative; flex: 1; min-height: 0; overflow: hidden auto; scrollbar-width: thin; scrollbar-color: var(--lilac-seam) transparent; }
+  .a-mid { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .a-front { padding: 10px 11px 12px; display: flex; flex-direction: column; gap: 9px; }
+  .a-front .fcards { grid-template-columns: repeat(7, 36px); justify-content: space-between; column-gap: 2px; }
+  .a-herd { flex: 1; min-height: 0; padding: 10px 11px 11px; display: flex; flex-direction: column; gap: 8px; }
+  .a-herd .top2 { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+  .a-herd .count { font: 400 22px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+  .a-herd .gate { margin-top: auto; padding-top: 8px; border-top: 2px dashed var(--line); }
+  .a-side { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+  .lastc { padding: 10px 12px; display: flex; flex-direction: column; gap: 6px; }
+  .lastc .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+  .lastc .row b { font: 400 16px/1 var(--display); color: var(--text); display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+  .lastc .row b.lampc { color: var(--lamp); }
+
+  /* ---------- LOOK B: the well is the page ---------- */
+  .b-body { display: grid; grid-template-columns: 1fr 268px; gap: 14px; flex: 1; min-height: 0; }
+  .b-scene { min-height: 0; }
+  .b-scene .sign { position: absolute; left: 14px; top: 12px; z-index: 3; font: 400 16px/1 var(--display); color: var(--pink); padding: 5px 11px 4px; border-radius: 6px; background: var(--raised); border: 2px solid var(--pink-seam); transform: rotate(-3deg); box-shadow: var(--lift); }
+  .b-scene .frontline { position: absolute; z-index: 2; }
+  .b-scene .frontline span { position: absolute; display: block; }
+  .b-scene .frontline img { width: 16px; height: 18px; position: relative; z-index: 1; }
+  .b-scene .frontline i { position: absolute; left: 1px; bottom: -2px; width: 14px; height: 5px; border-radius: 50%; background: var(--tc); opacity: .75; }
+  .b-scene .frontline .lead::before { content: ""; position: absolute; left: 6px; top: -12px; width: 2px; height: 12px; background: var(--pink); border-radius: 1px; }
+  .b-scene .frontline .lead::after { content: ""; position: absolute; left: 8px; top: -12px; border-left: 8px solid var(--pink); border-top: 3px solid transparent; border-bottom: 3px solid transparent; }
+  .b-scene .herdtag { position: absolute; z-index: 3; display: flex; align-items: baseline; gap: 5px; padding: 1px 9px; border-radius: 999px; background: var(--raised); border: 2px solid var(--line); box-shadow: var(--lift); font-size: 11px; color: var(--muted); }
+  .b-scene .herdtag b { font: 400 15px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+  .b-scene .mound { position: absolute; z-index: 1; }
+  .b-side { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+  .b-herd { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+  .b-herd .gate { padding-top: 8px; border-top: 2px dashed var(--line); }
+
+  /* ---------- LOOK C: the orders letter ---------- */
+  .c-body { display: grid; grid-template-columns: 1fr 138px; gap: 14px; flex: 1; min-height: 0; }
+  .c-left { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+  .letter { position: relative; padding: 14px 18px 14px 22px; transform: rotate(-.6deg); display: flex; flex-direction: column; gap: 0;
+    background-color: var(--raised);
+    background-image: repeating-linear-gradient(to bottom, transparent 0 33px, color-mix(in srgb, var(--lilac) 18%, transparent) 33px 35px);
+    background-position: 0 12px; }
+  .letter::before { content: ""; position: absolute; top: -9px; left: 50%; width: 84px; height: 18px; margin-left: -42px; background: color-mix(in srgb, var(--lilac) 32%, transparent); border-radius: 3px; transform: rotate(2deg); }
+  .letter .margin { position: absolute; top: 0; bottom: 0; left: 12px; width: 2px; background: color-mix(in srgb, var(--pink) 30%, transparent); }
+  .letter .lhead { display: flex; align-items: center; gap: 10px; height: 35px; }
+  .letter .lhead b { font: 400 20px/1 var(--display); color: var(--pink); }
+  .letter .lhead img { width: 32px; height: 36px; margin-left: auto; margin-top: -8px; }
+  .letter .oline { font-size: 15px; height: 35px; flex-wrap: nowrap; gap: 8px; }
+  .letter .oline .step output { font-size: 14px; }
+  .letter .signoff { display: flex; align-items: center; justify-content: space-between; height: 40px; margin-top: 2px; }
+  .letter .signoff span { font-size: 12px; color: var(--muted); font-style: italic; }
+  .letter .go { font: 400 16px/1 var(--display); padding: 8px 18px 7px; transform: rotate(-2deg); }
+  .lineup { flex: 1; min-height: 0; padding: 10px 12px 12px; display: grid; grid-template-columns: auto 1fr; grid-template-rows: auto 1fr auto; column-gap: 18px; row-gap: 8px; }
+  .lineup .fcards { grid-template-columns: repeat(10, 36px); align-content: start; row-gap: 8px; }
+  .lineup .herdcol { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .lineup .herdcol .mrow { display: flex; align-items: flex-end; gap: 8px; }
+  .lineup .herdcol .count { font: 400 20px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+  .lineup .gate { grid-column: 1 / -1; padding-top: 8px; border-top: 2px dashed var(--line); }
+  .c-gauge { display: flex; flex-direction: column; }
+  .c-gauge h2 { margin: 0; padding: 9px 8px 4px; text-align: center; font: 400 15px/1.05 var(--display); color: var(--pink); }
+  .c-gauge .g-in { position: relative; flex: 1; min-height: 0; }
+</style>
+</head>
+<body>
+<div class="looks">
+  <div class="intro">
+    <h1>the old well, all the way down</h1>
+    <p>E1, the dungeon page in adventures. Every frame plays: step the orders and the herd, then press "down we go!" and watch the landings light up. Numbers are placeholders (floor strength 100 x 1.2^n against the army's power, lanterns ~1.15^floor x pets sent).</p>
+  </div>
+
+  <section class="look">
+    <header><b>Look A: the cross-section</b><span>the well is a tall drawn column you scroll down, the army in the middle, the orders card and the last trip in the side column.</span></header>
+    <div class="frame" data-look="A" data-tab="trips" data-say="the rope goes waaay down. i packed snacks!"></div>
+  </section>
+
+  <section class="look">
+    <header><b>Look B: the well is the page</b><span>one drawn scene: the army waits on the grass by the well mouth with the whole well under them; orders and the herd sit in the side column.</span></header>
+    <div class="frame" data-look="B" data-tab="trips" data-say="everyone line up! tallest at the back!"></div>
+  </section>
+
+  <section class="look">
+    <header><b>Look C: the orders letter</b><span>the orders are a big letter from your pet, the army lines up under it, the well is a thin map line of floors down the right edge.</span></header>
+    <div class="frame" data-look="C" data-tab="trips" data-say="i wrote the orders myself! in my best writing."></div>
+  </section>
+</div>
+
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  // the game's tabs at this stage (as in sacrifice-reels.html)
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+  TABS.forEach(t => { t.news = false; });
+
+  // ---------------- placeholder numbers (would live in data/dungeons.json) ----------------
+  const ENTRANCE = 300;                         // widened by the first lantern buy
+  const MAXF = 40;
+  const HOMES = [10, 20, 30, 40, 50, 60, 70, 80, 90];
+  const FIRSTS = ["plain ones", "anyone", "the front row"];
+  const KINDS = { common: ["mint-blob", "peach-cat", "lilac-cat"], uncommon: ["mint-bear", "peach-bear"], rare: ["sky-bunny", "midnight-bear", "lilac-blob"], epic: ["bubblegum-fox", "toxic-cat"], legendary: ["gold-dragon"] };
+  const HERD_TIERS = ["common", "uncommon", "rare"];
+  const POWER = { common: 2, uncommon: 4, rare: 10, epic: 120, legendary: 250, frontRare: 60, frontUncommon: 30 };
+  const TINT = { "mint-blob": "#8fe8c0", "peach-cat": "#ffb59a", "lilac-cat": "#c9a0ff", "mint-bear": "#8fe8c0", "peach-bear": "#ffb59a",
+    "sky-bunny": "#8cc8ff", "midnight-bear": "#8c8cff", "lilac-blob": "#c9a0ff", "bubblegum-fox": "#ff8fc8", "toxic-cat": "#b8ff6b", "gold-dragon": "#ffe08a" };
+  const FRONT0 = [
+    { id: "lilac-blob", t: "rare", lead: true },
+    { id: "gold-dragon", t: "legendary" }, { id: "bubblegum-fox", t: "epic" }, { id: "toxic-cat", t: "epic" }, { id: "bubblegum-fox", t: "epic" },
+    { id: "sky-bunny", t: "rare" }, { id: "midnight-bear", t: "rare" }, { id: "sky-bunny", t: "rare" }, { id: "lilac-blob", t: "rare" },
+    { id: "midnight-bear", t: "rare" }, { id: "sky-bunny", t: "rare" }, { id: "midnight-bear", t: "rare" },
+    { id: "mint-bear", t: "uncommon" }, { id: "peach-bear", t: "uncommon" }, { id: "mint-bear", t: "uncommon" }, { id: "peach-bear", t: "uncommon" },
+    { id: "mint-bear", t: "uncommon" }, { id: "peach-bear", t: "uncommon" }, { id: "mint-bear", t: "uncommon" }, { id: "peach-bear", t: "uncommon" },
+  ];
+  const NEXT_BEST = [{ id: "peach-bear", t: "uncommon" }, { id: "mint-bear", t: "uncommon" }];
+  // feeling words: the army's power against the floor, never the number itself
+  const WORDS = [[4, "easy peasy", ""], [2, "a stroll", ""], [1.3, "comfy", ""], [0.95, "spooky", "mid"], [0.7, "tricky", "mid"], [0.5, "so tough", "hot"], [0, "brr!", "hot"]];
+  const TINY = [13, 17], KNOCK = [15, 19];
+
+  const fmt = n => Math.round(n).toLocaleString("en");
+  const pet = (id, cls = "") => `<img class="px ${cls}" src="../assets/pets/${id}.png" alt="">`;
+  const LAMP = (s = 20) => `<svg class="lampico" viewBox="0 0 24 24" style="width:${s}px;height:${s}px"><path d="M9.2 5.6 Q12 2.4 14.8 5.6"/><path d="M7.6 7.2 L16.4 7.2"/><path d="M8.6 7.6 Q6.9 13 8.4 18.4 L15.6 18.4 Q17.1 13 15.4 7.6"/><path d="M7.6 20.4 L16.4 20.4"/><path d="M12 16.2 Q9.9 14.3 12 11.2 Q14.1 14.3 12 16.2 Z" fill="currentColor" stroke="none"/></svg>`;
+  const FLAG = `<svg viewBox="0 0 14 14" fill="none" stroke-linecap="round"><path d="M3 13 L3 1.5" stroke="var(--pink)" stroke-width="2"/><path d="M3.5 2 L12 4.6 L3.5 7.4 Z" fill="var(--pink)" stroke="var(--pink)" stroke-width="1" stroke-linejoin="round"/></svg>`;
+  const strength = f => 100 * Math.pow(1.2, f);
+
+  // every frame mounts the shared game frame (mountFrame takes the first .app, so the others step aside)
+  function mountAt(el) {
+    const others = [...document.querySelectorAll(".app")];
+    others.forEach(a => a.classList.remove("app"));
+    el.classList.add("app");
+    const c = mountFrame();
+    c.removeAttribute("id"); c.classList.add("content");
+    others.forEach(a => a.classList.add("app"));
+    return c;
+  }
+
+  // ---------------- the well, drawn ----------------
+  // o: w, cx, g (ground line), fw/fc/fs (floor heights per band), ww/wc/ws (shaft widths), to, tail,
+  //    ground (draw the well mouth), every (label every floor or every 5th), words (how many floors below
+  //    the deepest get a feeling word), bands ("vertical" at bx, or "left" at bx)
+  function wellSvg(S, o, feelOf) {
+    const { w, cx, g } = o;
+    const y = f => f <= 10 ? g + f * o.fw : f <= 20 ? g + 10 * o.fw + (f - 10) * o.fc : g + 10 * o.fw + 10 * o.fc + (f - 20) * o.fs;
+    const half = f => (f <= 10 ? o.ww : f <= 20 ? o.wc : o.ws) / 2;
+    const fh = f => f <= 10 ? o.fw : f <= 20 ? o.fc : o.fs;
+    const H = y(o.to) + o.tail, a = y(10), b = y(20);
+    const [L0, L1, L2] = [cx - o.ww / 2, cx - o.wc / 2, cx - o.ws / 2], [R0, R1, R2] = [cx + o.ww / 2, cx + o.wc / 2, cx + o.ws / 2];
+    const s = [];
+    let seed = 23; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+    s.push(`<rect class="soil" x="0" y="${g}" width="${w}" height="${H - g}"/>`);
+    for (let i = 0; i < o.pebbles; i++) {
+      const x = rnd() * w, yy = g + 10 + rnd() * (H - g - 14);
+      const hw = yy < a ? o.ww / 2 : yy < b ? o.wc / 2 : o.ws / 2;
+      if (Math.abs(x - cx) < hw + 8) continue;
+      s.push(rnd() < .8 ? `<ellipse class="pebble" cx="${x.toFixed(1)}" cy="${yy.toFixed(1)}" rx="${(2 + rnd() * 2).toFixed(1)}" ry="${(1.5 + rnd()).toFixed(1)}"/>`
+                        : `<path class="root" d="M${x.toFixed(1)} ${yy.toFixed(1)} q 6 4 3 10 m -3 -10 q -5 3 -8 2"/>`);
+    }
+    // the shaft
+    const E = H + 2;
+    s.push(`<path class="shaft" d="M${L0} ${g} L${L0} ${a} L${L1} ${a} L${L1} ${b} L${L2} ${b} L${L2} ${E} L${R2} ${E} L${R2} ${b} L${R1} ${b} L${R1} ${a} L${R0} ${a} L${R0} ${g} Z"/>`);
+    const cut = H - o.tail;
+    s.push(`<path class="wall" d="M${L0} ${g} L${L0} ${a} L${L1} ${a} L${L1} ${b} L${L2} ${b} L${L2} ${cut}"/><path class="wall" d="M${R0} ${g} L${R0} ${a} L${R1} ${a} L${R1} ${b} L${R2} ${b} L${R2} ${cut}"/>`);
+    s.push(`<path class="wall tail" d="M${L2} ${cut} L${L2} ${H} M${R2} ${cut} L${R2} ${H}"/>`);
+    for (let yy = g + 5, k = 0; yy < a - 2; yy += 7, k++) {
+      const o1 = k % 2 ? 2 : 0;
+      s.push(`<path class="brick" d="M${L0 - 8 + o1} ${yy} L${L0 - 2} ${yy} M${R0 + 2} ${yy + 3} L${R0 + 8 - o1} ${yy + 3}"/>`);
+    }
+    // the rope, rope floors only
+    s.push(`<path class="rope" d="M${cx} ${o.ground ? g - 36 : g} Q${cx + 4} ${(g + a) / 2} ${cx} ${a - 3}"/>`);
+
+    for (let f = 1; f <= Math.min(o.to, MAXF); f++) {
+      const yy = y(f), lit = f <= S.deep, hw = half(f), l = cx - hw, r = cx + hw, cls = lit ? "land lit" : "land", h = fh(f);
+      let lampX = l + 6;
+      if (f <= 10) {
+        s.push(`<path class="${cls}" d="M${l + 1} ${yy - 1} Q${cx} ${yy + h * .55} ${r - 1} ${yy - 1}"/>`);
+      } else if (f <= 20) {
+        s.push(`<path class="${cls}" d="M${l + 1} ${yy} L${r - 1} ${yy}"/>`);
+        const tiny = TINY.includes(f), left = f % 2 === 1;
+        const dw = tiny ? 6 : 9, dh = tiny ? 8 : Math.min(13, h - 4);
+        const x0 = left ? l + 4 : r - 4 - dw;
+        s.push(`<path class="door" d="M${x0} ${yy} L${x0} ${yy - dh + dw / 2} A${dw / 2} ${dw / 2} 0 0 1 ${x0 + dw} ${yy - dh + dw / 2} L${x0 + dw} ${yy} Z"/>`);
+        if (KNOCK.includes(f)) {
+          const bx = left ? x0 + dw + 3 : x0 - 3, sgn = left ? 1 : -1, my = yy - dh / 2;
+          s.push(`<path class="boing" d="M${bx} ${my - 3} q ${2 * sgn} 3 0 6 M${bx + 3 * sgn} ${my - 5} q ${3 * sgn} 5 0 10"/>`);
+        }
+        lampX = left ? r - 7 : l + 7;
+      } else {
+        const y0 = y(f - 1), dir = f % 2 ? 1 : -1, xs = dir > 0 ? l + 4 : r - 4, xe = dir > 0 ? r - 4 : l + 4, n = 4;
+        const dx = (xe - xs) / n, dy = (yy - y0) / n;
+        let d = `M${xs} ${y0}`; for (let i = 0; i < n; i++) d += ` l${dx.toFixed(2)} 0 l0 ${dy.toFixed(2)}`;
+        s.push(`<path class="${cls}" d="${d}"/>`);
+        lampX = dir > 0 ? l + 6 : r - 6;
+        if (f % 10 === 0) {   // a guard every 10th
+          const gx = dir > 0 ? r - 14 : l + 14;
+          s.push(`<path class="guard" d="M${gx - 7} ${yy} Q${gx - 8} ${yy - 13} ${gx} ${yy - 14} Q${gx + 8} ${yy - 13} ${gx + 7} ${yy} Z"/><path class="hook" d="M${gx} ${yy - 14} L${gx} ${yy - 18}"/><circle class="eye" cx="${gx - 2.6}" cy="${yy - 8}" r="1.3"/><circle class="eye" cx="${gx + 2.6}" cy="${yy - 8}" r="1.3"/>`);
+        }
+      }
+      if (lit && h >= 8) {
+        const ly = yy - Math.min(8, h - 3);
+        s.push(`<circle class="glow" cx="${lampX}" cy="${ly}" r="${Math.min(7, h / 2 + 1)}"/><path class="hook" d="M${lampX} ${ly - 4} L${lampX} ${ly - 2}"/><rect class="lamp" x="${lampX - 2}" y="${ly - 2}" width="4" height="5" rx="1.2"/>`);
+      }
+      if (f === 10 || f === 20) {   // floor 10: the first dungeon part; floor 20: something shiny
+        const sx = f === 10 ? r - 9 : r - 10, sy = yy - Math.min(7, h - 4);
+        s.push(`<path class="spark${S.deep >= f ? "" : " dim"}" d="M${sx} ${sy - 5} Q${sx + .8} ${sy - .8} ${sx + 5} ${sy} Q${sx + .8} ${sy + .8} ${sx} ${sy + 5} Q${sx - .8} ${sy + .8} ${sx - 5} ${sy} Q${sx - .8} ${sy - .8} ${sx} ${sy - 5} Z"/>`);
+      }
+      const labelled = o.every === 1 || f % 5 === 0 || f === S.deep || f === S.target;
+      if (labelled) s.push(`<text class="fl${lit ? " lit" : ""}" x="${cx - half(f) - 5}" y="${yy + 3}" text-anchor="end">${f}</text>`);
+      if (o.words && ((f > S.deep && f <= S.deep + o.words && h >= 12) || f === S.target) && f > S.deep) {
+        const [word, heat] = feelOf(f);
+        s.push(`<text class="fw ${heat}" x="${cx + half(f) + 6}" y="${yy + 3}">${word}</text>`);
+      }
+    }
+    // the target: a pink flag on its landing
+    if (S.target <= o.to) {
+      const ty = y(S.target), px = cx + half(S.target) - 6;
+      s.push(`<path class="pole" d="M${px} ${ty - 1} L${px} ${ty - 13}"/><path class="flag" d="M${px} ${ty - 13} L${px - 8} ${ty - 10} L${px} ${ty - 7} Z"/>`);
+    }
+    // band names
+    const bands = [["the well", g, a], ["the cellar", a, b], ["further down", b, H]];
+    bands.forEach(([name, t, btm]) => {
+      if (o.bands === "vertical") {
+        const my = (t + Math.min(btm, H - 6)) / 2;
+        s.push(`<text class="band" x="0" y="0" text-anchor="middle" transform="translate(${o.bx} ${my}) rotate(-90)">${name}</text>`);
+      } else {
+        s.push(`<path class="bracket" d="M${o.bx + 104} ${t + 6} L${o.bx + 110} ${t + 6} L${o.bx + 110} ${Math.min(btm, H - 4) - 4} L${o.bx + 104} ${Math.min(btm, H - 4) - 4}"/><text class="band" x="${o.bx + 96}" y="${t + 20}" text-anchor="end">${name}</text>`);
+      }
+    });
+    // the well mouth on the grass
+    if (o.ground) {
+      const rl = L0 - 9, rr = R0 + 9;
+      s.push(`<path class="grass" d="M0 ${g} Q${w * .12} ${g - 3} ${w * .25} ${g} T${w * .5} ${g} T${w * .75} ${g} T${w} ${g}"/>`);
+      for (let i = 0; i < 9; i++) { const tx = 10 + i * (w - 20) / 8 + (i % 2 ? 7 : -4); if (tx > rl - 20 && tx < rr + 20) continue; s.push(`<path class="tuft" d="M${tx} ${g} l-3 -6 M${tx} ${g} l0 -8 M${tx} ${g} l3 -6"/>`); }
+      s.push(`<path class="post" d="M${rl + 4} ${g - 12} L${rl + 4} ${g - 40} M${rr - 4} ${g - 12} L${rr - 4} ${g - 40}"/>`);
+      s.push(`<path class="roof" d="M${rl - 10} ${g - 38} L${cx} ${g - 58} L${rr + 10} ${g - 38} Z"/>`);
+      s.push(`<path class="post" d="M${rl + 4} ${g - 34} L${rr - 4} ${g - 34}"/><circle class="stone" cx="${cx}" cy="${g - 34}" r="3.2"/><path class="post" d="M${rr - 4} ${g - 34} l7 0 l0 7"/>`);
+      s.push(`<rect class="stone" x="${rl}" y="${g - 14}" width="${rr - rl}" height="14" rx="4"/><path class="brick" d="M${rl + 10} ${g - 14} L${rl + 10} ${g - 7} M${cx} ${g - 7} L${cx} ${g} M${rr - 10} ${g - 14} L${rr - 10} ${g - 7}"/>`);
+    }
+    return { svg: `<svg class="well" width="${w}" height="${H}" viewBox="0 0 ${w} ${H}" aria-hidden="true">${s.join("")}</svg>`, y, H };
+  }
+
+  // Look C's well: a map line of floors (like a stitched trail), 1..40
+  function gaugeSvg(S, w, h, feelOf) {
+    const x = 50, top = 12, gap = (h - top - 14) / (MAXF - 1);
+    const y = f => top + (f - 1) * gap;
+    const s = [];
+    s.push(`<path class="line lit" d="M${x} ${top - 12} L${x} ${y(S.deep)}"/><path class="line" d="M${x} ${y(S.deep) + 4} L${x} ${h}"/>`);
+    [["the well", 1, 10], ["the cellar", 11, 20], ["further down", 21, MAXF]].forEach(([nm, f0, f1]) => {
+      const t = y(f0) - 3, btm = y(f1) + 3;
+      s.push(`<path class="bracket" d="M20 ${t} L16 ${t} L16 ${btm} L20 ${btm}"/><text class="band" x="0" y="0" text-anchor="middle" transform="translate(11 ${(t + btm) / 2}) rotate(-90)" style="font-size:11px">${nm}</text>`);
+    });
+    for (let f = 1; f <= MAXF; f++) {
+      const yy = y(f), lit = f <= S.deep;
+      if (f > 20 && f % 10 === 0) {
+        s.push(`<path class="guard" d="M${x + 12} ${yy + 5} Q${x + 11} ${yy - 7} ${x + 18} ${yy - 8} Q${x + 25} ${yy - 7} ${x + 24} ${yy + 5} Z"/><circle class="eye" cx="${x + 16}" cy="${yy - 2}" r="1.1"/><circle class="eye" cx="${x + 20}" cy="${yy - 2}" r="1.1"/>`);
+      }
+      if (f > 10 && f <= 20 && TINY.includes(f)) s.push(`<path class="door" d="M${x - 16} ${yy + 3} L${x - 16} ${yy - 1} A2.5 2.5 0 0 1 ${x - 11} ${yy - 1} L${x - 11} ${yy + 3} Z"/>`);
+      const r = f <= 10 ? 3 : f <= 20 ? 3.3 : 2.6;
+      s.push(f <= 20 ? `<circle class="stop${lit ? " lit" : ""}" cx="${x}" cy="${yy}" r="${r}"/>` : `<rect class="stop${lit ? " lit" : ""}" x="${x - r}" y="${yy - r}" width="${2 * r}" height="${2 * r}" rx="1"/>`);
+      if (f === S.deep) s.push(`<circle class="glow" cx="${x}" cy="${yy}" r="8"/>`);
+      if (f === 10 || f === 20) s.push(`<path class="spark${S.deep >= f ? "" : " dim"}" transform="translate(${x + 14} ${yy})" d="M0 -5 Q.8 -.8 5 0 Q.8 .8 0 5 Q-.8 .8 -5 0 Q-.8 -.8 0 -5 Z"/>`);
+      const labelled = f % 5 === 0 || f === S.deep || f === S.target || f === 1;
+      if (labelled && !(f % 5 === 0 && Math.abs(f - S.deep) === 1) && !(f % 5 === 0 && Math.abs(f - S.target) === 1 && f !== S.deep)) s.push(`<text class="fl${lit ? " lit" : ""}" x="${x - 20}" y="${yy + 3}" text-anchor="end">${f}</text>`);
+      if (f === S.target) {
+        s.push(`<path class="pole" d="M${x + 6} ${yy + 1} L${x + 6} ${yy - 11}"/><path class="flag" d="M${x + 6} ${yy - 11} L${x + 14} ${yy - 8} L${x + 6} ${yy - 5} Z"/>`);
+        if (f > S.deep) { const [word, heat] = feelOf(f); s.push(`<text class="fw ${heat}" x="${x + 18}" y="${yy + 3}">${word}</text>`); }
+      }
+    }
+    return { svg: `<svg class="well" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">${s.join("")}</svg>`, y, x };
+  }
+
+  // a mound of tiny pets; how many you see grows slowly with the count
+  function mound(ids, count, w, h, maxN, seedN = 5) {
+    let seed = seedN; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const n = Math.min(count, Math.max(1, Math.min(maxN, Math.round(Math.log10(count + 1) * maxN / 2.6))));
+    const hs = 9, vs = 6, rows = Math.max(1, Math.floor((h - 18) / vs) + 1);
+    let base = 1; const fits = bb => { let c = 0; for (let r = 0; r < rows; r++) c += Math.max(0, bb - 2 * r); return c; };
+    while (fits(base) < n && (base * hs + 16) <= w) base++;
+    const pw = (base - 1) * hs + 16, out = [];
+    let k = 0;
+    for (let r = 0; r < rows && k < n; r++) {
+      const inRow = Math.min(Math.max(0, base - 2 * r), n - k), x0 = (base - inRow) / 2 * hs;
+      for (let c = 0; c < inRow && k < n; c++, k++) {
+        const id = ids[Math.floor(rnd() * ids.length)];
+        const x = x0 + c * hs + (rnd() * 3 - 1.5), yy = h - 18 - r * vs - rnd() * 2;
+        out.push(`<img class="px${rnd() < .5 ? " flip" : ""}" src="../assets/pets/${id}.png" style="left:${x.toFixed(1)}px; top:${yy.toFixed(1)}px; z-index:${rows - r}" alt="">`);
+      }
+    }
+    return { html: out.join(""), w: pw, h };
+  }
+
+  // ---------------- one look = one little game state ----------------
+  function makeLook(frame) {
+    const look = frame.dataset.look;
+    const content = mountAt(frame);
+    const S = { deep: 14, target: 16, home: 2, first: 0, herd: { common: 150, uncommon: 90, rare: 22 }, have: { common: 3120, uncommon: 940, rare: 88 },
+      front: FRONT0.map(p => ({ ...p })), lanterns: 2418, running: false, pos: 0, last: { floor: 14, got: 118, back: 271 } };
+    const say = t => { frame.querySelector(".top .bubble").textContent = t; };
+    const herdN = () => HERD_TIERS.reduce((a, t) => a + S.herd[t], 0);
+    const sent = () => S.front.length + herdN();
+    const power = () => S.front.reduce((a, p) => a + (p.t === "rare" ? POWER.frontRare : p.t === "uncommon" ? POWER.frontUncommon : POWER[p.t]), 0) + HERD_TIERS.reduce((a, t) => a + S.herd[t] * POWER[t], 0);
+    const feelOf = f => { const r = power() / strength(f); const w = WORDS.find(x => r >= x[0]); return [w[1], w[2]]; };
+    const herdIds = () => HERD_TIERS.flatMap(t => Array.from({ length: Math.max(0, Math.round(S.herd[t] / 20)) }, (_, i) => KINDS[t][i % KINDS[t].length])).concat(["mint-blob"]);
+
+    // extra stars: many pets have not come back by this stage. Never explained.
+    (() => {
+      const sky = frame.querySelector(".sky"); let sd = 41 + look.charCodeAt(0);
+      const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+      const tints = Object.values(TINT); let out = "";
+      for (let i = 0; i < 150; i++) out += `<rect x="${Math.floor(rr() * 74) + 2}" y="${Math.floor(rr() * 590) + 4}" width="1" height="1" fill="${tints[i % tints.length]}" opacity="${(0.18 + rr() * 0.3).toFixed(2)}"/>`;
+      sky.insertAdjacentHTML("beforeend", out);
+    })();
+
+    // ---------- pieces ----------
+    const lampChip = () => `<span class="lampchip" data-lampchip>${LAMP(20)}<b class="num">${fmt(S.lanterns)}</b></span>`;
+    const bar = () => `<div class="bar"><div class="seg"><button>adventures</button><button>upgrades</button><button class="on">dungeon</button></div>${lampChip()}</div>`;
+    const step = key => {
+      const v = key === "target" ? S.target : key === "home" ? `${HOMES[S.home]}%` : FIRSTS[S.first];
+      const atMin = key === "target" ? S.target <= 1 : key === "home" ? S.home <= 0 : S.first <= 0;
+      const atMax = key === "target" ? S.target >= MAXF : key === "home" ? S.home >= HOMES.length - 1 : S.first >= FIRSTS.length - 1;
+      return `<span class="step${key === "first" ? " wide" : key === "target" ? " floor" : ""}"><button data-step="${key}" data-d="-1" ${atMin || S.running ? "disabled" : ""}>‹</button><output>${v}</output><button data-step="${key}" data-d="1" ${atMax || S.running ? "disabled" : ""}>›</button></span>`;
+    };
+    const feelPill = f => { if (f <= S.deep) return `<span class="feel">${feelOf(f)[0]}</span>`; const [w, h] = feelOf(f); return `<span class="feel ${h}">${w}</span>`; };
+    const goBtn = () => `<button class="btn primary go" data-go ${S.running ? "disabled" : ""}>${S.running ? "on the way…" : "down we go!"}</button>`;
+    const orders = cls => `<div class="orders sticker ${cls}">
+        <div class="ohead"><b>orders</b></div>
+        <div class="oline"><span>go down to floor</span>${step("target")}${feelPill(S.target)}</div>
+        <div class="oline"><span>come home when</span>${step("home")}<span>are gone</span></div>
+        <div class="oline"><span>who goes first</span>${step("first")}</div>
+        ${goBtn()}
+      </div>`;
+    const card = (p, i) => `<div class="fcard${p.fresh ? " new" : ""}" style="--tc:var(--tier-${p.t})" title="${p.id.replace("-", " ")}">${p.lead ? `<span class="lead">${FLAG}</span>` : ""}${pet(p.id)}</div>`;
+    const herdRows = () => `<div class="hrows">${HERD_TIERS.map(t => {
+        const room = ENTRANCE - sent();
+        return `<div class="hrow" style="--tc:var(--tier-${t})"><span class="tname">${t}<small>of ${fmt(S.have[t])}</small></span>
+          <span class="step"><button data-herd="${t}" data-d="-10" ${S.herd[t] <= 0 || S.running ? "disabled" : ""}>‹</button><output>${fmt(S.herd[t])}</output><button data-herd="${t}" data-d="10" ${room <= 0 || S.herd[t] >= S.have[t] || S.running ? "disabled" : ""}>›</button></span></div>`;
+      }).join("")}</div>`;
+    const gate = () => { const n = sent(); return `<div class="gate${n >= ENTRANCE ? " full" : ""}"><span>the entrance</span><span class="meter"><i style="--f:${Math.min(1, n / ENTRANCE)}"></i></span><b>${n} <small>/ ${ENTRANCE}</small></b></div>`; };
+    const partyHtml = () => `${pet("lilac-blob")}${pet(S.front[1] ? S.front[1].id : "sky-bunny")}${pet(S.front[2] ? S.front[2].id : "mint-bear")}`;
+
+    let geo = null, scrollKeep = 0;
+
+    // ---------- A ----------
+    function renderA() {
+      const sc = content.querySelector(".a-scroll"); if (sc) scrollKeep = sc.scrollTop;
+      geo = wellSvg(S, { w: 226, cx: 96, g: 70, fw: 18, fc: 23, fs: 19, ww: 58, wc: 98, ws: 80, to: 34, tail: 26, pebbles: 70, ground: true, every: 1, words: 6, bands: "vertical", bx: 14 }, feelOf);
+      const m = mound(herdIds(), herdN(), 150, 40, 34, 7);
+      content.innerHTML = `<div class="page2">${bar()}<div class="a-body">
+        <div class="a-well panel"><h2>the old well</h2><div class="a-scroll">${geo.svg}${S.running ? `<div class="party" style="left:${96 - 22}px; top:${geo.y(S.pos) - 18}px">${partyHtml()}</div>` : ""}</div></div>
+        <div class="a-mid">
+          <div class="a-front sticker"><span class="h3">front row</span><div class="fcards">${S.front.map(card).join("")}</div></div>
+          <div class="a-herd sticker">
+            <div class="top2"><div style="display:flex; flex-direction:column; gap:6px"><span class="h3">the herd</span><span class="count">${fmt(herdN())}</span></div><div class="mound" style="width:${m.w}px; height:${m.h}px">${m.html}</div></div>
+            ${herdRows()}
+            ${gate()}
+          </div>
+        </div>
+        <div class="a-side">
+          ${orders("index")}
+          <div class="lastc sticker">
+            <span class="h3">last time</span>
+            <div class="row"><span>got to</span><b>floor ${S.last.floor}</b></div>
+            <div class="row"><span>brought home</span><b class="lampc">${LAMP(15)}${fmt(S.last.got)}</b></div>
+            <div class="row"><span>came home</span><b>${fmt(S.last.back)}</b></div>
+          </div>
+        </div>
+      </div></div>`;
+      const sc2 = content.querySelector(".a-scroll");
+      if (S.running) sc2.scrollTop = Math.max(0, geo.y(S.pos) - sc2.clientHeight / 2); else sc2.scrollTop = scrollKeep;
+    }
+
+    // ---------- B ----------
+    function renderB() {
+      const W = 520, g = 104;
+      geo = wellSvg(S, { w: W, cx: 374, g, fw: 11, fc: 17, fs: 8, ww: 64, wc: 136, ws: 108, to: 30, tail: 12, pebbles: 150, ground: true, every: 5, words: 6, bands: "left", bx: 150 }, feelOf);
+      const m = mound(herdIds(), herdN(), 128, 46, 44, 9);
+      const fl = S.front.map((p, i) => {
+        const row = i < 10 ? 0 : 1, col = i % 10;
+        const x = 160 + col * 16 + (row ? 8 : 0), yy = row ? g - 18 : g - 26;
+        return `<span class="${p.lead ? "lead" : ""}" style="left:${x}px; top:${yy}px; --tc:var(--tier-${p.t}); z-index:${row + 1}">${pet(p.id)}<i></i></span>`;
+      }).join("");
+      content.innerHTML = `<div class="page2">${bar()}<div class="b-body">
+        <div class="b-scene panel">${geo.svg}
+          <span class="sign">the old well</span>
+          <div class="mound" style="left:${150 - m.w + 10}px; top:${g - m.h + 2}px; width:${m.w}px; height:${m.h}px">${m.html}</div>
+          <span class="herdtag" style="left:30px; top:${g - m.h - 18}px"><b>${fmt(herdN())}</b>herd</span>
+          <div class="frontline" style="left:0; top:0">${S.running ? fl.replace(/<span class="lead"[^]*?<\/span>/, "") : fl}</div>
+          ${S.running ? `<div class="party" style="left:${374 - 22}px; top:${geo.y(S.pos) - 18}px">${partyHtml()}</div>` : ""}
+        </div>
+        <div class="b-side">
+          ${orders("index")}
+          <div class="b-herd sticker"><span class="h3">the herd</span>${herdRows()}${gate()}</div>
+        </div>
+      </div></div>`;
+    }
+
+    // ---------- C ----------
+    function renderC() {
+      const m = mound(herdIds(), herdN(), 120, 34, 26, 11);
+      content.innerHTML = `<div class="page2">${bar()}<div class="c-body">
+        <div class="c-left">
+          <div class="letter sticker"><span class="margin"></span>
+            <div class="lhead"><b>orders</b>${pet("lilac-blob")}</div>
+            <div class="oline"><span>go down to floor</span>${step("target")}${feelPill(S.target)}</div>
+            <div class="oline"><span>come home when</span>${step("home")}<span>are gone</span></div>
+            <div class="oline"><span>who goes first</span>${step("first")}</div>
+            <div class="signoff"><span>love, lilac blob</span>${goBtn()}</div>
+          </div>
+          <div class="lineup sticker">
+            <span class="h3">front row</span><span class="h3">the herd</span>
+            <div class="fcards">${S.front.map(card).join("")}</div>
+            <div class="herdcol"><div class="mrow"><span class="count">${fmt(herdN())}</span><div class="mound" style="width:${m.w}px; height:${m.h}px">${m.html}</div></div>${herdRows()}</div>
+            ${gate()}
+          </div>
+        </div>
+        <div class="c-gauge panel"><h2>the old well</h2><div class="g-in"></div></div>
+      </div></div>`;
+      const gin = content.querySelector(".g-in");
+      geo = gaugeSvg(S, 134, gin.clientHeight, feelOf);
+      gin.innerHTML = geo.svg + (S.running ? `<div class="party" style="left:${geo.x - 30}px; top:${geo.y(S.pos) - 16}px">${pet("lilac-blob")}${pet(S.front[1] ? S.front[1].id : "sky-bunny")}</div>` : "");
+    }
+
+    const render = () => { ({ A: renderA, B: renderB, C: renderC })[look](); wire(); };
+
+    // a pet that doesn't come back adds a star to the night sky, never explained
+    let seed = 99 + look.charCodeAt(0);
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    function addStars(ids) {
+      const sky = frame.querySelector(".sky");
+      ids.forEach(id => {
+        const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        r.setAttribute("x", Math.floor(rnd() * 74) + 2); r.setAttribute("y", Math.floor(rnd() * 590) + 4);
+        r.setAttribute("width", 1); r.setAttribute("height", 1); r.setAttribute("fill", TINT[id] || "#f5dcec");
+        r.setAttribute("opacity", (0.3 + rnd() * 0.35).toFixed(2)); r.classList.add("fresh"); sky.appendChild(r);
+      });
+    }
+
+    function rise(text) {
+      const el = content.querySelector("[data-lampchip]"); if (!el) return;
+      el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump");
+      const fr = frame.getBoundingClientRect(), r = el.getBoundingClientRect();
+      const p = document.createElement("span"); p.className = "rise"; p.textContent = text;
+      p.style.left = `${r.left - fr.left + r.width / 2}px`; p.style.top = `${r.top - fr.top - 4}px`;
+      frame.appendChild(p); setTimeout(() => p.remove(), 1400);
+    }
+
+    // losses, by the "who goes first" line
+    function lose(n) {
+      const gone = [];
+      const fromHerd = (t, k) => { const x = Math.min(k, S.herd[t]); S.herd[t] -= x; S.have[t] -= x; for (let i = 0; i < Math.min(x, 12); i++) gone.push(KINDS[t][i % KINDS[t].length]); return x; };
+      const fromFront = k => { let x = 0; while (x < k && S.front.length > 1) { gone.push(S.front.pop().id); x++; } return x; };
+      let left = n;
+      if (FIRSTS[S.first] === "the front row") left -= fromFront(left);
+      if (FIRSTS[S.first] === "anyone") {
+        const tot = herdN() || 1;
+        HERD_TIERS.forEach(t => { left -= fromHerd(t, Math.round(n * S.herd[t] / tot)); });
+      }
+      HERD_TIERS.forEach(t => { if (left > 0) left -= fromHerd(t, left); });
+      if (left > 0) fromFront(left);
+      addStars(gone);
+    }
+
+    function go() {
+      if (S.running) return;
+      const going = sent(), limit = Math.ceil(going * HOMES[S.home] / 100);
+      let lostAll = 0, got = 0, newDeep = false;
+      S.running = true; S.pos = 0; render();
+      say("down we go! hold paws, everyone!");
+      const tick = () => {
+        S.pos++;
+        const f = S.pos, ratio = power() / strength(f);
+        const alive = going - lostAll;
+        const lost = Math.min(alive - 1, Math.round(alive * 0.03 / (ratio * ratio)));
+        if (lost > 0) { lose(lost); lostAll += lost; }
+        const pay = Math.max(1, Math.round(0.6 * Math.pow(1.15, f) * going / 100));
+        got += pay; S.lanterns += pay;
+        if (f > S.deep) { S.deep = f; newDeep = true; }
+        if (f === 3) say("front row, down the rope! wheee!");
+        if (f === 11) say("a cellar! with doors! and TINY doors!");
+        if (f === 21) say("stairs! so many stairs!");
+        const done = f >= S.target || lostAll >= limit || f >= MAXF;
+        render();
+        if (!done) { setTimeout(tick, 300); return; }
+        setTimeout(() => {
+          S.running = false;
+          S.last = { floor: f, got, back: going - lostAll };
+          while (S.front.length < 20) S.front.push({ ...NEXT_BEST[S.front.length % 2], fresh: true });
+          render(); rise(`+${fmt(got)}`);
+          S.front.forEach(p => { p.fresh = false; });
+          if (f < S.target) say(`we came home a bit early. but ${fmt(got)} lanterns! so glowy!`);
+          else if (newDeep) say(`floor ${f}! nobody's been this deep! i think!`);
+          else say(`we're home! ${fmt(got)} lanterns, all glowy!`);
+        }, 550);
+      };
+      setTimeout(tick, 350);
+    }
+
+    function wire() {
+      content.querySelectorAll("[data-step]").forEach(b => b.addEventListener("click", () => {
+        const d = Number(b.dataset.d), k = b.dataset.step;
+        if (k === "target") S.target = Math.max(1, Math.min(MAXF, S.target + d));
+        if (k === "home") S.home = Math.max(0, Math.min(HOMES.length - 1, S.home + d));
+        if (k === "first") S.first = Math.max(0, Math.min(FIRSTS.length - 1, S.first + d));
+        render();
+      }));
+      content.querySelectorAll("[data-herd]").forEach(b => b.addEventListener("click", () => {
+        const t = b.dataset.herd, d = Number(b.dataset.d);
+        const room = ENTRANCE - sent();
+        S.herd[t] = Math.max(0, Math.min(S.have[t], S.herd[t] + (d > 0 ? Math.min(d, room) : d)));
+        render();
+      }));
+      content.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", go));
+    }
+
+    // ?pos=12 freezes every look mid-run (for screenshots)
+    const frozen = Number(new URLSearchParams(location.search).get("pos"));
+    if (frozen) { S.running = true; S.pos = frozen; S.deep = Math.max(S.deep, frozen); }
+    render();
+  }
+
+  document.querySelectorAll(".frame").forEach(makeLook);
+  applyLook(loadLook());
+</script>
+</body>
+</html>
