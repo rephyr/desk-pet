@@ -18,9 +18,10 @@ signal play_ended(editions: Array)  # your pet finished playing with these toys
 signal automation_changed  # a job was taught, your pet moved to another job, or a tool was bought
 signal pet_cranked(result: Dictionary)  # your pet's own little machine gave a capsule (see _pet_capsule)
 signal gear_changed  # a gear upgrade was bought with xp (the adventures' upgrades page)
+signal globe_arrived(id: String)  # a new machine globe came home (a pet brought its find), see Machine
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
-const SAVE_VERSION := 23
+const SAVE_VERSION := 24
 const WORKER_BOXES_MAX := 2000  # box workers open at most this many boxes in one go (every pet is rolled)
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
@@ -99,8 +100,9 @@ var debug_all_tiers := false  # debug builds: every box tier is in the shop (dev
 var buying_on := true  # your pet buys more when the pile runs out (once it has the piggy bank)
 var pinned: Array[String] = []  # good pulls your pet opened, waiting for you to see them
 var rummaged := {}  # rummage spot id -> unix time it has something in it again (see data/rummage.json)
-## The capsule machine, see Machine and data/machine.json: { pulls, lit, bought: { upgrade id: n } }
-var machine := { "pulls": 0, "lit": 0, "bought": {} }
+## The capsule machine, see Machine and data/machine.json: { pulls, lit, bought: { upgrade id: n },
+## globes: [globe ids you have], greeted: [globes the machine tab has shown arriving] }
+var machine := { "pulls": 0, "lit": 0, "bought": {}, "globes": [], "greeted": [] }  # the first globe is always home (Machine.home)
 var fever_until := 0.0  # unix time the machine's fever ends (not saved: it's ten seconds)
 ## Capsule toys you own and the ones your pet is playing with, see Toys and data/toys.json
 var toys := Toys.fresh()
@@ -240,6 +242,36 @@ func greet_box(box_id: String) -> void:
 	if not boxes_greeted.has(box_id):
 		boxes_greeted[box_id] = true
 		save_game()
+
+
+## A machine globe came home that the machine tab hasn't shown arriving yet (its news dot), or "".
+func globe_news() -> String:
+	var first := Machine.first_globe(catalog)
+	for g in Machine.home(machine, catalog):
+		if g != first and not machine.get("greeted", []).has(g):
+			return g
+	return ""
+
+
+## The machine tab showed this globe arriving (it slid in, your pet said so): only once.
+func greet_globe(id: String) -> void:
+	if machine.get("greeted", []).is_empty():
+		machine.greeted = [Machine.first_globe(catalog)]
+	if not machine.greeted.has(id):
+		machine.greeted.append(id)
+		save_game()
+		changed.emit()
+
+
+## A find that is a machine globe brings it home (safe to call again: it's only added once).
+func _globe_home(find_id: String) -> void:
+	var g := Machine.globe_for_find(catalog, find_id)
+	if machine.get("globes", []).is_empty():
+		machine.globes = [Machine.first_globe(catalog)]
+	if g == "" or machine.globes.has(g):
+		return
+	machine.globes.append(g)
+	globe_arrived.emit(g)
 
 
 ## Buys boxes: they go on your pile (the bag) to open later, by you or your pet. Returns
@@ -564,7 +596,7 @@ func debug_new_game() -> void:
 	_crews_changed()
 	pinned.clear()
 	rummaged.clear()
-	machine = { "pulls": 0, "lit": 0, "bought": {} }
+	machine = { "pulls": 0, "lit": 0, "bought": {}, "globes": [Machine.first_globe(catalog)], "greeted": [Machine.first_globe(catalog)] }
 	fever_until = 0.0
 	toys = Toys.fresh()
 	bits = {}
@@ -684,11 +716,12 @@ func job_rate(job_id: String) -> float:
 func job_boost(job_id: String) -> Dictionary:
 	var job := catalog.job(job_id)
 	var shiny := Jobs.tool_sum(catalog, job_id, "shiny", errand_tools) > 0.0
-	return { "coin_value": Machine.coin_value(machine, catalog),
+	var g := Machine.behind(machine, catalog)  # errands pay at the globe one step behind your hand
+	return { "coin_value": Machine.coin_value(machine, catalog, g),
 		"worth": Jobs.tool_sum(catalog, job_id, "worth", errand_tools),
 		"x": Jobs.goal_x(job, job_level(job_id)) * job_tips(job_id),
 		"big": Jobs.tool_sum(catalog, job_id, "big", errand_tools), "big_x": float(catalog.errands.get("big_x", 5)),
-		"shiny": Machine.shiny_chance(machine, catalog) if shiny else 0.0, "shiny_pay": Machine.shiny_pay(machine, catalog) }
+		"shiny": Machine.shiny_chance(machine, catalog, g) if shiny else 0.0, "shiny_pay": Machine.shiny_pay(machine, catalog, g) }
 
 
 ## A job with "tips" pays by its crew's rarity: their average tip (1 for jobs without tips). Fancy
@@ -1463,24 +1496,25 @@ func _pet_cranks(pulls: int, show := true) -> Dictionary:
 	return total
 
 
-## One capsule from your pet's own machine (or a worker's): like a plain one from yours (worth the
-## same, shiny as often, toys too), but no lucky lights, fever or pet boxes: those stay with your
-## lever. Toys are yours right away; the rest is handed out by _pet_cranks.
+## One capsule from your pet's own machine (or a worker's): like a plain one from the globe one step
+## behind your hand (worth the same, shiny as often, toys too), but no lucky lights, fever or pet
+## boxes: those stay with your lever. Toys are yours right away; the rest is handed out by _pet_cranks.
 func _pet_capsule() -> Dictionary:
 	var luck := toy_boost("luck")
-	var prize := Machine.roll(machine, catalog, _rng, false, luck, toy_boost("toys"))
+	var g := Machine.behind(machine, catalog)
+	var prize := Machine.roll(machine, catalog, _rng, false, luck, toy_boost("toys"), g)
 	if not _machine_gives(str(prize.kind)) or prize.kind in ["pet", "pet_box"]:
 		prize = _machine_prize("coins")
-	var shiny: bool = prize.kind in ["coins", "golden", "box", "part"] and _rng.randf() < Machine.shiny_chance(machine, catalog)
-	var loot := Machine.loot(prize, machine, catalog, _rng)
+	var shiny: bool = prize.kind in ["coins", "golden", "box", "part"] and _rng.randf() < Machine.shiny_chance(machine, catalog, g)
+	var loot := Machine.loot(prize, machine, catalog, _rng, 1.0, g)
 	if loot.has("coins"):
 		loot.coins = roundi(int(loot.coins) * toy_boost("coins"))
 	if shiny:
 		for k in loot:
-			loot[k] = roundi(int(loot[k]) * Machine.shiny_pay(machine, catalog))
+			loot[k] = roundi(int(loot[k]) * Machine.shiny_pay(machine, catalog, g))
 	var toy := {}
 	if prize.kind == "toy":
-		var t := Toys.roll(catalog, _rng, luck)
+		var t := Toys.roll(catalog, _rng, luck, Machine.toy_sets(machine, catalog, g))
 		toy = { "id": t.id, "finish": t.finish, "new": Toys.add(toys, t.id, t.finish) }
 		toys_changed.emit()
 		check_unlocks()
@@ -1843,7 +1877,10 @@ func grant(loot: Dictionary, boosted := true) -> void:
 				parts_ever = true
 			"find":
 				finds[rest] = true
+				_globe_home(rest)
 			"bit":
+				if not _bit_home(rest):
+					continue  # a later globe's bit before that globe is home: nothing brings one yet
 				bits[rest] = int(bits.get(rest, 0)) + amount
 			"rumour":
 				_hear_rumours(amount)
@@ -1851,6 +1888,12 @@ func grant(loot: Dictionary, boosted := true) -> void:
 				items[key] = int(items.get(key, 0)) + amount
 	check_unlocks()
 	changed.emit()
+
+
+## Whether a machine bit's globe is home (the sunset bits wait for the sunset globe).
+func _bit_home(bit: String) -> bool:
+	var info := Machine.bit_info(catalog, bit)
+	return info.is_empty() or Machine.has_globe(machine, catalog, str(info.get("globe", Machine.first_globe(catalog))))
 
 
 func _advance_runs() -> void:
@@ -1865,7 +1908,7 @@ func _advance_runs() -> void:
 ## Plays whatever has come due on a run. Returns true if anything happened.
 func _advance(run: RunState) -> bool:
 	var before := run.status
-	var added := AdventureRunner.resolve(run, Chooser.for_run(run), Time.get_unix_time_from_system(), catalog)
+	var added := AdventureRunner.resolve(run, Chooser.for_run(run), Time.get_unix_time_from_system(), catalog, finds)
 	if run.status == RunState.Status.DONE and before != RunState.Status.DONE:
 		run_ended.emit(run)
 	return not added.is_empty() or run.status != before
@@ -1943,8 +1986,9 @@ func pull_lever() -> Dictionary:
 	var in_fever := now < fever_until
 	machine.pulls = int(machine.pulls) + 1
 	var pet_due := _pet_box_due()
+	var g := Machine.hand(machine, catalog)  # your hand pulls the newest globe that works
 	var lucky := false
-	if Machine.lights_on(machine, catalog):
+	if Machine.lights_on(machine, catalog, g):
 		machine.lit = int(machine.lit) + 1
 		lucky = int(machine.lit) >= Machine.lights_needed(machine, catalog)
 		if lucky:
@@ -1952,12 +1996,12 @@ func pull_lever() -> Dictionary:
 	var fever := toy_boost("fever")
 	var pay := float(m.fever_pay) * fever if in_fever else 1.0
 	var capsules: Array = []
-	for chute in Machine.chutes(machine, catalog):
-		for ball in Machine.balls_from_chute(machine, catalog, _rng):
-			capsules.append(_capsule(capsules.is_empty(), lucky, pay, pet_due))
+	for chute in Machine.chutes(machine, catalog, g):
+		for ball in Machine.balls_from_chute(machine, catalog, _rng, g):
+			capsules.append(_capsule(capsules.is_empty(), lucky, pay, pet_due, g))
 	if lucky:
-		fever_until = now + Machine.fever_for(machine, catalog, fever, toy_boost("speed"))
-	var result := { "capsules": capsules, "lucky": lucky, "fever": in_fever }
+		fever_until = now + Machine.fever_for(machine, catalog, fever, toy_boost("speed"), g)
+	var result := { "capsules": capsules, "lucky": lucky, "fever": in_fever, "globe": g }
 	machine_pulled.emit(result)
 	_check_tutorial()
 	return result
@@ -1978,10 +2022,11 @@ func _pet_box_due() -> bool:
 ## One capsule out of a pull: rolls its prize (the tutorial's pets come in the first one), makes
 ## it shiny sometimes, and hands out what's inside. `pay` multiplies coins (fever); `pet_due`:
 ## the first capsule holds a pet box (the safety net, see _pet_box_due).
-func _capsule(first: bool, lucky: bool, pay: float, pet_due := false) -> Dictionary:
+func _capsule(first: bool, lucky: bool, pay: float, pet_due := false, g := "") -> Dictionary:
 	var m: Dictionary = catalog.machine
 	var luck := toy_boost("luck")
-	var prize := Machine.roll(machine, catalog, _rng, lucky, luck, toy_boost("toys"))
+	g = g if g != "" else Machine.hand(machine, catalog)
+	var prize := Machine.roll(machine, catalog, _rng, lucky, luck, toy_boost("toys"), g)
 	if tutorial_active():
 		prize = _machine_prize("golden" if lucky else "coins")  # nothing fancy while you're starting out
 	elif not _machine_gives(str(prize.kind)) or (prize.kind == "pet_box" and not first):
@@ -1998,13 +2043,16 @@ func _capsule(first: bool, lucky: bool, pay: float, pet_due := false) -> Diction
 	elif first and debug_next_prize != "" and OS.is_debug_build():
 		prize = _machine_prize(debug_next_prize)
 		debug_next_prize = ""
-	var shiny: bool = prize.kind in ["coins", "golden", "box", "part"] and _rng.randf() < Machine.shiny_chance(machine, catalog)
-	var loot := Machine.loot(prize, machine, catalog, _rng, pay)
+	if prize.kind in ["box", "pet_box"]:
+		prize = prize.duplicate()
+		prize.box = Machine.box_of(machine, catalog, g)  # the globe's box tier (its hatch, or the one before)
+	var shiny: bool = prize.kind in ["coins", "golden", "box", "part"] and _rng.randf() < Machine.shiny_chance(machine, catalog, g)
+	var loot := Machine.loot(prize, machine, catalog, _rng, pay, g)
 	if loot.has("coins"):
 		loot.coins = roundi(int(loot.coins) * toy_boost("coins"))  # shown as it is
 	if shiny:
 		for k in loot:
-			loot[k] = roundi(int(loot[k]) * Machine.shiny_pay(machine, catalog))
+			loot[k] = roundi(int(loot[k]) * Machine.shiny_pay(machine, catalog, g))
 	var toy := {}
 	var pet: Pet = null
 	if prize.kind == "pet":
@@ -2021,7 +2069,7 @@ func _capsule(first: bool, lucky: bool, pay: float, pet_due := false) -> Diction
 	if prize.kind == "intel":
 		grant({ "find:" + str(prize.find): 1 })
 	if prize.kind == "toy":
-		var t := Toys.roll(catalog, _rng, luck)
+		var t := Toys.roll(catalog, _rng, luck, Machine.toy_sets(machine, catalog, g))
 		toy = { "id": t.id, "finish": t.finish, "new": Toys.add(toys, t.id, t.finish) }
 		toys_changed.emit()
 		check_unlocks()
@@ -2036,7 +2084,7 @@ func _capsule(first: bool, lucky: bool, pay: float, pet_due := false) -> Diction
 ## The chance of each prize in the next capsule (a lucky one when `lucky`), with your toys' boosts
 ## and only the kinds that can come out yet (Machine.odds). For the machine's prize card.
 func machine_odds(lucky := false, first := true) -> Dictionary:
-	return Machine.odds(machine, catalog, _machine_gives, lucky, toy_boost("luck"), toy_boost("toys"), first)
+	return Machine.odds(machine, catalog, _machine_gives, lucky, toy_boost("luck"), toy_boost("toys"), first, Machine.hand(machine, catalog))
 
 
 func _machine_prize(id: String) -> Dictionary:
@@ -2218,8 +2266,8 @@ func sacrifice_toy(id: String) -> String:
 ## Where pets find a machine bit, for the upgrade card when you're short of one: the open places
 ## whose treat bag holds it, or, before any of those is found, a place that leads there.
 func bit_hint(bit: String) -> String:
-	var plural := bit if bit == "glass" else bit + "s"
-	var come := "comes" if bit == "glass" else "come"
+	var plural := Machine.bit_name(catalog, bit, 2)
+	var come := "come" if plural != Machine.bit_name(catalog, bit, 1) else "comes"
 	var open: Array[String] = []
 	var closed: Array[Dictionary] = []
 	for location in catalog.locations:
@@ -2449,11 +2497,24 @@ func load_game() -> bool:
 			rummaged[str(id)] = float(saved_rummage[id])
 	var saved_machine: Dictionary = data.get("machine", {})
 	machine = { "pulls": int(saved_machine.get("pulls", 0)), "lit": int(saved_machine.get("lit", 0)), "bought": {},
-		"pet_wait": int(saved_machine.get("pet_wait", 0)) }
+		"pet_wait": int(saved_machine.get("pet_wait", 0)), "globes": [], "greeted": [] }
+	# globes you have (unknown ones dropped; the first is always there) and the ones already shown arriving
+	var first := Machine.first_globe(catalog)
+	for g in [first] + Array(saved_machine.get("globes", [first])):
+		if Machine.globe_rank(catalog, str(g)) >= 0 and not machine.globes.has(str(g)):
+			machine.globes.append(str(g))
+	for g in saved_machine.get("greeted", machine.globes):
+		if machine.globes.has(str(g)) and not machine.greeted.has(str(g)):
+			machine.greeted.append(str(g))
+	if not machine.greeted.has(first):
+		machine.greeted.append(first)
 	var saved_bought: Dictionary = saved_machine.get("bought", {})
 	for id in saved_bought:
 		if not Machine.node(catalog, str(id)).is_empty():
 			machine.bought[str(id)] = int(saved_bought[id])
+	for id in finds:  # a globe's find that came home without it (any save): it's home now
+		if Machine.globe_for_find(catalog, str(id)) != "" and not machine.globes.has(Machine.globe_for_find(catalog, str(id))):
+			machine.globes.append(Machine.globe_for_find(catalog, str(id)))
 	bits = {}
 	var saved_bits: Dictionary = data.get("bits", {})
 	for b in saved_bits:
@@ -2597,6 +2658,8 @@ func _migrate(data: Dictionary) -> Dictionary:
 			data.automation = a
 	# v23 added box tiers (boxes_bought, boxes_greeted) and retired the lucky box: BoxShop.fix_retired
 	# (load_game) handles both for any save, whatever its version
+	# v24 added machine globes (machine.globes, machine.greeted): load_game gives an older save just
+	# the first globe, already seen
 	if version < 7:
 		# v7: dungeon places open one rumour at a time; saves that had the dungeons keep them all
 		var had: Array = data.get("unlocks", [])

@@ -52,7 +52,14 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   scripts/machine has its rules, `GameState.pull_lever()` pays out; a pet box out of a capsule is opened right there with a
   `PackOpening`; `OddsCard` is the "prizes" tag that flips into the odds card, from
   `Machine.odds` via `GameState.machine_odds`, refilled on machine_upgraded / toys_changed /
-  unlocked / tutorial_changed while open, placed on the stage's resize), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
+  unlocked / tutorial_changed while open, placed on the stage's resize; machine globes: the tab shows
+  the newest two globes side by side in a `StageHolder`, one `MachineStage` each (`globe`, `hand`,
+  `compact`; only the hand one takes input and shows the counter, the one behind shows your pet /
+  workers on its lever and their `pet_cranked` capsules; a stage keeps its globe while it stays on
+  show, so capsules in flight survive a globe arriving; what a stage draws from is worked out in
+  `refresh_state()` on changes, not per frame; only the hand stage holds unlock popups), and a `FixList` of the newest globe's
+  repairs in place of "next up"; `MachineTreeView` frames a globe's `view` of the tree with a sign
+  per globe to pan, `MachineMini` draws a node's own globe), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
   `CollectionTab` (pets grid + `PetDetails`, and the `BookView`), `AdventuresTab` (adventures:
   `MapView`, the place card, trip cards, and `TrailView` for watching a trip; upgrades: `GearView`,
   gear bought with xp, rules in `Gear`, levels in `GameState.gear`, packed onto each trip as
@@ -108,6 +115,10 @@ whatever the save's version (idempotent): lucky boxes on the pile, "save for me"
 still out (also pre-v5 runs' `boxes`) become sunset boxes, and unknown box ids are dropped from the
 bag. New fields `boxes_bought` (a tier is "new!" until the first) and `boxes_greeted` (its arrival
 played); a save without them counts what's on the pile as bought and greeted.
+Save v24 adds machine globes: `machine.globes` (globe ids you have; the first is always there,
+unknown ids dropped) and `machine.greeted` (the machine tab showed it arriving). `load_game` gives a
+save without them just the first globe for both (no `_migrate` step needed). On every load a save with a globe's find but not the globe gets it. The globe
+you pull is derived (`Machine.hand`: the newest globe whose `works` repair is fixed), never saved.
 
 ## Testing
 

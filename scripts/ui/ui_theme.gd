@@ -398,14 +398,21 @@ static func tier_label(tier_id: String, size := SMALL) -> Label:
 
 
 ## A number for people: 9,999 as it is, then 12.3k, 4.56M, 7.8B, 1.2T, then 3.4e15 (coins go big).
-## A colour role by its name in data (a job's or a gear's "color"): cyan, lilac, mint, gold, else pink.
-static func named_color(color_name: String) -> Color:
+## A colour from data (a job's, a gear's, a globe's or a machine bit's "color"): a colour role
+## (pink, pink_seam, lilac, lilac_seam, cyan, mint, gold, text) or "#hex"; `fallback` for anything else.
+static func named_color(color_name: String, fallback := PINK) -> Color:
+	if color_name.begins_with("#"):
+		return Color(color_name)
 	match color_name:
+		"pink": return PINK
+		"pink_seam": return PINK_SEAM
 		"cyan": return CYAN
 		"lilac": return LILAC
+		"lilac_seam": return LILAC_SEAM
 		"mint": return MINT
 		"gold": return GOLD
-	return PINK
+		"text": return TEXT
+	return fallback
 
 
 static func num(n: float) -> String:
@@ -442,11 +449,23 @@ const DOODLES := {
 	"trips": '<path d="M3.5 6.6 L9 4.4 L15 6.6 L20.6 4.5 L20.4 17.7 L15 19.6 L9 17.4 L3.7 19.5 Z"/><path d="M9 4.5 L9.1 17.3 M15 6.7 L14.9 19.4"/><path d="M5.8 15.2 Q7.8 11.5 11 12.6 Q13.9 13.4 16 9.6" stroke-dasharray="1.6 2.2"/>',
 	"gear": '<path d="M8.1 3.7 L14 3.8 L14.2 11.9 Q19.9 12.5 20.3 16.9 L20.2 19.7 L6.8 19.8 Q5.8 15.1 7.8 12.1 Z"/><path d="M8.4 7.1 L13.7 7 M8.3 9.7 L13.8 9.6 M6.9 17.1 L20.2 17.2"/>',
 	"machine": '<circle cx="11" cy="9" r="6.2"/><path d="M5.6 13.6 Q5.4 17.4 6.2 20.4 Q11 21 15.8 20.3 Q16.6 17.3 16.3 13.5"/><path d="M9.4 17.3 L12.6 17.2"/><path d="M16.4 15.2 L19.6 15.1 L19.7 10.6"/><circle cx="19.7" cy="9.4" r="1.3" fill="{c}"/><path d="M8.3 7.6 Q9 6 10.6 5.6" opacity=".6"/>',
-	# machine bits (fixed colours) and the machine tree's nodes (drawn in the node's colour)
-	"bit_gear": '<circle cx="12" cy="12" r="4.5" stroke="{lilac}"/><path d="M12 3 L12 6 M12 18 L12 21 M3 12 L6 12 M18 12 L21 12 M5.6 5.6 L7.8 7.8 M16.2 16.2 L18.4 18.4 M5.6 18.4 L7.8 16.2 M16.2 7.8 L18.4 5.6" stroke="{lilac}" stroke-width="2.4"/>',
-	"bit_spring": '<path d="M7 4 Q17 5 7 8 Q17 9 7 12 Q17 13 7 16 Q17 17 7 20" stroke="{mint}"/>',
-	"bit_bolt": '<path d="M8 5 L16 5 L17 8 L7 8 Z" fill="{gold}" stroke="{gold}" stroke-width="1.5"/><path d="M12 8 L12 20 M10 11 L14 11 M10 14 L14 14 M10 17 L14 17" stroke="{gold}"/>',
-	"bit_glass": '<path d="M6 4 L18 4 L20 20 L4 20 Z" stroke="{cyan}"/><path d="M8 8 L11 7 M8 11 L10 10.4" stroke="{c}" stroke-width="1.6" opacity=".7"/>',
+	# machine bits (in their colour from data/machine_tree.json "bits": {bit}) and the machine tree's nodes (drawn in the node's colour)
+	"bit_gear": '<circle cx="12" cy="12" r="4.5" stroke="{bit}"/><path d="M12 3 L12 6 M12 18 L12 21 M3 12 L6 12 M18 12 L21 12 M5.6 5.6 L7.8 7.8 M16.2 16.2 L18.4 18.4 M5.6 18.4 L7.8 16.2 M16.2 7.8 L18.4 5.6" stroke="{bit}" stroke-width="2.4"/>',
+	"bit_spring": '<path d="M7 4 Q17 5 7 8 Q17 9 7 12 Q17 13 7 16 Q17 17 7 20" stroke="{bit}"/>',
+	"bit_bolt": '<path d="M8 5 L16 5 L17 8 L7 8 Z" fill="{bit}" stroke="{bit}" stroke-width="1.5"/><path d="M12 8 L12 20 M10 11 L14 11 M10 14 L14 14 M10 17 L14 17" stroke="{bit}"/>',
+	"bit_glass": '<path d="M6 4 L18 4 L20 20 L4 20 Z" stroke="{bit}"/><path d="M8 8 L11 7 M8 11 L10 10.4" stroke="{c}" stroke-width="1.6" opacity=".7"/>',
+	"bit_cork": '<path d="M7 6 L17 6 L15.6 19 L8.4 19 Z" fill="{bit_dark}" stroke="{bit}" stroke-width="2"/><circle cx="10.4" cy="10.5" r=".9" fill="{bit}"/><circle cx="13.4" cy="13.6" r=".9" fill="{bit}"/><circle cx="11" cy="16" r=".8" fill="{bit}"/><ellipse cx="12" cy="6" rx="5" ry="1.6" fill="{bit_mid}" stroke="{bit}" stroke-width="1.6"/>',
+	"bit_pulley": '<path d="M12 2.5 L12 6" stroke="{bit}"/><circle cx="12" cy="11" r="6" stroke="{bit}" stroke-width="2.2"/><circle cx="12" cy="11" r="1.8" fill="{bit}" stroke="none"/><path d="M6 11 L6 21 M18 11 L18 17" stroke="{pink}" stroke-width="1.8"/>',
+	"bit_wire": '<path d="M4 18 Q4 6 8 6 Q11 6 11 12 Q11 18 14 18 Q18 18 18 8 L20 5" stroke="{bit}" stroke-width="2.2"/><circle cx="4" cy="19" r="1.6" fill="{bit}" stroke="none"/>',
+	"bit_amber": '<path d="M8 3.5 L16 3.5 L16 7 Q19.5 9 19.5 13.5 L19.5 20.5 L4.5 20.5 L4.5 13.5 Q4.5 9 8 7 Z" fill="{bit_dark}" stroke="{bit}" stroke-width="2"/><path d="M8 12 L9 15.5 M11 11 L11.4 13" stroke="{c}" stroke-width="1.5" opacity=".7"/>',
+	"tree_nest": '<path d="M4 13 Q12 21 20 13"/><path d="M5 13 Q12 16 19 13 M7 15 L10 11 M12 16 L12 11 M16 15 L14 11"/>',
+	"tree_cork": '<path d="M7.5 5 L16.5 5 L15 19 L9 19 Z"/><path d="M10.5 10 L10.6 10.1 M13.4 13.4 L13.5 13.5"/>',
+	"tree_pulley": '<circle cx="12" cy="11" r="6"/><circle cx="12" cy="11" r="1.4"/><path d="M12 2.5 L12 5 M6 11 L6 21 M18 11 L18 17"/>',
+	"tree_amber": '<circle cx="12" cy="12" r="7"/><path d="M8.5 9.5 Q10 7.5 12.5 7"/><path d="M5 12 L19 12" opacity=".5"/>',
+	"tree_hatch": '<rect x="5" y="6" width="14" height="13" rx="2"/><path d="M5 11 L19 11"/><circle cx="15" cy="15" r="1"/>',
+	"globe_sunny": '<circle cx="12" cy="12" r="5" fill="{c}" stroke="none"/><path d="M12 2.5 L12 4.5 M12 19.5 L12 21.5 M2.5 12 L4.5 12 M19.5 12 L21.5 12 M5.3 5.3 L6.7 6.7 M17.3 17.3 L18.7 18.7 M5.3 18.7 L6.7 17.3 M17.3 6.7 L18.7 5.3"/>',
+	"globe_sunset": '<path d="M5 16 A7 7 0 0 1 19 16 Z" fill="{c}" stroke="none"/><path d="M2.5 16 L21.5 16 M6 19.5 L18 19.5 M12 4 L12 6.5 M5 7.5 L6.6 9 M19 7.5 L17.4 9"/>',
+	"globe_midnight": '<path d="M15 4 Q8 5 8 12 Q8 19 15 20 Q6 21.5 4 13 Q3.5 5 15 4 Z" fill="{c}"/><path d="M18 6 L18.6 7.6 L20.2 8.2 L18.6 8.8 L18 10.4 L17.4 8.8 L15.8 8.2 L17.4 7.6 Z" fill="{c}" stroke="none"/>',
 	"tree_tape": '<path d="M6 16 L18 8 M8 19 L20 11"/><path d="M5 12 L10 17"/>',
 	"tree_oil": '<path d="M12 4 Q18 12 18 15 Q18 20 12 20 Q6 20 6 15 Q6 12 12 4 Z"/>',
 	"tree_flap": '<path d="M6 8 L18 8 L18 18 L6 18 Z"/><path d="M6 8 L18 13"/>',
@@ -525,7 +544,12 @@ static func icon(icon_name: String, size := 18, color := TEXT, style := "") -> T
 	if style == "pixel" and PIXELS.has(icon_name):
 		tex = _pixel_texture(icon_name, size * 2, color)
 	elif DOODLES.has(icon_name):
-		var body: String = DOODLES[icon_name].replace("{c}", _hex(color)).replace("{cyan}", _hex(CYAN)).replace("{gold}", _hex(GOLD)).replace("{pink}", _hex(PINK)).replace("{page}", _hex(PAGE)).replace("{mint}", _hex(MINT)).replace("{lilac}", _hex(LILAC))
+		var body: String = DOODLES[icon_name]
+		if body.contains("{bit"):
+			# a machine bit, in its colour from data (with two darker shades of it)
+			var bit_c := named_color(str(Machine.bit_info(Catalog.shared(), icon_name.trim_prefix("bit_")).get("color", "text")), TEXT)
+			body = body.replace("{bit}", _hex(bit_c)).replace("{bit_mid}", _hex(bit_c.darkened(0.35))).replace("{bit_dark}", _hex(bit_c.darkened(0.5)))
+		body = body.replace("{c}", _hex(color)).replace("{cyan}", _hex(CYAN)).replace("{gold}", _hex(GOLD)).replace("{pink}", _hex(PINK)).replace("{page}", _hex(PAGE)).replace("{mint}", _hex(MINT)).replace("{lilac}", _hex(LILAC))
 		var svg := '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%s" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">%s</svg>' % [_hex(color), body]
 		tex = _svg_texture(svg, size * 2 / 24.0)
 	_icons[key] = tex

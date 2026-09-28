@@ -55,7 +55,8 @@
 		{ "id": "hay_wagon", "name": "a hay wagon" },
 		{ "id": "cushion", "name": "a comfy cushion" },
 		{ "id": "piggy", "name": "a piggy bank" },
-		{ "id": "tiny_machine", "name": "a tiny capsule machine" }
+		{ "id": "tiny_machine", "name": "a tiny capsule machine" },
+		{ "id": "sunset_globe", "name": "a sunset globe" }
 	],
 	"pages": [
 		{ "id": "backyard", "name": "the backyard", "start": true },

@@ -277,9 +277,10 @@ func _expect(w: PackedStringArray) -> String:
 			return "" if _find('"%s"' % w[2]) != null else "no \"%s\" on screen" % w[2]
 		"no-text":
 			return "" if _find('"%s"' % w[2]) == null else "\"%s\" is on screen" % w[2]
-		"pile":
+		"pile":  # pile <box> <n>: exactly n of that box on the pile ("<n>+": at least n)
 			var have := GameState.in_bag(w[2])
-			return "" if have == int(w[3]) else "%d on the pile" % have
+			var ok := have >= int(w[3].trim_suffix("+")) if w[3].ends_with("+") else have == int(w[3])
+			return "" if ok else "%d on the pile" % have
 		"fits":
 			# nothing on screen needs more room than the window has (it would spill past the edge)
 			var game: Control = get_parent().full_game()
@@ -360,6 +361,8 @@ func _click(target: Control) -> void:
 		receiver = receiver.get_parent()
 	var at := target.get_global_rect().get_center()
 	for pressed in [true, false]:
+		if not is_instance_valid(receiver) or not receiver.is_inside_tree():
+			break  # the press rebuilt what was clicked (a list row): the release has nowhere to go
 		var e := InputEventMouseButton.new()
 		e.button_index = MOUSE_BUTTON_LEFT
 		e.pressed = pressed
