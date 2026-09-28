@@ -678,6 +678,9 @@ func _test_more_jobs(catalog: Catalog) -> void:
 		"1/2/4/10 cooks: every job 10/15/20/25%% faster (%s)" % [bonus])
 	_check(Jobs.kitchen_bonus(kitchen, 1000.0, 1, power) <= float(kitchen.kitchen.most), "the kitchen never goes past its most")
 	_check(Jobs.kitchen_bonus(kitchen, 2.0, 1000, power) < 0.002, "with 1000 pets elsewhere, 2 cooks barely matter (%.4f)" % Jobs.kitchen_bonus(kitchen, 2.0, 1000, power))
+	var thin := Jobs.faster_words(Jobs.kitchen_bonus(kitchen, 2.0, 1000, power))
+	_check(thin.begins_with("every job 0.") and not thin.begins_with("every job 0.0"), "a thinned-out kitchen shows a decimal, not 0%% (%s)" % thin)
+	_check(Jobs.faster_words(0.12) == "every job 12% faster" and Jobs.faster_words(0.0001) == "", "the kitchen's line: whole percent, or nothing when it rounds away")
 	for others in [1, 3, 10, 100, 1000]:
 		for cooks in [1, 2, 5]:
 			var gain_kitchen := Jobs.kitchen_bonus(kitchen, cooks, others, power)

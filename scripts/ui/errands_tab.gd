@@ -300,8 +300,9 @@ func _job_note(job: Dictionary) -> Control:
 		_countdowns[job.id] = countdown
 		col.add_child(countdown)
 	elif pay.has("meal"):  # the kitchen: how much faster every other job is, and the meals
-		if not crew.is_empty():  # nobody cooking: just "nobody on it"
-			col.add_child(_shrinkable(UiTheme.label("every job %d%% faster" % roundi(GameState.kitchen_bonus() * 100.0), color, UiTheme.SMALL)))
+		var faster := Jobs.faster_words(GameState.kitchen_bonus())
+		if not crew.is_empty() and faster != "":  # nobody cooking: just "nobody on it"
+			col.add_child(_shrinkable(UiTheme.label(faster, color, UiTheme.SMALL)))
 		col.add_child(_shrinkable(UiTheme.label(("a meal " + _every(rate)) if rate > 0.0 else _every(rate), UiTheme.MUTED, UiTheme.SMALL)))
 	elif pay.has("note"):  # scouting: the notes waiting for your next trips
 		col.add_child(_shrinkable(UiTheme.label("notes ready %d / %d" % [GameState.scout_notes, GameState.scout_hold()], color, UiTheme.SMALL)))
@@ -543,7 +544,7 @@ func _paid(job_id: String, loot: Dictionary) -> void:
 	var text := "+%s" % ExpandedView._thousands(coins) if coins > 0 else ("+ a part" if parts == 1 else "+%s parts" % ExpandedView._thousands(parts))
 	if loot.has("meal"):
 		if int(loot.meal) <= 0:
-			return  # your pet wasn't hungry: the kitchen's snack waits
+			return  # your pet wasn't hungry: that meal went to the cooks
 		text = "+ a meal" if int(loot.meal) <= int(job.pay.meal) else "+ meals"
 		if _rng.randf() < 0.4:
 			PetBubble.say_line(self, "errands_meal")

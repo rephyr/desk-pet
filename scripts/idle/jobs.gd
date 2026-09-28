@@ -46,6 +46,17 @@ static func kitchen_bonus(job: Dictionary, cooks: float, others: int, crew_power
 	return minf(soft, pow(1.0 + cooks / float(others), crew_power) - 1.0)
 
 
+## The kitchen's line: "every job 12% faster", one decimal under 1% (a big crew thins it out),
+## "" when it rounds to nothing.
+static func faster_words(bonus: float) -> String:
+	var pct := bonus * 100.0
+	if pct >= 0.995:
+		return "every job %d%% faster" % roundi(pct)
+	if pct >= 0.05:
+		return "every job %.1f%% faster" % pct
+	return ""
+
+
 ## The job that writes scout notes: whichever has a "scout" block ({} if none). Found once per
 ## catalog, so the job can be renamed in data.
 static func scout_job(catalog: Catalog) -> Dictionary:

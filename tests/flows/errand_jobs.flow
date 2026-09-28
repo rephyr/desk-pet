@@ -88,6 +88,18 @@ wait 1
 expect text "notes ready 1 / 2"
 expect fits
 shot trip_took_note
+# a big crew elsewhere thins the kitchen out: a decimal, never "0% faster" (1200 pets fill a book page)
+pets 1200
+job coin_hunt 1000
+wait 1
+expect text "every job 0.*"
+expect no-text "every job 0% faster"
+expect fits
+scroll 400
+wait 0.5
+shot kitchen_thin
+scroll 0
+wait 1
 pets 400
 job jar 100
 job kitchen 100

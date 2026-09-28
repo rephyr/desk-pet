@@ -416,12 +416,16 @@ func _spot_places(run: RunState) -> Array[String]:
 	if run.party.size() == 0:
 		return []
 	var location := catalog.location(run.location_id)
-	var known := func(id): return location_open(catalog.location(id)) or spotted.has(id)
 	var bonus := float(run.scout.get("spot", 0.0))
-	var found := Intel.roll(location, known, spot_tries, _rng, bonus)
+	var found := Intel.roll(location, _place_known, spot_tries, _rng, bonus)
 	for id in found:
 		spotted[id] = { "by": run.party.who(), "from": run.location_id }
 	return found
+
+
+## Whether you know a place: it's open, or a pet spotted it.
+func _place_known(id: String) -> bool:
+	return location_open(catalog.location(id)) or spotted.has(id)
 
 
 ## Places you can go, in the data's order.
@@ -1673,8 +1677,9 @@ func send_on_adventure(location_id: String, pets: Array[Pet], by_you := true) ->
 	# never dungeons, see Gear.for_trip)
 	var run := AdventureRunner.start(location_id, going, Time.get_unix_time_from_system(), _rng.randi(), catalog, finds, machine.bought,
 		Gear.for_trip(catalog, gear, location))
-	var known := func(id): return location_open(catalog.location(id)) or spotted.has(id)
-	if Jobs.takes_note(catalog, location, by_you, scout_notes, Intel.left_to_find(location, known, not Rumours.hearable(catalog, heard, is_open).is_empty(), catalog)):
+	# auto parties (your pet's, the workers') never take a note: skip the looking around for them
+	if by_you and scout_notes > 0 and Jobs.takes_note(catalog, location, by_you, scout_notes,
+			Intel.left_to_find(location, _place_known, not Rumours.hearable(catalog, heard, is_open).is_empty(), catalog)):
 		scout_notes -= 1
 		run.scout = Jobs.scout_note(catalog)
 		jobs_changed.emit()

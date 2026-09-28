@@ -106,7 +106,7 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   the check: sticker rows taller (an effect that wraps to 3 lines kept its price inside the window),
   the tote's "bought" line says coins (it only boosts coins).
 
-### A3. More errand jobs  (DECIDED 2026-09-28, BUILT)
+### A3. More errand jobs  (BUILT + VERIFIED 2026-09-28)
 - **Emilia picked:** savings jar (fills slowly, pays one big chunk), kitchen (brings nothing,
   every job a bit faster, SOFT: a few cooks ~+10-25% diminishing, never beats real jobs; feeds
   your pet), scouting (raises the spot/rumour chance of the next trips; CHANCE ONLY, the map's ?
@@ -127,6 +127,10 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   **Open questions for Emilia:** see docs/plans/A3.md (scouting opens at jar lv 10; auto parties
   never take notes; kitchen has no floor at big crews; share out skips kitchen + scouting; hold 2
   notes; no away bonus for the jar; all numbers placeholders).
+- **Verified (2026-09-28):** tests + flow errand_jobs pass, UI fits. Fixes from the check: the
+  kitchen's line keeps one decimal when a big crew elsewhere thins it out ("every job 0.4%
+  faster", `Jobs.faster_words`, never "0% faster"), and sending a trip skips the "anything left to
+  find?" look for auto parties (`GameState._place_known`).
 
 ### A4. Book page rewards  (DECIDED 2026-09-28, ready: mockup design/mockups/screens/book.html)
 - Filling a collection book page opens its reward sticker: a **small permanent boost** (the book
