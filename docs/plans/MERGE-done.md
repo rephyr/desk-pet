@@ -1,7 +1,8 @@
 # MERGE done: lanes/b2-d1 (B2 boost plumbing + D1 knacks) into care
 
 `git merge lanes/b2-d1` (base 9e57dd0) into lanes/care (A2 gear, A3 errand jobs + kitchen, A4 book
-rewards). Conflicts in 8 files, all kept both sides. Staged, not committed yet.
+rewards). Conflicts in 8 files, all kept both sides. Committed as one merge commit on lanes/care
+("merge boosts and knacks into care", with the review fixes below); step VERIFIED. Not pushed.
 
 ## Save
 
