@@ -2,6 +2,8 @@
 
 Look C (today's counter) from design/mockups/screens/shop-tiers.html, names from docs/picks.md.
 
+**Status: VERIFIED (2026-09-28).** Built, reviewed, tests + balance + flows passing on lanes/b1.
+
 ## What was built
 
 - **Three tiers** in data/boxes.json: **sunny box** (id stays `starter`, page backyard, 50 coins,
@@ -122,7 +124,7 @@ renumbered version only needs the comment in `_migrate` moved; no code depends o
 
 ## Text to add elsewhere
 
-**docs/dev-plan.md**, B1 heading: `### B1. Pack tiers per map page  (BUILT 2026-09-28)` and add:
+**docs/dev-plan.md**, B1 heading: `### B1. Pack tiers per map page  (VERIFIED 2026-09-28)` and add:
 
 > - **Built:** sunny / sunset / midnight boxes (data/boxes.json: page, stamp, pets, arrives),
 >   gated finishes and new looks (parts.json `from`), lucky box retired (BoxShop.fix_retired on
