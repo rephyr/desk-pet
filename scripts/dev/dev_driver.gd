@@ -13,7 +13,7 @@ extends Node
 ##   key <name>            a key press: space, escape, enter
 ##   wait <seconds>        or: wait ritual | wait popup | wait text "..." | wait tutorial <step> | wait event
 ##   expect <what>         tutorial <step> | tab <id> | text "..." | no-text "..." | pile <box> <n>
-##                         | fits (the full game fits its window)
+##                         | fits (the full game fits its window); in "...", \n is a line break
 ##   shot <name>           a screenshot of the game, from inside it (works while it's off-screen)
 ##   say "<text>"          your pet says it (for testing the bubble)
 ##   answer                every adventure waiting at an event takes its first choice
@@ -27,6 +27,7 @@ extends Node
 ##   fix <node> [levels]   a node on the machine's upgrade tree, for free (data/machine_tree.json)
 ##   bits <id> <n>         n machine bits (gear, spring, bolt, glass)
 ##   coins <n>             you have exactly n coins
+##   reserve <n>           your pet keeps n capsules' worth of coins when it buys boxes
 ##   tool <id> [levels]    levels of an errand tool (data/errands.json "tools"), for free
 ##   job <id> <n>          the n best resting pets go on that errand
 ##   notes <n>             you hold n scout notes (the scouting errand)
@@ -187,6 +188,9 @@ func _step(w: PackedStringArray) -> String:
 		"coins":  # coins <n>: you have exactly n coins
 			GameState.coins = int(w[1])
 			GameState.changed.emit()
+		"reserve":  # reserve <n>: your pet keeps n capsules' worth of coins when it buys boxes
+			GameState.set_reserve(int(w[1]))
+			GameState.changed.emit()
 		"tool":  # tool <id> [levels]: levels of an errand tool (data/errands.json), for free
 			if Jobs.tool(GameState.catalog, w[1]).is_empty():
 				return "unknown tool %s" % w[1]
@@ -324,7 +328,7 @@ func _find(what: String) -> Control:
 			return pa.y < pb.y - 4.0 or (absf(pa.y - pb.y) <= 4.0 and pa.x < pb.x))
 		var i := int(bits[1]) - 1
 		return kind[i] if i >= 0 and i < kind.size() else null
-	var text := what.trim_prefix('"').trim_suffix('"').to_lower()
+	var text := what.trim_prefix('"').trim_suffix('"').to_lower().replace("\\n", "\n")  # \n: a two-line button
 	var starts := text.ends_with("*")  # "next treat in*": text that starts with this
 	text = text.trim_suffix("*")
 	var found: Control = null

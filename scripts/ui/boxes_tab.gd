@@ -11,7 +11,6 @@ extends VBoxContainer
 const OPEN_MANY := 10
 const OPEN_MAX_LIMIT := 500  # "open all" stops here so one click can't hang the game
 const QUICK := [1, 10, 50]
-const RESERVE_STEP := 50
 
 var _reveal := BoxReveal.new()
 var _opening := PackOpening.new()
@@ -93,7 +92,8 @@ func _offer(box: Dictionary) -> PanelContainer:
 	mid.add_child(name_row)
 	var quick := HBoxContainer.new()
 	quick.add_theme_constant_override("separation", 4)
-	quick.add_child(UiTheme.chip("coin", str(int(box.price)), UiTheme.CYAN))
+	var price := UiTheme.chip("coin", UiTheme.num(GameState.box_price(box.id)), UiTheme.CYAN)
+	quick.add_child(price)
 	var chips: Array[Button] = []
 	for n in QUICK:
 		var chip := UiTheme.filter_chip(str(n), UiTheme.PINK, n == 1)
@@ -120,7 +120,7 @@ func _offer(box: Dictionary) -> PanelContainer:
 	buy.button.custom_minimum_size = Vector2(100, 40)
 	right.add_child(buy.button)
 	row.add_child(right)
-	_offers[box.id] = { "buy": buy, "amount": amount, "quick": chips, "panel": panel }
+	_offers[box.id] = { "buy": buy, "amount": amount, "quick": chips, "panel": panel, "price": price.find_child("Amount", true, false) }
 	return panel
 
 
@@ -334,16 +334,16 @@ func _job_card(pet: Pet, who: String) -> PanelContainer:
 		keep.add_theme_constant_override("separation", 4)
 		keep.add_child(UiTheme.label("keep at least", UiTheme.TEXT, UiTheme.SMALL + 1))
 		keep.add_child(UiTheme.spacer())
-		var kept := UiTheme.label(str(GameState.coin_reserve), UiTheme.CYAN)
+		# kept in capsules like box prices, shown in coins at what a capsule is worth now
+		var kept := UiTheme.label(UiTheme.num(GameState.coin_reserve()), UiTheme.CYAN)
 		kept.custom_minimum_size = Vector2(44, 0)
 		kept.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		var step := func(d: int):
-			GameState.coin_reserve = maxi(0, GameState.coin_reserve + d)
-			kept.text = str(GameState.coin_reserve)
-			GameState.save_game()
-		keep.add_child(UiTheme.small_button("−", step.bind(-RESERVE_STEP)))
+			GameState.set_reserve(GameState.reserve_capsules + d)
+			kept.text = UiTheme.num(GameState.coin_reserve())
+		keep.add_child(UiTheme.small_button("−", step.bind(-GameState.reserve_step())))
 		keep.add_child(kept)
-		keep.add_child(UiTheme.small_button("+", step.bind(RESERVE_STEP)))
+		keep.add_child(UiTheme.small_button("+", step.bind(GameState.reserve_step())))
 		keep.add_child(UiTheme.label("coins", UiTheme.MUTED, UiTheme.SMALL))
 		col.add_child(keep)
 	return card
@@ -435,8 +435,9 @@ func _refresh() -> void:
 		var short := GameState.coins_short(box_id, n)
 		o.buy.top.text = "buy %d" % n
 		o.buy.button.disabled = short > 0
-		o.buy.button.tooltip_text = "you need %d more coins" % short if short > 0 else ""
-		o.buy.small.text = "need %d more" % short if short > 0 else "%d coins" % GameState.box_price(box_id, n)
+		o.price.text = UiTheme.num(GameState.box_price(box_id))  # boxes cost more as the machine grows
+		o.buy.button.tooltip_text = "you need %s more coins" % UiTheme.num(short) if short > 0 else ""
+		o.buy.small.text = "need %s more" % UiTheme.num(short) if short > 0 else "%s coins" % UiTheme.num(GameState.box_price(box_id, n))
 		o.buy.small.add_theme_color_override("font_color", UiTheme.LILAC if short > 0 else UiTheme.CYAN)
 	for box_id in _piles:
 		var p: Dictionary = _piles[box_id]

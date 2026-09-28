@@ -96,6 +96,13 @@ its parts and finish together.
 
 - Bought with coins, found on adventures, given as check-in rewards. Never sold for money.
   **Decided**
+- **Priced in capsules** (built): a box's price is a number of the machine's plain capsules
+  (boxes.json "capsules", starter 50) times what a capsule is worth now (Machine.coin_value), shown
+  in coins. So 50 coins on a fresh machine, and the shop keeps up with the machine all game instead
+  of getting 2500x cheaper (GameState.box_price / box_cost). One box's price is rounded first, so
+  10 boxes always cost 10x the chip. What your pet keeps when it buys boxes itself ("keep at
+  least") is in the same capsules (boxes.json "reserve": starts at 50, -/+ step 50, slider top
+  2000), shown in coins, so it keeps meaning something as prices grow.
 - Different box types have different odds (starter box, part-focused boxes, boss boxes).
 - The odds are always visible in game.
 - **Opening one box** (the first hours are all about this moment, so it gets a real ritual).
@@ -280,6 +287,9 @@ Nobody is ever lost on an errand, and errands never bring rare parts or new plac
   comfy naps = longer full speed while away, shiny pebbles = shiny finds once the machine has
   shiny balls, teamwork = better crew power). Buy x1 / x10 / max. The top of the tab always shows
   "◆ N a minute on errands", and the card shows before → after, so every buy is visible progress.
+  Tools are priced in capsules like errands pay (errands.json tool "capsules" x Machine.coin_value,
+  x "grow" per level): set so a capsule worth 75 coins (about when the basket opens) gives the old
+  coin prices, and they keep up with the pay as the machine grows (Jobs.tool_base / tool_cost).
 - **Job levels and goals:** a job's level is its tools' levels added up; gold stars along a dotted
   track mark its goals (coin hunt: lv 10 the lemonade stand, lv 25 and 50 x2 coins, lv 100 x3). An
   unlock can wait for a level (`earn.job_level`).

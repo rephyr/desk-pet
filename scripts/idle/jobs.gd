@@ -231,12 +231,21 @@ static func tool(catalog: Catalog, id: String) -> Dictionary:
 	return catalog.get_meta("errand_tools_by_id").get(id, {})
 
 
-## What the next `n` levels of a tool cost, with `have` levels already.
-static func tool_cost(tool: Dictionary, have: int, n := 1) -> int:
+## A tool's first level in coins: 'capsules' x what a capsule is worth now (`value`, the same unit
+## errands pay in, so prices keep up with the pay), or a fixed 'coins' price.
+static func tool_base(tool: Dictionary, value := 1.0) -> float:
+	if tool.has("capsules"):
+		return float(tool.capsules) * value
+	return float(tool.get("coins", 0))
+
+
+## What the next `n` levels of a tool cost, with `have` levels already, a capsule worth `value`.
+static func tool_cost(tool: Dictionary, have: int, n := 1, value := 1.0) -> int:
+	var base := tool_base(tool, value)
 	var total := 0.0
 	for i in n:
-		total += float(tool.coins) * pow(float(tool.get("grow", 1.0)), have + i)
-	return roundi(minf(total, MAX_PRICE))
+		total += base * pow(float(tool.get("grow", 1.0)), have + i)
+	return maxi(1, roundi(minf(total, MAX_PRICE))) if n > 0 and base > 0.0 else 0
 
 
 const MAX_PRICE := 4.0e18  # prices stop here: past about 9.2e18 a whole number wraps round to negative

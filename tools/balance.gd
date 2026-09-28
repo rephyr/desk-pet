@@ -13,7 +13,7 @@ func _init() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1
 	var roller := PetRoller.new(catalog, rng)
-	var box_price := float(catalog.box("starter").price)
+	var box_price := float(catalog.box("starter").capsules)  # at the start (a capsule worth 1 coin)
 	print("one pet (a common), %d trips each. a box costs %d. passive income is about 6 coins a minute." % [TRIPS, box_price])
 	print("%-10s %-9s %8s %8s %8s %8s %8s" % ["place", "style", "coins", "per min", "parts", "boxes", "lost"])
 	for location in catalog.locations:
