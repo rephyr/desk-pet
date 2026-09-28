@@ -9,7 +9,7 @@ extends HBoxContainer
 
 const COLUMNS := 4  # stickers a row; the road snakes back on the next row
 const STOP_WIDTH := 118
-const ROW_HEIGHT := 158
+const ROW_HEIGHT := 172  # room for an effect that wraps to 3 lines + its price
 const FACE := 66  # the tilted icon square on a sticker
 const TILTS := [-3.0, 2.0, -2.0, 3.0, 2.5, -2.5, 2.0, -3.0]
 
