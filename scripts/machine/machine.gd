@@ -158,8 +158,8 @@ static func spring_seconds(_state: Dictionary, catalog: Catalog) -> float:
 
 ## Rolls one capsule's prize. `lucky`: the lucky lights were all lit, only lucky prizes.
 ## Prizes that need better drops ("drops") only join once it's fixed. `toy_luck` (your toys' luck)
-## makes lucky prizes weigh more, `toy_rate` makes toys weigh more.
-static func roll(state: Dictionary, catalog: Catalog, rng: RandomNumberGenerator, lucky := false, toy_luck := 1.0, toy_rate := 1.0) -> Dictionary:
+## makes lucky prizes weigh more, `toy_rate` makes toys weigh more, `pet_rate` pet boxes.
+static func roll(state: Dictionary, catalog: Catalog, rng: RandomNumberGenerator, lucky := false, toy_luck := 1.0, toy_rate := 1.0, pet_rate := 1.0) -> Dictionary:
 	var drops := add(state, catalog, "drops")
 	var weights := {}
 	var prizes: Array = catalog.machine.prizes
@@ -169,7 +169,7 @@ static func roll(state: Dictionary, catalog: Catalog, rng: RandomNumberGenerator
 			continue
 		if drops < float(p.get("drops", 0)):
 			continue
-		weights[i] = float(p.weight) * (toy_luck if p.get("lucky", false) else 1.0) * (toy_rate if p.kind == "toy" else 1.0)
+		weights[i] = float(p.weight) * (toy_luck if p.get("lucky", false) else 1.0) * (toy_rate if p.kind == "toy" else 1.0) * (pet_rate if p.kind == "pet_box" else 1.0)
 	return prizes[Weighted.pick(weights, rng)]
 
 

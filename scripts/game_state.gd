@@ -18,6 +18,7 @@ signal play_ended(editions: Array)  # your pet finished playing with these toys
 signal automation_changed  # a job was taught, your pet moved to another job, or a tool was bought
 signal pet_cranked(result: Dictionary)  # your pet's own little machine gave a capsule (see _pet_capsule)
 signal gear_changed  # a gear upgrade was bought with xp (the adventures' upgrades page)
+signal knacks_changed  # a knack gate may have opened (an unlock, a machine fix, the tutorial moved on)
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
 const SAVE_VERSION := 22
@@ -73,6 +74,9 @@ var _job_speed := {}  # job id -> how fast its crew works on average (see Jobs.p
 var _job_tip := {}  # job id -> its crew's average tip (jobs with "tips")
 var _job_tools := {}  # job id -> [crew power, speed] with the tools you have
 var _boosts := {}  # boost kind -> its total right now (see boost(); cleared by _boosts_changed)
+var _knack_steps := {}  # boost kind -> the knack kinds counting for it (see _knack_counting)
+var _knack_own := {}  # boost kind -> { pet uid -> its own knack share } (see knack_own)
+var knack_version := 0  # goes up whenever pets' knacks may have changed (views keep their totals by it)
 var errand_tools := {}  # tool id -> levels bought with coins (the errands' upgrades page, see Jobs)
 var _jobs_at := 0.0  # unix time errands have worked up to
 var _was_active := ""  # the active pet before it changed (it goes back to work)
@@ -140,6 +144,12 @@ func _init() -> void:
 	elif collection.pets.is_empty() and tutorial == "done":
 		_give_first_pet()
 	toys_changed.connect(_boosts_changed)
+	# knacks: your active pet's feed the boosts, everyone's their own work (see Knacks)
+	collection.active_changed.connect(func(_p): _boosts_changed())  # your active pet never works an errand
+	collection.pet_changed.connect(func(_p): _knacks_changed())
+	unlocked.connect(func(_e): _knack_gates_changed())
+	machine_upgraded.connect(func(_id): _knack_gates_changed())
+	tutorial_changed.connect(_knack_gates_changed)
 	collection.active_changed.connect(func(_p): _check_tutorial())
 	collection.pets_added.connect(func(_p): _check_tutorial())
 	# your active pet never works an errand; lost pets leave theirs; new pets get one
@@ -292,6 +302,7 @@ func unlock(id: String) -> void:
 	if unlocks.has(id):
 		return
 	unlocks[id] = true
+	_knack_gates_changed()
 	adventures_changed.emit()
 	changed.emit()
 	save_game()
@@ -416,7 +427,7 @@ func _spot_places(run: RunState) -> Array[String]:
 		return []
 	var location := catalog.location(run.location_id)
 	var known := func(id): return location_open(catalog.location(id)) or spotted.has(id)
-	var found := Intel.roll(location, known, spot_tries, _rng)
+	var found := Intel.roll(location, known, spot_tries, _rng, run.knack("spots"))
 	for id in found:
 		spotted[id] = { "by": run.party.who(), "from": run.location_id }
 	return found
@@ -527,7 +538,7 @@ func debug_new_game() -> void:
 	machine = { "pulls": 0, "lit": 0, "bought": {} }
 	fever_until = 0.0
 	toys = Toys.fresh()
-	_boosts_changed()
+	_knacks_changed()
 	bits = {}
 	automation = Automation.fresh()
 	_auto_at = 0.0
@@ -556,7 +567,7 @@ func _work_jobs(until: float) -> void:
 		var gap := until - _jobs_at
 		if gap > 5.0:  # the computer slept: time away counts like time with the game closed
 			var e: Dictionary = catalog.errands
-			gap = Jobs.offline_seconds(gap, errands_away_hours(), float(e.offline_after), OFFLINE_CAP)
+			gap = Jobs.offline_seconds(gap, errands_away_hours(), float(e.offline_after), OFFLINE_CAP) * boost("away")
 		_work_for(gap)
 	_jobs_at = maxf(_jobs_at, until)
 
@@ -647,7 +658,7 @@ func job_boost(job_id: String) -> Dictionary:
 		"worth": Jobs.tool_sum(catalog, job_id, "worth", errand_tools),
 		"x": Jobs.goal_x(job, job_level(job_id)) * job_tips(job_id),
 		"big": Jobs.tool_sum(catalog, job_id, "big", errand_tools), "big_x": float(catalog.errands.get("big_x", 5)),
-		"shiny": Machine.shiny_chance(machine, catalog) if shiny else 0.0, "shiny_pay": Machine.shiny_pay(machine, catalog) }
+		"shiny": Machine.shiny_chance(machine, catalog) * boost("shiny") if shiny else 0.0, "shiny_pay": Machine.shiny_pay(machine, catalog) }
 
 
 ## A job with "tips" pays by its crew's rarity: their average tip (1 for jobs without tips). Fancy
@@ -778,16 +789,19 @@ func put_on_job(job_id: String, count := 1, uids: Array = []) -> void:
 	elif count == 1:
 		var job := catalog.job(job_id)
 		var best: Pet = null
+		var best_speed := 0.0
 		for pet in resting:
-			if best == null or Jobs.pet_speed(pet, job) > Jobs.pet_speed(best, job):
+			var v := _pet_speed(pet, job)
+			if best == null or v > best_speed:
 				best = pet
+				best_speed = v
 		if best:
 			going.append(best.uid)
 	else:
 		var job := catalog.job(job_id)
 		var speed := {}
 		for pet in resting:
-			speed[pet.uid] = Jobs.pet_speed(pet, job)
+			speed[pet.uid] = _pet_speed(pet, job)
 		var uids_by_speed: Array = speed.keys()
 		uids_by_speed.sort_custom(func(a, b): return speed[a] > speed[b])
 		going = uids_by_speed.slice(0, uids_by_speed.size() if count < 0 else count)
@@ -866,8 +880,12 @@ func _take_off(uids: Array) -> Array:
 
 
 func _speed_of(uid: String, job: Dictionary) -> float:
-	var pet := collection.get_pet(uid)
-	return Jobs.pet_speed(pet, job) if pet else 1.0
+	return _pet_speed(collection.get_pet(uid), job)
+
+
+## How fast a pet works an errand: its own speed times its own errand knacks (1.0 for nobody).
+func _pet_speed(pet: Pet, job: Dictionary) -> float:
+	return Jobs.pet_speed(pet, job) * knack_own(pet, "errands") if pet else 1.0
 
 
 ## A crew changed: the lookups are worked out again, and the tab redraws.
@@ -1121,7 +1139,7 @@ func _work_automation(until: float) -> void:
 		var gap := until - _auto_at
 		_auto_at = until
 		if gap > 5.0:  # the computer slept: counts like time with the game closed (a hitch still counts)
-			gap = maxf(Automation.away_seconds(catalog, automation, gap), minf(gap, 60.0))
+			gap = maxf(Automation.away_seconds(catalog, automation, gap) * boost("away"), minf(gap, 60.0))
 		_work_for_automation(gap, true)
 	_auto_adventures()
 	_release_saves()
@@ -1371,7 +1389,7 @@ func workers_speed(id: String) -> float:
 		for uid in workers_of(id):
 			var pet := collection.get_pet(str(uid)) if str(uid) != "" else null
 			if pet:
-				sum += Automation.worker_speed(catalog, pet)
+				sum += Automation.worker_speed(catalog, pet) * knack_own(pet, "automation")
 		_worker_speed[id] = sum
 	return float(_worker_speed[id])
 
@@ -1426,7 +1444,7 @@ func _pet_capsule() -> Dictionary:
 	var prize := Machine.roll(machine, catalog, _rng, false, luck, boost("toys"))
 	if not _machine_gives(str(prize.kind)) or prize.kind in ["pet", "pet_box"]:
 		prize = _machine_prize("coins")
-	var shiny: bool = prize.kind in ["coins", "golden", "box", "part"] and _rng.randf() < Machine.shiny_chance(machine, catalog)
+	var shiny: bool = prize.kind in ["coins", "golden", "box", "part"] and _rng.randf() < Machine.shiny_chance(machine, catalog) * boost("shiny")
 	var loot := Machine.loot(prize, machine, catalog, _rng)
 	if loot.has("coins"):
 		loot.coins = roundi(int(loot.coins) * boost("coins"))
@@ -1556,6 +1574,7 @@ func _check_tutorial() -> void:
 ## rumours heard. Trips already out still finish.
 func debug_lock_all() -> void:
 	unlocks.clear()
+	_knack_gates_changed()
 	trips_done = 0
 	heard.clear()
 	rumours.clear()
@@ -1601,7 +1620,7 @@ func send_on_adventure(location_id: String, pets: Array[Pet]) -> RunState:
 	# every trip packs the gear you have when it sets off (yours, your pet's and the workers' parties;
 	# never dungeons, see Gear.for_trip)
 	var run := AdventureRunner.start(location_id, going, Time.get_unix_time_from_system(), _rng.randi(), catalog, finds, machine.bought,
-		Gear.for_trip(catalog, gear, location))
+		Gear.for_trip(catalog, gear, location), trip_knacks(going))
 	runs.append(run)
 	_take_off(going.map(func(p): return p.uid))
 	_take_off_workers(going.map(func(p): return p.uid))
@@ -1647,7 +1666,7 @@ func collect_run(run: RunState) -> Dictionary:
 			var find_name := str(catalog.finds.get(key.substr(5), {}).get("name", "something"))
 			new_finds.append(find_name)
 			announcements.append("%s found %s!" % [run.party.who(), find_name])
-	_boost_trip_loot(run.loot, run.gear)
+	_boost_trip_loot(run.loot, run.gear, run.knacks)
 	grant(run.loot, false)
 	collection.remove(run.party.lost)
 	if jobs_auto:  # the pets that came home go back to work
@@ -1700,7 +1719,7 @@ func treat_every(run: RunState) -> float:
 
 ## Seconds this trip's pets zoom along after a treat (a treat pouch makes it longer).
 func treat_zoom(run: RunState) -> float:
-	return Gear.value(catalog, run.gear, "treat_zoom")
+	return Gear.value(catalog, run.gear, "treat_zoom") * run.knack("treats")
 
 
 ## The most a streak of grabs on the trail multiplies what you grab (sticky paws raise it).
@@ -1749,7 +1768,7 @@ func trail_pickup(run: RunState, kind: String, bonus := 1.0) -> Dictionary:
 	if not run in runs or run.status == RunState.Status.DONE:
 		return {}
 	var location := catalog.location(run.location_id)
-	var paws := 1.0 + Gear.value(catalog, run.gear, "pickups")  # sticky paws: worth more
+	var paws := (1.0 + Gear.value(catalog, run.gear, "pickups")) * run.knack("pickups")  # sticky paws (and knacks): worth more
 	match kind:
 		"coins":
 			var amount := maxi(1, roundi(_rng.randf_range(TRAIL_COINS[0], TRAIL_COINS[1]) * float(location.loot) * bonus * paws))
@@ -1874,7 +1893,7 @@ func rummage(spot_id: String) -> Dictionary:
 	if spot.is_empty() or not rummage_ready(spot_id):
 		return {}
 	rummaged[spot_id] = Time.get_unix_time_from_system() + float(spot.refill)
-	var found := { "coins": _rng.randi_range(int(spot.coins[0]), int(spot.coins[1])) }
+	var found := { "coins": roundi(_rng.randi_range(int(spot.coins[0]), int(spot.coins[1])) * boost("rummage")) }
 	if _rng.randf() < float(spot.get("xp_chance", 0.0)):
 		found.xp = add_xp(1)
 	var loot := { "coins": found.coins }
@@ -1936,7 +1955,7 @@ func _pet_box_due() -> bool:
 func _capsule(first: bool, lucky: bool, pay: float, pet_due := false) -> Dictionary:
 	var m: Dictionary = catalog.machine
 	var luck := boost("luck")
-	var prize := Machine.roll(machine, catalog, _rng, lucky, luck, boost("toys"))
+	var prize := Machine.roll(machine, catalog, _rng, lucky, luck, boost("toys"), boost("pet_boxes"))
 	if tutorial_active():
 		prize = _machine_prize("golden" if lucky else "coins")  # nothing fancy while you're starting out
 	elif not _machine_gives(str(prize.kind)) or (prize.kind == "pet_box" and not first):
@@ -1953,7 +1972,7 @@ func _capsule(first: bool, lucky: bool, pay: float, pet_due := false) -> Diction
 	elif first and debug_next_prize != "" and OS.is_debug_build():
 		prize = _machine_prize(debug_next_prize)
 		debug_next_prize = ""
-	var shiny: bool = prize.kind in ["coins", "golden", "box", "part"] and _rng.randf() < Machine.shiny_chance(machine, catalog)
+	var shiny: bool = prize.kind in ["coins", "golden", "box", "part"] and _rng.randf() < Machine.shiny_chance(machine, catalog) * boost("shiny")
 	var loot := Machine.loot(prize, machine, catalog, _rng, pay)
 	if loot.has("coins"):
 		loot.coins = roundi(int(loot.coins) * boost("coins"))  # shown as it is
@@ -2050,6 +2069,7 @@ func boost_parts(kind: String) -> Array[Dictionary]:
 	var now := Time.get_unix_time_from_system()
 	var out: Array[Dictionary] = []
 	out.append_array(Toys.parts(toys, catalog, kind, now))
+	out.append_array(Knacks.parts(catalog, collection.active(), kind, knack_gate))
 	return out
 
 
@@ -2057,6 +2077,93 @@ func boost_parts(kind: String) -> Array[Dictionary]:
 ## kept totals are worked out again.
 func _boosts_changed() -> void:
 	_boosts.clear()
+
+
+## Something every pet's knacks depend on changed (a pet's parts, a new save): the boosts, each
+## pet's own knack share and the errand and worker speeds are worked out again.
+func _knacks_changed() -> void:
+	_boosts_changed()
+	_knack_steps.clear()
+	_knack_own.clear()
+	knack_version += 1
+	_job_speed.clear()
+	_worker_speed.clear()
+
+
+## A knack gate may have opened (an unlock, a machine fix, the tutorial): the boosts are worked out
+## again, and the errand or worker speeds only if the knack kinds counting for them changed (a
+## machine fix only opens fever and shiny knacks, which neither uses).
+func _knack_gates_changed() -> void:
+	_boosts_changed()
+	var was := { "errands": _knack_counting("errands"), "automation": _knack_counting("automation") }
+	_knack_steps.clear()
+	_knack_own.clear()
+	knack_version += 1
+	if _knack_counting("errands") != was.errands:
+		_job_speed.clear()
+	if _knack_counting("automation") != was.automation:
+		_worker_speed.clear()
+	knacks_changed.emit()
+
+
+## The knack kinds counting for a boost kind right now (see Knacks.counting), kept until a gate moves.
+func _knack_counting(kind: String) -> Dictionary:
+	if not _knack_steps.has(kind):
+		_knack_steps[kind] = Knacks.counting(catalog, kind, knack_gate)
+	return _knack_steps[kind]
+
+
+## What a pet's own knacks of a kind do for its own work (see Knacks.own), kept per pet until its
+## parts or a gate change, so big crews and parties stay quick.
+func knack_own(pet: Pet, kind: String) -> float:
+	if pet == null:
+		return 1.0
+	var steps := _knack_counting(kind)
+	if steps.is_empty():
+		return 1.0
+	if not _knack_own.has(kind):
+		_knack_own[kind] = {}
+	var per: Dictionary = _knack_own[kind]
+	if not per.has(pet.uid):
+		per[pet.uid] = Knacks.own_in(catalog, pet, steps)
+	return per[pet.uid]
+
+
+## Whether a knack gate (data/knacks.json "opens") is open: "adventures" (the tutorial is past the
+## machine), "machine:<node>" (that node on the machine's tree is fixed), or an unlock id.
+func knack_gate(gate: String) -> bool:
+	if gate == "adventures":
+		return not tutorial in ["pull", "machine"]
+	if gate.begins_with("machine:"):
+		return Machine.owned(machine, gate.substr(8)) > 0
+	return is_open(gate)
+
+
+## Your active pet's knacks that show right now (see Knacks.of), or another pet's.
+func knacks_of(pet: Pet) -> Array[Dictionary]:
+	return Knacks.of(catalog, pet, knack_gate)
+
+
+## Kinds a trip packs when it sets off (RunState.knacks).
+const TRIP_KNACKS := ["trip", "tough", "safe", "spots", "finds", "pickups", "treats", "loot"]
+
+
+## What knacks do for a trip with these pets: your active pet's (the boost, which has the other
+## sources too) times the party's own share, per kind; kinds at x1 are left out. `loot` is the
+## party's share only (your active pet's loot boost is added when the trip is collected).
+func trip_knacks(pets: Array) -> Dictionary:
+	var out := {}
+	for kind: String in TRIP_KNACKS:
+		var share := 1.0
+		if not pets.is_empty() and not _knack_counting(kind).is_empty():
+			var sum := 0.0
+			for pet in pets:
+				sum += knack_own(pet, kind)
+			share = sum / pets.size()
+		var x := share * (1.0 if kind == "loot" else boost(kind))
+		if not is_equal_approx(x, 1.0):
+			out[kind] = x
+	return out
 
 
 ## Gives xp, boosted (the "xp" kind). Returns how much it really was.
@@ -2124,19 +2231,25 @@ func trip_gear(location_id: String) -> Dictionary:
 
 ## A trip's haul, boosted as it's collected: the loot and coins boosts multiply its coins (and so
 ## does the tote bag in the trip's `packed` gear), and loot times luck gives a chance of an extra copy
-## of every part and box.
-func _boost_trip_loot(loot: Dictionary, packed := {}) -> void:
+## of every part and box. The trip's `knacks` (RunState.knacks): the party's own loot share, and
+## "finds" gives a chance of an extra copy of every part and bit.
+func _boost_trip_loot(loot: Dictionary, packed := {}, knacks := {}) -> void:
 	var tote := 1.0 + Gear.value(catalog, packed, "coins")
-	var more := boost("loot")
+	var more := boost("loot") * float(knacks.get("loot", 1.0))  # the party's own knacks too
 	var lucky := more * boost("luck")
+	var finds := float(knacks.get("finds", 1.0))  # knacks: more bits and parts
 	for key: String in loot.keys():
 		if key.begins_with("part:") and not feature_on("parts"):
 			loot.erase(key)  # parts come much later in the game
 			continue
 		if key == "coins":
 			loot[key] = roundi(int(loot[key]) * more * boost("coins") * tote)
-		elif key.begins_with("part:") or key.begins_with("box:"):
+		elif key.begins_with("part:"):
+			loot[key] = int(loot[key]) + Rewards.count(int(loot[key]) * (lucky - 1.0 + finds - 1.0), _rng)
+		elif key.begins_with("box:"):
 			loot[key] = int(loot[key]) + Rewards.count(int(loot[key]) * (lucky - 1.0), _rng)
+		elif key.begins_with("bit:") and finds > 1.0:
+			loot[key] = int(loot[key]) + Rewards.count(int(loot[key]) * (finds - 1.0), _rng)
 
 
 ## Seconds a capsule takes to pop open, quicker with the capsule speed boost.
@@ -2436,7 +2549,7 @@ func load_game() -> bool:
 		if p is Dictionary and toys.owned.has(str(p.get("key", ""))):
 			toys.playing.append({ "key": str(p.key), "until": float(p.get("until", 0.0)), "wear": float(p.get("wear", 0.0)) })
 	Toys.finish_plays(toys, Time.get_unix_time_from_system())  # plays that ended while the game was closed
-	_boosts_changed()
+	_knacks_changed()
 	if from_version >= 15 and from_version < 20:
 		_regate()
 		if knows_job("boxes"):  # it had the cushion: opening boxes stays (now in the automation tab)
@@ -2445,13 +2558,13 @@ func load_game() -> bool:
 	# errands kept going while the game was closed: full speed for a while, then slower
 	var e: Dictionary = catalog.errands
 	var closed := Jobs.offline_seconds(Time.get_unix_time_from_system() - float(data.get("saved_at", 0.0)),
-		errands_away_hours(), float(e.offline_after), OFFLINE_CAP)
+		errands_away_hours(), float(e.offline_after), OFFLINE_CAP) * boost("away")
 	var brought := _work_for(closed)
 	jobs_away = { "coins": Rewards.total(brought, "coins"), "parts": Rewards.total(brought, "part") }
 	_jobs_at = Time.get_unix_time_from_system()
 	# your pet kept cranking its machine while the game was closed, as long as its stool lets it,
 	# and workers too, as long as its stool lets them
-	var cranked := Automation.away_seconds(catalog, automation, Time.get_unix_time_from_system() - float(data.get("saved_at", 0.0)))
+	var cranked := Automation.away_seconds(catalog, automation, Time.get_unix_time_from_system() - float(data.get("saved_at", 0.0))) * boost("away")
 	if cranked > 0.0:
 		_hold_saves = true  # no saving halfway through loading: the next autosave has it all
 		_work_for_automation(cranked, false)
@@ -2462,7 +2575,7 @@ func load_game() -> bool:
 	# catch up on time spent closed: coins at the slowest rate, stats to the floor at worst
 	var away := Time.get_unix_time_from_system() - float(data.get("saved_at", 0.0))
 	if away > 0.0:
-		coins += int(minf(away, OFFLINE_CAP) * 0.4 / COIN_INTERVAL)
+		coins += int(minf(away, OFFLINE_CAP) * 0.4 / COIN_INTERVAL * boost("away"))
 		hunger = maxf(STAT_FLOOR, hunger - HUNGER_DECAY * away)
 		happiness = maxf(STAT_FLOOR, happiness - HAPPY_DECAY * away)
 	return true
@@ -2479,6 +2592,7 @@ func _regate() -> void:
 	for _pass in 2:  # twice: an unlock can wait for another one ("open")
 		for o in UnlockRules.stale(catalog.unlock_list, _earned):
 			unlocks.erase(o)
+	_knacks_changed()
 
 
 ## Brings older save files up to the current format, one version at a time.

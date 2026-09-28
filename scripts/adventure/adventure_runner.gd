@@ -26,8 +26,9 @@ const HOME_OPTION := {
 
 ## `found` lists special items already found: events that give them don't turn up any more.
 ## `fixed` is the capsule machine's fixed nodes (node id -> levels), for events that wait on one.
-## `gear` is the gear the trip packs (Gear.for_trip): it's kept on the run for the whole trip.
-static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: int, catalog: Catalog, found := {}, fixed := {}, gear := {}) -> RunState:
+## `gear` is the gear the trip packs (Gear.for_trip) and `knacks` what knacks do for it
+## (GameState.trip_knacks): both are kept on the run for the whole trip.
+static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: int, catalog: Catalog, found := {}, fixed := {}, gear := {}, knacks := {}) -> RunState:
 	var location := catalog.location(location_id)
 	var s := RunState.new()
 	s.location_id = location_id
@@ -37,7 +38,8 @@ static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: i
 	s.events = pick_events(location, rng_seed, found, catalog, fixed)
 	s.started = now
 	s.gear = gear
-	s.walk = Gear.value(catalog, gear, "walk")
+	s.knacks = knacks
+	s.walk = walk_of(catalog, gear, knacks)
 	s.next_at = now + run_gap(s, catalog)
 	return s
 
@@ -69,6 +71,16 @@ static func pick_events(location: Dictionary, rng_seed: int, found := {}, catalo
 		weights.erase(id)
 		out.append(id)
 	return out
+
+
+## The share of the walking a trip's gear (comfy boots) and "trip" knacks take off: the boots take
+## their share, then the knacks divide what's left (x1.15 = 15% quicker).
+static func walk_of(catalog: Catalog, gear: Dictionary, knacks := {}) -> float:
+	var walk := Gear.value(catalog, gear, "walk")
+	var quick := float(knacks.get("trip", 1.0))
+	if quick == 1.0:
+		return walk
+	return 1.0 - (1.0 - walk) / quick
 
 
 ## How many events a trip to this place meets.
@@ -231,6 +243,8 @@ static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog
 	}
 	var danger := float(location.danger)
 	var keep := 1.0 - Gear.value(catalog, state.gear, "harm")  # the comfy harness: fewer hurt or lost
+	var tough := keep / state.knack("tough")  # knacks: fewer bumps
+	var safe := keep / state.knack("safe")  # knacks: more make it home
 	# a "safe" place (the garden, where you learn how adventures go): a failure costs nothing
 	# but the reward, nobody gets hurt or lost there
 	if location.get("safe", false) and not ok:
@@ -241,9 +255,9 @@ static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog
 	if outcome.get("leave_injured", false):
 		entry.lost += party.leave_injured()
 	if outcome.has("lost"):
-		entry.lost += party.lose(Rewards.count(_between(outcome.lost, rng) * danger * party.size() * keep, rng), rng).size()
+		entry.lost += party.lose(Rewards.count(_between(outcome.lost, rng) * danger * party.size() * safe, rng), rng).size()
 	if outcome.has("injured"):
-		entry.injured = party.injure(Rewards.count(_between(outcome.injured, rng) * danger * party.size() * keep, rng), rng)
+		entry.injured = party.injure(Rewards.count(_between(outcome.injured, rng) * danger * party.size() * tough, rng), rng)
 	if outcome.has("hurt"):
 		# a hurt pet that's hurt again doesn't come back; some things cost both hearts at once. The
 		# first-aid leaf saves a solo pet a few times a trip, and each pet in a party at a chance.
@@ -253,7 +267,7 @@ static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog
 			saves = maxi(0, int(Gear.value(catalog, state.gear, "saves")) - state.saves_used)
 		else:
 			share = Gear.value(catalog, state.gear, "save_share")
-		var hurt := party.hurt(Rewards.count(_between(outcome.hurt, rng) * danger * party.size() * keep, rng),
+		var hurt := party.hurt(Rewards.count(_between(outcome.hurt, rng) * danger * party.size() * tough, rng),
 			int(outcome.get("hearts", 1)), rng, saves, share)
 		entry.injured += hurt.injured
 		entry.lost += hurt.lost
@@ -313,13 +327,13 @@ static func summary(state: RunState) -> String:
 
 
 ## Roughly what share of these pets come home if the default option is taken at every event,
-## from a few quick trial runs. For showing before sending (with the gear they'd pack).
-static func estimate_return(location_id: String, pets: Array[Pet], catalog: Catalog, trials := 30, gear := {}) -> float:
+## from a few quick trial runs. For showing before sending (with the gear and knacks they'd pack).
+static func estimate_return(location_id: String, pets: Array[Pet], catalog: Catalog, trials := 30, gear := {}, knacks := {}) -> float:
 	if pets.is_empty():
 		return 1.0
 	var home := 0.0
 	for t in trials:
-		var s := start(location_id, pets, 0.0, t, catalog, {}, {}, gear)
+		var s := start(location_id, pets, 0.0, t, catalog, {}, {}, gear, knacks)
 		resolve(s, PolicyChooser.new(), INF, catalog)
 		home += s.party.size()
 	return home / (trials * pets.size())

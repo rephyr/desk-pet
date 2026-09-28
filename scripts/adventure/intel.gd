@@ -8,14 +8,15 @@ const SAFETY_NET := 0.15  # extra chance per trip that could have spotted a plac
 
 
 ## Which of this place's leads a trip spotted. `known` says whether a place is already open or
-## spotted (those are skipped); `tries` counts misses per place and is updated.
-static func roll(location: Dictionary, known: Callable, tries: Dictionary, rng: RandomNumberGenerator) -> Array[String]:
+## spotted (those are skipped); `tries` counts misses per place and is updated. `x` multiplies each
+## lead's own chance (spotting knacks).
+static func roll(location: Dictionary, known: Callable, tries: Dictionary, rng: RandomNumberGenerator, x := 1.0) -> Array[String]:
 	var found: Array[String] = []
 	for lead in location.get("leads_to", []):
 		var id := str(lead.to)
 		if known.call(id):
 			continue
-		var chance := float(lead.get("spot", 0.0)) + SAFETY_NET * int(tries.get(id, 0))
+		var chance := float(lead.get("spot", 0.0)) * x + SAFETY_NET * int(tries.get(id, 0))
 		if rng.randf() < chance:
 			found.append(id)
 			tries.erase(id)
