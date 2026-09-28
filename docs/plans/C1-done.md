@@ -1,5 +1,7 @@
 # C1 + the herd: done notes (lane c1-c3)
 
+**Status: VERIFIED 2026-09-29** (after review rounds 1 and 2; save still v23, one bump from 22).
+
 Built from docs/plans/C1.md, dev-plan C1/C3 (the herd part only: the new homes stand and the
 sorting rule are not in this step) and picks.md (C1 look A, one room cap).
 
