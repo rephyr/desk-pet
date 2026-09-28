@@ -129,6 +129,16 @@ static func resolve(state: RunState, chooser: Chooser, now: float, catalog: Cata
 	return added
 
 
+## A reward as a trip rolls it: on a trip that took a scout note, rumours are likelier (x the
+## "rumour_x" the note carried, see Jobs.scout_note).
+static func scouted(reward: Dictionary, state: RunState) -> Dictionary:
+	if not state.scouted or str(reward.get("kind", "")) != "rumour":
+		return reward
+	var out := reward.duplicate()
+	out.chance = float(reward.get("chance", 1.0)) * float(state.scout.get("rumour_x", 1.0))
+	return out
+
+
 ## A trip that went all the way (not home early) gets a little treat bag on the way home.
 static func _finish_treat(state: RunState, location: Dictionary, catalog: Catalog) -> void:
 	var treat: Array = location.get("finish_rewards", [])
@@ -138,7 +148,7 @@ static func _finish_treat(state: RunState, location: Dictionary, catalog: Catalo
 	rng.seed = hash([state.rng_seed, "finish"])
 	var loot := {}
 	for reward in treat:
-		Rewards.add(loot, Rewards.roll(reward, state.party, location, rng, catalog, Rewards.depth_boost(state.history.size())))
+		Rewards.add(loot, Rewards.roll(scouted(reward, state), state.party, location, rng, catalog, Rewards.depth_boost(state.history.size())))
 	# sharper eyes: every bit found rolls again for one more
 	var eyes := Gear.value(catalog, state.gear, "bits")
 	if eyes > 0.0:
@@ -262,7 +272,7 @@ static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog
 			entry.text += " " + Gear.leaf_text(catalog)
 	# loot comes from the pets still there
 	for reward in outcome.get("rewards", []):
-		Rewards.add(entry.loot, Rewards.roll(reward, party, location, rng, catalog, Rewards.depth_boost(state.history.size())))
+		Rewards.add(entry.loot, Rewards.roll(scouted(reward, state), party, location, rng, catalog, Rewards.depth_boost(state.history.size())))
 	Rewards.add(state.loot, entry.loot)
 
 	match str(outcome.get("progress", "continue")):

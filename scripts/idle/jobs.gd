@@ -22,11 +22,87 @@ static func pet_speed(pet: Pet, job: Dictionary) -> float:
 	return out
 
 
-## Fills per second for a crew of `size` whose pets work at `avg_speed` on average.
-static func rate(job: Dictionary, size: int, avg_speed: float, crew_power: float) -> float:
+## Fills per second for a crew of `size` whose pets work at `avg_speed` on average. A job with its
+## own "crew_power" (the savings jar) uses that instead of `crew_power` (teamwork still adds to it:
+## pass what the tools add as `extra_power`).
+static func rate(job: Dictionary, size: int, avg_speed: float, crew_power: float, extra_power := 0.0) -> float:
 	if size <= 0:
 		return 0.0
-	return pow(float(size), crew_power) * avg_speed / float(job.seconds)
+	var power := float(job.get("crew_power", crew_power - extra_power)) + extra_power
+	return pow(float(size), power) * avg_speed / float(job.seconds)
+
+
+## The kitchen: how much faster every other job works, as a share (0.15 = 15% faster). `cooks` is
+## the kitchen's crew times its average speed, `others` the pets on every other job. A soft curve
+## (most x cooks / (cooks + half): a few cooks help most), capped at what those cooks would add on
+## a real job with the others ((1 + cooks / others) ^ crew_power - 1), so it never beats one.
+static func kitchen_bonus(job: Dictionary, cooks: float, others: int, crew_power: float) -> float:
+	var k: Dictionary = job.get("kitchen", {})
+	if cooks <= 0.0 or k.is_empty():
+		return 0.0
+	var soft := float(k.get("most", 0.3)) * cooks / (cooks + float(k.get("half", 2.0)))
+	if others <= 0:
+		return soft
+	return minf(soft, pow(1.0 + cooks / float(others), crew_power) - 1.0)
+
+
+## The job that writes scout notes: whichever has a "scout" block ({} if none). Found once per
+## catalog, so the job can be renamed in data.
+static func scout_job(catalog: Catalog) -> Dictionary:
+	if not catalog.has_meta("scout_job"):
+		var found := {}
+		for job in catalog.jobs:
+			if job.has("scout"):
+				found = job
+				break
+		catalog.set_meta("scout_job", found)
+	return catalog.get_meta("scout_job")
+
+
+## The scouting job's "scout" block: { hold, spot, rumour_x }.
+static func scout_settings(catalog: Catalog) -> Dictionary:
+	return scout_job(catalog).get("scout", {})
+
+
+## What a trip that takes a scout note carries with it (kept on the RunState): { spot, rumour_x }.
+static func scout_note(catalog: Catalog) -> Dictionary:
+	var s := scout_settings(catalog)
+	return { "spot": float(s.get("spot", 0.0)), "rumour_x": float(s.get("rumour_x", 1.0)) }
+
+
+## Scout notes you can hold: the job's "scout" hold plus what the tools add ("hold").
+static func scout_hold(catalog: Catalog, levels: Dictionary) -> int:
+	var job := scout_job(catalog)
+	if job.is_empty():
+		return 0
+	return int(job.scout.get("hold", 0)) + roundi(tool_sum(catalog, str(job.id), "hold", levels))
+
+
+## What `meals` meals from the kitchen do to your pet: food goes up by the job's "meal" each, but
+## only up to "meal_upto" (the kitchen keeps it from getting low; feeding it yourself fills it up),
+## and mood by "meal_mood" for each meal it actually ate, up to the same line. Never lowers
+## either. Returns { food, mood, eaten } (eaten: food it gained).
+static func feed(job: Dictionary, food: float, mood: float, meals: int) -> Dictionary:
+	var each := float(job.get("pay", {}).get("meal", 0))
+	var upto := float(job.get("meal_upto", 100.0))
+	var fed := maxf(food, minf(upto, food + each * meals))
+	var eaten := fed - food
+	var got_mood := float(job.get("meal_mood", 0)) * eaten / maxf(1.0, each)
+	return { "food": fed, "mood": maxf(mood, minf(upto, mood + got_mood)), "eaten": eaten }
+
+
+## Whether a trip takes a scout note when it sets off: you sent it yourself (not an auto party), you
+## hold a note, its kind of place takes notes (never dungeons) and there's still something to find
+## there (see Intel.left_to_find).
+static func takes_note(catalog: Catalog, location: Dictionary, by_you: bool, notes: int, left_to_find: bool) -> bool:
+	if not by_you or notes <= 0 or not left_to_find:
+		return false
+	return bool(catalog.adventure_type(str(location.get("type", ""))).get("scout", true))
+
+
+## Whether share out (and your pet's sharing) may put pets on a job ("share": false: you staff it).
+static func shared_out(job: Dictionary) -> bool:
+	return bool(job.get("share", true))
 
 
 ## Seconds away that count: full speed for the first `full_hours`, then `after` speed, up to `cap`.
@@ -46,7 +122,7 @@ static func work(job: Dictionary, state: Dictionary, crew: int, fills_per_second
 	return { "fills": fills, "loot": pay(job, fills, crew, rng, catalog, boost) }
 
 
-## What `fills` full meters pay. For "capsules" pay, `boost` says what a capsule is worth and what
+## What `fills` full meters pay ("meal": food for your pet, "note": scout notes). For "capsules" pay, `boost` says what a capsule is worth and what
 ## the tools add: { coin_value, worth (extra capsules a fill), x (goals and tips), big (chance of a
 ## big one), big_x, shiny (chance), shiny_pay }.
 static func pay(job: Dictionary, fills: int, crew: int, rng: RandomNumberGenerator, catalog: Catalog, boost := {}) -> Dictionary:
@@ -82,6 +158,10 @@ static func pay(job: Dictionary, fills: int, crew: int, rng: RandomNumberGenerat
 		else:
 			coins = roundi(fills * (lo + hi) / 2.0)
 		loot["coins"] = coins
+	if p.has("meal"):
+		loot["meal"] = fills * int(p.meal)
+	if p.has("note"):
+		loot["note"] = fills * int(p.note)
 	if p.has("part"):
 		var rolls := mini(fills, MAX_ROLLS)
 		var scale := float(fills) / rolls
@@ -193,11 +273,14 @@ static func next_goal(job: Dictionary, lvl: int) -> Dictionary:
 	return {}
 
 
-## What a goal gives, in words: "x2 coins", or its text.
+## What a goal gives, in words: "x2 coins", its text, or both ("x2 tips and a savings jar opens").
 static func goal_words(job: Dictionary, goal: Dictionary) -> String:
+	var words: Array[String] = []
 	if goal.has("x"):
-		return "x%s %s" % [str(goal.x).trim_suffix(".0"), str(job.brings)]
-	return str(goal.get("text", ""))
+		words.append("x%s %s" % [str(goal.x).trim_suffix(".0"), str(job.brings)])
+	if str(goal.get("text", "")) != "":
+		words.append(str(goal.text))
+	return " and ".join(words)
 
 
 ## One effect of the tools, added up: every level of every tool that has `key` in "each" (this

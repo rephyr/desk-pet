@@ -69,15 +69,39 @@ func _errands(catalog: Catalog, rng: RandomNumberGenerator) -> void:
 	print("\nerrands, common pets (speed about 0.95). one hour each.")
 	print("%-10s %6s %10s %10s %8s" % ["job", "crew", "per min", "per pet", "uncommon"])
 	for job in catalog.jobs:
+		if not (job.pay.has("capsules") or job.pay.has("coins") or job.pay.has("part")):
+			continue  # the kitchen and scouting bring no coins or parts (see below)
 		for crew in [1, 3, 5, 10, 100, 1000]:
 			var got: Dictionary = Jobs.work(job, { "fill": 0.0 }, crew, Jobs.rate(job, crew, 0.95, power), 3600.0, rng, catalog)
-			var kind := "coins" if job.pay.has("coins") else "part"
+			var kind := "coins" if job.pay.has("coins") or job.pay.has("capsules") else "part"
 			var per_min := Rewards.total(got.loot, kind) / 60.0
 			var uncommon := 0
 			for key: String in got.loot:
 				if key.begins_with("part:") and catalog.part(key.split(":")[1], key.split(":")[2]).rarity == "uncommon":
 					uncommon += int(got.loot[key])
 			print("%-10s %6d %10.2f %10.3f %8d" % [job.id, crew, per_min, per_min / crew, uncommon])
+	# the savings jar against the coin hunt (capsules' worth an hour, a capsule = 1 coin here)
+	var coin: Dictionary = catalog.job("coin_hunt")
+	var jar: Dictionary = catalog.job("jar")
+	print("\nsavings jar vs coin hunt, capsules' worth an hour")
+	for crew in [1, 2, 5, 10, 100]:
+		var c := Jobs.rate(coin, crew, 0.95, power) * 3600.0 * float(coin.pay.capsules)
+		var j := Jobs.rate(jar, crew, 0.95, power) * 3600.0 * float(jar.pay.capsules)
+		print("crew %4d: coin hunt %8.0f  jar %8.0f  %s" % [crew, c, j, "jar" if j > c else "coin hunt"])
+	# the kitchen: how much faster the other jobs get, with this many pets on them
+	var kitchen: Dictionary = catalog.job("kitchen")
+	print("\nkitchen: every other job this much faster (cooks at speed 1)")
+	print("%-6s %8s %8s %8s %8s" % ["cooks", "10", "100", "1000", "nobody"])
+	for cooks in [1, 2, 4, 10]:
+		print("%-6d %7.1f%% %7.1f%% %7.1f%% %7.1f%%" % [cooks, 100.0 * Jobs.kitchen_bonus(kitchen, cooks, 10, power),
+			100.0 * Jobs.kitchen_bonus(kitchen, cooks, 100, power), 100.0 * Jobs.kitchen_bonus(kitchen, cooks, 1000, power),
+			100.0 * Jobs.kitchen_bonus(kitchen, cooks, 0, power)])
+	# the kitchen's meals against your pet getting hungry (it only tops food up to meal_upto)
+	var decay := float(load("res://scripts/game_state.gd").HUNGER_DECAY) * 3600.0
+	print("kitchen meals: food an hour vs %.0f an hour lost to hunger, meals stop at %.0f" % [decay, float(kitchen.get("meal_upto", 100.0))])
+	for cooks in [1, 3, 10]:
+		var food := Jobs.rate(kitchen, cooks, 0.95, power) * 3600.0 * float(kitchen.pay.meal)
+		print("  %2d cooks: +%.0f food an hour" % [cooks, food])
 
 
 func _pick(style: String, run: RunState, location: Dictionary, catalog: Catalog) -> int:

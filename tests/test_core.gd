@@ -608,7 +608,7 @@ func _test_jobs(catalog: Catalog) -> void:
 
 ## Errand tools: coins buy them on the upgrades page; jobs level up and reach goals.
 func _test_errand_tools(catalog: Catalog) -> void:
-	var known := ["worth", "speed", "big", "rare_x", "all_speed", "away_hours", "shiny", "crew_power"]
+	var known := ["worth", "speed", "big", "rare_x", "all_speed", "away_hours", "shiny", "crew_power", "hold"]
 	var ids := {}
 	for t in Jobs.all_tools(catalog):
 		_check(not ids.has(t.id), "errand tool %s has its own id" % t.id)
@@ -634,6 +634,111 @@ func _test_errand_tools(catalog: Catalog) -> void:
 	var plain := Jobs.average_fill(coin, { "coin_value": 10.0 })
 	var better := Jobs.average_fill(coin, { "coin_value": 10.0, "worth": 2.0, "big": 0.1, "big_x": 5.0 })
 	_check(is_equal_approx(plain, 50.0) and is_equal_approx(better, 70.0 * 1.4), "tools make each find worth more (%.1f -> %.1f)" % [plain, better])
+	_test_more_jobs(catalog)
+
+
+## A3: the savings jar, the kitchen and scouting.
+func _test_more_jobs(catalog: Catalog) -> void:
+	var power := float(catalog.errands.crew_power)
+	var coin: Dictionary = catalog.job("coin_hunt")
+	var lemon: Dictionary = catalog.job("lemonade")
+	var jar: Dictionary = catalog.job("jar")
+	var kitchen: Dictionary = catalog.job("kitchen")
+	var scout: Dictionary = catalog.job("scouting")
+	for job in [jar, kitchen, scout]:
+		_check(not job.is_empty(), "the %s is an errand" % job.get("id", "?"))
+		_check(FileAccess.get_file_as_string("res://scripts/ui/ui_theme.gd").contains('\t"%s": ' % job.get("doodle", "?")), "errand %s has a doodle" % job.get("id", "?"))
+	# each opens through a job_level unlock that matches a goal on the job it waits for
+	for job in catalog.jobs:
+		if not str(job.get("needs", "")).begins_with("job:"):
+			continue
+		var entry: Dictionary = {}
+		for u in catalog.unlock_list:
+			if str(job.needs) in u.opens:
+				entry = u
+		var levels: Dictionary = entry.get("earn", {}).get("job_level", {})
+		_check(levels.size() == 1, "errand %s opens at another errand's level" % job.id)
+		for other_id in levels:
+			var other := catalog.job(str(other_id))
+			_check(other.get("goals", []).any(func(g): return int(g.at) == int(levels[other_id]) and str(g.get("text", "")) != ""),
+				"errand %s opens at a goal of the %s that says so (lv %d)" % [job.id, other_id, int(levels[other_id])])
+	_check(Jobs.goal_words(lemon, lemon.goals[0]) == "x2 tips and a savings jar opens", "a goal with both reads: %s" % Jobs.goal_words(lemon, lemon.goals[0]))
+	_check(Jobs.goal_words(coin, coin.goals[1]) == "x2 coins and a kitchen opens", "the coin hunt's lv 25: %s" % Jobs.goal_words(coin, coin.goals[1]))
+	# the jar: extra pets barely help; one pet in it beats one on the coin hunt, a crew doesn't
+	var jar_hour := func(n): return Jobs.rate(jar, n, 1.0, power) * 3600.0 * float(jar.pay.capsules)
+	var coin_hour := func(n): return Jobs.rate(coin, n, 1.0, power) * 3600.0 * float(coin.pay.capsules)
+	_check(jar_hour.call(1) > coin_hour.call(1), "one pet in the jar beats one on the coin hunt (%.0f vs %.0f an hour)" % [jar_hour.call(1), coin_hour.call(1)])
+	_check(jar_hour.call(5) < coin_hour.call(5), "a crew of 5 earns more on the coin hunt (%.0f vs %.0f)" % [jar_hour.call(5), coin_hour.call(5)])
+	_check(Jobs.rate(jar, 4, 1.0, power) / Jobs.rate(jar, 1, 1.0, power) < Jobs.rate(coin, 4, 1.0, power) / Jobs.rate(coin, 1, 1.0, power),
+		"the jar uses its own crew power (4 pets help less there)")
+	_check(is_equal_approx(Jobs.rate(jar, 4, 1.0, power, 0.1) / Jobs.rate(jar, 4, 1.0, power), pow(4.0, 0.1)), "teamwork still adds to the jar's own crew power")
+	# the kitchen: soft, capped, never beats a real job
+	var bonus := [1, 2, 4, 10].map(func(c): return Jobs.kitchen_bonus(kitchen, c, 1, power))
+	_check(absf(bonus[0] - 0.10) < 0.005 and absf(bonus[1] - 0.15) < 0.005 and absf(bonus[2] - 0.20) < 0.005 and absf(bonus[3] - 0.25) < 0.005,
+		"1/2/4/10 cooks: every job 10/15/20/25%% faster (%s)" % [bonus])
+	_check(Jobs.kitchen_bonus(kitchen, 1000.0, 1, power) <= float(kitchen.kitchen.most), "the kitchen never goes past its most")
+	_check(Jobs.kitchen_bonus(kitchen, 2.0, 1000, power) < 0.002, "with 1000 pets elsewhere, 2 cooks barely matter (%.4f)" % Jobs.kitchen_bonus(kitchen, 2.0, 1000, power))
+	for others in [1, 3, 10, 100, 1000]:
+		for cooks in [1, 2, 5]:
+			var gain_kitchen := Jobs.kitchen_bonus(kitchen, cooks, others, power)
+			var gain_job := pow(float(others + cooks) / others, power) - 1.0
+			_check(gain_kitchen <= gain_job + 1e-9, "%d cooks with %d pets elsewhere help less than on a real job (%.3f vs %.3f)" % [cooks, others, gain_kitchen, gain_job])
+	_check(not Jobs.shared_out(kitchen) and not Jobs.shared_out(scout) and Jobs.shared_out(coin), "share out skips the kitchen and scouting")
+	var meal: Dictionary = Jobs.pay(kitchen, 2, 1, RandomNumberGenerator.new(), catalog)
+	_check(int(meal.get("meal", 0)) == 2 * int(kitchen.pay.meal) and not meal.has("coins"), "the kitchen pays meals, not coins (%s)" % [meal])
+	# a meal tops food up only to meal_upto (feeding it yourself does the rest), never lowers it
+	var upto := float(kitchen.get("meal_upto", 100.0))
+	_check(upto < 100.0, "the kitchen's meals stop short of a full belly (meal_upto %.0f)" % upto)
+	var fed := Jobs.feed(kitchen, 30.0, 30.0, 1000)
+	_check(is_equal_approx(fed.food, upto) and fed.mood <= upto, "a thousand meals still only reach %.0f (%s)" % [upto, fed])
+	fed = Jobs.feed(kitchen, 95.0, 90.0, 3)
+	_check(fed.food == 95.0 and fed.mood == 90.0 and fed.eaten == 0.0, "a full pet eats nothing and loses nothing (%s)" % [fed])
+	fed = Jobs.feed(kitchen, 30.0, 30.0, 1)
+	_check(is_equal_approx(fed.eaten, float(kitchen.pay.meal)) and is_equal_approx(fed.mood, 30.0 + float(kitchen.meal_mood)), "one meal: its food and mood (%s)" % [fed])
+	# scouting: notes held, who takes them
+	_check(Jobs.scout_hold(catalog, {}) == 2 and Jobs.scout_hold(catalog, { "map_case": 3 }) == 5, "you hold 2 notes, 5 with the map case")
+	_check(int(Jobs.pay(scout, 3, 1, RandomNumberGenerator.new(), catalog).get("note", 0)) == 3, "each full scouting meter writes a note")
+	var garden := catalog.location("garden")
+	var well := catalog.location("well")
+	_check(Jobs.takes_note(catalog, garden, true, 1, true), "a trip you send takes a note")
+	_check(not Jobs.takes_note(catalog, garden, false, 1, true), "auto parties never take notes")
+	_check(not Jobs.takes_note(catalog, well, true, 1, true), "dungeon trips never take notes")
+	_check(not Jobs.takes_note(catalog, garden, true, 0, true), "no notes, nothing to take")
+	_check(not Jobs.takes_note(catalog, garden, true, 1, false), "a place with nothing left to find takes no note")
+	var nothing_known := func(_id): return false
+	var all_known := func(_id): return true
+	_check(Intel.left_to_find(garden, nothing_known, false, catalog), "the garden has places to spot")
+	_check(not Intel.left_to_find(garden, all_known, false, catalog), "a garden with every lead known and no rumours has nothing left")
+	_check(Intel.left_to_find(catalog.location("fields"), all_known, true, catalog), "the fields can still bring rumours")
+	# the note's bonus: more spotting over many seeded rolls, rumours x1.5
+	var rng := RandomNumberGenerator.new()
+	var plain := 0
+	var scouted := 0
+	for t in 2000:
+		rng.seed = t
+		plain += Intel.roll(garden, nothing_known, {}, rng).size()
+		rng.seed = t
+		scouted += Intel.roll(garden, nothing_known, {}, rng, float(scout.scout.spot)).size()
+	_check(scouted > plain * 1.1, "a scouted trip spots more (%d vs %d)" % [scouted, plain])
+	var run := RunState.new()
+	var rumour := { "kind": "rumour", "chance": 0.4 }
+	_check(AdventureRunner.scouted(rumour, run).chance == 0.4, "an unscouted trip hears rumours as usual")
+	run.scout = Jobs.scout_note(catalog)
+	_check(is_equal_approx(float(AdventureRunner.scouted(rumour, run).chance), 0.6) and rumour.chance == 0.4, "a scouted trip's rumours are x1.5 (the data stays the same)")
+	_check(AdventureRunner.scouted({ "kind": "coins", "amount": [1, 2] }, run).get("chance", -1) == -1, "only rumours change")
+	var pets: Array[Pet] = [PetRoller.new(catalog).roll("starter")]
+	var trip := AdventureRunner.start("garden", pets, 0.0, 1, catalog)
+	trip.scout = Jobs.scout_note(catalog)
+	_check(RunState.from_dict(JSON.parse_string(JSON.stringify(trip.to_dict())), catalog).scouted, "a scouted trip stays scouted through a save")
+	_check(is_equal_approx(float(RunState.from_dict(JSON.parse_string(JSON.stringify(trip.to_dict())), catalog).scout.get("rumour_x", 0.0)), float(scout.scout.rumour_x)),
+		"the note's rumour_x rides along with the trip")
+	# the scouting job is found by its "scout" block, not its id
+	_check(Jobs.scout_job(catalog).get("id", "") == "scouting" and Jobs.scout_settings(catalog) == scout.scout, "the scout job is the one with a scout block")
+	var renamed := Catalog.new()
+	for j in renamed.jobs:
+		if j.has("scout"):
+			j.id = "lookouts"
+	_check(Jobs.scout_hold(renamed, {}) == int(scout.scout.hold), "scouting renamed in data still holds its notes")
 
 
 ## Whether some place already reached has an event that gives this find.

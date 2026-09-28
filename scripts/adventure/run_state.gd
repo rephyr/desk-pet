@@ -24,6 +24,10 @@ var auto := false  # your pet sent it (the automation tab's adventures job): it 
 var slot := -1  # an auto party: -1 your pet's, 0 and up a worker's (automation.parties)
 var gear := {}  # gear id -> level it set off with (see Gear.for_trip): buying more mid-trip helps the next trip
 var saves_used := 0  # times the first-aid leaf saved this (solo) trip's pet
+var scout := {}  # the scout note it took when it set off ({} if none, see Jobs.scout_note): { spot, rumour_x }
+var scouted: bool:  # it took a scout note: better odds of spotting places and hearing rumours
+	get:
+		return not scout.is_empty()
 var walk := 0.0  # share of the walking the gear's comfy boots take off (worked out once from `gear`, not saved)
 
 
@@ -39,7 +43,7 @@ func to_dict() -> Dictionary:
 		"location": location_id, "chooser": chooser, "party": party.to_dict(), "seed": rng_seed, "events": events, "step": step,
 		"started": started, "next_at": next_at, "status": status, "waiting_since": waiting_since,
 		"answer": answer, "log": history, "loot": loot, "went_home": went_home, "xp": xp, "auto": auto, "slot": slot,
-		"gear": gear, "saves_used": saves_used,
+		"gear": gear, "saves_used": saves_used, "scout": scout,
 	}
 
 
@@ -71,6 +75,9 @@ static func from_dict(d: Dictionary, catalog: Catalog) -> RunState:
 		s.gear[str(id)] = int(packed[id])
 	s.walk = Gear.value(catalog, s.gear, "walk")
 	s.saves_used = int(d.get("saves_used", 0))
+	var note: Dictionary = d.get("scout", {})
+	for key in note:
+		s.scout[str(key)] = float(note[key])
 	s.history.assign(d.get("log", []))
 	for key in d.get("loot", {}):
 		s.loot[key] = int(d.loot[key])
