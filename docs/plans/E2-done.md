@@ -3,7 +3,7 @@
 Look A (the street) from design/mockups/screens/next-door.html, rules from docs/picks.md (E2 in
 "Brainstorm 2 picks" and "Look picks, round 2"). Plan: docs/plans/E2.md.
 
-**Status: built, tests + balance + flows passing on lanes/nextdoor, committed there (not pushed).**
+**Status: VERIFIED 2026-09-29. Built, tests (3794 checks) + balance + flows passing on lanes/nextdoor, committed there (not pushed).**
 
 ## What was built
 
