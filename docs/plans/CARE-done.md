@@ -1,6 +1,6 @@
 # CARE (care A) done: care as buffs
 
-Plan: docs/plans/CARE.md. Built on lane `care`, not committed yet at the time of writing.
+Plan: docs/plans/CARE.md. Built on lane `care`, committed there. Status: VERIFIED (2026-09-29).
 
 ## What was built
 
