@@ -429,17 +429,16 @@ func _rebuild_box() -> void:
 		_box.add_child(share)
 		_box.add_child(_wrapped("or tap a job's + to send %s" % ("them all" if _step < 0 else str(_step)), UiTheme.MUTED))
 	if GameState.spare_count() > STEPS_AFTER:
-		var auto := CheckButton.new()
-		auto.text = "%s shares out new pets" % _active_name()
-		auto.button_pressed = GameState.jobs_auto
-		auto.focus_mode = FOCUS_NONE
-		auto.add_theme_font_size_override("font_size", UiTheme.SMALL)
-		auto.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		auto.custom_minimum_size = Vector2(120, 0)
-		auto.toggled.connect(func(on):
-			GameState.set_jobs_auto(on)
-			PetBubble.say_line(self, "errands_auto_on" if on else "errands_auto_off"))
-		_box.add_child(auto)
+		# busy paws: a switch per errand (the notes are full already), new pets start on the ones on
+		_box.add_child(_heading("new pets join", -1))
+		for job in GameState.open_jobs():
+			var sw := join_switch(GameState.job_joins(job.id), func(on):
+				GameState.set_job_join(job.id, on)
+				PetBubble.say_line(self, "join_on" if on else "join_off"))
+			sw.text = str(job.name)
+			sw.add_theme_color_override("font_pressed_color", _color(job))
+			sw.add_theme_color_override("font_hover_pressed_color", _color(job))
+			_box.add_child(sw)
 
 	var out: Array = GameState.away().keys()
 	if not out.is_empty():
@@ -595,6 +594,22 @@ func _primary() -> StyleBoxFlat:
 	sb.content_margin_left = 12
 	sb.content_margin_right = 12
 	return sb
+
+
+## "new pets join here": a small switch on a job (errand notes, the workers' side card).
+static func join_switch(on: bool, on_toggle: Callable) -> CheckButton:
+	var b := CheckButton.new()
+	b.text = "new pets join here"
+	b.button_pressed = on
+	b.focus_mode = FOCUS_NONE
+	b.add_theme_font_size_override("font_size", UiTheme.SMALL)
+	b.add_theme_color_override("font_color", UiTheme.MUTED)
+	b.add_theme_color_override("font_pressed_color", UiTheme.TEXT)
+	b.add_theme_color_override("font_hover_pressed_color", UiTheme.TEXT)
+	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	b.custom_minimum_size = Vector2(60, 0)
+	b.toggled.connect(on_toggle)
+	return b
 
 
 ## "740 coins a find" or "a part": what one full meter brings.

@@ -117,6 +117,20 @@ has more plain pets than the first room holds gets room for them plus data/herd.
 most and leaves an open shelf of another rarity alone.
 Who's resting is worked out once (`GameState._resting`: cards, herd counts minus errands, workers,
 stand-ins away or leading) until `_rest_changed()`.
+Save v24 adds new homes (C3): top-level `new_homes` `{ points, by_hand, sorted, room_was_full,
+rule { on, below, to, keep }, today { day, n } }` (`NewHomes`, data/new_homes.json), `jobs[id].join`
+and `automation.wjoin` ("new pets join here"); `jobs_auto` is gone (a v23 save with it on gets every
+open errand's switch on; a v23 save whose room is full has `room_was_full`, so the stall is there).
+`Collection.add(pets, sorter)` asks the sorter about each pet after the book counts it ("homes": it
+never joins, a star); `Collection.leave(counts, uids)` takes pets off for good (a star each, the
+stand-in looks of a count leaving never come back) and emits `pets_left(n)` (the night sky redraws).
+`GameState.send_home(rarity, n)` / `homes_pick` (the stall), `_sorter` / `_sort_pet` (the rule, box
+openings only: `open_boxes`, the machine's pet box), `_place_new(uids)` (busy paws, replaces
+`jobs_auto`; the rule's work pets go to every open errand when nothing takes them), `_room_hit()`
+(first full room: unlock `new_homes`). Unlock entries can be `"quiet": true` (no popup card) and earn
+`room: "full"` / `homes_by_hand`. UI: `NewHomesStall`, `SortingCard`, the pets page's side column in
+`CollectionTab`, `Bookcase.stall_on` / `picked` (tap picks, tap again opens), `ShelfPlank` picked
+border and "sorted today" tag.
 
 ## Testing
 

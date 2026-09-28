@@ -131,4 +131,5 @@ func _refresh_buttons() -> void:
 	_again_price.text = "%d left on the pile" % left if left > 0 else "the pile is empty"
 	_again_price.add_theme_color_override("font_color", UiTheme.MINT if left > 0 else UiTheme.LILAC)
 	var is_active := GameState.collection.active_uid == _pet.uid
-	_active.visible = not is_active
+	# a pet the sorting rule sent to a new home (or one folded into the herd) can't be made active
+	_active.visible = not is_active and GameState.collection.get_pet(_pet.uid) == _pet

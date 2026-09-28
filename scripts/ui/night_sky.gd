@@ -1,7 +1,7 @@
 class_name NightSky
 extends Control
-## Behind the home panel: one tiny, dim star for every pet that didn't come back, never explained
-## or counted. Star i is placed by its number (not by the pet: pets from the herd have no uid of
+## Behind the home panel: one tiny, dim star for every pet that didn't come back or left for a new
+## home, never explained or counted. Star i is placed by its number (not by the pet: pets from the herd have no uid of
 ## their own) and tinted by that pet's palette. Once the panel can't hold more specks, new stars go
 ## into a faint milky band instead, so the sky keeps slowly filling in. A million stars cost the
 ## same as the panel's worth plus the band: the rest are only counted.
@@ -16,6 +16,7 @@ func _init() -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
 	resized.connect(queue_redraw)
 	GameState.collection.pets_removed.connect(func(_uids): queue_redraw())
+	GameState.collection.pets_left.connect(func(_n): queue_redraw())
 	GameState.new_game.connect(queue_redraw)
 
 

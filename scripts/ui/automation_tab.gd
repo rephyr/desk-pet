@@ -106,7 +106,7 @@ func _process(_delta: float) -> void:
 		key += "|%d|%s" % [GameState.boxes_on_pile(), str(GameState.room_is_full())]
 	# the workers page: what's taught, bought and who's on it, and what you can afford there
 	var a: Dictionary = GameState.automation
-	key += "|%d|%s|%s|%s|%s|%s" % [_page, str(a.others), str(a.spots), str(a.parties), str(a.workers), str(a.get("wherd", {}))]
+	key += "|%d|%s|%s|%s|%s|%s|%s" % [_page, str(a.others), str(a.spots), str(a.parties), str(a.workers), str(a.get("wherd", {})), str(a.get("wjoin", {}))]
 	if _page == 1:  # changes every time a box worker opens a box: only the workers page shows it
 		key += "|%d" % GameState.resting_count()
 	for j in jobs:
@@ -460,6 +460,10 @@ func _rebuild_worker_side(job: Dictionary) -> void:
 	fill.size_flags_horizontal = SIZE_EXPAND_FILL
 	row.add_child(fill)
 	col.add_child(row)
+	if id != "adventures" and GameState.spare_count() > ErrandsTab.STEPS_AFTER:  # busy paws: new pets start here
+		col.add_child(ErrandsTab.join_switch(GameState.worker_joins(id), func(on):
+			GameState.set_worker_join(id, on)
+			PetBubble.say_line(self, "join_on" if on else "join_off")))
 	_card.add_child(box)
 
 	if id == "adventures" and spots > 0:

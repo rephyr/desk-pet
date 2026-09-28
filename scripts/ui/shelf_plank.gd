@@ -2,7 +2,9 @@ class_name ShelfPlank
 extends Control
 ## One rarity's shelf in the bookcase: a tilted tag ("common 48,210"), the newest few standing on
 ## the plank, a mound of tiny pets that grows with the count, and how many are shiny. Tap it to
-## open the shelf.
+## open the shelf. With the new homes stall there, a tap picks it for the stall (a dashed pink
+## border) and a tap on the picked one opens it; under the sorting rule's line it shows
+## "sorted today".
 ## Design: design/mockups/screens/pets-shelves.html (look A).
 
 signal opened(rarity: String)
@@ -13,10 +15,15 @@ const PLANK_H := 7.0
 const MIN_H := 48.0
 
 var rarity := ""
+var picked := false:
+	set(value):
+		picked = value
+		queue_redraw()
 var _hover := false
 
 
-func _init(p_rarity: String, index: int) -> void:
+## `narrow`: the stall's side column is there (fewer standing, a smaller mound).
+func _init(p_rarity: String, index: int, narrow := false) -> void:
 	rarity = p_rarity
 	var catalog := Catalog.shared()
 	var c := GameState.collection
@@ -70,7 +77,8 @@ func _init(p_rarity: String, index: int) -> void:
 	stand.size_flags_horizontal = SIZE_EXPAND_FILL
 	stand.mouse_filter = MOUSE_FILTER_IGNORE
 	row.add_child(stand)
-	var standing := int(catalog.herd.get("standing", 4))
+	var standing := int(catalog.herd.get("standing", 4)) - (1 if narrow else 0)
+	var sorted := GameState.feature_on("sorting") and NewHomes.below_line(catalog, GameState.homes.rule, rarity)
 	var cards := c.cards_of(rarity)
 	var faces: Array = []  # newest first: cards, then stand-ins for the counts
 	for i in range(cards.size() - 1, -1, -1):
@@ -100,10 +108,12 @@ func _init(p_rarity: String, index: int) -> void:
 		gap.custom_minimum_size = Vector2(4, 0)
 		gap.mouse_filter = MOUSE_FILTER_IGNORE
 		stand.add_child(gap)
-		var mound := Mound.new(mound_faces, Herd.mound_size(catalog, rest), 300.0, 36.0)
+		var mound := Mound.new(mound_faces, Herd.mound_size(catalog, rest), (110.0 if sorted else 150.0) if narrow else 300.0, 36.0)
 		mound.size_flags_vertical = SIZE_SHRINK_END
 		stand.add_child(_on_plank(mound))
 	stand.add_child(UiTheme.spacer())
+	if sorted:
+		stand.add_child(_sorted_tag())
 	var shiny := c.shiny_of(rarity)
 	if shiny > 0:
 		var sh := UiTheme.label("✦ " + ExpandedView._thousands(shiny), UiTheme.GOLD, UiTheme.SMALL)
@@ -118,6 +128,29 @@ func _init(p_rarity: String, index: int) -> void:
 		queue_redraw())
 
 
+## "sorted today 1,204": a dashed tag on shelves under the sorting rule's line.
+static func _sorted_tag() -> Control:
+	var p := PanelContainer.new()
+	var sb := StitchBox.new()
+	sb.bg_color = UiTheme.DEEP
+	sb.dash_color = UiTheme.LILAC.lerp(UiTheme.LINE, 0.6)
+	sb.radius = 999
+	sb.content_margin_left = 8
+	sb.content_margin_right = 8
+	sb.content_margin_top = 1
+	sb.content_margin_bottom = 1
+	p.add_theme_stylebox_override("panel", sb)
+	p.mouse_filter = MOUSE_FILTER_IGNORE
+	p.size_flags_vertical = SIZE_SHRINK_CENTER
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 4)
+	row.mouse_filter = MOUSE_FILTER_IGNORE
+	row.add_child(UiTheme.label("sorted today", UiTheme.MUTED, UiTheme.SMALL - 1))
+	row.add_child(UiTheme.label(UiTheme.num(GameState.sorted_today()), UiTheme.LILAC, UiTheme.SMALL - 1))
+	p.add_child(row)
+	return p
+
+
 ## Stands a picture on the plank: its feet just above the plank's board.
 func _on_plank(c: Control) -> Control:
 	var m := MarginContainer.new()
@@ -129,6 +162,12 @@ func _on_plank(c: Control) -> Control:
 
 
 func _draw() -> void:
+	if picked:  # picked for the new homes stall: a dashed pink border around the whole shelf
+		var sb := StitchBox.new()
+		sb.bg_color = Color(UiTheme.RAISED, 0.6)
+		sb.dash_color = UiTheme.PINK
+		sb.radius = 10
+		draw_style_box(sb, Rect2(Vector2(-6, 2), Vector2(size.x + 12, size.y - 2)))
 	var r := Rect2(Vector2(-6, size.y - PLANK_H), Vector2(size.x + 12, PLANK_H))
 	draw_style_box(UiTheme.box(UiTheme.LILAC.lerp(UiTheme.PAGE, 0.78), UiTheme.PINK if _hover else UiTheme.LILAC_SEAM, 3, 2, 0), r)
 

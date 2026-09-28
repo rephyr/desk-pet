@@ -39,6 +39,8 @@ func _init() -> void:
 	_test_gear(catalog)
 	_test_herd(catalog)
 	_test_herd_game(catalog)
+	_test_new_homes(catalog)
+	_test_new_homes_game(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -661,7 +663,7 @@ func _test_unlocks(catalog: Catalog) -> void:
 		_check(entry.show in ["locked", "hidden"], "unlock %s is shown locked or hidden" % entry.id)
 		for o in entry.opens:
 			var bits := str(o).split(":")
-			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures"]) or (bits[0] == "page" and bits[1] in page_ids) \
+			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "new_homes", "sorting"]) or (bits[0] == "page" and bits[1] in page_ids) \
 				or (bits[0] == "job" and catalog.jobs.any(func(j): return str(j.get("needs", "")) == o))
 			_check(ok, "unlock %s opens something real (%s)" % [entry.id, o])
 		if entry.earn.has("find"):
@@ -1269,14 +1271,14 @@ func _test_herd_game(catalog: Catalog) -> void:
 		"sharing out fills the smaller crew first (%d and %d)" % [gs.job_size("coin_hunt"), gs.job_size("scrapyard")])
 	_check(gs.job_size("scrapyard") == 100, "every resting pet went to the empty scrapyard (%d)" % gs.job_size("scrapyard"))
 	gs.take_off_job("scrapyard", -1)
-	# your pet shares out new pets: a new active pet sends the old one back to work
+	# new pets join the coin hunt: a new active pet sends the old one back to work there
 	var resting_card: Array[Pet] = gs.resting_cards()
 	_check(not resting_card.is_empty(), "a card is resting (to make active)")
 	if not resting_card.is_empty():
-		gs.jobs_auto = true
+		gs.set_job_join("coin_hunt", true)
 		c.set_active(resting_card[0].uid)
-		_check(gs.job_of("1") != "", "with sharing on, the old active pet goes back to work")
-		gs.jobs_auto = false
+		_check(gs.job_of("1") == "coin_hunt", "with new pets joining the coin hunt, the old active pet goes back to work there")
+		gs.set_job_join("coin_hunt", false)
 		c.set_active("1")
 		gs.take_off_job(gs.job_of(resting_card[0].uid), 1, [resting_card[0].uid])
 	# your pet names the pet you tapped, not another face from its count
@@ -1353,6 +1355,200 @@ func _test_herd_game(catalog: Catalog) -> void:
 	gs3.free()
 	_check(Herd.room_cap(catalog, Herd.room_level_for(catalog, 5000)) >= 5000 and Herd.room_cap(catalog, Herd.room_level_for(catalog, 5000) - 1) < 5000,
 		"the room level for 5000 pets is the smallest that holds them")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+
+## New homes: points pay boxes (the jar keeps the rest), the sorting rule's line and keeps, the day's
+## count, and pets leaving the collection (a star each, the book keeps them).
+func _test_new_homes(catalog: Catalog) -> void:
+	var st := NewHomes.fresh(catalog)
+	_check(not st.rule.on and st.points == 0, "the sorting rule starts off and the jar empty")
+	_check(NewHomes.pay(st, catalog, "common", 24) == 0 and st.points == 24, "24 commons: no box yet, 24 in the jar")
+	_check(NewHomes.pay(st, catalog, "common", 1) == 1 and st.points == 0, "the 25th common fills a box")
+	_check(NewHomes.pay(st, catalog, "mythic", 1) == 1 and st.points == 15, "a mythic: a box and 15 left over")
+	_check(NewHomes.pay(st, catalog, "rare", 5) == 1 and st.points == 15, "5 rares: a box")
+	# never a box engine: a starter box's pets are worth well under a box
+	var box: Dictionary = catalog.box("starter")
+	var weight := 0.0
+	var points := 0.0
+	for t in box.tiers:
+		weight += float(box.tiers[t])
+		points += float(box.tiers[t]) * NewHomes.worth(catalog, t)
+	_check(points / weight < NewHomes.box_at(catalog) / 4.0, "a box's pet is worth under a quarter of a box (%.2f points)" % (points / weight))
+	var rule := { "on": true, "below": "rare", "to": "homes", "keep": "holo" }
+	var p := _plain_pet(catalog, "common", "normal", 1)
+	_check(NewHomes.sorts(catalog, rule, p), "a plain common is below the line")
+	p.finish = "shiny"
+	_check(NewHomes.sorts(catalog, rule, p), "a shiny common too (the keep is holo and up)")
+	p.finish = "holo"
+	_check(not NewHomes.sorts(catalog, rule, p), "a holo common is kept")
+	p.finish = "normal"
+	p.new_part = true
+	_check(not NewHomes.sorts(catalog, rule, p), "a pet with a part new to the book is always kept")
+	p.new_part = false
+	p.fav = true
+	_check(not NewHomes.sorts(catalog, rule, p), "a favourite is always kept")
+	p.fav = false
+	_check(not NewHomes.sorts(catalog, rule, _plain_pet(catalog, "rare", "normal", 2)), "a rare isn't below rare")
+	rule.on = false
+	_check(not NewHomes.sorts(catalog, rule, p), "an off rule sorts nothing")
+	NewHomes.count_sorted(st, "2026-09-29", 3)
+	_check(NewHomes.sorted_on(st, "2026-09-29") == 3 and NewHomes.sorted_on(st, "2026-09-30") == 0, "sorted today counts one day")
+	NewHomes.count_sorted(st, "2026-09-30")
+	_check(NewHomes.sorted_on(st, "2026-09-30") == 1 and st.sorted == 4, "a new day starts over (the total keeps going)")
+	var odd := NewHomes.clean(catalog, { "points": "x", "rule": { "below": "nope", "to": "moon", "keep": 3, "on": true }, "today": 5 })
+	_check(odd.points == 0 and odd.rule.below == "rare" and odd.rule.to == "homes" and odd.rule.keep == "holo" and odd.rule.on, "a broken save's rule falls back to the defaults")
+	# leaving: counts and cards go, a star each; the active pet stays
+	var c := Collection.new()
+	var cards: Array[Pet] = []
+	for i in 5:
+		cards.append(_plain_pet(catalog, "common", "normal", 10 + i))
+	c.add(cards)
+	c.add_plain("common:normal", 1000)
+	var left_n := [0]
+	c.pets_left.connect(func(n): left_n[0] += n)
+	var stars := c.fallen_n
+	var active := c.active_uid
+	var n := c.leave({ "common:normal": 400 }, [active, cards[2].uid, cards[3].uid])
+	_check(n == 402 and left_n[0] == 402 and c.fallen_n == stars + 402, "400 from the count and 2 cards leave, a star each (%d)" % n)
+	_check(c.active_uid == active and c.get_pet(active) != null, "the active pet never leaves")
+	_check(c.herd_count("common:normal") == 600 and c.count() == 603 and c.plain_count() == 603, "the counts go down with them")
+	_check(c.get_pet(cards[2].uid) == null, "a card that left is gone")
+	_check(c.stand_next.get("common:normal", 0) >= 400, "the looks of the pets that left never come back")
+	# the sorting rule inside add: the book counts the pet, it leaves at once
+	var sorter := func(pet: Pet) -> String: return "homes" if pet.rarity == "common" else ""
+	var newcomers: Array[Pet] = [_plain_pet(catalog, "common", "normal", 50), _plain_pet(catalog, "rare", "normal", 51)]
+	var before := c.count()
+	var went := c.add(newcomers, sorter)
+	_check(went.size() == 1 and c.count() == before + 1 and c.get_pet(went[0].uid) == null, "a sorted pet never joins the collection")
+	_check(c.times_seen(Collection.finish_key(went[0].parts.body, went[0].finish)) >= 1, "the book still counts a pet that went to a new home")
+
+
+## New homes in the game: an old save moves over (sharing on -> every errand's switch on, a full
+## room opens the stall), the stall takes the right pets in the right order and pays boxes, the
+## sorting card opens after enough by hand, the rule sorts new pets from boxes (to new homes or to
+## work) and "new pets join here" places new pets (machines first, then errands).
+func _test_new_homes_game(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped new homes in the game: it needs a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var pets := []
+	for i in 30:
+		var p := _plain_pet(catalog, "common", "normal", 100 + i)
+		p.uid = str(i + 1)
+		if i == 1:
+			p.fav = true
+		if i == 2:
+			p.new_part = true
+		if i == 3:
+			p.finish = "holo"
+		pets.append(p.to_dict())
+	var old := { "version": 23, "coins": 1000000000, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(),
+		"unlocks": ["feature:errands", "tab:errands", "tab:automation"], "jobs_auto": true, "room": 0,
+		"collection": { "pets": pets, "herd": { "common:normal": 471 }, "active": "1", "next_id": 31, "seen": {} },
+		"jobs": { "coin_hunt": { "crew": [], "herd": { "common:normal": 100 }, "fill": 0.0 } } }
+	SaveFile.write(path, old)
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	var c: Collection = gs.collection
+	_check(gs.job_joins("coin_hunt"), "an old save with sharing on: new pets join every open errand")
+	_check(gs.room_is_full() and gs.homes.room_was_full and gs.homes_open(), "an old save with a full room has the stall (%d / %d)" % [c.plain_count(), gs.room_cap()])
+	_check(not gs.feature_on("sorting") and not gs.homes.rule.on, "the sorting card waits (and starts off)")
+	# who goes, and in what order: resting before working, never the ones that always stay
+	var resting: int = gs.resting_count() - 3  # the favourite, the new part and the holo rest too, but stay
+	var plan: Dictionary = gs.homes_pick("common", resting + 5)
+	_check(Herd.total(plan.work) + plan.cards.filter(func(u): return gs.job_of(u) != "").size() == 5, "resting pets go first, then 5 from work")
+	var every: Dictionary = gs.homes_pick("common")
+	var keep := ["1", "2", "3", "4"]  # active, favourite, new part, holo
+	_check(not every.cards.any(func(u): return u in keep), "never the active pet, a favourite, a new part or holo")
+	var stars := c.fallen_n
+	var bag0: int = gs.in_bag("starter")
+	var got: Dictionary = gs.send_home("common", 60)
+	_check(got.n == 60 and got.boxes == 2 and gs.in_bag("starter") == bag0 + 2 and gs.homes.points == 10, "60 commons: 2 boxes and 10 in the jar")
+	_check(c.fallen_n == stars + 60, "every pet that leaves adds a star")
+	_check(gs.room_left() == 60, "they free room (%d)" % gs.room_left())
+	var size_before: int = gs.job_size("coin_hunt")
+	got = gs.send_home("common", -1)
+	_check(gs.job_size("coin_hunt") == 0 and size_before == 100 and c.count() == 4, "all: the resting and the working go, the 4 that always stay stay (%d)" % c.count())
+	_check(gs.feature_on("sorting"), "after 300 by hand the sorting card turns up (%d)" % gs.homes.by_hand)
+	# the rule: only box openings, below the line leave at once, the rest stay
+	c.add_plain("common:normal", 20)
+	gs.bag["starter"] = 100
+	gs.set_rule("on", true)
+	gs.set_rule("below", "rare")
+	gs.set_rule("to", "homes")
+	gs.set_rule("keep", "holo")
+	var count0 := c.count()
+	var stars0 := c.fallen_n
+	var pulled: Array = gs.open_boxes("starter", 30, "common")
+	var stayed := pulled.filter(func(pet): return c.get_pet(pet.uid) != null)
+	_check(pulled.size() == 30 and stayed.all(func(pet): return pet.new_part or catalog.finish_rank(pet.finish) >= catalog.finish_rank("holo")),
+		"new commons leave as they come, but new parts and holo stay (%d stayed)" % stayed.size())
+	_check(c.count() == count0 + stayed.size() and c.fallen_n == stars0 + 30 - stayed.size(), "the sorted ones are stars now")
+	_check(gs.sorted_today() == 30 - stayed.size(), "sorted today counts them (%d)" % gs.sorted_today())
+	# a good pull the rule sends off is never pinned for your pet to show (or logged as good)
+	gs.set_rule("below", "epic")
+	gs.pinned.clear()
+	var rares: Array = gs.open_boxes("starter", 40, "rare", true)
+	var rares_gone := rares.filter(func(pet): return c.get_pet(pet.uid) == null)
+	_check(rares_gone.size() > 0 and rares_gone.all(func(pet): return gs._sent_home.has(pet.uid)), "rares sorted off are known as sent home (%d of %d)" % [rares_gone.size(), rares.size()])
+	gs.pinned.assign(["a", "b", "c"])
+	gs.dismiss_pinned("b")
+	gs.dismiss_pinned("zz")
+	_check(gs.pinned == ["a", "c"], "seeing one good pull takes only that one off the wall")
+	gs.pinned.clear()
+	gs.set_rule("below", "rare")
+	count0 = c.count()
+	gs.debug_give_pets(3)  # not a box opening: never sorted
+	_check(c.count() == count0 + 3, "pets that don't come out of a box aren't sorted")
+	gs.homes.today.day = "2000-01-01"
+	_check(gs.sorted_today() == 0, "a new day: sorted today starts over")
+	# to work: every open errand when no switch is on
+	gs.set_job_join("coin_hunt", false)
+	gs.set_rule("to", "work")
+	var hunt0: int = gs.job_size("coin_hunt")
+	pulled = gs.open_boxes("starter", 10, "common")
+	var sorted_n: int = pulled.filter(func(pet): return NewHomes.sorts(catalog, gs.homes.rule, pet)).size()
+	_check(gs.job_size("coin_hunt") == hunt0 + sorted_n, "the rule's work pets go to the errands (%d of %d)" % [gs.job_size("coin_hunt") - hunt0, sorted_n])
+	gs.set_rule("on", false)
+	# busy paws: machines with room first (the best workers), then the errands switched on
+	gs.automation.taught["machine"] = true
+	gs.automation.others["machine"] = true
+	gs.automation.spots["machine"] = 3
+	gs.set_worker_join("machine", true)
+	gs.set_job_join("coin_hunt", true)
+	var hunt1: int = gs.job_size("coin_hunt")
+	gs.debug_give_pets(10)
+	_check(gs.workers_count("machine") == 3 and gs.job_size("coin_hunt") == hunt1 + 7, "new pets fill the machines first, the rest join the coin hunt")
+	gs.set_worker_join("machine", false)
+	gs.set_job_join("coin_hunt", false)
+	var rest0: int = gs.resting_count()
+	gs.debug_give_pets(5)
+	_check(gs.resting_count() == rest0 + 5, "no switch on: new pets rest")
+	gs.set_worker_join("adventures", true)
+	_check(not gs.worker_joins("adventures"), "adventures never get the switch (parties keep their slots)")
+	# a round trip keeps it all
+	gs.set_job_join("coin_hunt", true)
+	gs.set_rule("on", true)
+	gs.save_game()
+	var gs2: Node = load("res://scripts/game_state.gd").new()
+	_check(gs2.job_joins("coin_hunt") and gs2.homes.rule.on and gs2.homes.rule.to == "work" and gs2.homes.points == gs.homes.points
+		and gs2.homes.by_hand == gs.homes.by_hand, "new homes and the switches load back")
+	gs2.free()
+	# a million commons, all at once
+	gs.room = 30
+	c.add_plain("common:normal", 1000000)
+	var t0 := Time.get_ticks_msec()
+	got = gs.send_home("common", -1)
+	var ms := Time.get_ticks_msec() - t0
+	_check(got.n >= 1000000 and ms < 500, "a million commons leave in one go (%d ms)" % ms)
+	_check(c.fallen.size() <= int(catalog.herd.get("fallen_keep", 16384)), "stars past the kept palettes are only counted")
+	gs.free()
 	for f in [path, path + ".bak", path + ".tmp"]:
 		if FileAccess.file_exists(f):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
