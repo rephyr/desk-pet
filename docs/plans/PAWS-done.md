@@ -1,5 +1,7 @@
 # PAWS (care E): quiet paws, done
 
+Plan: docs/plans/PAWS.md. Built on lane `care`, committed there. Status: VERIFIED (2026-09-29).
+
 Out on your windows (DesktopPet, `pet_out`) your pet keeps doing its one job in place with poses
 only, no text. The setting changes drawing only: it never opens, cranks or marks anything seen.
 
