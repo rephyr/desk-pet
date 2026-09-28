@@ -1,0 +1,102 @@
+# A3: the savings jar, the kitchen and scouting open at goals on job levels (lemonade lv 10, coin
+# hunt lv 25, savings jar lv 10). Only the next goal's job shows as a waiting note. Then crews on
+# the new jobs, their note lines, the pegboard's new shelves, and a trip taking a scout note.
+from rich
+view full
+fix tape
+fix oil
+fix flap
+find basket
+wait popup
+click "show me"
+wait 1
+pets 8
+tool noses 10
+wait popup
+expect text "new: a lemonade stand!"
+click "show me"
+wait 1
+expect text "a savings jar"
+expect text "a kitchen"
+expect no-text "scouting"
+expect fits
+shot waiting_notes
+scroll 400
+wait 0.5
+shot waiting_notes_below
+scroll 0
+tool lemons 10
+wait popup
+expect text "new: a savings jar!"
+click "show me"
+wait 1
+job jar 1
+wait 1
+expect text "full in*"
+expect fits
+shot jar
+tool noses 15
+wait popup
+expect text "new: a kitchen!"
+click "show me"
+wait 1
+expect no-text "every job 0% faster"
+scroll 400
+wait 0.5
+shot kitchen_empty
+scroll 0
+job kitchen 2
+wait 1
+expect text "every job 1*"
+expect text "a meal every*"
+scroll 400
+wait 0.5
+shot kitchen
+scroll 0
+tool slot 10
+wait popup
+expect text "new: scouting!"
+click "show me"
+wait 1
+job scouting 1
+notes 2
+wait 1
+expect text "notes ready 2 / 2"
+expect fits
+shot all_jobs
+scroll 400
+wait 0.5
+shot all_jobs_below
+scroll 0
+click "upgrades"
+wait 1
+expect text "a map case"
+expect text "a wider slot"
+expect fits
+shot pegboard
+click "a map case"
+wait 1
+expect text "notes held"
+shot pegboard_case
+send garden 1
+wait 1
+shot trip_away
+tab errands
+wait 1
+click "jobs"
+wait 1
+expect text "notes ready 1 / 2"
+expect fits
+shot trip_took_note
+pets 400
+job jar 100
+job kitchen 100
+job scouting 100
+wait 1
+expect text "notes ready 1 / 2"
+expect fits
+shot crowds
+scroll 400
+wait 0.5
+expect fits
+shot crowds_below

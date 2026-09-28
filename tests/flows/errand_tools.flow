@@ -33,7 +33,7 @@ click "show me"
 wait 1
 pets 3
 wait 1
-expect text "lv 10. at lv 25: x2 coins"
+expect text "lv 10. at lv 25: x2 coins and a kitchen opens"
 expect fits
 shot jobs_lemonade
 click "upgrades"

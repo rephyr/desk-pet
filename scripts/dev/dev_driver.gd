@@ -28,6 +28,9 @@ extends Node
 ##   bits <id> <n>         n machine bits (gear, spring, bolt, glass)
 ##   coins <n>             you have exactly n coins
 ##   tool <id> [levels]    levels of an errand tool (data/errands.json "tools"), for free
+##   job <id> <n>          the n best resting pets go on that errand
+##   notes <n>             you hold n scout notes (the scouting errand)
+##   scroll <px>           every scroll box on screen scrolls down that far (for shots of what's below)
 ##   next-prize <id>       the next capsule from the machine is this prize (e.g. toy, golden)
 ##   teach <job>           your pet knows an automation job (data/automation.json), for free
 ##   task <job | none>     your pet does that automation job (or nothing)
@@ -188,6 +191,19 @@ func _step(w: PackedStringArray) -> String:
 			if Jobs.tool(GameState.catalog, w[1]).is_empty():
 				return "unknown tool %s" % w[1]
 			GameState.set_errand_tool_level(w[1], GameState.errand_tool_level(w[1]) + (int(w[2]) if w.size() > 2 else 1))
+		"job":  # job <id> <n>: the n best resting pets go on that errand
+			if GameState.catalog.job(w[1]).is_empty():
+				return "unknown job %s" % w[1]
+			var before := GameState.job_crew(w[1]).size()
+			GameState.put_on_job(w[1], int(w[2]) if w.size() > 2 else 1)
+			if GameState.job_crew(w[1]).size() == before:
+				return "nobody went on %s (is it open? anyone resting?)" % w[1]
+		"scroll":  # scroll <px>: every scroll box on screen scrolls down to there (to see what's below)
+			for c in _all(ScrollContainer):
+				if c.is_visible_in_tree():
+					c.scroll_vertical = int(w[1])
+		"notes":  # notes <n>: you hold n scout notes (up to what you can hold)
+			GameState.set_scout_notes(int(w[1]))
 		"bits":  # bits <id> <n>: n machine bits of that kind (gear, spring, bolt, glass)
 			GameState.grant({ "bit:" + w[1]: int(w[2]) })
 		"next-prize":  # next-prize <id>: the next capsule is this prize (data/machine.json)
