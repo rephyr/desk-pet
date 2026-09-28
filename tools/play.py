@@ -9,6 +9,8 @@ The game runs with --profile=play-<name> (its own save and settings, see DevProf
 from the flow's "from" save, on a hidden virtual screen (Xvfb, software rendering), so no window
 ever shows up on your desktop and Hyprland doesn't shuffle your windows around. Shots come out at
 1x scale. Your own game keeps running.
+Set DESK_PETS_LANE=<name> to give the profile its own suffix, so several copies of the repo
+(git worktrees) can play the same flow at once without sharing a save.
 Exits with the game's result: 0 when every step passed.
 """
 import os
@@ -29,7 +31,8 @@ for line in flow.read_text().splitlines():
         start = line.split()[1]
     if line.strip().startswith("flags "):
         flags += line.split("#")[0].split()[1:]
-profile = f"play-{name}"
+lane = os.environ.get("DESK_PETS_LANE", "")
+profile = f"play-{name}" + (f"-{lane}" if lane else "")
 folder = Path.home() / ".local/share/godot/app_userdata/Desk Pets/profiles" / profile
 shutil.rmtree(folder / "shots", ignore_errors=True)
 (folder / "play.log").unlink(missing_ok=True)
