@@ -1,5 +1,8 @@
 # C3: busy paws + the new homes stall + the sorting rule: done notes (lane c1-c3)
 
+**Status: VERIFIED 2026-09-29** (after the review fixes below; save v24, one bump from C1's 23,
+renumber at merge).
+
 Built from docs/plans/C3.md, dev-plan C3 steps 1-2 + the room irritant, picks.md (C3 look A the
 stall; C1/C3 points toward a sunny box, any rarity by hand and by rule, keeps; stars only for pets
 that leave) and design/mockups/screens/new-homes.html look A. Builds on C1 + the herd (save v23).
