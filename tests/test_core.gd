@@ -37,6 +37,7 @@ func _init() -> void:
 	_test_gear(catalog)
 	_test_book(catalog)
 	_test_knacks(catalog)
+	_test_care(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -1382,6 +1383,113 @@ func _test_book(catalog: Catalog) -> void:
 	for f in [path, path + ".bak"]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 	for n in [gs, gs2, gs3]:
+		n.free()
+
+
+## Care (data/care.json, Care): food and mood are buffs, only drain while open, snacks cost capsules.
+func _test_care(catalog: Catalog) -> void:
+	var line := float(Care.buff_of(catalog, "food").above)
+	_check(line == 70.0 and float(Care.buff_of(catalog, "mood").above) == 70.0, "both care lines are at 70")
+	var coins71 := Care.parts(catalog, "coins", 71.0, 20.0)
+	_check(coins71.size() == 1 and coins71[0].source == "care" and coins71[0].id == "full_tummy" and is_equal_approx(float(coins71[0].x), 1.2),
+		"food 71 is a full tummy: coins x1.2")
+	_check(Care.parts(catalog, "coins", 70.0, 100.0).is_empty(), "food 70 is no bonus (strictly above the line)")
+	var luck := Care.parts(catalog, "luck", 20.0, 71.0)
+	_check(luck.size() == 1 and luck[0].id == "happy" and is_equal_approx(float(luck[0].x), 1.1), "mood 71 is happy: luck x1.1")
+	_check(Care.parts(catalog, "luck", 100.0, 70.0).is_empty(), "a full tummy isn't luck")
+	for k in Boosts.kinds(catalog):
+		if k != "coins" and k != "luck":
+			_check(Care.parts(catalog, k, 100.0, 100.0).is_empty(), "care doesn't boost %s" % k)
+	for b in catalog.care.buffs:
+		_check(Boosts.is_kind(catalog, str(b.kind)) and str(b.name) != "", "care buff %s has a real kind and a name" % b.id)
+	_check("care" in catalog.boosts.sources, "care is a boost source")
+	var kitchen: Dictionary = catalog.job("kitchen")
+	_check(float(kitchen.meal_upto) <= line, "the kitchen alone never gives a full tummy (meal_upto %s)" % kitchen.meal_upto)
+	_check(is_equal_approx(Care.drain(catalog, "food", 50.0, 3600.0), 25.0), "food drains 25 an hour (full to the floor in about 4 h)")
+	_check(Care.drain(catalog, "food", 22.0, 3600.0) == 20.0, "food never drains below the floor")
+	_check(Care.line(catalog, "food") == line and Care.line(catalog, "mood") == float(Care.buff_of(catalog, "mood").above),
+		"each bar's mark sits at its own buff's line")
+	_check(not catalog.care.has("tick"), "no separate tick number to drift from the buff lines")
+	_check(Care.crossed(catalog, 71.0, 50.0, 69.0, 50.0) and Care.crossed(catalog, 50.0, 69.0, 50.0, 71.0)
+		and not Care.crossed(catalog, 90.0, 90.0, 80.0, 80.0), "crossing a line is noticed, moving above it isn't")
+
+	var GS: GDScript = load("res://scripts/game_state.gd")
+	GS.testing = true
+	var gs: Node = GS.new()
+	_check(gs.hunger <= line and gs.happiness <= line, "a new game starts without a care buff")
+	var base: float = gs.boost("coins")
+	gs.hunger = 70.003
+	gs._check_care()
+	_check(is_equal_approx(gs.boost("coins"), base * 1.2), "the coins boost goes up once food passes 70 (%.3f)" % gs.boost("coins"))
+	gs._process(1.0)  # drains below 70 again
+	_check(gs.hunger < line and is_equal_approx(gs.boost("coins"), base), "and back down when it drains under (%.3f)" % gs.boost("coins"))
+	# snacks
+	gs.coins = 100
+	gs.hunger = 40.0
+	var price: int = gs.snack_price()
+	_check(price == 3, "a snack costs 3 capsules at the start (%d)" % price)
+	_check(gs.feed() and gs.coins == 100 - price and is_equal_approx(gs.hunger, 70.0), "a snack costs its price and gives 30 food")
+	gs.hunger = float(catalog.care.snack.full_at)
+	_check(not gs.feed() and gs.coins == 100 - price, "a full pet takes no snack (food %s)" % catalog.care.snack.full_at)
+	gs.hunger = 40.0
+	gs.coins = price - 1
+	_check(not gs.feed() and gs.hunger == 40.0, "no snack without the coins")
+	gs.machine.bought["tape"] = 1  # x2 coins a capsule
+	_check(gs.snack_price() == 6, "the snack price follows the machine's coin value (%d)" % gs.snack_price())
+	# pats: mood, but not more often than pat.every
+	gs.happiness = 40.0
+	gs.pat()
+	var pat_mood := float(catalog.care.pat.mood)
+	_check(is_equal_approx(gs.happiness, 40.0 + pat_mood), "a pat gives %s mood" % pat_mood)
+	gs.pat()
+	_check(is_equal_approx(gs.happiness, 40.0 + pat_mood), "a second pat right away gives no mood")
+	gs._pat_at -= float(catalog.care.pat.every)
+	gs.pat()
+	_check(is_equal_approx(gs.happiness, 40.0 + pat_mood * 2.0), "after pat.every seconds a pat gives mood again")
+	# the buffs only count while the game is open: none while loading or working through a sleep
+	gs.hunger = 90.0
+	gs.happiness = 90.0
+	gs._check_care()
+	_check(gs.boost_parts("coins").any(func(p): return p.source == "care"), "open, a full tummy is a coins part")
+	var seen := []
+	gs._without_care(func(): seen.append(gs.boost("coins")))
+	_check(is_equal_approx(seen[0], base) and is_equal_approx(gs.boost("coins"), base * 1.2),
+		"time the computer slept works without the buff, and it's back after (%.3f, %.3f)" % [seen[0], gs.boost("coins")])
+	gs._loading = true
+	_check(not gs.boost_parts("coins").any(func(p): return p.source == "care"), "time closed (loading) works without the buff")
+	gs._loading = false
+	# no trickle; a long frame gap drains nothing
+	gs.coins = 50
+	gs.hunger = 60.0
+	gs.happiness = 60.0
+	for i in 60:
+		gs._process(1.0)
+	_check(gs.coins == 50, "a minute open with nothing going on brings no coins (%d)" % gs.coins)
+	_check(gs.hunger < 60.0 and gs.happiness < 60.0, "food and mood drain while the game is open")
+	var was: float = gs.hunger
+	gs._process(10.0)
+	_check(gs.hunger == was, "a 10 s frame gap (the computer slept) drains nothing")
+	# closed: nothing drains, no coins
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://profiles/test-core/"))
+	var path := "user://profiles/test-core/care_save.json"
+	gs.save_path = path
+	gs._can_save = true
+	gs.hunger = 90.0
+	gs.happiness = 90.0
+	gs.save_game()
+	var data := SaveFile.read(path)
+	data.saved_at = float(data.saved_at) - 3600.0
+	SaveFile.write(path, data)
+	var gs2: Node = GS.new()
+	gs2.save_path = path
+	gs2.load_game()
+	_check(is_equal_approx(gs2.hunger, 90.0) and is_equal_approx(gs2.happiness, 90.0), "an hour closed leaves food and mood as they were (%.1f, %.1f)" % [gs2.hunger, gs2.happiness])
+	_check(gs2.coins == gs.coins, "an hour closed brings no trickle coins (%d vs %d)" % [gs2.coins, gs.coins])
+	_check(is_equal_approx(gs2.boost("coins"), base * 1.2) and gs2.boost_parts("luck").any(func(p): return p.source == "care"),
+		"a loaded full, happy pet has its buffs (coins %.3f)" % gs2.boost("coins"))
+	for f in [path, path + ".bak"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	for n in [gs, gs2]:
 		n.free()
 
 

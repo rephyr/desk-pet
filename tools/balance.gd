@@ -97,8 +97,9 @@ func _errands(catalog: Catalog, rng: RandomNumberGenerator) -> void:
 			100.0 * Jobs.kitchen_bonus(kitchen, cooks, 100, power), 100.0 * Jobs.kitchen_bonus(kitchen, cooks, 1000, power),
 			100.0 * Jobs.kitchen_bonus(kitchen, cooks, 0, power)])
 	# the kitchen's meals against your pet getting hungry (it only tops food up to meal_upto)
-	var decay := float(load("res://scripts/game_state.gd").HUNGER_DECAY) * 3600.0
-	print("kitchen meals: food an hour vs %.0f an hour lost to hunger, meals stop at %.0f" % [decay, float(kitchen.get("meal_upto", 100.0))])
+	var decay := 100.0 / float(catalog.care.drain_hours.food)
+	print("kitchen meals: food an hour vs %.0f an hour lost to hunger while open, meals stop at %.0f (full tummy above %.0f)" % [decay,
+		float(kitchen.get("meal_upto", 100.0)), float(Care.buff_of(catalog, "food").above)])
 	for cooks in [1, 3, 10]:
 		var food := Jobs.rate(kitchen, cooks, 0.95, power) * 3600.0 * float(kitchen.pay.meal)
 		print("  %2d cooks: +%.0f food an hour" % [cooks, food])

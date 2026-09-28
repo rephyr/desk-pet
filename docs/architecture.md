@@ -32,7 +32,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   (`[]` and an error for an unknown one), then appends `Toys.parts(toys, catalog, kind, now)` (one
   part per edition working now), `Book.parts(catalog, stickers, kind)` (one `book` part per open
   sticker of that kind), `Knacks.parts(...)` (your active pet) and, for "errands" only, a `kitchen`
-  part (x `1 + kitchen_bonus()`, only when above 0), in data/boosts.json "sources" order. A source
+  part (x `1 + kitchen_bonus()`, only when above 0), then `Care.parts(catalog, kind, hunger,
+  happiness)` (a `care` part per care buff on: full tummy on coins, happy on luck), in
+  data/boosts.json "sources" order. A source
   calls `_boosts_changed()` whenever its state changes (`check_book` does); the kitchen calls
   `_kitchen_changed()` (crews, tools, a pet's parts), which also drops the kept "errands" total.
   `kitchen_bonus()` only reads the cooks' own speeds, never `boost()`, so there's no loop.
@@ -84,6 +86,21 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   its reward sticker multiplies. `GameState.stickers` keeps the opened ones for good,
   `check_book()` opens new ones (`sticker_opened`, shown by `UnlockPopup`) and clears the kept
   boosts; each open sticker is a `book` part of its kind (`Book.parts`, see Boosts).
+- `Care` (scripts/pets/care.gd, pure rules, data/care.json): food (`GameState.hunger`) and mood
+  (`happiness`) as buffs. `Care.drain` lowers a stat for seconds the game is open (never below the
+  floor); `GameState._process` drains only when the frame is under `FRAME_GAP` (5 s, a longer gap
+  is the computer asleep), and `load_game` drains nothing for time closed. `Care.parts` gives the
+  `care` boost parts above a buff's line (strictly); `boost_parts` leaves them out while
+  `_loading` (time closed) or `_away` (`_without_care(work)` wraps the live sleep catch-ups in
+  `_work_jobs` / `_work_automation`), and `load_game` / `_without_care` drop the kept coins and
+  luck totals after. `GameState._check_care()` runs after every snack, pat, kitchen meal, load
+  and `debug_new_game`, and from `_process` only when `Care.crossed` says a drain tick crossed a
+  line (no per-frame allocation): when a buff turns on or off it drops the kept totals of the
+  buffs' kinds (coins, luck) and emits `changed`. `pat()` gives mood at most once every
+  care.json `pat.every` seconds (`_pat_at`, not saved). `feed()` pays `snack_price()`
+  (`Care.snack_price`: snack capsules x `Machine.coin_value`). The bars (`UiTheme.bar(color,
+  Care.line(catalog, stat))`, `UiTheme.light_bar`, `HomeTab.show_care`) draw a mark at their own
+  buff's line and light up while it's on (`CompactView._process` skips while hidden). There is no passive coin trickle.
 - `PetLook` is the placeholder art (pixel maps in code). Real art replaces `PetLook` only;
   `PetView` (draws a pet, blinking, squash, finish shader) and everything above stay the same.
 - Finish effects are one shader, `shaders/finish.gdshader`; `finishes.json` picks the mode.

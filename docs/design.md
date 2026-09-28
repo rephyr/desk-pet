@@ -140,8 +140,18 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
 ## Care (active side)
 
 - The desktop pet: walks on your windows, reacts to pats, can be parked at home.
-- Needs (hunger, mood) are opportunities, not threats: caring gives temporary buffs
-  (e.g. well fed = +50% coins for 2 hours).
+- Needs (food, mood) are opportunities, not threats (built, data/care.json, `Care`): they only
+  go down while the game is open (the full game, the corner panel or your pet out on the
+  desktop), never while it's closed, and never below 20. Above 70 food is a **full tummy**
+  (coins x1.2) and above 70 mood is **happy** (luck x1.1), both boost parts of the source
+  `care` (so the boost receipt shows them). The buffs only count while the game is open too:
+  errands and cranking caught up for time closed (or the computer asleep) earn no care bonus.
+  The kitchen errand keeps food up to 70, the small mark on the bars (each bar's mark is its
+  buff's line), so only your own snacks go past it. Lit bars get a brighter fill and a tiny
+  sparkle (tooltip: the buff's name). An empty bowl is just no bonus, never a sad pet. A snack
+  (feed) costs 3 capsules (x `Machine.coin_value`, so it grows with the machine): +30 food,
+  +5 mood; at 99 food it takes no snack. Pats are free: +8 mood, at most once every 30 s (a pat
+  in between is still a pat, just no mood).
 - Activities for when you're focused on the game: junkyard digging for parts, trading with NPCs,
   crafting. **Open:** exact list and order.
 - Desktop events while the pet is out: finding coins on window edges, catching falling things,
@@ -329,7 +339,9 @@ Nobody is ever lost on an errand, and errands never bring rare parts or new plac
     speed boost, so it multiplies with the tools' speed ((1 + tools) x (1 + kitchen)) and never
     speeds the kitchen itself. Each full meter is a meal for
     your pet (+10 food, +2 mood), but only up to 70 (`meal_upto`, `Jobs.feed`): the kitchen keeps
-    it from going hungry, filling it up is still yours to do. No tools, no level. The note says
+    it from going hungry, filling it up is still yours to do (70 is the full tummy line, so the
+    kitchen alone never gives that buff; while the game is closed food stays put and the meals
+    made meanwhile top it up to 70 from there). No tools, no level. The note says
     "every job 12% faster"; with a big crew elsewhere it keeps one decimal ("0.4%") and never
     says "0% faster" (`Jobs.faster_words`).
   - **Scouting:** each full meter is a scout note (hold 2, a map case holds more; a full hold stops
@@ -414,7 +426,8 @@ All opt-in, with odds shown before confirming:
 
 ## Economy (first numbers, to be tuned)
 
-- Coins: passive trickle while running, a bigger share from adventures and active play.
+- Coins: the capsule machine (active), errands (idle, also while closed) and adventures. No
+  passive trickle any more (care A): a full tummy multiplies coins instead.
 - Starter box cost around a few minutes of active play.
 - Idle cap: about 24 h of rewards.
 

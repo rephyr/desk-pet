@@ -25,8 +25,9 @@ const FLOAT_TIME := 1.4
 
 var _pet := PetPortrait.new(6, true)
 var _name := UiTheme.title("", 18)
-var _food := UiTheme.bar(UiTheme.PINK)
-var _mood := UiTheme.bar(UiTheme.LILAC)
+var _food := UiTheme.bar(UiTheme.PINK, Care.line(Catalog.shared(), "food"))
+var _mood := UiTheme.bar(UiTheme.LILAC, Care.line(Catalog.shared(), "mood"))
+var _feed: Button
 var _card := PanelContainer.new()
 var _notes := GridContainer.new()
 var _note_parts := {}  # name -> { panel, line, hint, accent }
@@ -102,13 +103,13 @@ func _init() -> void:
 		col.add_child(line)
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 8)
-	var feed := UiTheme.button("feed %d" % GameState.FEED_COST, func(): GameState.feed())
-	feed.icon = UiTheme.icon("coin", 14)
-	feed.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	feed.add_theme_constant_override("icon_max_width", 14)
-	feed.add_theme_color_override("icon_normal_color", Color.WHITE)
-	feed.add_theme_color_override("icon_hover_color", Color.WHITE)
-	buttons.add_child(feed)
+	_feed = UiTheme.button(feed_text(), func(): GameState.feed())
+	_feed.icon = UiTheme.icon("coin", 14)
+	_feed.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_feed.add_theme_constant_override("icon_max_width", 14)
+	_feed.add_theme_color_override("icon_normal_color", Color.WHITE)
+	_feed.add_theme_color_override("icon_hover_color", Color.WHITE)
+	buttons.add_child(_feed)
 	buttons.add_child(UiTheme.button("pat", func():
 		GameState.pat()
 		_pet.view.squash = 0.6))
@@ -137,8 +138,7 @@ func _init() -> void:
 func _process(delta: float) -> void:
 	if not is_visible_in_tree():
 		return
-	_food.value = GameState.hunger
-	_mood.value = GameState.happiness
+	show_care(_food, _mood)
 	if _dirty:
 		_refresh()
 	for f in _floaters:
@@ -559,10 +559,31 @@ func _tapped(note_name: String) -> void:
 				go.emit("boxes")
 
 
+## The feed button's words: a snack's price now (it grows with the machine).
+static func feed_text() -> String:
+	return "feed %s" % UiTheme.num(GameState.snack_price())
+
+
+## Your pet's food and mood on two bars, lit up while their care buff is on (the name as tooltip).
+static func show_care(food: ProgressBar, mood: ProgressBar) -> void:
+	var catalog := GameState.catalog
+	food.value = GameState.hunger
+	mood.value = GameState.happiness
+	_light(food, Care.buff_of(catalog, "food"))
+	_light(mood, Care.buff_of(catalog, "mood"))
+
+
+## Lights one care bar while its buff is on.
+static func _light(bar: ProgressBar, buff: Dictionary) -> void:
+	var lit := not buff.is_empty() and Care.on(buff, GameState.hunger, GameState.happiness)
+	UiTheme.light_bar(bar, lit, str(buff.get("name", "")))
+
+
 ## What each note says right now; notes with nothing waiting fade back a little.
 func _refresh() -> void:
 	_dirty = false
 	var catalog := Catalog.shared()
+	_feed.text = feed_text()
 	var pet := GameState.collection.active()
 	_pet.set_pet(pet)
 	_name.text = pet.display_name(catalog) if pet else ""

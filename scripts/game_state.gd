@@ -26,12 +26,8 @@ var save_path := DevProfile.path("save.json")  # user://save.json, or a test pro
 ## (a test turns saving on with its own save_path).
 static var testing := false
 const SAVE_VERSION := 24
-const STAT_FLOOR := 20.0
-const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
-const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
-const COIN_INTERVAL := 10.0  # seconds per coin at full happiness
 const OFFLINE_CAP := 12.0 * 3600.0
-const FEED_COST := 3
+const FRAME_GAP := 5.0  # a frame this long means the computer slept: counts as closed (no care drain)
 const FIRST_PET_BOX := "starter"
 const DEBUG_COINS := 1000
 const BACKGROUND_PACK_EVERY := 8.0  # seconds per pack your pet opens out of sight (its animation takes about this)
@@ -46,8 +42,8 @@ var gear := {}  # gear id -> level, bought with xp (the adventures tab's upgrade
 ## The collection book's reward stickers you've opened (page ids, see Book and data/book.json).
 ## Kept for good: the boost reads this list, not how full the page is now.
 var stickers: Array[String] = []
-var hunger := 80.0  # 100 = full
-var happiness := 80.0
+var hunger := 70.0  # food, 100 = full; starts on the tick, no buff yet (only drains while open, see Care)
+var happiness := 70.0  # mood
 var pet_out := false
 var bag := {}  # box id -> unopened boxes you own (found on adventures)
 var parts := {}  # "slot:part id" -> how many you have (found on adventures, for grafting later)
@@ -137,7 +133,9 @@ var tutorial := "done"
 var _roller := PetRoller.new(catalog)
 var _rng := RandomNumberGenerator.new()
 var _can_save := true  # false if the save came from a newer version of the game
-var _coin_timer := 0.0
+var _care_on: Array[String] = []  # care buffs on right now (see _check_care)
+var _away := false  # working through time the computer slept: no care buffs (see _without_care)
+var _pat_at := -INF  # when a pat last gave mood (unix seconds; data/care.json pat.every)
 var _save_timer := 0.0
 var _run_timer := 0.0
 var _pack_timer := 0.0  # your pet opening the pile out of sight, see _open_in_background()
@@ -197,15 +195,15 @@ func _init() -> void:
 
 
 func _process(delta: float) -> void:
-	hunger = maxf(STAT_FLOOR, hunger - HUNGER_DECAY * delta)
-	happiness = maxf(STAT_FLOOR, happiness - HAPPY_DECAY * delta)
-
-	# happy, fed pets earn faster; an ignored one still earns a little
-	_coin_timer += delta * lerpf(0.4, 1.0, (happiness + hunger) / 200.0)
-	if _coin_timer >= COIN_INTERVAL:
-		_coin_timer -= COIN_INTERVAL
-		coins += 1
-		changed.emit()
+	# food and mood only go down while the game is open (a long frame gap is the computer asleep)
+	if delta <= FRAME_GAP:
+		var food := Care.drain(catalog, "food", hunger, delta)
+		var mood := Care.drain(catalog, "mood", happiness, delta)
+		var crossed := Care.crossed(catalog, hunger, happiness, food, mood)
+		hunger = food
+		happiness = mood
+		if crossed:
+			_check_care()
 
 	_open_in_background(delta)
 	_zoom_runs(delta)
@@ -539,8 +537,8 @@ func debug_new_game() -> void:
 	DirAccess.copy_absolute(ProjectSettings.globalize_path(save_path), ProjectSettings.globalize_path(backup))
 	coins = 100
 	xp = 0
-	hunger = 80.0
-	happiness = 80.0
+	hunger = 70.0
+	happiness = 70.0
 	bag.clear()
 	parts.clear()
 	items.clear()
@@ -581,6 +579,7 @@ func debug_new_game() -> void:
 	news = {}
 	collection.load_from({})
 	_start_tutorial()
+	_check_care()
 	collection.active_changed.emit(collection.active())
 	save_game()
 	new_game.emit()
@@ -597,7 +596,9 @@ func _work_jobs(until: float) -> void:
 		if gap > 5.0:  # the computer slept: time away counts like time with the game closed
 			var e: Dictionary = catalog.errands
 			gap = Jobs.offline_seconds(gap, errands_away_hours(), float(e.offline_after), OFFLINE_CAP) * boost("away")
-		_work_for(gap)
+			_without_care(_work_for.bind(gap))
+		else:
+			_work_for(gap)
 	_jobs_at = maxf(_jobs_at, until)
 
 
@@ -618,6 +619,7 @@ func _work_for(seconds: float) -> Dictionary:
 				var fed := Jobs.feed(job, hunger, happiness, int(got.loot.meal) / maxi(1, int(job.pay.meal)))
 				hunger = fed.food
 				happiness = fed.mood
+				_check_care()
 				got.loot.meal = roundi(fed.eaten)  # 0: it wasn't hungry enough, nothing to show
 			if got.loot.has("note"):  # the scouts wrote notes, as many as fit
 				got.loot.note = mini(int(got.loot.note), scout_hold() - scout_notes)
@@ -1249,7 +1251,9 @@ func _work_automation(until: float) -> void:
 		_auto_at = until
 		if gap > 5.0:  # the computer slept: counts like time with the game closed (a hitch still counts)
 			gap = maxf(Automation.away_seconds(catalog, automation, gap) * boost("away"), minf(gap, 60.0))
-		_work_for_automation(gap, true)
+			_without_care(_work_for_automation.bind(gap, true))
+		else:
+			_work_for_automation(gap, true)
 	_auto_adventures()
 	_release_saves()
 
@@ -1976,19 +1980,73 @@ func debug_finish_runs() -> void:
 
 # ---- care -----------------------------------------------------------------
 
+## Coins a snack (the feed button) costs now: data/care.json "snack" capsules at what a plain capsule
+## is worth, so it grows with the machine.
+func snack_price() -> int:
+	return Care.snack_price(catalog, Machine.coin_value(machine, catalog))
+
+
+## Gives your pet a snack, if it has room for one and you can pay. Returns whether it ate.
 func feed() -> bool:
-	if coins < FEED_COST or hunger >= 99.0:
+	var price := snack_price()
+	var snack: Dictionary = catalog.care.get("snack", {})
+	if coins < price or hunger >= float(snack.get("full_at", 99)):
 		return false
-	coins -= FEED_COST
-	hunger = minf(100.0, hunger + 30.0)
-	happiness = minf(100.0, happiness + 5.0)
+	coins -= price
+	hunger = minf(100.0, hunger + float(snack.get("food", 30)))
+	happiness = minf(100.0, happiness + float(snack.get("mood", 5)))
+	_check_care()
 	changed.emit()
 	return true
 
 
+## A pat: mood goes up, at most once every data/care.json pat.every seconds (a pat in between is
+## still a pat, just no mood).
 func pat() -> void:
-	happiness = minf(100.0, happiness + 8.0)
+	var p: Dictionary = catalog.care.get("pat", {})
+	var now := Time.get_unix_time_from_system()
+	if now - _pat_at < float(p.get("every", 0)):
+		return
+	_pat_at = now
+	happiness = minf(100.0, happiness + float(p.get("mood", 8)))
+	_check_care()
 	changed.emit()
+
+
+## Sets food and mood (the dev step `care`), kept between the floor and 100.
+func set_care(food: float, mood: float) -> void:
+	hunger = clampf(food, Care.floor_value(catalog), 100.0)
+	happiness = clampf(mood, Care.floor_value(catalog), 100.0)
+	_check_care()
+	changed.emit()
+
+
+## Food or mood moved: when a care buff turned on or off, the boosts it's on are worked out again.
+func _check_care() -> void:
+	var now := Care.on_ids(catalog, hunger, happiness)
+	if now == _care_on:
+		return
+	_care_on = now
+	_forget_care_boosts()
+	if not _loading:
+		changed.emit()
+
+
+## The kept totals of the kinds care boosts go stale (a buff turned on or off, or time away began
+## or ended).
+func _forget_care_boosts() -> void:
+	for b in catalog.care.get("buffs", []):
+		_boosts.erase(str(b.kind))
+
+
+## Does `work` for time the computer slept without the care buffs: like food and mood, they only
+## count while the game is open (time closed is the same: boost_parts leaves them out while loading).
+func _without_care(work: Callable) -> void:
+	_away = true
+	_forget_care_boosts()
+	work.call()
+	_away = false
+	_forget_care_boosts()
 
 
 ## Whether your pet can rummage in its room yet (once you have a pet).
@@ -2209,6 +2267,8 @@ func boost_parts(kind: String) -> Array[Dictionary]:
 		var cooks := kitchen_bonus()  # reads only the cooks' speeds, never boost()
 		if cooks > 0.0:
 			out.append(Boosts.part("kitchen", "kitchen", 1.0 + cooks))
+	if not (_loading or _away):  # the buffs only count while the game is open (see _without_care)
+		out.append_array(Care.parts(catalog, kind, hunger, happiness))
 	return out
 
 
@@ -2556,6 +2616,7 @@ func load_game() -> bool:
 	_loading = true
 	var loaded := _load_save()
 	_loading = false
+	_forget_care_boosts()  # totals kept while loading left the care buffs out (time closed)
 	return loaded
 
 
@@ -2704,13 +2765,10 @@ func _load_save() -> bool:
 		if knows_job("boxes"):  # it had the cushion: opening boxes stays (now in the automation tab)
 			unlocks["feature:packs"] = true
 			unlocks["tab:automation"] = true
-	# catch up on time spent closed: coins at the slowest rate, stats to the floor at worst (before
-	# the errands catch up, so the kitchen's meals made while you were away still count)
-	var away := Time.get_unix_time_from_system() - float(data.get("saved_at", 0.0))
-	if away > 0.0:
-		coins += int(minf(away, OFFLINE_CAP) * 0.4 / COIN_INTERVAL * boost("away"))
-		hunger = maxf(STAT_FLOOR, hunger - HUNGER_DECAY * away)
-		happiness = maxf(STAT_FLOOR, happiness - HAPPY_DECAY * away)
+	# food and mood stay as they were while the game was closed (they only go down while it's open);
+	# the kitchen's meals made while you were away top them up to its line from there. The buffs
+	# don't count for time closed (boost_parts leaves them out while loading).
+	_check_care()
 	# errands kept going while the game was closed: full speed for a while, then slower
 	var e: Dictionary = catalog.errands
 	var closed := Jobs.offline_seconds(Time.get_unix_time_from_system() - float(data.get("saved_at", 0.0)),

@@ -26,6 +26,7 @@ extends Node
 ##   toy <id> [finish] [n] you get that capsule toy (n copies: the rest are spares)
 ##   fix <node> [levels]   a node on the machine's upgrade tree, for free (data/machine_tree.json)
 ##   bits <id> <n>         n machine bits (gear, spring, bolt, glass)
+##   care <food> <mood>    your pet's food and mood (kept between the floor and 100)
 ##   coins <n>             you have exactly n coins
 ##   tool <id> [levels]    levels of an errand tool (data/errands.json "tools"), for free
 ##   job <id> <n>          the n best resting pets go on that errand
@@ -193,6 +194,10 @@ func _step(w: PackedStringArray) -> String:
 			GameState.machine.bought[w[1]] = Machine.owned(GameState.machine, w[1]) + (int(w[2]) if w.size() > 2 else 1)
 			GameState._knack_gates_changed()  # like a real fix (no sparkles: machine_upgraded isn't sent)
 			GameState.changed.emit()
+		"care":  # care <food> <mood>: your pet's food and mood (kept between the floor and 100)
+			if w.size() < 3:
+				return "care takes: <food> <mood>"
+			GameState.set_care(float(w[1]), float(w[2]))
 		"coins":  # coins <n>: you have exactly n coins
 			GameState.coins = int(w[1])
 			GameState.changed.emit()

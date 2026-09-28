@@ -10,8 +10,9 @@ var _work := PetAtWork.new()  # your pet, opening packs while you work
 var _packs_toggle: Button
 var _status := UiTheme.label("out exploring your desktop…", UiTheme.LILAC)
 var _coins: PanelContainer
-var _hunger := UiTheme.bar(UiTheme.PINK)
-var _happy := UiTheme.bar(UiTheme.LILAC)
+var _hunger := UiTheme.bar(UiTheme.PINK, Care.line(Catalog.shared(), "food"))
+var _happy := UiTheme.bar(UiTheme.LILAC, Care.line(Catalog.shared(), "mood"))
+var _feed: Button
 var _out_button: Button
 var expand_button: Button  # the tutorial points at it if you shrink the window
 
@@ -89,7 +90,8 @@ func _init() -> void:
 	var buttons := HBoxContainer.new()
 	buttons.add_theme_constant_override("separation", 6)
 	col.add_child(buttons)
-	var feed := UiTheme.button("feed %d" % GameState.FEED_COST, func(): GameState.feed())
+	var feed := UiTheme.button(HomeTab.feed_text(), func(): GameState.feed())
+	_feed = feed
 	feed.icon = UiTheme.icon("coin", 13)
 	feed.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	feed.add_theme_constant_override("icon_max_width", 13)
@@ -115,8 +117,9 @@ func _init() -> void:
 
 
 func _process(_delta: float) -> void:
-	_hunger.value = GameState.hunger
-	_happy.value = GameState.happiness
+	if not is_visible_in_tree():
+		return
+	HomeTab.show_care(_hunger, _happy)
 
 
 func _job_toggle(text: String, on_toggled: Callable, on: bool) -> Button:
@@ -134,6 +137,7 @@ func set_pet_out(out: bool) -> void:
 
 
 func _refresh() -> void:
+	_feed.text = HomeTab.feed_text()
 	(_coins.find_child("Amount", true, false) as Label).text = ExpandedView._thousands(GameState.coins)
 	# jobs your pet hasn't learned yet stay out of sight
 	_packs_toggle.visible = GameState.knows_job("boxes")
