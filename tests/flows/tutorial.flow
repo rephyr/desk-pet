@@ -1,30 +1,31 @@
-# A new player's first minutes: open the two gift boxes, pick an active pet, send the other one
-# down the garden path. Run with: python3 tools/play.py tutorial
+# A new player's start: only home, the machine and collectibles. Pull the lever; on the third pull
+# your first pet comes out of the machine (your active pet). Then it's you and the machine for a
+# while; once it's built up, a second pet comes out with a map: adventures open, send it.
+# Run with: python3 tools/play.py tutorial
 from new
 
-expect tutorial open_first
+expect tutorial pull
+expect tab machine
+expect fits
 shot start
-click guide                 # "open 1" on the starter pile
-key space                   # skip the ritual to the result
-wait ritual
+pull 1
+expect no-text "psst… pull the lever towards you! something's rattling in here!"
+pull 2 1.5
 shot first_pet
-click "lovely!"
-expect tutorial open_second
-click guide
-key space
-wait ritual
-click "lovely!"
-
-expect tutorial make_active
-expect text "tap here to see your pets!"
-shot pets_tab
-click guide                 # the pets tab
-wait text "pick me! no, pick me! (tap a pet, then make it your active pet ♡)"
-shot pick_me
-click PetCard#1
-click "make active"
-
+expect tutorial machine
+click tab:collection
+shot collectibles
+click "???"
+shot toys_locked
+tab machine
+pull 5
+expect tutorial machine
+fix tape
+fix oil
+pull 1 1.5
+shot second_pet
 expect tutorial send
+expect text "tap here to go on an adventure!"
 click guide                 # the adventures tab
 shot adventures
 click guide                 # the garden on the map
@@ -33,3 +34,4 @@ click guide                 # send
 wait 1
 expect tutorial done
 shot done
+expect fits

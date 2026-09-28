@@ -20,6 +20,8 @@ var history: Array[Dictionary] = []  # { event, title, option, success, text, lo
 var loot := {}  # everything found so far, see Rewards
 var went_home := false  # ended early by choice (no treat bag for finishing)
 var xp := 0  # experience from this trip; unlike the bag, it isn't lost with the pet
+var auto := false  # your pet sent it (the automation tab's adventures job): it comes home and goes again by itself
+var slot := -1  # an auto party: -1 your pet's, 0 and up a worker's (automation.parties)
 
 
 ## The event the party is standing at, or {} while walking between them.
@@ -33,7 +35,7 @@ func to_dict() -> Dictionary:
 	return {
 		"location": location_id, "chooser": chooser, "party": party.to_dict(), "seed": rng_seed, "events": events, "step": step,
 		"started": started, "next_at": next_at, "status": status, "waiting_since": waiting_since,
-		"answer": answer, "log": history, "loot": loot, "went_home": went_home, "xp": xp,
+		"answer": answer, "log": history, "loot": loot, "went_home": went_home, "xp": xp, "auto": auto, "slot": slot,
 	}
 
 
@@ -58,6 +60,8 @@ static func from_dict(d: Dictionary, catalog: Catalog) -> RunState:
 	s.answer = int(d.get("answer", -1))
 	s.went_home = bool(d.get("went_home", false))
 	s.xp = int(d.get("xp", 0))
+	s.auto = bool(d.get("auto", false))
+	s.slot = int(d.get("slot", -1))
 	s.history.assign(d.get("log", []))
 	for key in d.get("loot", {}):
 		s.loot[key] = int(d.loot[key])

@@ -69,6 +69,7 @@ func _process(delta: float) -> void:
 
 func _refresh() -> void:
 	if pet == null:
+		queue_redraw()  # clear the old picture (e.g. after a new game)
 		return
 	_texture = PetLook.texture_for(pet.parts, false, pet.sewn)
 	_blink_texture = PetLook.texture_for(pet.parts, true, pet.sewn)

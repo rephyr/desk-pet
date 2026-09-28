@@ -1,7 +1,7 @@
 class_name CollectionTab
 extends VBoxContainer
-## Your pets (a sortable, filterable, paged grid of stickers + the chosen pet's details) and the
-## collection book. Filters are chips and sorts are buttons, never dropdowns: a dropdown is a
+## Collectibles: your pets (a sortable, filterable, paged grid of stickers + the chosen pet's
+## details), your capsule toys (ToysView) and the collection book. Filters are chips and sorts are buttons, never dropdowns: a dropdown is a
 ## separate OS popup window (embed_subwindows is off), which doesn't open properly on Hyprland.
 
 const PAGE_SIZE := 24
@@ -10,13 +10,15 @@ const FILTERS := ["common", "uncommon", "rare", "epic", "legendary", "mythic"]
 
 var _pets_view := HBoxContainer.new()
 var _book := BookView.new()
+var toys := ToysView.new()
 var _grid := GridContainer.new()
 var _scroll := ScrollContainer.new()
 var _details := PetDetails.new()
 var _count := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
 var _page_label := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
 var _pets_bar := HBoxContainer.new()
-var _mode: PanelContainer  # the pets | book switch
+var _mode: PanelContainer  # the pets | toys | book switch
+var _toys_button: Button
 var _filter_row := HFlowContainer.new()
 var _all_chip: Button
 var _chips := {}  # tier id or "sparkly" -> Button
@@ -33,7 +35,7 @@ func _init() -> void:
 	var bar := HBoxContainer.new()
 	bar.add_theme_constant_override("separation", 8)
 	add_child(bar)
-	_mode = UiTheme.segmented(["pets", "book"], 0, func(i): _show_book(i == 1))
+	_mode = UiTheme.segmented(["pets", "toys", "book"], 0, func(i): _show_mode(i))
 	bar.add_child(_mode)
 	_pets_bar.add_theme_constant_override("separation", 8)
 	_pets_bar.size_flags_horizontal = SIZE_EXPAND_FILL
@@ -81,6 +83,13 @@ func _init() -> void:
 	_pets_view.add_child(_scroll)
 	_pets_view.add_child(_details)
 	add_child(_pets_view)
+	add_child(toys)
+	toys.visible = false
+	# the toys switch is locked ("???") until toys open (through adventures)
+	_toys_button = _mode.get_child(0).get_child(1) as Button
+	_lock_toys()
+	GameState.changed.connect(_lock_toys)
+	GameState.new_game.connect(_lock_toys)
 	add_child(_book)
 	_book.visible = false
 
@@ -103,7 +112,9 @@ func _init() -> void:
 	visibility_changed.connect(func():
 		_rebuild_if_visible()
 		if is_visible_in_tree() and _pets_view.visible:
-			speak())
+			speak()
+		elif is_visible_in_tree() and toys.visible:
+			toys.speak())
 
 
 func _add_chip(id: String, text: String, color: Color) -> void:
@@ -122,16 +133,36 @@ func speak() -> void:
 
 
 func show_book(book: bool) -> void:
-	(_mode.get_child(0).get_child(1 if book else 0) as Button).pressed.emit()  # flips the switch too
+	show_mode(2 if book else 0)
 
 
-func _show_book(book: bool) -> void:
-	_book.visible = book
-	_pets_view.visible = not book
-	_pets_bar.visible = not book
-	_filter_row.visible = not book
-	if book:
+## 0 pets, 1 toys, 2 the book.
+func show_mode(mode: int) -> void:
+	(_mode.get_child(0).get_child(mode) as Button).pressed.emit()  # flips the switch too
+
+
+func _lock_toys() -> void:
+	var open := GameState.feature_on("toys")
+	_toys_button.text = "toys" if open else "???"
+	_toys_button.icon = null if open else UiTheme.icon("lock", 12, UiTheme.LOCKED)
+	_toys_button.tooltip_text = "" if open else GameState.catalog.unlock_list.filter(func(e): return e.id == "toys")[0].get("hint", "")
+
+
+func _show_mode(mode: int) -> void:
+	if mode == 1 and not GameState.feature_on("toys"):
+		# locked: your pet says what opens it, and you stay on the pets
+		PetBubble.say(self, "toys? " + _toys_button.tooltip_text + "!")
+		show_mode(0)
+		return
+	_book.visible = mode == 2
+	toys.visible = mode == 1
+	_pets_view.visible = mode == 0
+	_pets_bar.visible = mode == 0
+	_filter_row.visible = mode == 0
+	if mode == 2:
 		PetBubble.say_line(self, "book")
+	elif mode == 1:
+		toys.speak()
 
 
 ## For the tutorial: a pet to tap, or once one's picked, the button to make it active.

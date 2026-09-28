@@ -1,0 +1,49 @@
+# Errands with upgrades: the basket comes with a sleepy pet that starts on the coin hunt; coins buy
+# tools on the pegboard, the coin hunt levels up and its first goal opens the lemonade stand.
+from rich
+view full
+fix tape
+fix oil
+fix flap
+find basket
+wait popup
+expect text "new: errands!"
+shot popup
+click "show me"
+expect tab errands
+wait 1
+expect text "lv 0. at lv 10: a lemonade stand opens"
+expect fits
+shot jobs_start
+click "upgrades"
+wait 1
+expect text "sniffier noses"
+expect fits
+shot pegboard
+coins 50000
+click "quicker paws"
+wait 1
+click "quicker paws"
+wait 1
+shot bought_paws
+tool noses 9
+wait popup
+expect text "new: a lemonade stand!"
+click "show me"
+wait 1
+pets 3
+wait 1
+expect text "lv 10. at lv 25: x2 coins"
+expect fits
+shot jobs_lemonade
+click "upgrades"
+wait 1
+expect fits
+shot pegboard_later
+coins 900000000
+click "max"
+wait 1
+click "sniffier noses"
+wait 1
+expect fits
+shot max_rich

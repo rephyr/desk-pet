@@ -1,0 +1,12 @@
+# The dev "new game" button wipes everything, your old active pet too (nothing of it stays on screen).
+from after_tutorial
+view full
+tab home
+shot before
+tab settings
+click "dev: new game*"
+click "sure?*"
+wait 0.5
+tab home
+shot after_home
+expect fits

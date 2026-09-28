@@ -1,13 +1,35 @@
 {
-	"_note": "The first few minutes of a new game. Each step shows one line next to the thing to press ('go' instead while it points at the tab to get there first), and moves on by itself once it's done. 'speaker' is who says it: 'box' (the pet still inside a box), 'pets' (both new pets), 'active' (your new active pet; {active} and {other} are filled in). 'box_talk' is what the pet inside says while you open a box during the tutorial (first box, second box); outside the tutorial boxes don't talk.",
+	"_note": "The start of a new game (Emilia, 2026-09-28): only home, the machine and collectibles (toys locked). You pull the capsule machine; on pull 'machine_pet_at' your first pet comes out of the machine itself and becomes your active pet. Then it's just you and the machine for a while, building it up (no guiding). Once you've fixed 'adventure_after' on the machine's tree (the next repair needs a bit, and bits come from adventures), the next capsule holds a second pet with a scribbled map: adventures open, and you send it on its first one. Steps: 'pull' (the lever's line, only until your first pull), 'machine' (no line), 'send'. Each step shows one line next to the thing to press ('go' instead while it points at the tab to get there first). 'speaker': 'machine' (a pet still inside the machine), 'active' (your active pet; {active} and {other} are filled in). 'box_talk' is what the pet inside a box says while you open one during the tutorial.",
+	"machine_pet_at": 3,
+	"adventure_after": "oil",
 	"steps": [
-		{ "id": "open_first", "speaker": "box", "say": "psst… over here! something's wiggling in this box!" },
-		{ "id": "open_second", "speaker": "box", "say": "me too! me too! i'm in this one!" },
-		{ "id": "make_active", "speaker": "pets", "go": "tap here to see your pets!", "say": "pick me! no, pick me! (tap a pet, then make it your active pet ♡)" },
-		{ "id": "send", "speaker": "active", "go": "tap here to go on an adventure!", "say": "i'll stay home with you! let's send {other} down the garden path! ♡" }
+		{
+			"id": "pull",
+			"speaker": "machine",
+			"go": "tap here!",
+			"say": "psst… pull the lever towards you! something's rattling in here!"
+		},
+		{
+			"id": "machine",
+			"speaker": "active"
+		},
+		{
+			"id": "send",
+			"speaker": "active",
+			"go": "tap here to go on an adventure!",
+			"say": "a map! let's send {other} down the garden path! ♡"
+		}
 	],
 	"box_talk": [
-		["hello? is someone out there?", "it's dark in here! rip the top off! ♡", "light!!"],
-		["me too! let me out too!", "rip rip rip! ♡", "hi hi hi!!"]
+		[
+			"hello? is someone out there?",
+			"it's dark in here! rip the top off! ♡",
+			"light!!"
+		],
+		[
+			"me too! let me out too!",
+			"rip rip rip! ♡",
+			"hi hi hi!!"
+		]
 	]
 }

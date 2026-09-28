@@ -19,6 +19,7 @@ var _room := Vector2i.ZERO  # the screen's free room when the size was last set
 var _watch := 0.0
 var _tucked_away := false
 var _out_request := 0  # bumps on every let-out, so an older pending one can tell it's stale
+var _music := Music.new()
 
 
 func _ready() -> void:
@@ -32,10 +33,13 @@ func _ready() -> void:
 	Settings.look_changed.connect(_rebuild_look)
 	Settings.video_changed.connect(_apply_size)
 	GameState.collection.active_changed.connect(func(p): if _pet: _pet.set_pet(p))
-	GameState.new_game.connect(func(): _set_expanded(true))
+	GameState.new_game.connect(func():
+		_set_out(false)  # the old pet is gone, so nobody's out on the desktop
+		_set_expanded(true))
 
 	_overlay = _make_overlay()
 	add_child(_overlay)
+	add_child(_music)
 
 	# give the OS a moment to actually show the window before setting up around it
 	await get_tree().create_timer(0.3).timeout
@@ -91,7 +95,7 @@ func _build_views() -> void:
 		return _expanded.tutorial_target() if _expanded_mode else _compact.expand_button
 	_panel.add_child(guide)
 	var popup := UnlockPopup.new()  # something new opened up: a card over the full game
-	popup.can_show = func() -> bool: return _expanded_mode
+	popup.can_show = func() -> bool: return _expanded_mode and not _expanded.machine.busy()
 	popup.go.connect(func(tab_id): _expanded.show_tab(tab_id))
 	_panel.add_child(popup)
 	_compact.expand_requested.connect(_set_expanded.bind(true))
@@ -123,6 +127,7 @@ func _set_expanded(on: bool) -> void:
 		_expanded.show_start()  # the full game always opens in your pet's room
 	_compact.get_parent().visible = not on
 	_expanded.visible = on
+	_music.wanted = on and not _tucked_away
 	_apply_size()
 
 
@@ -147,6 +152,7 @@ func _tuck_away(hide_it: bool) -> void:
 		return
 	_tucked_away = hide_it
 	visible = not hide_it
+	_music.wanted = _expanded_mode and not hide_it
 	var nowhere := PackedVector2Array([Vector2(-3, -3), Vector2(-2, -3), Vector2(-2, -2)])
 	get_window().mouse_passthrough_polygon = nowhere if hide_it else PackedVector2Array()
 

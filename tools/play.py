@@ -3,11 +3,15 @@
 
     python3 tools/play.py tutorial            runs it, prints the log and where the shots are
     python3 tools/play.py tutorial --keep     keeps the profile's save afterwards (for new fixtures)
+    python3 tools/play.py tutorial --show     runs on your real desktop instead of a hidden screen
 
 The game runs with --profile=play-<name> (its own save and settings, see DevProfile), starting
-from the flow's "from" save, with its window parked off-screen. Your own game keeps running.
+from the flow's "from" save, on a hidden virtual screen (Xvfb, software rendering), so no window
+ever shows up on your desktop and Hyprland doesn't shuffle your windows around. Shots come out at
+1x scale. Your own game keeps running.
 Exits with the game's result: 0 when every step passed.
 """
+import os
 import shutil
 import subprocess
 import sys
@@ -19,16 +23,27 @@ flow = project / "tests" / "flows" / f"{name}.flow"
 if not flow.exists():
     sys.exit(f"no flow {flow}")
 start = "new"
+flags = []
 for line in flow.read_text().splitlines():
     if line.strip().startswith("from "):
         start = line.split()[1]
+    if line.strip().startswith("flags "):
+        flags += line.split("#")[0].split()[1:]
 profile = f"play-{name}"
 folder = Path.home() / ".local/share/godot/app_userdata/Desk Pets/profiles" / profile
 shutil.rmtree(folder / "shots", ignore_errors=True)
 (folder / "play.log").unlink(missing_ok=True)
-args = ["godot", "--path", str(project), "--", f"--profile={profile}", f"--from={start}", f"--play=res://tests/flows/{name}.flow"]
+args = ["godot", "--path", str(project), "--", f"--profile={profile}", f"--from={start}", f"--play=res://tests/flows/{name}.flow"] + flags
+env = None
+if "--show" not in sys.argv and shutil.which("xvfb-run"):
+    # a hidden X screen: without Wayland or Hyprland in sight the game uses X11 and leaves your
+    # windows alone; mesa draws it (the NVIDIA driver can't draw on Xvfb)
+    env = {k: v for k, v in os.environ.items() if k not in ("WAYLAND_DISPLAY", "HYPRLAND_INSTANCE_SIGNATURE")}
+    env["__GLX_VENDOR_LIBRARY_NAME"] = "mesa"
+    env["__EGL_VENDOR_LIBRARY_FILENAMES"] = "/usr/share/glvnd/egl_vendor.d/50_mesa.json"
+    args = ["xvfb-run", "-a", "-s", "-screen 0 2560x1440x24"] + args
 try:
-    result = subprocess.run(args, cwd=project, capture_output=True, text=True, timeout=300)
+    result = subprocess.run(args, cwd=project, capture_output=True, text=True, timeout=300, env=env)
     code = result.returncode
     errors = [l for l in (result.stdout + result.stderr).splitlines() if "ERROR" in l or "SCRIPT ERROR" in l]
 except subprocess.TimeoutExpired:

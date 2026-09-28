@@ -15,6 +15,7 @@ var finishes: Array[Dictionary] = []  # lowest to highest
 var traits: Array[Dictionary] = []
 var boxes: Array[Dictionary] = []
 var reveal := {}  # how opening a box looks, see data/reveal.json
+var sounds := {}  # what plays when, see data/sounds.json
 var adventure_types: Array[Dictionary] = []  # see data/adventures.json
 var locations: Array[Dictionary] = []  # in the order they're listed, safe to deadly
 var events := {}  # event id -> event, shared by the locations
@@ -27,6 +28,13 @@ var finds := {}  # find id -> special item
 var pages: Array[Dictionary] = []  # map pages, in order
 var errands := {}  # the errands tab's rules, see data/errands.json
 var jobs: Array[Dictionary] = []  # errands pets can be put on, in order
+var _rummage_by_id := {}
+var rummage_spots: Array[Dictionary] = []  # spots in your pet's room it digs through, see data/rummage.json
+var machine := {}  # the capsule machine: prizes, lights, upgrades, see data/machine.json
+var toys := {}  # capsule toys: sets, tiers, finishes, play, pixel art, see data/toys.json
+var machine_tree := {}  # the machine's upgrade tree, see data/machine_tree.json
+var automation := {}  # jobs your pet does for you (the automation tab), see data/automation.json
+var encounter_art := {}  # event id -> its pixel art on the trail, see data/encounter_art.json
 var tier_overrides := {}  # tier id -> Color, set by the player's colour theme (see UiTheme.apply)
 
 var _tier_rank := {}  # tier id -> index
@@ -65,6 +73,7 @@ func _init() -> void:
 	boxes.assign(_load("boxes.json").boxes)
 	_box_by_id = _index(boxes)
 	reveal = _load("reveal.json")
+	sounds = _load("sounds.json")
 	var adventures := _load("adventures.json")
 	adventure_types.assign(adventures.types)
 	_type_by_id = _index(adventure_types)
@@ -83,6 +92,13 @@ func _init() -> void:
 	errands = _load("errands.json")
 	jobs.assign(errands.jobs)
 	_job_by_id = _index(jobs)
+	rummage_spots.assign(_load("rummage.json").spots)
+	encounter_art = _load("encounter_art.json").art
+	machine = _load("machine.json")
+	toys = _load("toys.json")
+	machine_tree = _load("machine_tree.json")
+	automation = _load("automation.json")
+	_rummage_by_id = _index(rummage_spots)
 
 
 # ---- rarity ---------------------------------------------------------------
@@ -147,6 +163,10 @@ func adventure_type(id: String) -> Dictionary:
 
 func job(id: String) -> Dictionary:
 	return _job_by_id.get(id, {})
+
+
+func rummage_spot(id: String) -> Dictionary:
+	return _rummage_by_id.get(id, {})
 
 
 func rumour(id: String) -> Dictionary:

@@ -1,0 +1,27 @@
+{
+	"_note": "Automation (the automation tab, opened when the machine is fully fixed and a pet brings home a tiny capsule machine): your active pet does ONE job at a time for you. A job has to be taught first ('coins'), and some only turn up later ('needs': an unlock id from data/unlocks.json 'opens'; until then the job isn't there at all). Moving your pet to another job stops the one it was doing. JOBS: 'machine' = your pet cranks its own little capsule machine: one capsule a pull, worth the same as a plain capsule of yours (Machine.coin_value, so machine upgrades raise it), one pull every 'seconds' (made faster by tools). No lucky lights, no fever, no pet boxes: those stay with your lever. 'adventures' = your pet runs a party: it sends 'n' pets to a place, welcomes them back quietly when they're home and sends them out again (events pick their default). 'boxes' = your pet opens boxes from your pile (the cushion; it can't buy them until the piggy bank). TOOLS are what coins buy for a job: each level costs 'coins' x 'grow' to the power of the levels you have, 'max' 0 means no end; 'each' is what a level does: speed (the job goes this much faster, added up), away_hours (hours it keeps going while the game is closed; without it the machine stops when you close the game). 'color' is a UiTheme role, 'icon' a UiTheme doodle. WORKERS (the workers page, there once 'teach' is bought for a job: 'coins', and 'after' { tool id: level } of your pet's tools before it shows up): other pets do the job too, slower than your pet (half speed for a common, +0.1 a rarity step, see Automation.worker_speed). Each needs a 'spot' of its own, bought with coins ('coins' x 'grow' to the power of the spots you have): a machine, a box table, a party (an adventure party that keeps going, led by its worker, its pets drawn from the resting ones). You put the pets on yourself, and pets can't buy spots or boxes. Machine workers pull every 'seconds', box workers open a box every 'worker_seconds', both faster with 'worker_tools' (each: worker_speed). Workers keep going while the game is closed as long as your pet's stool lets it. Numbers are placeholders until balanced (the tree's last repair costs 2M coins, so a job is a big buy right after it).",
+	"jobs": [
+		{ "id": "machine", "name": "crank a machine", "icon": "machine", "color": "pink", "coins": 1500000,
+			"what": "a little machine of its own.", "brings": "capsules: coins, toys, now and then a box", "seconds": 48,
+			"tools": [
+				{ "id": "crank", "name": "a smoother crank", "icon": "auto_speed", "what": "cranks 10% faster", "coins": 150000, "grow": 1.35, "max": 20, "each": { "speed": 0.1 } },
+				{ "id": "stool", "name": "a comfy stool", "icon": "auto_stool", "what": "+1 h of cranking while you're away", "coins": 1000000, "grow": 1.9, "max": 8, "each": { "away_hours": 1 } }
+			],
+			"teach": { "coins": 3000000, "after": { "crank": 3 } },
+			"spot": { "name": "machine", "names": "machines", "coins": 800000, "grow": 1.12 },
+			"worker_tools": [
+				{ "id": "grease", "name": "grease for everyone", "icon": "auto_speed", "what": "their machines crank 10% faster", "coins": 600000, "grow": 1.4, "max": 20, "each": { "worker_speed": 0.1 } }
+			] },
+		{ "id": "adventures", "name": "run adventures", "icon": "trips", "color": "mint", "coins": 4000000, "needs": "feature:auto_adventures",
+			"what": "takes a party out, again and again.", "brings": "bits, coins and finds from the places", "party": 3,
+			"teach": { "coins": 6000000 },
+			"spot": { "name": "party", "names": "parties", "coins": 2000000, "grow": 1.3 } },
+		{ "id": "boxes", "name": "open boxes", "icon": "boxes", "color": "gold", "coins": 6000000, "needs": "feature:packs",
+			"what": "opens boxes from your pile.", "brings": "pets from your pile", "worker_seconds": 12,
+			"teach": { "coins": 8000000 },
+			"spot": { "name": "table", "names": "tables", "coins": 1500000, "grow": 1.15 },
+			"worker_tools": [
+				{ "id": "cutters", "name": "sharper cutters", "icon": "auto_speed", "what": "their tables open 10% faster", "coins": 1200000, "grow": 1.4, "max": 20, "each": { "worker_speed": 0.1 } }
+			] }
+	]
+}

@@ -2,7 +2,9 @@ class_name ExpandedView
 extends HBoxContainer
 ## The full game: an open book. The starry spine on the left (your pet on its moon, the tabs),
 ## the dotted page on the right: your pet's speech bubble, coins, xp and the window buttons along
-## the top, then the tab. Tabs: home (your pet's room), boxes, pets, trips, errands, bag, settings.
+## the top, then the tab. Tabs: home (your pet's room), machine (the capsule machine), boxes,
+## collectibles (pets, toys, the book), adventures, errands, automation (jobs your pet does for you),
+## workbench (the bag and sewing, toys), settings.
 
 signal collapse_requested
 signal quit_requested
@@ -12,6 +14,8 @@ var collection := CollectionTab.new()
 var adventures := AdventuresTab.new()
 var errands := ErrandsTab.new()
 var home := HomeTab.new()
+var machine := MachineTab.new()
+var automation := AutomationTab.new()
 var spine := Spine.new()
 var bubble := PetBubble.new()
 var _coins := UiTheme.chip("coin", "", UiTheme.CYAN)
@@ -23,11 +27,13 @@ var _rng := RandomNumberGenerator.new()
 ## Tab ids (the save and unlocks use these), with the names and icons players see.
 const TABS := [
 	["home", "home", "home"],
+	["machine", "machine", "machine"],
 	["boxes", "boxes", "boxes"],
-	["collection", "pets", "pets"],
+	["collection", "collectibles", "pets"],
 	["adventures", "adventures", "trips"],
 	["errands", "errands", "errands"],
-	["inventory", "bag", "bag"],
+	["automation", "automation", "automation"],
+	["inventory", "workbench", "bag"],
 ]
 
 
@@ -79,15 +85,18 @@ func _init() -> void:
 	var body := MarginContainer.new()
 	body.size_flags_vertical = SIZE_EXPAND_FILL
 	column.add_child(body)
-	var inventory := InventoryTab.new()
-	inventory.open_box_requested.connect(func(box_id):
+	var workbench := WorkbenchTab.new()
+	collection.toys.workbench_requested.connect(func(edition):
+		show_tab("inventory")
+		workbench.show_toy(edition))
+	workbench.bag.open_box_requested.connect(func(box_id):
 		show_tab("boxes")
 		boxes.open(box_id, 1))
 	home.go.connect(show_tab)
 	home.open_box.connect(func(box_id):
 		show_tab("boxes")
 		boxes.open(box_id, 1))
-	_tabs = { "home": home, "boxes": boxes, "collection": collection, "adventures": adventures, "errands": errands, "inventory": inventory, "settings": SettingsTab.new() }
+	_tabs = { "home": home, "machine": machine, "boxes": boxes, "collection": collection, "adventures": adventures, "errands": errands, "automation": automation, "inventory": workbench, "settings": SettingsTab.new() }
 	for tab_id in _tabs:
 		body.add_child(_tabs[tab_id])
 	for t in TABS:
@@ -102,6 +111,7 @@ func _init() -> void:
 	GameState.tutorial_changed.connect(_refresh_tabs)
 	GameState.unlocked.connect(func(_e): _refresh_tabs())
 	GameState.new_game.connect(_refresh_tabs)
+	GameState.play_ended.connect(func(_e): PetBubble.say_line(self, "toy_done"))
 	_refresh()
 	_refresh_tabs()
 
@@ -115,10 +125,9 @@ func _window_button(text: String, tip: String, on_pressed: Callable) -> Button:
 
 ## Which tabs a tutorial step shows: they appear one by one as you learn them.
 const TUTORIAL_TABS := {
-	"open_first": ["boxes", "settings"],
-	"open_second": ["boxes", "settings"],
-	"make_active": ["boxes", "collection", "settings"],
-	"send": ["boxes", "collection", "adventures", "settings"],
+	"pull": ["home", "machine", "collection", "settings"],
+	"machine": ["home", "machine", "collection", "settings"],
+	"send": ["home", "machine", "collection", "adventures", "settings"],
 }
 
 
@@ -132,10 +141,9 @@ func _refresh_tabs() -> void:
 			"adventures": news = back
 		spine.set_tab_state(tab_id, tab_id in shown and not GameState.tab_hidden(tab_id), not GameState.tab_open(tab_id), news)
 		spine.tab_button(tab_id).tooltip_text = GameState.tab_hint(tab_id)
-	# jump to where the tutorial wants you
-	match GameState.tutorial:
-		"open_first":
-			show_tab("boxes")
+	# the very start: the capsule machine
+	if GameState.tutorial == "pull":
+		show_tab("machine")
 
 
 func _on_tab_pressed(tab_id: String) -> void:
@@ -149,20 +157,22 @@ func _on_tab_pressed(tab_id: String) -> void:
 ## The button the tutorial is pointing at right now, or null.
 func tutorial_target() -> Control:
 	match GameState.tutorial:
-		"open_first", "open_second":
-			return null if boxes.is_revealing() else (boxes.tutorial_target() if boxes.visible else spine.tab_button("boxes"))
-		"make_active":
-			if boxes.is_revealing():
-				return null  # the second pet isn't out of its box yet
-			return collection.tutorial_target() if collection.visible else spine.tab_button("collection")
+		"pull":
+			# only until the first pull: after that you know what the lever does
+			if int(GameState.machine.pulls) > 0:
+				return null
+			return machine.tutorial_target() if machine.visible else spine.tab_button("machine")
 		"send":
 			return adventures.tutorial_target() if adventures.visible else spine.tab_button("adventures")
 	return null
 
 
-## Where the full game opens: your pet's room, or the boxes while the tutorial is on.
+## Where the full game opens: your pet's room, or where the tutorial is.
 func show_start() -> void:
-	show_tab("boxes" if GameState.tutorial_active() else "home")
+	match GameState.tutorial:
+		"done": show_tab("home")
+		"send": show_tab("adventures")
+		_: show_tab("machine")
 
 
 func show_tab(tab_id: String) -> void:
@@ -190,7 +200,7 @@ func _general_line() -> void:
 
 
 func _refresh() -> void:
-	(_coins.find_child("Amount", true, false) as Label).text = _thousands(GameState.coins)
+	(_coins.find_child("Amount", true, false) as Label).text = UiTheme.num(GameState.coins)
 	(_xp.find_child("Amount", true, false) as Label).text = _thousands(GameState.xp)
 	bubble.visible = GameState.collection.active() != null
 	# news dots: boxes waiting in the bag, trips waiting for you

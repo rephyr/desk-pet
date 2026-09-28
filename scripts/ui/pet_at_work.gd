@@ -65,10 +65,10 @@ func _process(delta: float) -> void:
 ## A small note by the pile when your pet isn't opening packs, so it never looks stuck.
 func _refresh_saving() -> void:
 	var text := ""
-	if not GameState.feature_on("packs"):
+	if not GameState.knows_job("boxes"):
 		text = ""
 	elif not GameState.packs_on:
-		text = "packs are off"
+		text = "busy %s" % AutomationTab.doing(str(GameState.automation.task)) if GameState.automation.task != "" else "packs are off"
 	elif not GameState.can_auto_open() and _work.job == PackJob.Job.SIT:
 		text = "saving up for the pile" if GameState.feature_on("shopping") and GameState.buying_on else "the pile is empty"
 	_saving.text = text
@@ -116,8 +116,8 @@ func _draw() -> void:
 	# a soft floor, and the pile of packs your pet fetches from
 	draw_line(Vector2(8, _floor() + 1), Vector2(size.x - 8, _floor() + 1), Color(UiTheme.PINK, 0.18), 2.0)
 	var stocked := GameState.can_auto_open()
-	if not GameState.feature_on("packs"):
-		return  # your pet hasn't got its packs corner yet
+	if not GameState.knows_job("boxes"):
+		return  # your pet hasn't learned to open boxes yet
 	for i in 3:
 		_draw_pack(Vector2(_pile_x() + (i - 1) * 7.0, _floor() - 8.0 - i * 3.0), (i - 1) * 0.15, self, not stocked)
 

@@ -1,0 +1,61 @@
+# Automation: once the machine is fully fixed, a pet brings home a tiny capsule machine and the
+# automation tab opens. Your pet learns to crank its own machine, then to run adventures and open
+# boxes; it only does one job at a time, and moving it stops the job it left.
+from rich
+view full
+pets 6
+fix drops
+coins 20000000
+expect no-text "automation"
+find tiny_machine
+wait popup
+expect text "new: automation!"
+shot popup
+click "show me"
+expect tab automation
+wait 1
+expect text "crank a machine"
+expect no-text "run adventures"
+expect fits
+shot start
+click "teach for*"
+wait 1
+expect text "a pull every 48s"
+expect fits
+shot cranking
+crank 1
+wait 0.4
+shot popped
+click "a smoother crank"
+wait 1
+expect text "a pull every 44s"
+unlock feature:auto_adventures
+wait 1
+click "run adventures"
+wait 1
+shot adventures_for_sale
+click "teach for*"
+wait 1
+expect text "nobody here"
+click "move it here"
+wait 3
+expect text "take it off"
+expect text "1 pet to the garden path"
+expect fits
+shot adventures
+click "crank a machine"
+wait 1
+expect text "nobody here"
+shot machine_idle
+unlock feature:packs
+wait 1
+click "open boxes"
+wait 1
+click "teach for*"
+wait 1
+click "move it here"
+wait 1
+expect text "take it off"
+expect text "the pile is empty"
+expect fits
+shot boxes

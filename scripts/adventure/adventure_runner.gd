@@ -25,14 +25,15 @@ const HOME_OPTION := {
 
 
 ## `found` lists special items already found: events that give them don't turn up any more.
-static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: int, catalog: Catalog, found := {}) -> RunState:
+## `fixed` is the capsule machine's fixed nodes (node id -> levels), for events that wait on one.
+static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: int, catalog: Catalog, found := {}, fixed := {}) -> RunState:
 	var location := catalog.location(location_id)
 	var s := RunState.new()
 	s.location_id = location_id
 	s.party = Party.make(pets, catalog)
 	s.chooser = Chooser.kind_for(pets.size())
 	s.rng_seed = rng_seed
-	s.events = pick_events(location, rng_seed, found, catalog)
+	s.events = pick_events(location, rng_seed, found, catalog, fixed)
 	s.started = now
 	s.next_at = now + gap(location, s.party, s.events.size())
 	return s
@@ -40,13 +41,16 @@ static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: i
 
 ## The events a trip will meet: a place's fixed list, or a draw from its pool (weighted, no
 ## repeats), so trips to the same place go differently.
-static func pick_events(location: Dictionary, rng_seed: int, found := {}, catalog: Catalog = null) -> Array[String]:
+static func pick_events(location: Dictionary, rng_seed: int, found := {}, catalog: Catalog = null, fixed := {}) -> Array[String]:
 	var out: Array[String] = []
-	# a find's event stops once it's found, and one with "after" waits until that find is home
+	# a find's event stops once it's found, one with "after" waits until that find is home, and one
+	# with "after_machine" until that node on the capsule machine's tree is fixed
 	var still := func(id) -> bool:
 		if catalog == null:
 			return true
 		var e: Dictionary = catalog.events.get(id, {})
+		if e.has("after_machine") and int(fixed.get(str(e.after_machine), 0)) <= 0:
+			return false
 		return not found.has(str(e.get("find", ""))) and (not e.has("after") or found.has(str(e.after)))
 	if not location.has("pool"):
 		out.assign(location.get("events", []).filter(still))
@@ -99,13 +103,15 @@ static func resolve(state: RunState, chooser: Chooser, now: float, catalog: Cata
 		if event.is_empty() or not applies(event, state.party):
 			state.step += 1
 			continue
-		if state.status == RunState.Status.WALKING:
+		# "auto" events (finds) don't ask: the pet just does the first option and walks on
+		var auto: bool = event.get("auto", false)
+		if state.status == RunState.Status.WALKING and not auto:
 			state.status = RunState.Status.WAITING
 			state.waiting_since = state.next_at
-		var pick := chooser.choose(event, allowed_options(event, state.party, location), state, now)
+		var pick := 0 if auto else chooser.choose(event, allowed_options(event, state.party, location), state, now)
 		if pick == Chooser.PENDING:
 			break
-		var decided := maxf(state.next_at, chooser.decided_at(state, now))
+		var decided := state.next_at if auto else maxf(state.next_at, chooser.decided_at(state, now))
 		added.append(play(event, pick, state, catalog))
 		state.answer = -1
 		state.status = RunState.Status.WALKING
@@ -131,8 +137,11 @@ static func _finish_treat(state: RunState, location: Dictionary, catalog: Catalo
 		"loot": loot, "text": FINISH_TEXT.replace("{who}", state.party.who()) })
 
 
-## Whether this event happens for this party (some only happen if someone is injured).
+## Whether this event happens for this party (some only happen if someone is injured, some
+## need a big enough party).
 static func applies(event: Dictionary, party: Party) -> bool:
+	if party.size() < int(event.get("min_party", 1)):
+		return false
 	match str(event.get("only_if", "")):
 		"injured":
 			return party.injured_count() > 0
@@ -190,7 +199,7 @@ static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog
 	var outcome: Dictionary = option.success if ok else option.get("failure", option.success)
 	var entry := {
 		"event": event.id, "title": event.title, "option": option.label, "success": ok,
-		"text": str(outcome.text).replace("{who}", party.who()),
+		"text": str(outcome.text).replace("{who}", party.who()).replace("{i}", "i" if party.size() == 1 else "we"),
 		"lost": 0, "injured": 0, "loot": {},
 	}
 	var danger := float(location.danger)

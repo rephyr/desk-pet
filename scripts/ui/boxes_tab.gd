@@ -265,14 +265,14 @@ class PileArt extends Control:
 
 ## Builds the right column for what your pet can do: just watching, opening the pile, or buying too.
 func _build_side() -> void:
-	var key := "%s|%s" % [GameState.feature_on("packs"), GameState.feature_on("shopping")]
+	var key := "%s|%s|%s" % [GameState.knows_job("boxes"), GameState.feature_on("shopping"), GameState.packs_on]
 	if key == _side_key:
 		return
 	_side_key = key
 	UiTheme.clear(_side)
 	var pet := GameState.collection.active()
 	var who := pet.display_name(Catalog.shared()) if pet else "your pet"
-	if not GameState.feature_on("packs"):
+	if not GameState.knows_job("boxes"):
 		var portrait := PetPortrait.new(5)
 		portrait.set_pet(pet)
 		portrait.size_flags_horizontal = SIZE_SHRINK_CENTER
@@ -441,7 +441,7 @@ func _refresh() -> void:
 	for box_id in _piles:
 		var p: Dictionary = _piles[box_id]
 		var have := GameState.in_bag(box_id)
-		p.pile.set_state(have, GameState.feature_on("packs") and not GameState.pet_opens(box_id))
+		p.pile.set_state(have, GameState.knows_job("boxes") and not GameState.pet_opens(box_id))
 		p.one.disabled = have < 1
 		p.many.disabled = have < OPEN_MANY
 		p.all.disabled = have < 2

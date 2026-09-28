@@ -34,7 +34,7 @@ func _process(delta: float) -> void:
 	# pointing at a tab to get somewhere first: "tap here…", then the step's own line once there
 	var on_tab := _target.is_in_group(Spine.TAB_GROUP) and info.has("go")
 	_line.text = _fill(str(info.go if on_tab else info.say))
-	_line.add_theme_color_override("font_color", UiTheme.PINK if info.speaker == "box" else UiTheme.TEXT)
+	_line.add_theme_color_override("font_color", UiTheme.PINK if info.speaker in ["box", "machine"] else UiTheme.TEXT)
 	# under the target if there's room, otherwise above it; always inside the window
 	var rect := _target_rect()
 	var bubble_size := _bubble.get_combined_minimum_size()

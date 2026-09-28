@@ -16,6 +16,7 @@ var _again_price := UiTheme.label("", UiTheme.CYAN, UiTheme.SMALL)
 var _active: Button
 var _pet: Pet
 var _box_id := ""
+var allow_again := true  # "open another" shows (not where there's no pile to open from)
 
 
 func _init() -> void:
@@ -123,6 +124,7 @@ static func new_parts(pet: Pet) -> Array[String]:
 func _refresh_buttons() -> void:
 	if _pet == null:
 		return
+	_again.visible = allow_again
 	var left := GameState.in_bag(_box_id)
 	_again.disabled = left < 1
 	_again.tooltip_text = "buy more at the counter" if left < 1 else ""

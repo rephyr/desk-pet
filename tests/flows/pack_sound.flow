@@ -1,0 +1,20 @@
+# A whole pack opening with sound, played by itself (--autoplay): the tear, the pack music gaining
+# a layer each tier, the fanfare. Checks nothing breaks; listen to the previews that
+# tools/music/pack_sounds.py writes to assets/sounds/_preview/. "flags --music" to hear it live.
+from rich
+flags --autoplay
+view full
+tab boxes
+click "mythic"               # the dev row: opens a box that's sure to be this rarity
+wait 3
+shot climbing
+wait ritual
+shot result
+click "lovely!"
+click "common"
+wait ritual
+click "lovely!"
+tab settings
+expect text "music"
+expect fits
+shot settings

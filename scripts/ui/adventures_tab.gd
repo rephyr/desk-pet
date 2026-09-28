@@ -76,7 +76,11 @@ func _init() -> void:
 	_map.lead_picked.connect(func(id): GameState.follow_lead(id))
 	_map.rumour_picked.connect(func(id): GameState.follow_rumour(id))
 	# not GameState.changed: that also fires on every passive coin
-	GameState.adventures_changed.connect(func(): _dirty = true)
+	GameState.adventures_changed.connect(func():
+		_dirty = true
+		# a trip your pet sent was welcomed back by itself: nothing left to watch
+		if _trail.visible and _trail.run != null and _trail.run.auto and not _trail.run in GameState.runs:
+			_show_map(true))
 	GameState.collection.pets_added.connect(func(_p): _dirty = true)
 	GameState.collection.pets_removed.connect(func(_u): _dirty = true)
 	GameState.collection.active_changed.connect(func(_p): _dirty = true)
@@ -277,7 +281,13 @@ func _available() -> Array[Pet]:
 	var catalog := Catalog.shared()
 	var strongest_first := _max_party() == 1
 	var pets := GameState.sendable_pets()
+	var busy := {}  # on an errand or working in automation: picked last
+	for p in pets:
+		if GameState.job_of(p.uid) != "" or GameState.worker_job(p.uid) != "":
+			busy[p.uid] = true
 	pets.sort_custom(func(a: Pet, b: Pet):
+		if busy.has(a.uid) != busy.has(b.uid):
+			return not busy.has(a.uid)
 		var ra := catalog.rank(a.rarity)
 		var rb := catalog.rank(b.rarity)
 		if ra != rb:
@@ -406,6 +416,12 @@ func _refresh_send() -> void:
 	UiTheme.clear(_facts)
 	_facts.add_child(UiTheme.tag(_about(d.minutes)))
 	_facts.add_child(UiTheme.tag("1 pet" if most == 1 else ("as many as you like" if most > 999 else "up to %d pets" % most)))
+	var bit := MapView.bit_of(d)
+	if bit != "":
+		var brings := UiTheme.chip("bit_" + bit, "brings home %s" % MachineTab.bit_name(bit, 2), MapView.bit_color(bit))
+		brings.tooltip_text = "machine bits: they fix up the capsule machine"
+		(brings.find_child("Amount", true, false) as Label).add_theme_font_size_override("font_size", UiTheme.SMALL)
+		_facts.add_child(brings)
 	if most == 1:
 		_picked_label.text = "%d of 1" % pets.size()
 	elif most <= Chooser.SMALL_PARTY:

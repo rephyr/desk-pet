@@ -1,12 +1,15 @@
-# Something new opening up pops up a card; "show me" goes to its tab.
+# Something new opening up pops up a card (it waits while a box is being opened); "show me" goes
+# to its tab. (The workbench no longer opens from a first part before parts are a feature, so
+# this uses the basket: errands.)
 from no_bag_tab
 view full
 tab boxes
 click "buy 1"
 click "open 1"
+find basket
 key space
 wait popup
-expect text "new: the bag!"
+expect text "new: errands!"
 shot popup
 click "show me"
-expect tab inventory
+expect tab errands

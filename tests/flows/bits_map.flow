@@ -1,0 +1,16 @@
+# Which machine bit each place brings home: on the map, on the place's card, and a hint on the ? cloud
+# of a place nobody's found yet (the old shed: bolts).
+from after_tutorial
+flags --pick=garden
+view full
+wait 1
+expect text "brings home springs"
+expect fits
+shot card
+pets 3
+send meadow 1
+send pond 1
+click "‹ map"
+wait 1
+expect fits
+shot map

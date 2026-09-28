@@ -1,0 +1,9 @@
+{
+	"_note": "Rummaging: spots in your active pet's room (the home tab) that it digs through when you tap them, for something to do while adventures are out. Each spot twinkles when it's ready, pays once, then refills after 'refill' seconds (it keeps refilling while the game is closed, but never holds more than one find). 'coins' is a range; 'xp' comes with 'xp_chance'; a common part with 'part_chance'. Keep it well under adventures (tools/balance.gd prints it): it's the early game's something-to-do, later the coin hunt errand does this for you. Spots open once the tutorial is done. 'draw' is how the home tab draws it (RummageSpot).",
+	"spots": [
+		{ "id": "dresser", "name": "the little dresser", "draw": "dresser", "refill": 120, "coins": [2, 4], "xp_chance": 0.3, "part_chance": 0.04 },
+		{ "id": "plant", "name": "the big plant pot", "draw": "plant", "refill": 120, "coins": [2, 4], "xp_chance": 0.3, "part_chance": 0.04 },
+		{ "id": "socks", "name": "the sock pile", "draw": "socks", "refill": 120, "coins": [2, 4], "xp_chance": 0.3, "part_chance": 0.04 },
+		{ "id": "toybox", "name": "the toy box", "draw": "toybox", "refill": 120, "coins": [2, 4], "xp_chance": 0.3, "part_chance": 0.04 }
+	]
+}

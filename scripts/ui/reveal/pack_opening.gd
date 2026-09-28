@@ -7,7 +7,9 @@ extends Control
 ##   5. very rare pulls come out behind mist you drag around to peek, then flick away
 ##   6. a celebration sized to the rarity, the finish as a second surprise, then the result
 ## Space or double-click skips to the result. Timings and effects come from data/reveal.json,
-## and everything runs at the player's reveal speed setting.
+## and everything runs at the player's reveal speed setting. The music (PackMusic) starts
+## when the strip comes off, gains a layer with every step of the climb and resolves into the
+## rarity's fanfare at the reveal; the tear follows your hand. Sounds are in data/sounds.json.
 
 signal open_again(box_id: String)
 signal closed
@@ -20,6 +22,8 @@ const FLICK_SPEED := 900.0  # px/s: a quick flick pops the pet out / throws the 
 const MIST_THROW := 170.0  # dragging the mist this far off the pet also clears it
 const PULL_HIDDEN := -0.45  # pull value where the pet is fully inside the pack
 const DROP_HEIGHT := 260.0
+const RIP_SCRUB := 0.8  # how much of the tear sound the drag plays; the rest is the snap when it comes off
+const RIP_CATCH_UP := 0.08  # s: the tear sound speeds up to reach where the strip is within this
 var DIM_ALPHA := 0.55 if UiTheme.DARK else 0.28  # how far the dim goes on big pulls; gentler on light themes
 
 var _stage := Stage.IDLE
@@ -29,8 +33,12 @@ var _ritual := false  # this pull is rare enough for the mist
 var _mist_on := false  # the mist is still in front of the pet
 var _run := 0  # bumped on every new opening and skip, so older async steps stop
 var _cfg: Dictionary = Catalog.shared().reveal
+var _sounds: Dictionary = Catalog.shared().sounds.get("pack", {})
+var _revealed := false  # the rarity's jingle has played
 ## Debug: plays the drags by itself (for testing and screenshots), see DevArgs --autoplay.
 var autoplay := DevArgs.has("autoplay")
+## Whether the result card offers "open another" (not where there's no pile, like the machine).
+var allow_again := true
 
 var _dim := ColorRect.new()
 var _scene := Node2D.new()  # everything that shakes
@@ -46,6 +54,9 @@ var _speech := UiTheme.label("", UiTheme.PINK)  # the pet inside talking (tutori
 ## Empty outside the tutorial: then boxes just rip.
 var box_talk: Array = []
 var _result := RevealResult.new()
+var _music := PackMusic.new()
+var _rip_sound := AudioStreamPlayer.new()  # follows the strip: plays as it tears, pauses when it doesn't
+var _rip_pos := 0.0  # seconds into the tear sound
 var _tweens: Array[Tween] = []
 
 var _tear := 0.0
@@ -108,6 +119,12 @@ func _init() -> void:
 	_result.done.connect(_close)
 	add_child(_result)
 
+	add_child(_music)
+	var tear: Dictionary = _sounds.get("tear", {})
+	_rip_sound.stream = Sfx.stream_of(tear)
+	_rip_sound.volume_db = float(tear.get("volume_db", 0.0))
+	_rip_sound.bus = "Sound"
+	add_child(_rip_sound)
 	resized.connect(_layout)
 	_reset()
 
@@ -148,6 +165,9 @@ func skip() -> void:
 	_dim.color.a = DIM_ALPHA if _effects.has_layer("dim") else 0.0
 	_mist_on = false
 	_set_pull(1.0)
+	_rip_sound.stop()
+	_music.stop_layers()
+	_reveal_sound()
 	_show_result()
 
 
@@ -156,6 +176,7 @@ func skip() -> void:
 func _land(run: int) -> void:
 	_stage = Stage.LANDING
 	_say("")
+	Music.ducked = true  # the room's music steps back while you open
 	queue_redraw()
 	_pack.position = Vector2(0, -DROP_HEIGHT)
 	var t := _tween()
@@ -199,6 +220,8 @@ func _rip_off(run: int, velocity: Vector2) -> void:
 			_speech.text = "")
 	_set_tear(1.0)
 	_pack.throw_strip(velocity)
+	_finish_rip_sound()
+	_music.open()
 	_shake = 3.0
 	var catalog := Catalog.shared()
 	_effects.color = catalog.tier_color(catalog.tier_at(0).id)
@@ -235,6 +258,7 @@ func _step_to(tier_id: String, rank: int) -> void:
 		.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
 	_effects.add_layers(step.get("adds", []), float(_cfg.layer_fade) / Settings.reveal_speed)
 	_effects.burst(6 + rank * 6)
+	_music.to_rank(rank)
 	if _effects.has_layer("dim"):
 		_tween().tween_property(_dim, "color:a", DIM_ALPHA, float(_cfg.layer_fade))
 	if _effects.has_layer("screen_shake"):
@@ -247,6 +271,7 @@ func _step_to(tier_id: String, rank: int) -> void:
 
 func _peek(run: int) -> void:
 	_stage = Stage.PEEK
+	_music.hold()
 	var t := _tween()
 	t.tween_method(_set_pull, _pull, 0.0, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	await t.finished
@@ -308,6 +333,7 @@ func _celebrate(run: int) -> void:
 	_effects.burst(int(step.get("burst", 10)))
 	_shake = maxf(_shake, float(step.get("shake", 0)))
 	_pet_view.squash = 0.8
+	_reveal_sound()
 	if step.get("banner", false):
 		_banner.text = catalog.tier_at(catalog.rank(_pet.rarity)).name + "!"
 		_banner.add_theme_color_override("font_color", catalog.tier_color(_pet.rarity))
@@ -327,6 +353,7 @@ func _celebrate(run: int) -> void:
 		flash.tween_property(_pet_view, "modulate", Color(2.5, 2.5, 2.5), 0.12)
 		flash.tween_property(_pet_view, "modulate", Color.WHITE, 0.4)
 		_effects.color = color  # the light takes on the finish's colour
+		_music.finish()
 		_effects.burst(40 + catalog.rank(f.rarity) * 20)
 		await _wait(float(_cfg.finish_flash_time))
 		if run != _run:
@@ -344,7 +371,20 @@ func _show_result() -> void:
 	_pet_clip.visible = false
 	_pet_says("result")
 	_result.visible = true
+	_result.allow_again = allow_again
 	_result.show_pet(_pet, _box_id)
+
+
+## The rarity's jingle, once per opening.
+func _reveal_sound() -> void:
+	if _revealed or _pet == null:
+		return
+	_revealed = true
+	_music.climax(_pet.rarity)
+
+
+func _exit_tree() -> void:
+	Music.ducked = false
 
 
 func _close() -> void:
@@ -357,6 +397,11 @@ func _reset() -> void:
 	_speech.text = ""
 	_kill_tweens()
 	_stage = Stage.IDLE
+	_revealed = false
+	_music.stop_layers()
+	Music.ducked = false
+	_rip_sound.stop()
+	_rip_pos = 0.0
 	_effects.clear()
 	_dim.color.a = 0.0
 	_set_tear(0.0)
@@ -504,6 +549,38 @@ func _process(delta: float) -> void:
 		if _tear >= float(_cfg.rip_pop_at):
 			_dragging = false
 			_rip_off(_run, _velocity if _velocity.length() > 1.0 else Vector2(_pack.direction * 400.0, -400.0))
+	if _stage == Stage.RIP:
+		_scrub_rip_sound(delta)
+
+
+## The tear sound keeps up with the strip: it plays while the tear grows, faster (and higher) the
+## faster you pull, and waits where it is when you stop or pull back.
+func _scrub_rip_sound(delta: float) -> void:
+	if _rip_sound.stream == null:
+		return
+	var target := _tear / float(_cfg.rip_pop_at) * _rip_sound.stream.get_length() * RIP_SCRUB
+	if target > _rip_pos + 0.01:
+		var pitch := clampf((target - _rip_pos) / RIP_CATCH_UP, 0.5, 2.5)
+		_rip_sound.pitch_scale = pitch
+		if _rip_sound.playing:
+			_rip_sound.stream_paused = false
+		else:
+			_rip_sound.play(_rip_pos)
+		_rip_pos += delta * pitch
+	elif _rip_sound.playing:
+		_rip_sound.stream_paused = true
+
+
+## The strip came off: the rest of the tear sound plays out, quicker if it was flicked off early.
+func _finish_rip_sound() -> void:
+	if _rip_sound.stream == null:
+		return
+	var early := _rip_pos < _rip_sound.stream.get_length() * RIP_SCRUB * 0.5
+	_rip_sound.pitch_scale = 1.4 if early else 1.0
+	if _rip_sound.playing:
+		_rip_sound.stream_paused = false
+	else:
+		_rip_sound.play(_rip_pos)
 
 
 ## A point in this control, in the card pack's own coordinates.

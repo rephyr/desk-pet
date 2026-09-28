@@ -1,0 +1,46 @@
+# The capsule machine and its upgrade tree: it starts broken (one chute, dead lights); fixing it up
+# adds chutes, lights and fever, shiny balls. The upgrades page shows the tree.
+from after_tutorial
+view full
+tab machine
+expect fits
+shot machine
+pull 1 0.0
+shot lever_down
+wait 1.2
+shot popped
+click "upgrades"
+wait 0.3
+expect fits
+shot tree
+fix tape
+pull 1 1.8
+shot taped
+click "upgrades"
+bits spring 1
+bits glass 2
+bits bolt 2
+bits gear 2
+fix oil
+fix flap
+fix glass
+fix wires
+fix chute2
+fix chute3
+fix shiny 5
+fix double 5
+wait 0.3
+shot tree_fixed
+pull 1 1.9
+shot intel
+wait popup
+shot intel_popup
+click "lovely"
+pull 1 0.4
+shot three_chutes
+pull 9
+pull 1 0.5
+shot lucky
+wait 1.5
+shot fever
+expect fits

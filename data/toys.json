@@ -1,0 +1,177 @@
+{
+	"_note": "Capsule toys: they come out of the capsule machine (data/machine.json prize kind \"toy\"). Toys are collected in SETS; each toy has a TIER (tiers: its base boost, how much each level adds, how often it drops, what fixing it costs), a BONUS kind and pixel ART (14 x 14 rows, letters are colours from \"palette\", . is empty). Bonus kinds: coins (everything pays more coins), luck (the machine and adventures), xp, speed (capsules open faster), fever (fever lasts longer and pays more), toys (toys come out more often), loot (adventures bring more home), all (coins, xp and luck). A toy only works while your pet PLAYS with it (\"play\": how long, and how much it wears the toy), one toy per play slot (\"slots\" to start, +1 for each finished set); while it plays you can't switch. Playing WEARS a toy (0 new .. 1 worn out): its boost shrinks down to \"worn_floor\" of the extra; the workbench fixes it for the tier's \"fix_cost\" coins x wear. Every level makes it \"sturdier\" (wears that much slower). FINISHES multiply the extra part of the boost; \"finish_odds\" is how often a toy comes out in each. Each toy you own is one EDITION (toy + finish) with a level; more copies of the same edition are spares: \"combine\" is how many spares take it to the next level (level 2, 3, ...), up to \"max_level\": then it's a FAVOURITE, always on and never wears. SACRIFICE: \"spares\" spares of one toy's normal edition for a chance at a special finish of it (odds shown), gone either way.",
+	"palette": { "o": "#1a0f22", "w": "#f5dcec", "W": "#c9b3c2", "p": "#ff79c6", "P": "#a64f81", "m": "#8fe8c0", "M": "#4f9d80", "g": "#ffe08a", "G": "#b8914a", "c": "#8be9fd", "C": "#4fa9c9", "l": "#c9a0ff", "L": "#7d62a3", "k": "#f3c4b4", "b": "#8a6448", "B": "#5c4130" },
+	"tiers": {
+		"common": { "base": 1.1, "per_level": 0.05, "weight": 60, "fix_cost": 20 },
+		"uncommon": { "base": 1.2, "per_level": 0.1, "weight": 28, "fix_cost": 50 },
+		"rare": { "base": 1.35, "per_level": 0.15, "weight": 10, "fix_cost": 120 },
+		"secret": { "base": 1.5, "per_level": 0.25, "weight": 2, "fix_cost": 300 }
+	},
+	"finishes": [
+		{ "id": "normal", "name": "normal", "boost": 1 },
+		{ "id": "holo", "name": "holo", "boost": 1.25 },
+		{ "id": "foil", "name": "gold foil", "boost": 1.5 },
+		{ "id": "ghost", "name": "ghost", "boost": 2 }
+	],
+	"finish_odds": { "normal": 90, "holo": 7, "foil": 2.5, "ghost": 0.5 },
+	"slots": 1,
+	"play": [
+		{ "id": "quick", "name": "a quick play", "minutes": 10, "wear": 0.04 },
+		{ "id": "long", "name": "a long play", "minutes": 30, "wear": 0.1 },
+		{ "id": "afternoon", "name": "all afternoon", "minutes": 120, "wear": 0.3 }
+	],
+	"worn_floor": 0.5,
+	"sturdier": 0.15,
+	"combine": [2, 3, 4, 5],
+	"max_level": 5,
+	"sacrifice": {
+		"spares": 3,
+		"odds": { "holo": 25, "foil": 8, "ghost": 2, "nothing": 65 }
+	},
+	"sets": [
+		{
+			"id": "backyard",
+			"name": "backyard friends",
+			"toys": [
+				{ "id": "snail", "name": "snail", "tier": "common", "bonus": "speed", "does": "capsules open faster" },
+				{ "id": "ladybug", "name": "ladybug", "tier": "common", "bonus": "luck", "does": "luckier in the machine and on adventures" },
+				{ "id": "mushroom", "name": "mushroom", "tier": "common", "bonus": "xp", "does": "more xp from everything" },
+				{ "id": "acorn", "name": "acorn", "tier": "common", "bonus": "coins", "does": "more coins from everything" },
+				{ "id": "bee", "name": "bumble bee", "tier": "uncommon", "bonus": "fever", "does": "fever lasts longer and pays more" },
+				{ "id": "frog", "name": "frog", "tier": "uncommon", "bonus": "toys", "does": "toys come out of capsules more often" },
+				{ "id": "gnome", "name": "garden gnome", "tier": "rare", "bonus": "loot", "does": "adventures bring more home" },
+				{ "id": "moth", "name": "moon moth", "tier": "secret", "bonus": "all", "does": "more coins, xp and luck" }
+			]
+		}
+	],
+	"art": {
+		"snail": [
+			"..............",
+			"..o...o.......",
+			"..m...m.oooo..",
+			"..m...m.oppppo",
+			"..mm.mmopPooPo",
+			"...mmm.opopPpo",
+			"...mmm.opoPppo",
+			"...mmmopPoopPo",
+			"..mmmmmoppppo.",
+			".mmmmmmmoooo..",
+			".mwmmwmmmmmmo.",
+			".MmmmmmmmmmMo.",
+			"..oooooooooo..",
+			".............."
+		],
+		"ladybug": [
+			"....o....o....",
+			".....o..o.....",
+			"....oooooo....",
+			"...oowoowoo...",
+			"..opppoopppo..",
+			".opppPoPpppPo.",
+			".opooppopooPo.",
+			".oppppoppppPo.",
+			".oppoopoppoPo.",
+			".opppPoPpppPo.",
+			"..oppPoPppPo..",
+			"...oooooooo...",
+			"..............",
+			".............."
+		],
+		"mushroom": [
+			"....oooooo....",
+			"..oolllwllloo.",
+			".olwwlllllwwlo",
+			".ollllwwllllLo",
+			"olwwllwwlllwLo",
+			"olwwlllllllLLo",
+			".oLLLLLLLLLLo.",
+			"..oooWWWWooo..",
+			".....owwwo....",
+			".....owowo....",
+			".....owwwo....",
+			".....oWwWo....",
+			"......ooo.....",
+			".............."
+		],
+		"acorn": [
+			"......oo......",
+			"......Bo......",
+			"...oooBBooo...",
+			"..obBbBbBbBo..",
+			".obBbBbBbBbBo.",
+			".oBBBBBBBBBBo.",
+			"..oggggggggo..",
+			"..ogwgggggGo..",
+			"..ogwgggggGo..",
+			"..oggggggGGo..",
+			"...ogggggGo...",
+			"....ogggGo....",
+			".....oooo.....",
+			".............."
+		],
+		"bee": [
+			"...oo....oo...",
+			"..owwo..owwo..",
+			"..owWwoowWwo..",
+			"...owwoowwo...",
+			"....ooooooo...",
+			"..oggoggoggo..",
+			".oggoooggoogo.",
+			"ogwgoggoggowgo",
+			"oggoooggoooggo",
+			".oggoggoggogo.",
+			"..oGGoGGoGGo..",
+			"...oooooooo...",
+			"..............",
+			".............."
+		],
+		"frog": [
+			"...ooo..ooo...",
+			"..omwmo.omwmo.",
+			"..omoom.omoom.",
+			"..ommmooommmo.",
+			".ommmmmmmmmmmo",
+			".ommmmmmmmmmmo",
+			".opmmmmmmmmpmo",
+			".ommoommmoommo",
+			".ommmooooommMo",
+			"..ommmmmmmmMo.",
+			".omMmo...omMmo",
+			".oooo.....ooo.",
+			"..............",
+			".............."
+		],
+		"gnome": [
+			"........o.....",
+			".......opo....",
+			"......oppo....",
+			".....opppPo...",
+			"....oppppPo...",
+			"...opppppPPo..",
+			"..oooooooooo..",
+			"...okkkkkko...",
+			"...okokkoko...",
+			"..owkkppkkwo..",
+			"..owwwwwwwwo..",
+			".occwwwwwwcco.",
+			".occcwwwwccCo.",
+			"..oooooooooo.."
+		],
+		"moth": [
+			"..............",
+			".ooo..oo..ooo.",
+			"ollloo..oollLo",
+			"olglllowolllgo",
+			"ollllLowoLlllo",
+			".olllLowoLllo.",
+			"..ollLowoLlo..",
+			"..oLLLowoLLLo.",
+			".oLLlLowoLlLLo",
+			".oLlLo.o.oLlLo",
+			"..ooo.....ooo.",
+			"..............",
+			"..............",
+			".............."
+		]
+	}
+}

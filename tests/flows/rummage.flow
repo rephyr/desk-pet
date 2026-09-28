@@ -1,0 +1,17 @@
+# Rummaging in your pet's room while an adventure is out: spots twinkle, tap one, your pet digs in.
+from after_tutorial
+view full
+tab home
+expect fits
+shot room
+click RummageSpot#4
+wait 0.9
+shot digging
+wait 0.8
+shot found
+click RummageSpot#1
+click RummageSpot#2
+click RummageSpot#4
+wait 9
+shot after
+expect fits

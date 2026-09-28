@@ -39,6 +39,7 @@ var _hover := ""
 var _hotspots := {}  # location id -> Control, so the tutorial can point at a place
 var _tick := 0.0
 var _page_tabs := HBoxContainer.new()
+var _needed := {}  # machine bits some upgrade still needs: bit id -> true (a hint on the map where they are)
 
 
 func _init() -> void:
@@ -150,6 +151,11 @@ func _collect() -> void:
 			at[cloud_id] = { "id": cloud_id, "kind": "unknown", "pos": node.pos + out * 0.9, "location": {} }
 			_edges.append({ "from": id, "to": cloud_id, "faint": true })
 	_nodes.assign(at.values())
+	_needed.clear()
+	for n in catalog.machine_tree.nodes:
+		if not Machine.maxed(GameState.machine, catalog, n.id):
+			for b in Machine.bits_cost(catalog, n.id):
+				_needed[b] = true
 	if selected != "" and not at.has(selected):
 		selected = ""
 
@@ -254,6 +260,9 @@ func _draw_node(node: Dictionary) -> void:
 	if node.kind == "unknown":
 		_cloud(at, k, DIM, seed)
 		_label(at + Vector2(0, 6) * k, "?", LILAC, _title_font, int(22 * k))
+		var hidden := bit_of(node.location)
+		if hidden != "" and _needed.has(hidden):
+			_bit_line(at + Vector2(0, 44) * k, hidden, "%s out this way?" % MachineTab.bit_name(hidden, 2), k, 0.7)
 		return
 	if node.kind == "rumour":
 		_cloud(at, k, LILAC, seed)
@@ -274,13 +283,20 @@ func _draw_node(node: Dictionary) -> void:
 		_circle(at, 34.0 * k, Vector2.ONE, PINK if node.id == selected else Color(PINK, 0.5), 2.0, seed + 1)
 	_doodle(doodle, at, k, color, seed)
 	_label(at + Vector2(0, 44) * k, location.name, Color(color, 1.0) if node.kind == "open" else DIM, _title_font, int(17 * k))
+	var bit := bit_of(location)
 	if node.kind == "open":
+		if bit != "":
+			_bit_line(at + Vector2(0, 62) * k, bit, "%s here!" % MachineTab.bit_name(bit, 2), k, 1.0)
 		var note := str(location.map.get("note", ""))
 		if note != "":
 			draw_string(_note_font, at + Vector2(30, -24) * k, note, HORIZONTAL_ALIGNMENT_LEFT, -1, int(14 * k), YELLOW if doodle != "house" else PINK)
 		if doodle == "house":
 			_heart(at + Vector2(30, -28) * k + Vector2(_note_font.get_string_size(note, HORIZONTAL_ALIGNMENT_LEFT, -1, int(14 * k)).x + 10, 0), 6.0 * k, PINK)
 	else:
+		if bit != "":  # a little icon after the name: what's waiting there
+			var w := _title_font.get_string_size(location.name, HORIZONTAL_ALIGNMENT_LEFT, -1, int(17 * k)).x
+			var s := 16.0 * k
+			draw_texture_rect(UiTheme.icon("bit_" + bit, int(s)), Rect2(at + Vector2(w / 2.0 + 5.0 * k, 44.0 * k - s + 2.0 * k), Vector2(s, s)), false)
 		var by := str(GameState.spotted[node.id].get("by", ""))
 		var line := "%s saw this!" % by if by != "" else "someone saw this!"
 		_label(at + Vector2(0, 62) * k, line, DIM, _note_font, int(13 * k))
@@ -344,6 +360,34 @@ func _draw_trips() -> void:
 			tag += "?"
 		draw_string(_note_font, spot + Vector2(10, -8), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, LILAC)
 		i += 1
+
+
+## The machine bit a place's pets bring home when they go all the way (its finish_rewards), or "".
+static func bit_of(location: Dictionary) -> String:
+	for r in location.get("finish_rewards", []):
+		if str(r.get("kind", "")) == "bit":
+			return str(r.get("id", ""))
+	return ""
+
+
+## The colour a bit is drawn in (the same as its icon).
+static func bit_color(bit: String) -> Color:
+	match bit:
+		"gear": return UiTheme.LILAC
+		"spring": return UiTheme.MINT
+		"bolt": return UiTheme.GOLD
+		"glass": return UiTheme.CYAN
+	return UiTheme.TEXT
+
+
+## A bit's icon and a little note, centred on `at` (the text's baseline).
+func _bit_line(at: Vector2, bit: String, text: String, k: float, alpha: float) -> void:
+	var font_size := int(13 * k)
+	var s := 15.0 * k
+	var width := s + 4.0 * k + _note_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
+	var left := at.x - width / 2.0
+	draw_texture_rect(UiTheme.icon("bit_" + bit, int(ceilf(s))), Rect2(Vector2(left, at.y - s + 2.0 * k), Vector2(s, s)), false, Color(1, 1, 1, alpha))
+	draw_string(_note_font, Vector2(left + s + 4.0 * k, at.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(bit_color(bit), alpha))
 
 
 # ---- crayon ---------------------------------------------------------------------

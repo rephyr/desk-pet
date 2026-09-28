@@ -1,0 +1,20 @@
+# A box with a pet inside comes out of a capsule: the machine steps aside and you rip it open
+# right there (the boxes tab is still locked), then it's back to the lever.
+from after_tutorial
+view full
+tab machine
+next-prize pet_box
+pull 1 0.5
+shot box_out
+wait 0.8
+shot box_landed
+expect fits
+key space
+wait ritual
+shot result
+expect fits
+expect no-text "open another"
+click "lovely!"
+wait 0.4
+shot back_to_machine
+expect fits

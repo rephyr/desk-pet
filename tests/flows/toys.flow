@@ -1,0 +1,33 @@
+# Capsule toys: one out of the machine (a picture pops up), the toys page, playing with one (do not
+# disturb!), and the workbench's toy benches.
+from after_tutorial
+view full
+tab machine
+next-prize toy
+pull 1 1.9
+wait popup
+click "lovely"
+
+shot toy_popup
+toy snail normal 4
+toy acorn normal 1
+toy bee ghost 1
+toy gnome normal 1
+toy ladybug holo 1
+tab collection
+click "toys"
+wait 0.3
+expect fits
+shot toys
+click "a quick play (10 min)"
+wait 0.4
+shot playing
+click "workbench →"
+wait 0.4
+expect tab inventory
+expect fits
+shot bench
+click "combine"
+wait 0.3
+shot combined
+expect fits

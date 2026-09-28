@@ -1,0 +1,20 @@
+{
+	"_note": "The capsule machine (the machine tab): pull the lever towards you; every chute drops a capsule (sometimes 2 or 3), each holds one prize. Your lever is never automated in the early stages: pulling it yourself is the best you can do for a long time. Later your pet cranks a little machine of its own (data/automation.json), much slower. How good it is comes from the upgrade tree (data/machine_tree.json, you fix up an old broken machine). PRIZES are rolled by 'weight'; 'drops': the prize only joins once 'better drops' is fixed (toys, boxes; parts come much later); 'lucky' prizes are the only ones in a lucky capsule and weigh more with your toys' luck. Kinds: 'coins' and 'golden' pay 'coins' [min, max] times the machine's coin value (a golden one is rare and big), 'xp' pays 'amount', 'toy' is a capsule toy (data/toys.json; toys that make toys come out more often multiply its weight), 'box' puts a box on your pile, 'part' a common part, 'pet_box' a box with a pet inside that you rip open right there at the machine (only ever in a pull's first capsule, so more chutes don't mean more pets; it comes from the start, so a player who lost every other pet can always get one: 'pet_box' below makes one sure to come within 'sure_within' pulls while you have fewer than 'few_pets' pets besides your active one). LIGHTS (once they're rewired): every pull lights one; when all 'lights' are lit the next capsule is lucky and FEVER starts: every capsule pays 'fever_pay' times as much for 'fever_seconds' (more with longer fever). A SHINY ball (chance from the tree) multiplies what it holds. One pull at a time: the lever waits until the capsules have popped open, 'reveal_seconds' after the clunk; 'spring_seconds' is the lever springing back. 'intel': once 'after' is fixed, the next capsule holds a scrap of a map (the find), opening the next map page. During the tutorial capsules only hold coins (a golden one when the lights fill); the first toy is sure to come out by pull 'first_toy_by' once toys can drop. Numbers are placeholders until tools/machine_pace.gd tunes them.",
+	"lights": 10,
+	"fever_seconds": 10.0,
+	"fever_pay": 2,
+	"reveal_seconds": 1.4,
+	"spring_seconds": 0.55,
+	"first_toy_by": 25,
+	"intel": { "after": "glass", "find": "intel_fence" },
+	"pet_box": { "few_pets": 1, "sure_within": 10 },
+	"prizes": [
+		{ "id": "coins", "kind": "coins", "weight": 85, "coins": [1, 1] },
+		{ "id": "xp", "kind": "xp", "weight": 8, "amount": 1, "lucky": true },
+		{ "id": "part", "kind": "part", "weight": 4, "drops": 2, "lucky": true },
+		{ "id": "box", "kind": "box", "weight": 1, "drops": 1, "box": "starter", "lucky": true },
+		{ "id": "toy", "kind": "toy", "weight": 4.5, "drops": 1, "lucky": true },
+		{ "id": "golden", "kind": "golden", "weight": 1, "coins": [15, 25], "lucky": true },
+		{ "id": "pet_box", "kind": "pet_box", "weight": 0.25, "box": "starter", "lucky": true }
+	]
+}

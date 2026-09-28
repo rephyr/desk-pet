@@ -1,8 +1,8 @@
 class_name SettingsTab
 extends ScrollContainer
 ## Player preferences (see the Settings autoload), on two pages. general: the look (colours, font,
-## icons), opening boxes, and what your pet does while you work. video: resolution, frame rate,
-## vsync. Everything applies straight away.
+## icons), opening boxes, what your pet does while you work, and sound volumes. video: resolution,
+## frame rate, vsync. Everything applies straight away.
 
 
 func _init() -> void:
@@ -40,7 +40,14 @@ func _init() -> void:
 	two.add_child(work.panel)
 	var pet := GameState.collection.active()
 	var who := pet.display_name(Catalog.shared()) if pet else "your pet"
-	work.body.add_child(_switch("open boxes in the corner", GameState.packs_on, func(on): GameState.set_job("packs", on)))
+	# once your pet has learned to (the automation tab); it can move to another job there too
+	var boxes_switch := _switch("open boxes in the corner", GameState.packs_on, func(on): GameState.set_job("packs", on))
+	boxes_switch.visible = GameState.knows_job("boxes")
+	work.body.add_child(boxes_switch)
+	GameState.automation_changed.connect(func():
+		if is_instance_valid(boxes_switch):
+			boxes_switch.visible = GameState.knows_job("boxes")
+			boxes_switch.set_pressed_no_signal(GameState.packs_on))
 	if GameState.feature_on("shopping"):  # once it has the piggy bank, it buys boxes too
 		work.body.add_child(_switch("buy boxes when the pile runs out", GameState.buying_on, func(on): GameState.set_job("buying", on)))
 		var kept := _slider_row(work.body, "coins %s always keeps" % who, 0, 2000, 50, GameState.coin_reserve,
@@ -51,6 +58,14 @@ func _init() -> void:
 	if GameState.feature_on("errands"):
 		work.body.add_child(_stitch_line())
 		work.body.add_child(_switch("%s shares out new pets on errands" % who, GameState.jobs_auto, func(on): GameState.set_jobs_auto(on)))
+
+	var sound := _section("sound")
+	col.add_child(sound.panel)
+	var pct := func(v): return "%d%%" % roundi(v * 100.0)
+	_slider_row(sound.body, "music", 0.0, 1.0, 0.05, Settings.music_volume, pct,
+		func(v): Settings.set_value("music_volume", v)).add_theme_color_override("font_color", UiTheme.MUTED)
+	_slider_row(sound.body, "sounds", 0.0, 1.0, 0.05, Settings.sound_volume, pct,
+		func(v): Settings.set_value("sound_volume", v)).add_theme_color_override("font_color", UiTheme.MUTED)
 
 	if OS.is_debug_build():
 		var dev := _section("dev")
@@ -67,6 +82,19 @@ func _init() -> void:
 					if fresh.text.begins_with("sure?"):
 						fresh.text = "dev: new game (backs up your save first)"))
 		dev.body.add_child(fresh)
+		# how long into the game things opened, for testing the pacing
+		var times := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL + 1)
+		times.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		var show_times := func():
+			var ms: Dictionary = GameState.milestones
+			var played := (Time.get_unix_time_from_system() - GameState.started_at) / 60.0 if GameState.started_at > 0.0 else 0.0
+			var parts: Array[String] = []
+			for k in ms:
+				parts.append("%s at %.1f min" % [k, float(ms[k])])
+			times.text = ("this game: %.0f min so far, %d machine upgrades. " % [played, GameState.machine_upgrades()]) + (", ".join(parts) if not parts.is_empty() else "nothing opened yet")
+		visibility_changed.connect(func(): if is_visible_in_tree(): show_times.call())
+		show_times.call()
+		dev.body.add_child(times)
 
 
 func speak() -> void:
@@ -123,7 +151,7 @@ func _look() -> PanelContainer:
 		themes.add_child(_pick(_swatch(t), t.name, t.kind, t.id == theme_id, func(): Settings.set_value("color_theme", t.id)))
 
 	var lower := HBoxContainer.new()
-	lower.add_theme_constant_override("separation", 24)
+	lower.add_theme_constant_override("separation", 16)
 	s.body.add_child(lower)
 	var fonts_col := VBoxContainer.new()
 	fonts_col.add_child(UiTheme.label("font", UiTheme.MUTED, UiTheme.SMALL + 1))

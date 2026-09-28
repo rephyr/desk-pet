@@ -37,9 +37,12 @@ func add(new_pets: Array[Pet]) -> void:
 		for slot in Catalog.SLOTS:
 			_count(part_key(slot, pet.parts[slot]))
 		_count(finish_key(pet.parts.body, pet.finish))
-	if active_uid == "" and auto_active and not pets.is_empty():
+	var became_active := active_uid == "" and auto_active and not pets.is_empty()
+	if became_active:
 		active_uid = pets[0].uid
 	pets_added.emit(new_pets)
+	if became_active:
+		active_changed.emit(active())  # your first pet: it sits on the moon and starts talking
 
 
 ## Takes pets out of the collection for good (they didn't come back).

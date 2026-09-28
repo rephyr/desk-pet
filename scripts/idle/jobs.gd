@@ -36,22 +36,42 @@ static func offline_seconds(away: float, full_hours: float, after: float, cap: f
 	return minf(away, full) + maxf(0.0, away - full) * after
 
 
-## Runs a job's meter for `seconds`. `state` is { fill } and is updated in place.
-## Returns { fills, loot } (loot as in Rewards).
+## Runs a job's meter for `seconds`. `state` is { fill } and is updated in place. `boost` is what
+## the tools and the machine add (see pay()). Returns { fills, loot } (loot as in Rewards).
 static func work(job: Dictionary, state: Dictionary, crew: int, fills_per_second: float, seconds: float,
-		rng: RandomNumberGenerator, catalog: Catalog) -> Dictionary:
+		rng: RandomNumberGenerator, catalog: Catalog, boost := {}) -> Dictionary:
 	var fill := float(state.get("fill", 0.0)) + fills_per_second * seconds
 	var fills := floori(fill)
 	state.fill = fill - fills
-	return { "fills": fills, "loot": pay(job, fills, crew, rng, catalog) }
+	return { "fills": fills, "loot": pay(job, fills, crew, rng, catalog, boost) }
 
 
-## What `fills` full meters pay.
-static func pay(job: Dictionary, fills: int, crew: int, rng: RandomNumberGenerator, catalog: Catalog) -> Dictionary:
+## What `fills` full meters pay. For "capsules" pay, `boost` says what a capsule is worth and what
+## the tools add: { coin_value, worth (extra capsules a fill), x (goals and tips), big (chance of a
+## big one), big_x, shiny (chance), shiny_pay }.
+static func pay(job: Dictionary, fills: int, crew: int, rng: RandomNumberGenerator, catalog: Catalog, boost := {}) -> Dictionary:
 	var loot := {}
 	if fills <= 0:
 		return loot
 	var p: Dictionary = job.get("pay", {})
+	if p.has("capsules"):
+		var each := one_fill(job, boost)
+		var big := float(boost.get("big", 0.0))
+		var shiny := float(boost.get("shiny", 0.0))
+		var big_x := float(boost.get("big_x", 5.0))
+		var shiny_pay := float(boost.get("shiny_pay", 2.0))
+		var total := 0.0
+		if fills <= MAX_ROLLS:
+			for i in fills:
+				var got := each
+				if rng.randf() < big:
+					got *= big_x
+				if rng.randf() < shiny:
+					got *= shiny_pay
+				total += got
+		else:
+			total = fills * each * (1.0 + big * (big_x - 1.0)) * (1.0 + shiny * (shiny_pay - 1.0))
+		loot["coins"] = maxi(1, roundi(total))
 	if p.has("coins"):
 		var lo := int(p.coins[0])
 		var hi := int(p.coins[1])
@@ -82,3 +102,125 @@ static func _uncommon_part(rng: RandomNumberGenerator, catalog: Catalog) -> Arra
 	var slot: String = slots[rng.randi_range(0, slots.size() - 1)]
 	var options := catalog.parts_of_tier(slot, "uncommon")
 	return [slot, options[rng.randi_range(0, options.size() - 1)].id]
+
+
+# ---- tools: what coins buy for errands (the upgrades page) ----------------------------------
+
+## A plain fill of a "capsules" job, before big and shiny ones: its capsules plus the tools'
+## extra ones, times what a capsule is worth, times goals and tips.
+static func one_fill(job: Dictionary, boost: Dictionary) -> float:
+	var capsules := float(job.get("pay", {}).get("capsules", 0)) + float(boost.get("worth", 0.0))
+	return capsules * float(boost.get("coin_value", 1.0)) * float(boost.get("x", 1.0))
+
+
+## What one fill pays on average, big and shiny ones counted in.
+static func average_fill(job: Dictionary, boost: Dictionary) -> float:
+	var p: Dictionary = job.get("pay", {})
+	if p.has("coins"):
+		return (float(p.coins[0]) + float(p.coins[1])) / 2.0
+	var big := float(boost.get("big", 0.0))
+	var shiny := float(boost.get("shiny", 0.0))
+	return one_fill(job, boost) * (1.0 + big * (float(boost.get("big_x", 5.0)) - 1.0)) * (1.0 + shiny * (float(boost.get("shiny_pay", 2.0)) - 1.0))
+
+
+## Every tool: each job's own and the ones for everyone, each with "job" (a job id, or "" for
+## everyone) added.
+static func all_tools(catalog: Catalog) -> Array[Dictionary]:
+	if catalog.has_meta("errand_tools"):  # worked out once per catalog
+		return catalog.get_meta("errand_tools")
+	var out: Array[Dictionary] = []
+	for job in catalog.jobs:
+		for t in job.get("tools", []):
+			var tool: Dictionary = t.duplicate()
+			tool.job = str(job.id)
+			out.append(tool)
+	for t in catalog.errands.get("tools", []):
+		var tool: Dictionary = t.duplicate()
+		tool.job = ""
+		out.append(tool)
+	var by_id := {}
+	for t in out:
+		by_id[t.id] = t
+	catalog.set_meta("errand_tools", out)
+	catalog.set_meta("errand_tools_by_id", by_id)
+	return out
+
+
+static func tool(catalog: Catalog, id: String) -> Dictionary:
+	all_tools(catalog)
+	return catalog.get_meta("errand_tools_by_id").get(id, {})
+
+
+## What the next `n` levels of a tool cost, with `have` levels already.
+static func tool_cost(tool: Dictionary, have: int, n := 1) -> int:
+	var total := 0.0
+	for i in n:
+		total += float(tool.coins) * pow(float(tool.get("grow", 1.0)), have + i)
+	return roundi(minf(total, MAX_PRICE))
+
+
+const MAX_PRICE := 4.0e18  # prices stop here: past about 9.2e18 a whole number wraps round to negative
+
+
+## How many more levels a tool can take (a big number when it has no end).
+static func tool_room(tool: Dictionary, have: int) -> int:
+	var most := int(tool.get("max", 0))
+	return (1 << 30) if most <= 0 else maxi(0, most - have)
+
+
+## A job's level: all its own tools' levels added up. `levels` is tool id -> level.
+static func level(job: Dictionary, levels: Dictionary) -> int:
+	var n := 0
+	for t in job.get("tools", []):
+		n += int(levels.get(t.id, 0))
+	return n
+
+
+## What a job's goals multiply its pay by at `lvl`.
+static func goal_x(job: Dictionary, lvl: int) -> float:
+	var x := 1.0
+	for g in job.get("goals", []):
+		if lvl >= int(g.at) and g.has("x"):
+			x *= float(g.x)
+	return x
+
+
+## The next goal a job hasn't reached at `lvl`, or {}.
+static func next_goal(job: Dictionary, lvl: int) -> Dictionary:
+	for g in job.get("goals", []):
+		if lvl < int(g.at):
+			return g
+	return {}
+
+
+## What a goal gives, in words: "x2 coins", or its text.
+static func goal_words(job: Dictionary, goal: Dictionary) -> String:
+	if goal.has("x"):
+		return "x%s %s" % [str(goal.x).trim_suffix(".0"), str(job.brings)]
+	return str(goal.get("text", ""))
+
+
+## One effect of the tools, added up: every level of every tool that has `key` in "each" (this
+## job's own and the ones for everyone; job_id "" counts only the ones for everyone).
+static func tool_sum(catalog: Catalog, job_id: String, key: String, levels: Dictionary) -> float:
+	var sum := 0.0
+	for t in all_tools(catalog):
+		if (t.job == job_id or t.job == "") and t.each.has(key):
+			sum += float(t.each[key]) * int(levels.get(t.id, 0))
+	return sum
+
+
+## Why a tool can't take a level now, or "" if it can (coins aside): "max", "at lv 10",
+## "needs shiny balls" (a machine node), "closed" (its job isn't open).
+static func tool_block(catalog: Catalog, tool: Dictionary, levels: Dictionary, machine: Dictionary, job_open: bool) -> String:
+	if tool.is_empty():
+		return "closed"
+	if tool_room(tool, int(levels.get(tool.id, 0))) <= 0:
+		return "max"
+	if tool.job != "" and not job_open:
+		return "closed"
+	if tool.has("at") and tool.job != "" and level(catalog.job(tool.job), levels) < int(tool.at):
+		return "at lv %d" % int(tool.at)
+	if tool.has("machine") and Machine.owned(machine, str(tool.machine)) <= 0:
+		return "needs " + str(Machine.node(catalog, str(tool.machine)).get("name", tool.machine))
+	return ""

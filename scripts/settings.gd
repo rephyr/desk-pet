@@ -23,6 +23,8 @@ var icon_style := ""
 var resolution := 0  # index into RESOLUTIONS
 var max_fps := 0  # frame rate cap, 0 for none
 var vsync := true
+var music_volume := 0.8  # 0 to 1: the hum under pack openings (and music later)
+var sound_volume := 0.8  # 0 to 1: everything else you hear
 
 
 func _init() -> void:
@@ -36,10 +38,13 @@ func _init() -> void:
 	resolution = clampi(int(data.get("resolution", resolution)), 0, RESOLUTIONS.size() - 1)
 	max_fps = int(data.get("max_fps", max_fps))
 	vsync = bool(data.get("vsync", vsync))
+	music_volume = clampf(float(data.get("music_volume", music_volume)), 0.0, 1.0)
+	sound_volume = clampf(float(data.get("sound_volume", sound_volume)), 0.0, 1.0)
 
 
 func _ready() -> void:
 	_apply_video()
+	_apply_audio()
 
 
 ## The full game window's size, in UI pixels before the screen's own scale.
@@ -57,6 +62,19 @@ func _apply_video() -> void:
 	DisplayServer.window_set_vsync_mode(DisplayServer.VSYNC_ENABLED if vsync else DisplayServer.VSYNC_DISABLED)
 
 
+## Two buses under Master: "Music" and "Sound", each at the player's volume.
+func _apply_audio() -> void:
+	for bus in [["Music", music_volume], ["Sound", sound_volume]]:
+		var i := AudioServer.get_bus_index(bus[0])
+		if i < 0:
+			AudioServer.add_bus()
+			i = AudioServer.bus_count - 1
+			AudioServer.set_bus_name(i, bus[0])
+			AudioServer.set_bus_send(i, "Master")
+		AudioServer.set_bus_volume_db(i, linear_to_db(bus[1]))
+		AudioServer.set_bus_mute(i, bus[1] <= 0.0)
+
+
 func set_value(key: String, value: Variant) -> void:
 	set(key, value)
 	reveal_speed = clampf(reveal_speed, MIN_SPEED, MAX_SPEED)
@@ -70,6 +88,8 @@ func set_value(key: String, value: Variant) -> void:
 		"resolution": resolution,
 		"max_fps": max_fps,
 		"vsync": vsync,
+		"music_volume": music_volume,
+		"sound_volume": sound_volume,
 	})
 	changed.emit()
 	if key in ["color_theme", "font_set", "icon_style"]:
@@ -77,3 +97,5 @@ func set_value(key: String, value: Variant) -> void:
 	if key in ["resolution", "max_fps", "vsync"]:
 		_apply_video()
 		video_changed.emit()
+	if key in ["music_volume", "sound_volume"]:
+		_apply_audio()

@@ -1,11 +1,14 @@
 class_name ErrandsTab
-extends HBoxContainer
-## Errands: a corkboard of jobs (data/errands.json, Jobs), each a sticky note with its meter, what
-## it brings and its crew. On the right a shoebox of resting pets. Tap a resting pet, then a note,
-## to put it to work; tap a pet on a note to let it rest. A crew can be a couple of pets or
-## thousands: up to POLAROIDS each pet gets its own polaroid, past that the note shows a pile, the
-## count and a little crowd, and + and − move 1, 10, 100 or all at once.
-## Design: design/mockups/screens/errands.html (the corkboard).
+extends VBoxContainer
+## Errands: the idle way to make coins, and where coins go when the machine waits for bits. Two
+## pages. JOBS: a corkboard of jobs (data/errands.json, Jobs), each a sticky note with its meter,
+## what it brings, its level and goals, and its crew. On the right a shoebox of resting pets. Tap a
+## resting pet, then a note, to put it to work; tap a pet on a note to let it rest. A crew can be a
+## couple of pets or thousands: up to POLAROIDS each pet gets its own polaroid, past that the note
+## shows a pile, the count and a little crowd, and + and − move 1, 10, 100 or all at once.
+## UPGRADES: the pegboard (ErrandToolsView), tools bought with coins. At the top, what errands
+## bring a minute, so every tool you buy shows.
+## Design: design/mockups/screens/errands.html (the corkboard), errands-upgrades.html (A: pegboard).
 
 const POLAROIDS := 6  # up to this many pets on a job, each gets its own polaroid
 const RESTING_POLAROIDS := 9  # the same for the resting pets in the shoebox
@@ -27,12 +30,39 @@ var _dirty := true
 var _resting: Array[Pet] = []  # worked out once per rebuild
 var _away_count := -1  # pets on adventures at the last rebuild
 var _rng := RandomNumberGenerator.new()
+var _jobs_page := HBoxContainer.new()
+var tools := ErrandToolsView.new()
+var _mode: PanelContainer
+var _buy_row := HBoxContainer.new()
+var _income: Label
+var _income_at := 0.0  # seconds until the coins a minute are worked out again
 
 
 func _init() -> void:
-	add_theme_constant_override("separation", 14)
+	add_theme_constant_override("separation", 10)
 	size_flags_vertical = SIZE_EXPAND_FILL
 	_rng.randomize()
+
+	# jobs | upgrades, how many levels a tap buys, and what errands bring a minute
+	var bar := HBoxContainer.new()
+	bar.add_theme_constant_override("separation", 10)
+	_mode = UiTheme.segmented(["jobs", "upgrades"], 0, func(i): _show_page(i))
+	bar.add_child(_mode)
+	_buy_row.add_theme_constant_override("separation", 6)
+	var buy := UiTheme.label("buy", UiTheme.MUTED, UiTheme.SMALL)
+	buy.size_flags_vertical = SIZE_SHRINK_CENTER
+	_buy_row.add_child(buy)
+	_buy_row.add_child(UiTheme.segmented(["x1", "x10", "max"], 0, func(i): tools.buy_n = [1, 10, -1][i]))
+	_buy_row.visible = false
+	bar.add_child(_buy_row)
+	bar.add_child(UiTheme.spacer())
+	bar.add_child(_income_pill())
+	add_child(bar)
+	_jobs_page.add_theme_constant_override("separation", 14)
+	_jobs_page.size_flags_vertical = SIZE_EXPAND_FILL
+	add_child(_jobs_page)
+	tools.visible = false
+	add_child(tools)
 
 	# the corkboard
 	var board := PanelContainer.new()
@@ -42,7 +72,7 @@ func _init() -> void:
 	cork.content_margin_right = 16
 	board.add_theme_stylebox_override("panel", cork)
 	board.draw.connect(func(): _draw_cork(board))
-	add_child(board)
+	_jobs_page.add_child(board)
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 16)
 	board.add_child(col)
@@ -89,9 +119,13 @@ func _init() -> void:
 	shoebox.add_theme_stylebox_override("panel", UiTheme.sticker(UiTheme.LILAC_SEAM, 12, UiTheme.RAISED, 12))
 	_box.add_theme_constant_override("separation", 10)
 	shoebox.add_child(_box)
-	add_child(shoebox)
+	_jobs_page.add_child(shoebox)
 
 	GameState.jobs_changed.connect(func(): _dirty = true)
+	GameState.unlocked.connect(func(e: Dictionary):
+		_dirty = true  # a new job may have opened: show it
+		if e.opens.any(func(o): return str(o).begins_with("job:")):
+			show_page(0))
 	GameState.adventures_changed.connect(func():
 		if GameState.away().size() != _away_count:
 			_dirty = true)
@@ -108,6 +142,57 @@ func _init() -> void:
 			_dirty = true)
 
 
+## 0 the jobs, 1 the upgrades (flips the switch at the top too).
+func show_page(page: int) -> void:
+	(_mode.get_child(0).get_child(page) as Button).pressed.emit()
+
+
+func _show_page(page: int) -> void:
+	_jobs_page.visible = page == 0
+	tools.visible = page == 1
+	_buy_row.visible = page == 1
+	if page == 1:
+		PetBubble.say_line(self, "errands_upgrades")
+	else:
+		_dirty = true
+
+
+## "◆ 448 a minute on errands": the number every tool makes go up.
+func _income_pill() -> Control:
+	var pill := PanelContainer.new()
+	var sb := UiTheme.box(UiTheme.DEEP, UiTheme.CYAN.lerp(UiTheme.LINE, 0.6), 999, 2, 0)
+	sb.content_margin_left = 10
+	sb.content_margin_right = 14
+	sb.content_margin_top = 2
+	sb.content_margin_bottom = 2
+	pill.add_theme_stylebox_override("panel", sb)
+	pill.size_flags_vertical = SIZE_SHRINK_CENTER
+	pill.tooltip_text = "what errands bring while you're busy"
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 8)
+	row.add_child(UiTheme.icon_rect("coin", 18, UiTheme.CYAN))
+	_income = UiTheme.title("0", 20, UiTheme.CYAN)
+	row.add_child(_income)
+	var words := UiTheme.label("a minute\non errands", UiTheme.MUTED, UiTheme.SMALL)
+	words.add_theme_constant_override("line_spacing", -3)
+	words.size_flags_vertical = SIZE_SHRINK_CENTER
+	row.add_child(words)
+	pill.add_child(row)
+	return pill
+
+
+func _update_income() -> void:
+	var text := UiTheme.num(GameState.errands_per_minute())
+	if text != _income.text:
+		var grew := _income.text != "0" and text != _income.text
+		_income.text = text
+		if grew and is_visible_in_tree():
+			_income.pivot_offset = _income.size / 2.0
+			var tween := _income.create_tween()
+			tween.tween_property(_income, "scale", Vector2(1.25, 1.25), 0.1)
+			tween.tween_property(_income, "scale", Vector2.ONE, 0.35).set_trans(Tween.TRANS_BACK)
+
+
 func speak() -> void:
 	var resting := GameState.resting_pets().size()
 	if GameState.sendable_pets().is_empty():
@@ -118,8 +203,14 @@ func speak() -> void:
 		PetBubble.say_line(self, "errands")
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if not is_visible_in_tree():
+		return
+	_income_at -= delta
+	if _income_at <= 0.0:
+		_income_at = 0.5
+		_update_income()
+	if not _jobs_page.visible:
 		return
 	if _dirty:
 		_rebuild()
@@ -143,8 +234,12 @@ func _rebuild() -> void:
 	UiTheme.clear(_notes)
 	var catalog := Catalog.shared()
 	var notes: Array[Control] = []
-	for job in catalog.jobs:
+	for job in GameState.open_jobs():
 		notes.append(_job_note(job))
+	for job in catalog.jobs:
+		var wait := level_wait(job)
+		if not wait.is_empty() and not GameState.is_unlocked(str(job.needs)):
+			notes.append(_waiting_note(job, wait))
 	var coming: Dictionary = catalog.errands.get("coming", {})
 	if not coming.is_empty():
 		notes.append(_coming_note(coming))
@@ -175,6 +270,8 @@ func _job_note(job: Dictionary) -> Control:
 	names.add_child(UiTheme.label("brings " + str(job.brings), UiTheme.MUTED, UiTheme.SMALL))
 	head.add_child(names)
 	col.add_child(head)
+	if not job.get("tools", []).is_empty():
+		_level_sticker(panel, "lv %d" % GameState.job_level(job.id))
 	col.add_child(_wrapped(str(job.does), UiTheme.MUTED))
 
 	var meter := Meter.new()
@@ -185,7 +282,11 @@ func _job_note(job: Dictionary) -> Control:
 	if meter.stream:
 		col.add_child(_shrinkable(UiTheme.label(_per_minute(job, rate), color, UiTheme.SMALL)))
 	else:
-		col.add_child(_row(_pay_words(job, crew.size()), _every(rate), UiTheme.MUTED))
+		col.add_child(_shrinkable(UiTheme.label(_pay_words(job, crew.size()), color, UiTheme.SMALL)))
+		col.add_child(_shrinkable(UiTheme.label(_every(rate), UiTheme.MUTED, UiTheme.SMALL)))
+	if not job.get("goals", []).is_empty():
+		col.add_child(GoalTrack.new(job, color))
+		col.add_child(_wrapped(goal_line(job), UiTheme.TEXT))
 	if crew.size() <= POLAROIDS:
 		col.add_child(_row("crew of %d" % crew.size(), "%.1fx" % (rate * float(job.seconds)) if not crew.is_empty() else "stopped", color))
 		col.add_child(_crew_photos(job, crew, color))
@@ -231,6 +332,49 @@ func _crew_photos(job: Dictionary, crew: Array, color: Color) -> Control:
 		empty.pressed.connect(func(): _put_on(job, 1, [_picked] if _picked != "" else []))
 		grid.add_child(empty)
 	return grid
+
+
+## A job that opens at another job's level (the lemonade stand at coin hunt lv 10): what it
+## waits for, as { job, level }, or {} if it waits for something else.
+static func level_wait(job: Dictionary) -> Dictionary:
+	var needs := str(job.get("needs", ""))
+	if needs == "":
+		return {}
+	for entry in Catalog.shared().unlock_list:
+		if needs in entry.opens:
+			var levels: Dictionary = entry.earn.get("job_level", {})
+			for job_id in levels:
+				return { "job": Catalog.shared().job(str(job_id)), "level": int(levels[job_id]) }
+	return {}
+
+
+## A job still to come, and how close its opening is: "opens at coin hunt lv 10", 7 / 10.
+func _waiting_note(job: Dictionary, wait: Dictionary) -> Control:
+	var color := _color(job)
+	var panel := PanelContainer.new()
+	panel.custom_minimum_size = Vector2(NOTE_WIDTH, 300)
+	panel.add_theme_stylebox_override("panel", UiTheme.stitched(UiTheme.LINE, Color(UiTheme.DEEP, 0.5), 8, 12))
+	var col := _column(panel, 6)
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	var icon := UiTheme.icon_rect(str(job.doodle), 34, color)
+	icon.size_flags_horizontal = SIZE_SHRINK_CENTER
+	col.add_child(icon)
+	var name_label := UiTheme.title("a " + str(job.name), 15, color)
+	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	col.add_child(name_label)
+	var at := _wrapped("opens at %s lv %d" % [wait.job.name, wait.level], UiTheme.LOCKED)
+	at.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(at)
+	var have := GameState.job_level(wait.job.id)
+	var meter := Meter.new()
+	meter.color = _color(wait.job)
+	meter.fill = clampf(float(have) / wait.level, 0.0, 1.0)
+	col.add_child(meter)
+	var count := _wrapped("%d / %d" % [mini(have, wait.level), wait.level], UiTheme.LOCKED)
+	count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	col.add_child(count)
+	return panel
 
 
 func _coming_note(coming: Dictionary) -> Control:
@@ -451,9 +595,12 @@ func _primary() -> StyleBoxFlat:
 	return sb
 
 
-## "6 coins" or "a part": what one full meter brings.
+## "740 coins a find" or "a part": what one full meter brings.
 static func _pay_words(job: Dictionary, crew: int) -> String:
 	var p: Dictionary = job.get("pay", {})
+	if p.has("capsules"):
+		var each := Jobs.average_fill(job, GameState.job_boost(job.id)) * GameState.toy_boost("coins")
+		return "%s%s coins a %s" % ["about " if job.has("tips") else "", UiTheme.num(each), "sale" if job.has("tips") else "find"]
 	if p.has("coins"):
 		return "%d coins" % roundi((float(p.coins[0]) + float(p.coins[1])) / 2.0)
 	var uncommon: Dictionary = job.get("uncommon", {})
@@ -469,9 +616,49 @@ static func _every(rate: float) -> String:
 
 static func _per_minute(job: Dictionary, rate: float) -> String:
 	var p: Dictionary = job.get("pay", {})
+	if p.has("capsules"):
+		return "%s coins a minute" % UiTheme.num(rate * 60.0 * Jobs.average_fill(job, GameState.job_boost(job.id)) * GameState.toy_boost("coins"))
 	if p.has("coins"):
 		return "%s coins a minute" % ExpandedView._thousands(roundi(rate * 60.0 * (float(p.coins[0]) + float(p.coins[1])) / 2.0))
 	return "%s parts a minute" % ExpandedView._thousands(roundi(rate * 60.0 * float(p.get("part", 1))))
+
+
+## "lv 7. at lv 10: a lemonade stand opens", or "lv 100. every goal reached!"
+static func goal_line(job: Dictionary) -> String:
+	var lv := GameState.job_level(job.id)
+	var next := Jobs.next_goal(job, lv)
+	if next.is_empty():
+		return "lv %d. every goal reached!" % lv
+	return "lv %d. at lv %d: %s" % [lv, int(next.at), Jobs.goal_words(job, next)]
+
+
+## The job's level on a little gold sticker stuck over the note's top right corner (drawn on top,
+## so it never makes the note wider).
+static func _level_sticker(panel: PanelContainer, text: String) -> void:
+	panel.draw.connect(func():
+		var font := UiTheme.DISPLAY_FONT
+		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 14.0
+		var at := Vector2(panel.size.x - w + 8.0, -8.0)
+		panel.draw_set_transform(at + Vector2(w, 18.0) / 2.0, deg_to_rad(8.0))
+		var r := Rect2(-Vector2(w, 18.0) / 2.0, Vector2(w, 18.0))
+		panel.draw_style_box(UiTheme.box(UiTheme.GOLD, UiTheme.GOLD, 9, 0, 0), r)
+		panel.draw_string(font, r.position + Vector2(7.0, 14.0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UiTheme.DEEP)
+		panel.draw_set_transform(Vector2.ZERO))
+
+
+## A little rounded tag in a colour with dark text, like "lv 7" or "max".
+static func pill(text: String, color: Color) -> PanelContainer:
+	var p := PanelContainer.new()
+	var sb := UiTheme.box(color, color, 999, 0, 0)
+	sb.content_margin_left = 7
+	sb.content_margin_right = 7
+	sb.content_margin_top = 1
+	sb.content_margin_bottom = 0
+	p.add_theme_stylebox_override("panel", sb)
+	p.mouse_filter = MOUSE_FILTER_IGNORE
+	var l := UiTheme.title(text, 12, UiTheme.DEEP)
+	p.add_child(l)
+	return p
 
 
 static func _color(job: Dictionary) -> Color:
@@ -650,3 +837,55 @@ class Meter extends Control:
 				x += 12.0
 		elif fill > 0.02:
 			draw_style_box(_bar, Rect2(Vector2(2, 2), Vector2(maxf(size.y - 4, (size.x - 4) * fill), size.y - 4)))
+
+
+## A job's goals along a dotted line: a star for each, gold once reached, the next one twinkling,
+## the line filled up to the job's level (early goals get more room).
+class GoalTrack extends Control:
+	var _job: Dictionary
+	var _tint: Color
+	var _time := 0.0
+	var _since := 0.0
+	var _stars: Array[Texture2D] = []  # reached, next, still to come
+
+	func _init(job: Dictionary, color: Color) -> void:
+		_job = job
+		_tint = color
+		_stars = [UiTheme.icon("star", 18, UiTheme.GOLD), UiTheme.icon("star", 18, color), UiTheme.icon("star", 18, UiTheme.LINE)]
+		custom_minimum_size = Vector2(0, 22)
+		mouse_filter = MOUSE_FILTER_IGNORE
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_VISIBILITY_CHANGED or what == NOTIFICATION_ENTER_TREE:
+			set_process(is_visible_in_tree())
+
+	func _process(delta: float) -> void:
+		_time += delta
+		_since += delta
+		if _since > 0.066:  # the next star twinkles; about 15 redraws a second is plenty
+			_since = 0.0
+			queue_redraw()
+
+	func _x(level: float, last: float) -> float:
+		return 9.0 + sqrt(clampf(level / last, 0.0, 1.0)) * (size.x - 18.0)
+
+	func _draw() -> void:
+		var goals: Array = _job.get("goals", [])
+		if goals.is_empty():
+			return
+		var last := float(goals[-1].at)
+		var lv := GameState.job_level(_job.id)
+		var y := size.y / 2.0
+		var x := 9.0
+		while x < size.x - 9.0:
+			draw_line(Vector2(x, y), Vector2(minf(x + 5.0, size.x - 9.0), y), UiTheme.LINE, 2.0)
+			x += 9.0
+		if lv > 0:
+			draw_line(Vector2(9.0, y), Vector2(_x(lv, last), y), _tint, 4.0)
+		var next := Jobs.next_goal(_job, lv)
+		for g in goals:
+			var got := lv >= int(g.at)
+			var is_next := not next.is_empty() and int(next.at) == int(g.at)
+			var s := 18.0 * (1.0 + 0.15 * sin(_time * 4.0) if is_next else 1.0)
+			var tex := _stars[0 if got else (1 if is_next else 2)]
+			draw_texture_rect(tex, Rect2(Vector2(_x(float(g.at), last), y) - Vector2(s, s) / 2.0, Vector2(s, s)), false)

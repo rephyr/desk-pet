@@ -44,8 +44,23 @@ func _init() -> void:
 			print("%-10s %-9s %8.1f %8.1f %8.2f %8.2f %7.0f%%" % [location.id, style, coins / TRIPS,
 				coins / TRIPS / minutes, parts / TRIPS, boxes / TRIPS, 100.0 * lost / TRIPS])
 	_errands(catalog, rng)
+	_rummage(catalog)
 	quit()
 
+
+## Rummaging in your pet's room, tapping every spot as soon as it's ready: the most it can bring.
+## It should stay well under a sensible garden trip (it's something to do while trips are out).
+func _rummage(catalog: Catalog) -> void:
+	var coins := 0.0
+	var xp := 0.0
+	var parts := 0.0
+	for spot in catalog.rummage_spots:
+		var per_min := 60.0 / float(spot.refill)
+		coins += (float(spot.coins[0]) + float(spot.coins[1])) / 2.0 * per_min
+		xp += float(spot.get("xp_chance", 0.0)) * per_min
+		parts += float(spot.get("part_chance", 0.0)) * per_min
+	print("\nrummaging, every spot tapped as soon as it's ready")
+	print("coins %.1f a minute, xp %.2f a minute, a part every %.0f min" % [coins, xp, 1.0 / parts if parts > 0.0 else INF])
 
 ## Errands (data/errands.json) for crews of common pets: coins or parts a minute, in all and per
 ## pet. Errands are the floor: per pet they should pay well under a sensible adventure.

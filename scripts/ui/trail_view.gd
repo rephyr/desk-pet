@@ -4,7 +4,8 @@ extends Control
 ## place, as a crayon strip. "toss a treat" makes them zoom along for a few seconds, then it takes
 ## a while to be ready again (GameState.toss_treat). Things turn up on the path as it goes (coins, xp sparkles, a leaf that heals a sore paw, now and then a sparkle with
 ## a part): click them before they pass. Grabbing several in a row builds a streak that makes them
-## worth more. A part stops the pet: it holds the part up and a card asks to keep it or leave it. At an event the pet stops and the choices wait on its trip card. Walking on its
+## worth more. A part stops the pet: it holds the part up and a card asks to keep it or leave it. At an event the pet stops, what it found shows up on the path just ahead (EncounterArt) and
+## the choices wait on its trip card. Walking on its
 ## own still gets there; treats and grabbing things make it faster and more rewarding.
 
 signal back_to_map
@@ -17,6 +18,8 @@ const PICKUP_WEIGHTS := { "coins": 60, "xp": 28, "heal": 8, "part": 4 }
 const HIT := 26.0
 const STREAK_MAX := 1.5  # most a streak multiplies what you grab
 const FOLLOWERS := 4  # party pets drawn walking behind the first one (more show as "+N")
+const ART_PIXEL := 5  # the event's art is drawn at the pets' pixel size
+const ART_GAP := 60.0  # px between the first pet and the event's art
 var COLORS := { "coins": UiTheme.CYAN, "xp": UiTheme.GOLD, "heal": UiTheme.MINT, "part": UiTheme.PINK }
 
 var run: RunState
@@ -45,6 +48,9 @@ var autoplay := DevArgs.has("autoplay")
 ## Debug: every thing on the path is this kind, e.g. --pickup=part (see DevArgs).
 var forced_pickup := DevArgs.value("pickup")
 var _auto_wait := 0.0
+var _art := {}  # the art of the event the pets are waiting at (EncounterArt.of), or {}
+var _art_event := ""
+var _art_pop := 0.0  # 0 to 1 as the art pops in
 
 
 func _init() -> void:
@@ -141,7 +147,7 @@ func _process(delta: float) -> void:
 		_dust = 1.0
 	# new things to grab ahead, while walking
 	while walking and _next_pickup < _shown_x + size.x:
-		_pickups.append({ "x": _next_pickup, "kind": forced_pickup if forced_pickup != "" else Weighted.pick(PICKUP_WEIGHTS, _rng), "gone": false })
+		_pickups.append({ "x": _next_pickup, "kind": forced_pickup if forced_pickup != "" else _pick_kind(), "gone": false })
 		_next_pickup += _rng.randf_range(PICKUP_GAP[0], PICKUP_GAP[1])
 	# things that slipped past the pet are missed (and break the streak)
 	for p in _pickups:
@@ -154,6 +160,7 @@ func _process(delta: float) -> void:
 	for f in _floaters:
 		f.age += delta
 	_floaters = _floaters.filter(func(f): return f.age < 1.2)
+	_update_art(delta)
 	if autoplay:
 		_autoplay(delta, walking)
 	view.position = Vector2(roundf(_pet_x()), _ground() - roundf(sin(_hop * PI) * 18.0))
@@ -167,6 +174,18 @@ func _process(delta: float) -> void:
 	if _found:
 		_place_found()
 	queue_redraw()
+
+
+## Keeps the art of the event the pets are waiting at (it pops in once per event).
+func _update_art(delta: float) -> void:
+	var id := ""
+	if run.status == RunState.Status.WAITING:
+		id = str(run.current_event(Catalog.shared()).get("id", ""))
+	if id != _art_event:
+		_art_event = id
+		_art = EncounterArt.of(id) if id != "" else {}
+		_art_pop = 0.0
+	_art_pop = move_toward(_art_pop, 1.0, delta * 3.0)
 
 
 func _screen_x(world_x: float) -> float:
@@ -310,6 +329,8 @@ func _draw() -> void:
 	for p in _pickups:
 		if not p.gone:
 			_draw_pickup(p.kind, _pickup_at(p))
+	if not _art.is_empty():
+		_draw_art()
 	if _found:
 		_draw_held_glow()
 	if GameState.zooming(run) and run.status == RunState.Status.WALKING:
@@ -394,6 +415,27 @@ func _draw_scenery(doodle: String) -> void:
 				draw_line(Vector2(x + 4, ground), Vector2(x + 6, ground - 12), near, 2.0)
 
 
+## The event's art on the path ahead of the pets: it pops up, stands on the ground with a shadow
+## (unless it's flat or floating), and glows if it's magic (cyan) or creepy (pink-red).
+func _draw_art() -> void:
+	var tex: Texture2D = _art.texture
+	var full := tex.get_size() * ART_PIXEL
+	var s := full * clampf(_art_pop * 1.6, 0.0, 1.0) * (1.0 + 0.15 * sin(_art_pop * PI))  # grows in with a little bounce
+	var left := minf(_pet_x() + PetView.size_for(view.pixel).x / 2.0 + ART_GAP, size.x - full.x - 16.0)
+	var ground := _ground() + 4.0 - float(_art.float) * ART_PIXEL
+	var centre := Vector2(left + full.x / 2.0, ground - full.y / 2.0)
+	if _art.glow or _art.eerie:
+		var c: Color = UiTheme.CYAN if _art.glow else Color("#ff4f9a")
+		var breathe := 0.8 + 0.2 * sin(Time.get_ticks_msec() * 0.003)
+		for i in 4:
+			draw_circle(centre, maxf(full.x, full.y) * (0.35 + i * 0.1) * breathe, Color(c, 0.05 * _art_pop))
+	if not _art.flat and _art.float == 0:
+		draw_set_transform(Vector2(centre.x, _ground() + 5.0), 0.0, Vector2(1.0, 0.18))
+		draw_circle(Vector2.ZERO, full.x * 0.42 * _art_pop, Color(0, 0, 0, 0.3))
+		draw_set_transform(Vector2.ZERO)
+	draw_texture_rect(tex, Rect2(Vector2(centre.x - s.x / 2.0, ground - s.y), s), false, Color(1, 1, 1, _art_pop))
+
+
 ## A soft glow in the part's rarity colour behind the part the pet holds up, and a few twinkles.
 func _draw_held_glow() -> void:
 	var at := _held_centre()
@@ -424,3 +466,11 @@ func _draw_pickup(kind: String, at: Vector2) -> void:
 			draw_circle(at, 12.0 + glow * 3.0, Color(c, 0.2))
 			for a in [0.0, PI / 4.0, PI / 2.0, 3.0 * PI / 4.0]:
 				draw_line(at + Vector2(cos(a), sin(a)) * 10.0, at - Vector2(cos(a), sin(a)) * 10.0, c, 2.0)
+
+
+## What the next pickup on the trail is (no parts until they're a thing, much later).
+func _pick_kind() -> String:
+	var weights := PICKUP_WEIGHTS.duplicate()
+	if not GameState.feature_on("parts"):
+		weights.erase("part")
+	return Weighted.pick(weights, _rng)

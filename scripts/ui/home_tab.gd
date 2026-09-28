@@ -8,6 +8,9 @@ extends Control
 ## Boxes you bought sit in a pile by the wall; once your pet has its cushion it opens them right
 ## here while you watch (PackJob, the same routine as the corner panel): fetch one, shake it on the
 ## cushion, pop! Good pulls are held up for a few seconds.
+## Around the room are spots it can rummage through (RummageSpot, data/rummage.json): they twinkle
+## when something's in there, and tapping one sends your pet over to dig it out. Tap a few and it
+## goes through them in turn.
 
 signal go(tab_name: String)  # a note was tapped: show that tab
 signal open_box(box_id: String)
@@ -15,6 +18,10 @@ signal open_box(box_id: String)
 const FLOOR := 0.64  # where the floor starts, as a share of the height
 const PILE_SHOWN := 9  # packs drawn on the pile at most (the badge counts the rest)
 const PACK_W := 40
+const DIG_WALK := 260.0  # px per second: it hurries over to rummage
+const DIG_HOP := 0.35  # seconds to hop in (and out)
+const DIG_TIME := 1.3  # seconds of rummaging
+const FLOAT_TIME := 1.4
 
 var _pet := PetPortrait.new(6, true)
 var _name := UiTheme.title("", 18)
@@ -32,6 +39,13 @@ var _held := PetView.new()  # the pet that just came out of a pack
 var _front := Node2D.new()  # over your pet: the pack in its paws, the pop, sparkles
 var _paw_box := ""  # which kind of box it's carrying
 var _said := ""
+var _spots := {}  # rummage spot id -> RummageSpot
+var _digs: Array[RummageSpot] = []  # spots you tapped, waiting for your pet
+var _dig: RummageSpot  # the spot it's rummaging through now
+var _dig_phase := ""  # walk, in, dig, out, back
+var _dig_t := 0.0
+var _dig_feet := Vector2.ZERO  # where your pet's feet are while it's off its spot
+var _floaters: Array[Dictionary] = []  # { text, at, age, color }: what it found, floating up
 
 
 func _init() -> void:
@@ -48,6 +62,8 @@ func _init() -> void:
 		_finds[id] = spot
 
 	_pet.clicked.connect(func():
+		if _dig != null:
+			return  # busy rummaging
 		if _work.tap():
 			return  # seen it! the good pull goes to the collection
 		GameState.pat()
@@ -55,6 +71,13 @@ func _init() -> void:
 		PetBubble.say_line(self, "pat"))
 	_pet.tooltip_text = "pat me!"
 	add_child(_pet)
+	# rummage spots go over your pet, so it can dive into them
+	for spot_data in Catalog.shared().rummage_spots:
+		var spot := RummageSpot.new(spot_data)
+		spot.visible = false
+		spot.tapped.connect(_on_spot)
+		add_child(spot)
+		_spots[spot_data.id] = spot
 	_work.speed = 90.0
 	_held.pixel = 4
 	_held.visible = false
@@ -118,6 +141,9 @@ func _process(delta: float) -> void:
 	_mood.value = GameState.happiness
 	if _dirty:
 		_refresh()
+	for f in _floaters:
+		f.age += delta
+	_floaters = _floaters.filter(func(f): return f.age < FLOAT_TIME)
 	_step_work(delta)
 
 
@@ -125,6 +151,14 @@ func _process(delta: float) -> void:
 
 func _step_work(delta: float) -> void:
 	if _pet.view.pet == null or size.x <= 0.0:
+		return
+	if _dig == null and not _digs.is_empty() and _work.job == PackJob.Job.SIT and GameState.pinned.is_empty():
+		_start_dig()
+	if _dig != null:
+		GameState.pack_job_seen()  # the pile waits while it rummages
+		_step_dig(delta)
+		queue_redraw()
+		_front.queue_redraw()
 		return
 	var feet := _feet()
 	_work.step(delta, feet.x, _pile_spot().x - 70.0)
@@ -222,6 +256,138 @@ func _draw_front() -> void:
 			var twinkle := 3.0 + 3.0 * absf(sin(_work.time * 5.0 + i))
 			_front.draw_line(at - Vector2(twinkle, 0), at + Vector2(twinkle, 0), UiTheme.GOLD, 2.0)
 			_front.draw_line(at - Vector2(0, twinkle), at + Vector2(0, twinkle), UiTheme.GOLD, 2.0)
+	for f in _floaters:
+		var c: Color = f.color
+		c.a = 1.0 - maxf(0.0, f.age - FLOAT_TIME * 0.5) / (FLOAT_TIME * 0.5)
+		var w := UiTheme.DISPLAY_FONT.get_string_size(f.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
+		_front.draw_string(UiTheme.DISPLAY_FONT, f.at + Vector2(-w / 2.0, -maxf(0.0, f.age) * 36.0), f.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, c)
+
+
+# ---- rummaging ------------------------------------------------------------------
+
+func _on_spot(spot: RummageSpot) -> void:
+	if spot == _dig or spot in _digs:
+		return
+	if not spot.is_ready():
+		PetBubble.say_line(self, "rummage_empty", { "spot": spot.spot.name })
+		return
+	_digs.append(spot)
+	_pet.view.squash = 0.4
+
+
+func _start_dig() -> void:
+	_dig = _digs.pop_front()
+	if not _dig.is_ready():
+		_dig = null
+		return
+	_dig_phase = "walk"
+	_dig_t = 0.0
+	_dig_feet = Vector2(_work.x if _work.x >= 0.0 else _feet().x, _feet().y)
+
+
+## Where your pet stands next to a spot before it hops in: on the side facing its rug.
+func _stand_at(spot: RummageSpot) -> Vector2:
+	var base := spot.position + Vector2(spot.size.x / 2.0, spot.size.y)
+	var side := 1.0 if _feet().x > base.x else -1.0
+	return Vector2(base.x + side * (spot.size.x / 2.0 + 26.0), maxf(base.y + 4.0, size.y * FLOOR + 16.0))
+
+
+## Where the middle of your pet goes when it's standing with its feet at `feet`.
+func _middle(feet: Vector2) -> Vector2:
+	return feet + Vector2(0, 6.0 - _pet.size.y / 2.0)
+
+
+## Upside down, head in the spot.
+func _dive_middle() -> Vector2:
+	return _dig.dive_point() + Vector2(0, 26.0 - _pet.size.y / 2.0)
+
+
+func _pose(middle: Vector2, turn: float) -> void:
+	_pet.pivot_offset = _pet.size / 2.0
+	_pet.rotation = turn
+	_pet.position = middle - _pet.size / 2.0
+
+
+func _step_dig(delta: float) -> void:
+	match _dig_phase:
+		"walk", "back":
+			var to := _stand_at(_dig) if _dig_phase == "walk" else _feet()
+			var d := to - _dig_feet
+			_pet.view.walking = d.length() > 1.0
+			if absf(d.x) > 1.0:
+				_pet.view.facing = 1 if d.x > 0.0 else -1
+			_dig_feet = _dig_feet.move_toward(to, DIG_WALK * delta)
+			_pose(_middle(_dig_feet), 0.0)
+			if _dig_feet.distance_to(to) < 1.0:
+				_pet.view.walking = false
+				if _dig_phase == "walk":
+					_pet.view.facing = 1 if _dig.dive_point().x > _dig_feet.x else -1
+					_dig_phase = "in"
+					_dig_t = 0.0
+				else:
+					_end_dig()
+		"in", "out":
+			_dig_t += delta / DIG_HOP
+			var t := minf(_dig_t, 1.0)
+			if _dig_phase == "out":
+				t = 1.0 - t
+			var hop := Vector2(0, -sin(t * PI) * 46.0)
+			_pose(_middle(_stand_at(_dig)).lerp(_dive_middle(), t) + hop, t * PI * _pet.view.facing)
+			if _dig_t >= 1.0:
+				_dig_t = 0.0
+				if _dig_phase == "in":
+					_dig_phase = "dig"
+					_dig.digging = true
+				else:
+					_dig_feet = _stand_at(_dig)
+					_dig_phase = "back"
+		"dig":
+			_dig_t += delta
+			_pose(_dive_middle() + Vector2(sin(_dig_t * 30.0) * 3.0, 0), PI * _pet.view.facing)
+			if _dig_t >= DIG_TIME:
+				_dig.digging = false
+				_dig.queue_redraw()
+				_found(GameState.rummage(_dig.spot.id))
+				_dig_phase = "out"
+				_dig_t = 0.0
+
+
+## What came out of the spot floats up, and your pet says so.
+func _found(found: Dictionary) -> void:
+	var at := _dig.dive_point() + Vector2(0, -70)
+	var lines: Array[Array] = []
+	if found.has("coins"):
+		lines.append(["+%d coins" % found.coins, UiTheme.CYAN])
+	if found.has("xp"):
+		lines.append(["+%d xp" % found.xp, UiTheme.GOLD])
+	if found.has("part"):
+		lines.append(["a part!", UiTheme.LILAC])
+	for i in lines.size():
+		_floaters.append({ "text": lines[i][0], "at": at + Vector2(0, -22.0 * i), "age": -0.12 * i, "color": lines[i][1] })
+	var spot_name: String = _dig.spot.name
+	if found.has("part"):
+		var bits := str(found.part).split(":")  # part, slot, id
+		var part_name := "a %s %s" % [Catalog.shared().part(bits[1], bits[2]).get("name", bits[2]), bits[1]]
+		PetBubble.say_line(self, "rummage_part", { "spot": spot_name, "part": part_name })
+	elif found.has("xp"):
+		PetBubble.say_line(self, "rummage_xp", { "spot": spot_name })
+	elif not found.is_empty():
+		PetBubble.say_line(self, "rummage_coins", { "spot": spot_name })
+
+
+func _end_dig() -> void:
+	_dig = null
+	_pet.rotation = 0.0
+	_work.x = _dig_feet.x
+	_layout()
+
+
+## A spot with something in it, if there is one.
+func _ready_spot() -> RummageSpot:
+	for id in _spots:
+		if _spots[id].visible and _spots[id].is_ready():
+			return _spots[id]
+	return null
 
 
 # ---- the room -----------------------------------------------------------------
@@ -231,7 +397,8 @@ func _layout() -> void:
 	var feet := _feet()
 	_pet.size = _pet.custom_minimum_size
 	# the portrait draws its pet standing on its bottom edge (less a pixel of margin)
-	_pet.position = feet - Vector2(_pet.size.x / 2.0, _pet.size.y - 6.0 + (10.0 if GameState.finds.has("cushion") else 0.0))
+	if _dig == null:
+		_pet.position = feet - Vector2(_pet.size.x / 2.0, _pet.size.y - 6.0 + (10.0 if GameState.finds.has("cushion") else 0.0))
 	var card_holder := _card.get_parent() as Control
 	card_holder.position = Vector2(20, size.y - card_holder.get_combined_minimum_size().y - 18)
 	card_holder.size = card_holder.get_combined_minimum_size()
@@ -244,6 +411,17 @@ func _layout() -> void:
 	_finds.basket.size = Vector2(80, 50)
 	_finds.cart.position = basket + Vector2(58, -34)
 	_finds.cart.size = Vector2(90, 44)
+	# rummage spots, placed by their bottom middle
+	var card_right := card_holder.position.x + card_holder.size.x
+	var bases := {
+		"dresser": Vector2(size.x * 0.3, floor_y + 8.0),
+		"plant": Vector2(size.x * 0.93, floor_y + 10.0),
+		"socks": Vector2(maxf(card_right + 60.0, feet.x - 190.0), size.y - 30.0),
+		"toybox": Vector2(minf(feet.x + 200.0, size.x * 0.8 - 110.0), feet.y + 64.0),
+	}
+	for id in _spots:
+		var spot: RummageSpot = _spots[id]
+		spot.position = bases.get(spot.spot.draw, feet) - Vector2(spot.size.x / 2.0, spot.size.y)
 	queue_redraw()
 
 
@@ -418,6 +596,8 @@ func _refresh() -> void:
 	var ready := GameState.spotted.size() + GameState.rumours.size()
 	_set_note("map", "somewhere new to go!" if ready > 0 else "the map", "go and look" if ready > 0 else "plan an adventure", ready > 0)
 
+	for id in _spots:
+		_spots[id].visible = GameState.rummage_open()
 	for id in _finds:
 		_finds[id].visible = GameState.finds.has(id)
 		_finds[id].tooltip_text = "%s, found on an adventure" % catalog.finds.get(id, {}).get("name", id)
@@ -452,6 +632,8 @@ func speak() -> void:
 	var work := PetVoice.work_summary(pet, GameState.take_idle_log(), _rng, catalog)
 	if work != "":
 		PetBubble.say(self, work)
+	elif _ready_spot() != null and (GameState.rummaged.is_empty() or _rng.randf() < 0.35):
+		PetBubble.say_line(self, "rummage_hint", { "spot": _ready_spot().spot.name })
 	else:
 		var what := PetVoice.situation(GameState.news, GameState.rumours, GameState.runs, catalog)
 		GameState.news = {}

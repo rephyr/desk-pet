@@ -4,6 +4,7 @@ extends Node
 ##   godot . -- --from=new --play=res://tests/flows/tutorial.flow   (tools/play.py does this)
 ## Steps (a line starting with #, or " #" and on, is a comment):
 ##   from <save>           which test save to start from (read by tools/play.py, see DevProfile)
+##   flags <--flag ...>    dev flags to start the game with, e.g. flags --autoplay (read by tools/play.py)
 ##   view full | corner    the full game or the small corner panel
 ##   tab <id>              show a tab straight away (home, boxes, collection, adventures, ...)
 ##   click <target>        clicks it (see _find, _click): "text", tab:<id>, Class#n, guide
@@ -17,6 +18,20 @@ extends Node
 ##   pets <n>              n more pets from starter boxes (for testing crowds)
 ##   find <id>             a pet brings home this find (data/unlocks.json), opening what it opens
 ##   send <place> <n>      the first n spare pets go on an adventure there (and you watch it)
+##   pull <n> [seconds]    pulls the capsule machine's lever n times (each once the last capsule
+##                         has opened; waits 0.6 s after each, or that long)
+##   toy <id> [finish] [n] you get that capsule toy (n copies: the rest are spares)
+##   fix <node> [levels]   a node on the machine's upgrade tree, for free (data/machine_tree.json)
+##   bits <id> <n>         n machine bits (gear, spring, bolt, glass)
+##   coins <n>             you have exactly n coins
+##   tool <id> [levels]    levels of an errand tool (data/errands.json "tools"), for free
+##   next-prize <id>       the next capsule from the machine is this prize (e.g. toy, golden)
+##   teach <job>           your pet knows an automation job (data/automation.json), for free
+##   task <job | none>     your pet does that automation job (or nothing)
+##   auto-tool <id> [n]    levels of an automation tool, for free
+##   crank <n>             your pet's own machine gives n capsules right away
+##   unlock <id>           opens that unlock id straight away (e.g. feature:packs), no popup
+##   spots <job> <n>       n more machines (tables, parties) for a job's workers, for free
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -34,6 +49,8 @@ func _init(flow_path: String) -> void:
 
 
 func _ready() -> void:
+	# flows run quietly, so they don't play over whatever you're doing ("flags --music" to listen)
+	AudioServer.set_bus_mute(0, not DevArgs.has("music"))
 	DirAccess.make_dir_recursive_absolute(DevProfile.folder() + "shots")
 	_log = FileAccess.open(DevProfile.folder() + "play.log", FileAccess.WRITE)
 	_run.call_deferred()
@@ -56,7 +73,7 @@ func _run() -> void:
 		var comment := RegEx.create_from_string("\\s+#.*$").search(line)
 		if comment:
 			line = line.substr(0, comment.get_start()).strip_edges()
-		if line == "" or line.begins_with("from "):
+		if line == "" or line.begins_with("from ") or line.begins_with("flags "):
 			continue
 		var err: String = await _step(_words(line))
 		if err != "":
@@ -132,6 +149,60 @@ func _step(w: PackedStringArray) -> String:
 				return "couldn't send %d to %s" % [int(w[2]), w[1]]
 			home.full_game().show_tab("adventures")
 			home.full_game().adventures._show_trail(run)  # go along with it
+		"pull":  # pull <n> [seconds]: pulls the machine's lever n times, waiting that long after each
+			home.full_game().show_tab("machine")
+			var stage: MachineTab.MachineStage = home.full_game().machine.stage
+			for i in int(w[1]) if w.size() > 1 else 1:
+				var waited := 0.0
+				while not stage.ready_to_pull() and waited < 5.0:  # the last capsule is still opening
+					await get_tree().create_timer(0.05).timeout
+					waited += 0.05
+				home.full_game().machine.pull()
+				await get_tree().create_timer(float(w[2]) if w.size() > 2 else 0.6).timeout
+		"toy":  # toy <id> [finish] [n]: you get that toy, n times (the first is the toy, the rest spares)
+			for i in int(w[3]) if w.size() > 3 else 1:
+				Toys.add(GameState.toys, w[1], w[2] if w.size() > 2 else "normal")
+			GameState.toys_changed.emit()
+		"fix":  # fix <node> [levels]: that machine tree node, for free (skips the building-up)
+			GameState.machine.bought[w[1]] = Machine.owned(GameState.machine, w[1]) + (int(w[2]) if w.size() > 2 else 1)
+			GameState.changed.emit()
+		"coins":  # coins <n>: you have exactly n coins
+			GameState.coins = int(w[1])
+			GameState.changed.emit()
+		"tool":  # tool <id> [levels]: levels of an errand tool (data/errands.json), for free
+			if Jobs.tool(GameState.catalog, w[1]).is_empty():
+				return "unknown tool %s" % w[1]
+			GameState.set_errand_tool_level(w[1], GameState.errand_tool_level(w[1]) + (int(w[2]) if w.size() > 2 else 1))
+		"bits":  # bits <id> <n>: n machine bits of that kind (gear, spring, bolt, glass)
+			GameState.grant({ "bit:" + w[1]: int(w[2]) })
+		"next-prize":  # next-prize <id>: the next capsule is this prize (data/machine.json)
+			GameState.debug_next_prize = w[1]
+		"teach":  # teach <job>: your pet knows that automation job, for free
+			if Automation.job(GameState.catalog, w[1]).is_empty():
+				return "unknown job %s" % w[1]
+			GameState.automation.taught[w[1]] = true
+			GameState.check_unlocks()
+			GameState.automation_changed.emit()
+			GameState.changed.emit()
+		"task":  # task <job | none>: your pet does that job
+			GameState.set_task("" if w[1] == "none" else w[1])
+			if w[1] != "none" and GameState.automation.task != w[1]:
+				return "your pet doesn't know %s" % w[1]
+		"auto-tool":  # auto-tool <id> [levels]: levels of an automation tool, for free
+			if Automation.tool(GameState.catalog, w[1]).is_empty():
+				return "unknown tool %s" % w[1]
+			GameState.automation.tools[w[1]] = Automation.tool_level(GameState.automation, w[1]) + (int(w[2]) if w.size() > 2 else 1)
+			GameState.automation_changed.emit()
+		"crank":  # crank <n>: your pet's machine gives n capsules now
+			GameState._pet_cranks(int(w[1]))
+		"unlock":  # unlock <id>: opens it (no popup: what earns it is skipped)
+			GameState.unlock(w[1])
+		"spots":  # spots <job> <n>: more spots for a job's workers, for free
+			GameState.automation.spots[w[1]] = Automation.spots(GameState.automation, w[1]) + int(w[2])
+			if w[1] == "adventures":
+				while GameState.automation.parties.size() < Automation.spots(GameState.automation, w[1]):
+					GameState.automation.parties.append({ "place": "", "n": 0 })
+			GameState.automation_changed.emit()
 		"quit":
 			_finish()
 		_:

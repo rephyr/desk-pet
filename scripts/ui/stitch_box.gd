@@ -24,7 +24,7 @@ func _draw(to_canvas_item: RID, rect: Rect2) -> void:
 		var b := outline[(i + 1) % outline.size()]
 		var seg := a.distance_to(b)
 		var t := 0.0
-		while t < seg:
+		while seg - t > 0.001:  # not t < seg: rounding can leave a sliver that never gets used up
 			var step := minf(left, seg - t)
 			if on:
 				RenderingServer.canvas_item_add_line(to_canvas_item, a.lerp(b, t / seg), a.lerp(b, (t + step) / seg), dash_color, width, true)

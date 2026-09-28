@@ -1,0 +1,25 @@
+# Encounter art: at each event the thing the pets found stands on the path ahead of them.
+from pile_full
+view full
+pets 3
+send woods 1
+click "dev: skip the walking"
+wait event
+wait 1
+shot stop_1
+expect fits
+answer
+click "dev: skip the walking"
+wait event
+wait 1
+shot stop_2
+answer
+click "dev: skip the walking"
+wait event
+wait 1
+shot stop_3
+send pond 1
+click "dev: skip the walking"
+wait event
+wait 1
+shot pond_1

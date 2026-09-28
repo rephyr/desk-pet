@@ -28,6 +28,10 @@ func _init() -> void:
 	_test_intel(catalog)
 	_test_grafting(catalog)
 	_test_jobs(catalog)
+	_test_rummage(catalog)
+	_test_machine(catalog)
+	_test_toys(catalog)
+	_test_automation(catalog)
 	_test_unlocks(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
@@ -59,7 +63,8 @@ func _test_data_is_consistent(catalog: Catalog) -> void:
 	for round_ in catalog.locations.size():
 		for entry in catalog.unlock_list:
 			var find := str(entry.earn.get("find", ""))
-			var found_here := find == "" or _found_in(catalog, reached, find)
+			var from_machine := find == str(catalog.machine.get("intel", {}).get("find", ""))  # the machine's intel scrap
+			var found_here := find == "" or from_machine or _found_in(catalog, reached, find)
 			if found_here:
 				for o in entry.opens:
 					if str(o).begins_with("page:"):
@@ -541,6 +546,10 @@ func _test_jobs(catalog: Catalog) -> void:
 	var power := float(catalog.errands.crew_power)
 	for job in catalog.jobs:
 		_check(job.has("name") and float(job.seconds) > 0.0 and job.has("pay"), "errand %s has a name, a time and a pay" % job.id)
+		if job.has("needs"):
+			_check(catalog.unlock_list.any(func(u): return str(job.needs) in u.opens), "errand %s waits for something that opens (%s)" % [job.id, job.needs])
+	_check(catalog.job("scrapyard").get("needs", "") == "feature:parts", "the scrapyard waits for parts")
+	_check(not catalog.job("coin_hunt").has("needs"), "the coin hunt is there as soon as errands are")
 	var coin: Dictionary = catalog.job("coin_hunt")
 	var one := Jobs.rate(coin, 1, 1.0, power)
 	var three := Jobs.rate(coin, 3, 1.0, power)
@@ -557,8 +566,14 @@ func _test_jobs(catalog: Catalog) -> void:
 	for i in 3600:
 		ticks += Jobs.work(coin, b, 3, three, 1.0, rng, catalog).fills
 	_check(once.fills == ticks, "time away counts the same however it's split (%d and %d fills)" % [once.fills, ticks])
-	var per_min := float(Rewards.total(once.loot, "coins")) / 60.0
-	_check(per_min > 3.0 and per_min < 12.0, "3 pets on the coin hunt earn a gentle trickle (%.1f coins a minute)" % per_min)
+	var per_min := float(Rewards.total(once.loot, "coins")) / 60.0  # a capsule is worth 1 coin here
+	_check(per_min > 3.0 and per_min < 12.0, "3 pets on the coin hunt find a gentle trickle (%.1f capsules' worth a minute)" % per_min)
+	# errands pay in capsules: they grow with the machine, and stay well under pulling the lever
+	var rich: Dictionary = Jobs.work(coin, { "fill": 0.99 }, 1, 1.0, 1.0, rng, catalog, { "coin_value": 74.0 })
+	_check(int(rich.loot.get("coins", 0)) == 5 * 74, "a find is worth 5 capsules of the machine (%d)" % int(rich.loot.get("coins", 0)))
+	var one_pet_capsules := Jobs.rate(coin, 1, 1.0, power) * 60.0 * 5.0
+	_check(one_pet_capsules < 26.0 * 0.2, "one pet on the coin hunt finds well under what pulling gives (%.1f capsules a minute)" % one_pet_capsules)
+	_test_errand_tools(catalog)
 	# thousands of pets for a whole day stays quick and sane
 	var start := Time.get_ticks_msec()
 	var scrap: Dictionary = catalog.job("scrapyard")
@@ -590,6 +605,36 @@ func _test_jobs(catalog: Catalog) -> void:
 	_check(is_equal_approx(off, 10.0 * 3600.0), "a day away counts 8 h at full speed, then half, up to the cap (%.1f h)" % (off / 3600.0))
 
 
+## Errand tools: coins buy them on the upgrades page; jobs level up and reach goals.
+func _test_errand_tools(catalog: Catalog) -> void:
+	var known := ["worth", "speed", "big", "rare_x", "all_speed", "away_hours", "shiny", "crew_power"]
+	var ids := {}
+	for t in Jobs.all_tools(catalog):
+		_check(not ids.has(t.id), "errand tool %s has its own id" % t.id)
+		ids[t.id] = true
+		_check(t.has("name") and t.has("what") and float(t.coins) > 0.0 and not t.each.is_empty(), "errand tool %s has a name, what it does, a price and an effect" % t.id)
+		_check(FileAccess.get_file_as_string("res://scripts/ui/ui_theme.gd").contains('\t"%s": ' % t.icon), "errand tool %s has an icon (%s)" % [t.id, t.icon])
+		_check(t.each.keys().all(func(k): return k in known), "errand tool %s only does things errands understand" % t.id)
+		if t.has("machine"):
+			_check(not Machine.node(catalog, str(t.machine)).is_empty(), "errand tool %s waits for a real machine upgrade" % t.id)
+		_check(Jobs.tool_cost(t, 5) >= Jobs.tool_cost(t, 0), "errand tool %s costs more the more you have" % t.id)
+	var coin: Dictionary = catalog.job("coin_hunt")
+	var lemon: Dictionary = catalog.job("lemonade")
+	_check(Jobs.tool_cost(Jobs.tool(catalog, "noses"), 0, 3) == Jobs.tool_cost(Jobs.tool(catalog, "noses"), 0) + Jobs.tool_cost(Jobs.tool(catalog, "noses"), 1) + Jobs.tool_cost(Jobs.tool(catalog, "noses"), 2), "buying 3 levels costs the 3 levels added up")
+	_check(Jobs.level(coin, { "noses": 4, "paws": 3, "snack": 9 }) == 7, "a job's level is its own tools' levels")
+	_check(Jobs.goal_x(coin, 24) == 1.0 and Jobs.goal_x(coin, 25) == 2.0 and Jobs.goal_x(coin, 50) == 4.0, "coin hunt goals double its coins at lv 25 and 50")
+	_check(str(Jobs.next_goal(coin, 3).get("text", "")).contains("lemonade"), "the coin hunt's first goal is the lemonade stand")
+	_check(catalog.unlock_list.any(func(u): return "job:lemonade" in u.opens and int(u.earn.get("job_level", {}).get("coin_hunt", 0)) == int(coin.goals[0].at)), "the lemonade stand opens at the coin hunt's first goal")
+	_check(Jobs.tool_sum(catalog, "coin_hunt", "all_speed", { "snack": 2 }) > 0.0 and Jobs.tool_sum(catalog, "coin_hunt", "speed", { "sign": 5 }) == 0.0, "tools for everyone reach every job, a job's own only that job")
+	_check(Jobs.tool_block(catalog, Jobs.tool(catalog, "pockets"), {}, {}, true).begins_with("at lv"), "deeper pockets wait for the coin hunt's level")
+	_check(Jobs.tool_block(catalog, Jobs.tool(catalog, "cups"), { "cups": 1 }, {}, true) == "max", "a tool with a max stops there")
+	_check(Jobs.tool_block(catalog, Jobs.tool(catalog, "lemons"), {}, {}, false) == "closed", "a job's tools wait for the job")
+	_check(float(lemon.tips.rare) > float(lemon.tips.common), "rarer pets get bigger tips")
+	var plain := Jobs.average_fill(coin, { "coin_value": 10.0 })
+	var better := Jobs.average_fill(coin, { "coin_value": 10.0, "worth": 2.0, "big": 0.1, "big_x": 5.0 })
+	_check(is_equal_approx(plain, 50.0) and is_equal_approx(better, 70.0 * 1.4), "tools make each find worth more (%.1f -> %.1f)" % [plain, better])
+
+
 ## Whether some place already reached has an event that gives this find.
 func _found_in(catalog: Catalog, reached: Dictionary, find: String) -> bool:
 	for l in catalog.locations:
@@ -604,34 +649,288 @@ func _found_in(catalog: Catalog, reached: Dictionary, find: String) -> bool:
 ## Unlocks: every one can be earned, every find has an event that gives it, and once found that
 ## event stops turning up.
 func _test_unlocks(catalog: Catalog) -> void:
-	var tabs := ["home", "boxes", "collection", "adventures", "errands", "inventory", "settings"]
+	var tabs := ["home", "machine", "boxes", "collection", "adventures", "errands", "automation", "inventory", "settings"]
 	var page_ids := catalog.pages.map(func(p): return p.id)
 	for entry in catalog.unlock_list:
 		_check(entry.show in ["locked", "hidden"], "unlock %s is shown locked or hidden" % entry.id)
 		for o in entry.opens:
 			var bits := str(o).split(":")
-			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10"]) or (bits[0] == "page" and bits[1] in page_ids)
+			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures"]) or (bits[0] == "page" and bits[1] in page_ids) \
+				or (bits[0] == "job" and catalog.jobs.any(func(j): return str(j.get("needs", "")) == o))
 			_check(ok, "unlock %s opens something real (%s)" % [entry.id, o])
 		if entry.earn.has("find"):
 			_check(catalog.finds.has(entry.earn.find), "unlock %s waits for a real find" % entry.id)
 		_check(not "{" in str(entry.get("announce", "")), "unlock %s announcement has no placeholders" % entry.id)
 	for find in catalog.finds:
-		_check(catalog.events.values().any(func(e): return e.get("find", "") == find), "some event gives %s" % find)
+		var machine_gives: bool = find == str(catalog.machine.get("intel", {}).get("find", ""))
+		_check(machine_gives or catalog.events.values().any(func(e): return e.get("find", "") == find), "some event (or the machine) gives %s" % find)
 	var meadow := catalog.location("meadow")
 	var seen := false
 	for t in 200:
 		if "meadow_basket" in AdventureRunner.pick_events(meadow, t, { "basket": true }, catalog):
 			seen = true
 	_check(not seen, "a find's event stops turning up once it's found")
+	# the basket waits for the flap: errands open once bits start holding the machine up
+	var basket_before := false
+	var basket_after := false
+	for t in 200:
+		basket_before = basket_before or "meadow_basket" in AdventureRunner.pick_events(meadow, t, {}, catalog)
+		basket_after = basket_after or "meadow_basket" in AdventureRunner.pick_events(meadow, t, {}, catalog, { "flap": 1 })
+	_check(not basket_before and basket_after, "the basket only turns up once the flap is fixed")
+	# finds don't ask: the pet brings them home by itself, even with nobody answering
+	var roller := PetRoller.new(catalog, RandomNumberGenerator.new())
+	var herd: Array[Pet] = []
+	for i in 3:
+		herd.append(roller.roll("starter"))
+	var run := AdventureRunner.start("meadow", herd.slice(0, 1), 0.0, 1, catalog)
+	run.events.assign(["meadow_basket"])
+	AdventureRunner.resolve(run, PlayerChooser.new(), 1.0e9, catalog)
+	_check(run.status == RunState.Status.DONE and run.loot.has("find:basket") and str(run.history[0].text).begins_with("i found"),
+		"a find comes home by itself, no question")
+	for size in [2, 3]:
+		var wagon := AdventureRunner.start("meadow", herd.slice(0, size), 0.0, 1, catalog)
+		wagon.events.assign(["meadow_wagon"])
+		AdventureRunner.resolve(wagon, PlayerChooser.new(), 1.0e9, catalog)
+		_check(wagon.history.any(func(h): return h.event == "meadow_wagon") == (size >= 3), "the hay wagon only turns up for 3+ pets (%d)" % size)
+	for e in catalog.events.values():
+		if e.has("after_machine"):
+			_check(not catalog.machine_tree.nodes.filter(func(n): return n.id == e.after_machine).is_empty(), "event %s waits for a real machine node" % e.id)
+	# every bit the machine needs comes from somewhere a pet can go
+	var bits_needed := {}
+	for n in catalog.machine_tree.nodes:
+		for b in n.get("bits", {}):
+			bits_needed[b] = true
+	for b in bits_needed:
+		var from := catalog.locations.filter(func(l): return l.get("finish_rewards", []).any(func(r): return r.get("kind", "") == "bit" and r.get("id", "") == b))
+		_check(not from.is_empty(), "some place's treat bag has %s" % b)
+	# "open" waits for something an unlock really opens; the workbench never opens from parts
+	# before parts are a feature (they used to slip in early)
+	var opened := {}
+	for entry in catalog.unlock_list:
+		for o in entry.opens:
+			opened[str(o)] = true
+	for entry in catalog.unlock_list:
+		if entry.earn.has("open"):
+			_check(opened.has(str(entry.earn.open)), "unlock %s waits for something that opens (%s)" % [entry.id, entry.earn.open])
+		if entry.earn.get("first", "") == "part":
+			_check(str(entry.earn.get("open", "")) == "feature:parts", "unlock %s from a first part waits for parts too" % entry.id)
+	# v20 closes what old gates opened: a save like Emilia's (basket and cart found, 9 trips, the
+	# flap fixed but not better drops, no toys) loses the second page, the boxes tab and the workbench
+	var hers := func(earn: Dictionary) -> bool:
+		if earn.has("find") and not str(earn.find) in ["basket", "cart"]:
+			return false
+		return not (earn.has("machine") or earn.has("first") or earn.has("open") or int(earn.get("trips", 0)) > 9 or int(earn.get("packs_opened", 0)) > 22)
+	var stale := UnlockRules.stale(catalog.unlock_list, hers)
+	for o in ["page:beyond", "tab:boxes", "tab:inventory", "feature:toys", "feature:parts"]:
+		_check(o in stale, "an old save without what earns it loses %s" % o)
+	for o in ["feature:errands", "tab:errands", "feature:parties"]:
+		_check(not o in stale, "an old save keeps %s it earned" % o)
+	_check(UnlockRules.stale(catalog.unlock_list, func(_e): return true).is_empty(), "nothing closes when everything is earned")
 	var automation: Array = catalog.unlock_list.filter(func(e): return "feature:packs" in e.opens or "feature:errands" in e.opens)
 	_check(automation.all(func(e): return e.show == "hidden"), "automation stays hidden until found")
 	var packs: Array = catalog.unlock_list.filter(func(e): return "feature:packs" in e.opens)
 	_check(packs.all(func(e): return int(e.earn.get("packs_opened", 0)) >= 100), "your pet only opens packs after you've opened plenty yourself")
 
 
+## Automation: jobs are real, its tools add up and cost more each level, your pet's machine cranks
+## at its pace (faster with the crank, only while you're away with the stool), and the tab and its
+## later jobs wait for what earns them.
+func _test_automation(catalog: Catalog) -> void:
+	var jobs: Array = catalog.automation.get("jobs", [])
+	_check(jobs.size() >= 3 and Automation.job(catalog, "machine").get("needs", "") == "", "automation has its jobs, the machine first")
+	for j in jobs:
+		_check(int(j.coins) > 0, "job %s is taught with coins" % j.id)
+		if j.has("needs"):
+			var opened := catalog.unlock_list.any(func(e): return str(j.needs) in e.opens)
+			_check(opened, "job %s waits for something that opens (%s)" % [j.id, j.needs])
+	for t in Automation.all_tools(catalog):
+		_check(Jobs.tool_cost(t, 1) > Jobs.tool_cost(t, 0), "tool %s costs more each level" % t.id)
+	var state := Automation.fresh()
+	var slow := Automation.crank_seconds(catalog, state)
+	_check(Automation.crank(catalog, state, slow * 3.5) == 3, "your pet's machine pulls once every %ds" % roundi(slow))
+	_check(Automation.tool_block(state, Automation.tool(catalog, "crank")) == "closed", "tools wait for their job to be taught")
+	state.taught["machine"] = true
+	_check(Automation.tool_block(state, Automation.tool(catalog, "crank")) == "", "a taught job's tools can be bought")
+	state.tools["crank"] = 5
+	_check(Automation.crank_seconds(catalog, state) < slow, "a smoother crank cranks faster")
+	_check(Automation.away_seconds(catalog, state, 7200.0) == 0.0, "without a stool it stops while you're away")
+	state.tools["stool"] = 1
+	_check(is_equal_approx(Automation.away_seconds(catalog, state, 7200.0), 3600.0), "a stool keeps it going an hour while you're away")
+	state.tools["crank"] = 999
+	_check(Automation.tool_block(state, Automation.tool(catalog, "crank")) == "max", "tools stop at their max")
+	# the tab opens with the tiny machine, once the machine is fully fixed; it's hidden until then
+	var tab: Array = catalog.unlock_list.filter(func(e): return "tab:automation" in e.opens)
+	_check(tab.size() == 1 and tab[0].show == "hidden" and tab[0].earn.get("machine", "") == "drops" and catalog.finds.has(str(tab[0].earn.get("find", ""))),
+		"the automation tab stays hidden until the machine's fixed and the tiny machine is home")
+	var ev: Array = catalog.events.values().filter(func(e): return str(e.get("find", "")) == "tiny_machine")
+	_check(ev.size() == 1 and str(ev[0].get("after_machine", "")) == "drops", "the tiny machine only turns up once the machine is fully fixed")
+	var boxes: Array = catalog.unlock_list.filter(func(e): return "feature:packs" in e.opens)
+	_check(boxes.all(func(e): return str(e.earn.get("open", "")) == "tab:automation"), "opening boxes waits for the automation tab")
+	# workers: taught to the others once your pet's tools are far enough, slower than your pet
+	# (better with rarity), each needs a spot, and their tools only count for them
+	var w := Automation.fresh()
+	_check(Automation.teach_block(catalog, w, "machine") == "taught", "your pet learns a job before it teaches it")
+	w.taught["machine"] = true
+	var after: Dictionary = Automation.job(catalog, "machine").teach.get("after", {})
+	if not after.is_empty():
+		_check(Automation.teach_block(catalog, w, "machine") == "lv", "teaching the others waits for your pet's tools")
+		for t in after:
+			w.tools[t] = int(after[t])
+	_check(Automation.teach_block(catalog, w, "machine") == "", "then it can teach the others")
+	w.others["machine"] = true
+	_check(Automation.teach_block(catalog, w, "machine") == "done", "you only teach them once")
+	var common := Pet.new()
+	common.rarity = "common"
+	var mythic := Pet.new()
+	mythic.rarity = catalog.tiers[catalog.tiers.size() - 1].id
+	_check(Automation.worker_speed(catalog, common) < 1.0 and Automation.worker_speed(catalog, common) < Automation.worker_speed(catalog, mythic),
+		"a common worker is slower than your pet, a rarer one faster than a common")
+	_check(Automation.worker_speed(catalog, mythic) <= 1.0 + 0.001, "no worker beats your pet")
+	_check(Automation.spot_cost(catalog, w, "machine") > 0 and Automation.spot_cost(catalog, w, "machine", 2) > 2 * Automation.spot_cost(catalog, w, "machine") - 1,
+		"machines for workers cost more each")
+	var base := Automation.worker_seconds(catalog, w, "machine")
+	_check(Automation.work(catalog, w, "machine", 2.0, base * 5.25) == 10, "two full-speed workers pull twice as often")
+	_check(Automation.work(catalog, w, "machine", 0.0, 1000.0) == 0, "no workers, no pulls")
+	w.tools["grease"] = 3
+	_check(Automation.worker_seconds(catalog, w, "machine") < base, "grease makes the workers' machines faster")
+	_check(is_equal_approx(Automation.crank_seconds(catalog, w), Automation.crank_seconds(catalog, Automation.fresh()) / (1.0 + 0.1 * int(w.tools.get("crank", 0)))),
+		"the workers' tools don't speed up your pet")
+
+
 ## Allowed difference between expected and rolled odds (about 4 standard deviations).
 func _tolerance(p: float) -> float:
 	return 4.0 * sqrt(p * (1.0 - p) / ROLLS) + 0.0005
+
+
+## Every rummage spot can be drawn and pays something, and a rummaged spot waits to refill.
+func _test_rummage(catalog: Catalog) -> void:
+	_check(not catalog.rummage_spots.is_empty(), "there are spots to rummage in")
+	for spot in catalog.rummage_spots:
+		_check(str(spot.get("draw", "")) in ["dresser", "plant", "socks", "toybox"], "rummage spot %s has a drawing (RummageSpot)" % spot.id)
+		_check(float(spot.refill) > 0.0 and int(spot.coins[0]) > 0 and int(spot.coins[1]) >= int(spot.coins[0]), "rummage spot %s pays and refills" % spot.id)
+
+
+## The capsule machine and its upgrade tree: every prize pays something real, lucky capsules only
+## hold lucky prizes, better-drops prizes wait for it, every node grows from a real node, costs grow,
+## repairs open what grows from them, and the effects add up.
+func _test_machine(catalog: Catalog) -> void:
+	var m: Dictionary = catalog.machine
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var fresh := { "pulls": 0, "lit": 0, "bought": {} }
+	for p in m.prizes:
+		_check(str(p.kind) in ["coins", "golden", "xp", "part", "box", "toy", "pet_box"], "machine prize %s has a known kind" % p.id)
+		if p.kind == "toy":
+			continue  # GameState rolls the toy itself (Toys)
+		if p.kind == "pet_box":
+			_check(int(m.get("pet_box", {}).get("sure_within", 0)) > 0 and int(m.pet_box.get("few_pets", 0)) >= 1, "a pet box is sure to come when you're out of pets")
+			_check(not catalog.box(str(p.box)).is_empty() and not p.has("drops"), "machine prize %s opens a real box from the start" % p.id)
+			continue  # GameState rolls the pet itself
+		if p.kind == "box":
+			_check(not catalog.box(str(p.box)).is_empty(), "machine prize %s gives a real box" % p.id)
+		var loot := Machine.loot(p, fresh, catalog, rng)
+		_check(not loot.is_empty() and loot.values().all(func(n): return int(n) > 0), "machine prize %s pays something (%s)" % [p.id, loot])
+	var seen := {}
+	for i in 5000:
+		seen[Machine.roll(fresh, catalog, rng).id] = true
+		var lucky := Machine.roll(fresh, catalog, rng, true)
+		if not lucky.get("lucky", false):
+			_check(false, "a lucky capsule only holds lucky prizes (got %s)" % lucky.id)
+			break
+	for p in m.prizes:
+		var waits := float(p.get("drops", 0)) > 0.0
+		_check(seen.has(p.id) != waits, "machine prize %s %s a machine without better drops" % [p.id, "stays out of" if waits else "comes out of"])
+	_check(int(Machine.loot(m.prizes[0], fresh, catalog, rng, 3.0).coins) >= 3, "fever multiplies the coins in a capsule")
+	# the tree
+	var ids := {}
+	for n in catalog.machine_tree.nodes:
+		ids[n.id] = true
+	for n in catalog.machine_tree.nodes:
+		_check(not n.has("from") or ids.has(n.from), "tree node %s grows from a real node" % n.id)
+		_check(n.branch in Machine.BRANCHES, "tree node %s is on a known branch" % n.id)
+		_check(n.at is Array and n.at.size() == 2, "tree node %s has a place on the map" % n.id)
+		for b in n.get("bits", {}):
+			_check(b in Machine.BITS, "tree node %s asks for a real bit (%s)" % [n.id, b])
+		if int(n.get("max", 1)) > 1:
+			var once := { "bought": { n.id: 1 } }
+			_check(Machine.cost(once, catalog, n.id) >= Machine.cost(fresh, catalog, n.id), "tree node %s doesn't get cheaper" % n.id)
+	var root: String = catalog.machine_tree.nodes[0].id
+	_check(Machine.look(fresh, catalog, root) == "next", "the first repair can be worked on straight away")
+	var child: Dictionary = catalog.machine_tree.nodes.filter(func(n): return n.get("from", "") == root)[0]
+	_check(Machine.look(fresh, catalog, child.id) == "dim", "what grows from it shows, dim")
+	var fixed := { "bought": { root: 1 } }
+	_check(Machine.look(fixed, catalog, child.id) == "next", "fixing a node opens what grows from it")
+	_check(Machine.coin_value(fixed, catalog) > Machine.coin_value(fresh, catalog), "the first repair makes capsules worth more")
+	_check(Machine.blocker(fresh, catalog, root, 0, {}) == "coins", "no coins, no repair")
+	_check(Machine.blocker(fresh, catalog, root, 1000000, {}) == "", "with coins, the first repair can be bought")
+	var flap := { "bought": { "tape": 1, "oil": 1 } }
+	_check(Machine.blocker(flap, catalog, "flap", 1000000, {}) == "spring", "a repair that needs a bit waits for it")
+	_check(Machine.chutes(fresh, catalog) == 1 and Machine.chutes({ "bought": { "chute2": 1 } }, catalog) == 2, "a fixed chute is another chute")
+	_check(not Machine.lights_on(fresh, catalog) and Machine.lights_on({ "bought": { "wires": 1 } }, catalog), "the lights work once they're rewired")
+	var balls := 0
+	for i in 1000:
+		balls += Machine.balls_from_chute({ "bought": { "double": 5 } }, catalog, rng)
+	_check(balls > 1100, "double drop sometimes gives two balls (%d from 1000)" % balls)
+
+
+## Capsule toys: every toy has art and a real tier and bonus, rolls give real toys, boosts start
+## small and grow with levels and finishes, wear shrinks them (never below the floor), plays take a
+## slot and end with wear, spares combine into levels up to a favourite, sacrifice uses spares.
+func _test_toys(catalog: Catalog) -> void:
+	var d: Dictionary = catalog.toys
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	for t in Toys.all(catalog):
+		_check(d.tiers.has(t.tier), "toy %s has a real tier" % t.id)
+		_check(t.bonus in Toys.KINDS or t.bonus == "all", "toy %s has a known bonus" % t.id)
+		var rows: Array = d.art.get(t.id, [])
+		_check(rows.size() == 14 and rows.all(func(r): return str(r).length() == 14), "toy %s has 14 x 14 art" % t.id)
+		for r in rows:
+			for ch in str(r):
+				if ch != "." and not d.palette.has(ch):
+					_check(false, "toy %s art uses a colour in the palette (%s)" % [t.id, ch])
+	for i in 2000:
+		var got := Toys.roll(catalog, rng, 1.0 + (i % 3))
+		if Toys.toy(catalog, got.id).is_empty() or Toys.finish(catalog, got.finish).is_empty():
+			_check(false, "a rolled toy is real (%s)" % got)
+			break
+	var state := Toys.fresh()
+	_check(Toys.add(state, "acorn", "normal"), "a first acorn is a new edition")
+	_check(not Toys.add(state, "acorn", "normal"), "a second acorn is a spare")
+	_check(is_equal_approx(Toys.boost(state, catalog, "acorn:normal"), float(d.tiers.common.base)), "a new common toy boosts by its tier's base (x1.1)")
+	Toys.add(state, "acorn", "ghost")
+	_check(Toys.boost(state, catalog, "acorn:ghost") > Toys.boost(state, catalog, "acorn:normal"), "a ghost toy boosts more than a normal one")
+	var now := 1000.0
+	_check(is_equal_approx(Toys.multiplier(state, catalog, "coins", now), 1.0), "a toy on the shelf does nothing")
+	_check(Toys.play(state, catalog, "acorn:normal", "quick", now), "your pet can play with a toy")
+	_check(Toys.multiplier(state, catalog, "coins", now + 1.0) > 1.0, "a toy being played with boosts")
+	_check(not Toys.play(state, catalog, "acorn:ghost", "quick", now), "one play slot to start")
+	_check(Toys.finish_plays(state, now + 60.0).is_empty(), "a play isn't over early")
+	var ended := Toys.finish_plays(state, now + 3600.0)
+	_check(ended == ["acorn:normal"] and float(state.owned["acorn:normal"].wear) > 0.0, "a finished play wears the toy")
+	_check(is_equal_approx(Toys.multiplier(state, catalog, "coins", now + 3601.0), 1.0), "after playing the boost stops")
+	state.owned["acorn:normal"].wear = 1.0
+	var worn := Toys.boost(state, catalog, "acorn:normal") - 1.0
+	_check(worn > 0.0 and worn >= (float(d.tiers.common.base) - 1.0) * float(d.worn_floor) - 0.0001, "a worn out toy still works a little")
+	_check(Toys.fix_cost(state, catalog, "acorn:normal") > 0, "fixing a worn toy costs something")
+	state.owned["acorn:normal"].spares = 20
+	var level := 1
+	while Toys.combine(state, catalog, "acorn:normal"):
+		level += 1
+	_check(level == int(d.max_level) and Toys.is_favourite(state, catalog, "acorn:normal"), "spares combine up to a favourite")
+	_check(Toys.boost(state, catalog, "acorn:normal") > float(d.tiers.common.base), "levels make the boost bigger")
+	_check("acorn:normal" in Toys.active(state, catalog, now), "a favourite is always on")
+	_check(not Toys.play(state, catalog, "acorn:normal", "quick", now), "a favourite doesn't need playtime")
+	state.owned["acorn:normal"].spares = int(d.sacrifice.spares)
+	var before: int = state.owned.size()
+	var got := Toys.sacrifice(state, catalog, "acorn", rng)
+	_check(int(state.owned["acorn:normal"].spares) == 0, "sacrifice uses the spares either way")
+	_check(got == "" or state.owned.size() >= before, "a lucky sacrifice gives a special edition")
+	_check(not Toys.can_sacrifice(state, catalog, "acorn"), "no spares, no sacrifice")
+	var full := Toys.fresh()
+	for t in catalog.toys.sets[0].toys:
+		Toys.add(full, t.id, "normal")
+	_check(Toys.slots(full, catalog) == int(d.slots) + 1, "a finished set gives another play slot")
 
 
 func _check(ok: bool, what: String) -> void:

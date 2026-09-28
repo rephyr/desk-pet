@@ -1,0 +1,69 @@
+# Workers: once your pet's crank is far enough, "teach the others" turns up in its upgrades; that
+# opens the workers page. Workers need machines of their own (bought with coins), you put resting
+# pets on them yourself, and the page scales to lots of machines.
+from rich
+view full
+pets 12
+fix drops
+coins 900000000
+find tiny_machine
+wait popup
+click "show me"
+wait 1
+click "teach for*"
+wait 1
+expect no-text "teach the others"
+auto-tool crank 3
+wait 1
+expect text "teach the others"
+expect fits
+shot teach_row
+click "teach the others"
+wait 1
+click "workers"
+wait 1
+expect text "no machines yet"
+expect fits
+shot workers_empty
+click "+1 machine for*"
+wait 1
+click "+1 machine for*"
+wait 1
+click "fill up"
+wait 1
+expect text "2 working"
+expect fits
+shot workers_two
+wait 3
+shot workers_cranking
+spots machine 40
+pets 40
+wait 1
+click "fill up"
+wait 1
+expect text "42 working"
+expect fits
+shot workers_many
+click "your pet"
+wait 1
+expect text "a pull every*"
+unlock feature:auto_adventures
+wait 1
+click "run adventures"
+wait 1
+click "teach for*"
+wait 1
+click "teach the others"
+wait 1
+click "workers"
+wait 1
+click "run adventures"
+wait 1
+click "+1 party for*"
+wait 1
+click "+1 party for*"
+wait 1
+click "fill up"
+wait 3
+expect fits
+shot workers_parties

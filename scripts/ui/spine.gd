@@ -14,6 +14,7 @@ var _sky := NightSky.new()
 var _column := VBoxContainer.new()
 var _pet := PetView.new()
 var _work := MoonWork.new()  # a tiny pack in its paws while it opens your pile out of sight
+var _toy := ToyView.new("", "normal", 2)  # the toy it's playing with, at its side
 var _tabs := {}  # id -> Button
 var _news := {}  # id -> the gold dot
 var _current := ""
@@ -47,9 +48,12 @@ func _init() -> void:
 	moon.add_child(_pet)
 	_work.pet_view = _pet
 	moon.add_child(_work)
+	_toy.visible = false
+	moon.add_child(_toy)
 	moon.resized.connect(func():
 		_pet.position = Vector2(moon.size.x / 2.0, moon.size.y - 8.0)  # PetView draws from its bottom centre
-		_work.position = _pet.position)
+		_work.position = _pet.position
+		_toy.position = _pet.position + Vector2(10, -34))
 	moon.gui_input.connect(func(e: InputEvent):
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
 			_pet.squash = 0.6
@@ -60,6 +64,21 @@ func _init() -> void:
 		_pet.pet = p
 		moon.queue_redraw())
 	_pet.pet = GameState.collection.active()
+	GameState.toys_changed.connect(_show_toy)
+	_show_toy()
+
+
+## The toy your pet is playing with sits at its side on the moon (the first one, if there are more).
+func _show_toy() -> void:
+	var now := Time.get_unix_time_from_system()
+	for p in GameState.toys.playing:
+		if float(p.until) > now:
+			var bits := Toys.split(str(p.key))
+			_toy.show_toy(bits[0], bits[1], 2)
+			_toy.visible = true
+			_toy.tooltip_text = "playing! do not disturb"
+			return
+	_toy.visible = false
 
 
 func _draw() -> void:
