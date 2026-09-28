@@ -21,9 +21,11 @@ signal gear_changed  # a gear upgrade was bought with xp (the adventures' upgrad
 signal room_full  # you tried to open a box but the room is full (it waits on the pile)
 signal knacks_changed  # a knack gate may have opened (an unlock, a machine fix, the tutorial moved on)
 signal dungeon_changed  # the army or its orders changed, it set off down the well, or it came home
+signal plushie_changed  # the plushie machine changed: a pet fed in, a keeper picked, a reel held, a nudge or hold bought
+signal plushie_spun(result: Dictionary)  # the plushie machine spun (or banked, nudged, brought the next pet in), see plushie_spin()
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
-const SAVE_VERSION := 24
+const SAVE_VERSION := 25
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
 const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
@@ -112,10 +114,12 @@ var fever_until := 0.0  # unix time the machine's fever ends (not saved: it's te
 ## Capsule toys you own and the ones your pet is playing with, see Toys and data/toys.json
 var toys := Toys.fresh()
 var bits := {}  # machine bits pets bring home from adventures: bit id (gear, spring, bolt, glass) -> how many
+var plushie := Plushie.fresh()  # the plushie machine's state (keeper, hopper, the pet in it and its reels), see Plushie
+var debug_land := {}  # debug builds: what the plushie machine's next spin lands on, slot (or "wild") -> symbol
 ## What your pet does for you (the automation tab), see Automation and data/automation.json
 var automation := Automation.fresh()
 var dungeon := Dungeon.fresh(Catalog.shared())  # the old well, all the way down (see Dungeon)
-var wisps := 0  # the darker currency: lanterns the dungeon's cleared floors pay (data/dungeon.json)
+var wisps := 0  # the darker currency: the dungeon's cleared floors pay them, plushie machine misses puff them, the plushie machine spends them (see grant_wisps)
 var dungeon_news := {}  # the army just came home: { got, floor, early, deepest } for your pet to say (not saved)
 var _auto_at := 0.0  # unix time your pet's jobs have worked up to
 var _hold_saves := false  # automation's tick is running: saves wait for the end of it
@@ -432,6 +436,8 @@ func check_unlocks() -> void:
 		if str(entry.get("learns", "")) != "":
 			automation.taught[str(entry.learns)] = true  # your pet knows this job straight away
 			automation_changed.emit()
+		if int(entry.get("button_gift", 0)) > 0:
+			_gift_buttons(int(entry.button_gift))
 		if str(entry.get("announce", "")) != "":
 			announcements.append(entry.announce)
 		unlocked.emit(entry)
@@ -472,6 +478,20 @@ func _gift_pet(job_id: String) -> void:
 	var got: Array[Pet] = [_roller.roll(TUTORIAL_BOX)]
 	collection.add(got)
 	put_on_job(job_id, 1, [got[0].uid])
+
+
+## Buttons come with an unlock (the plushie machine sews one onto your active pet): on the part with
+## its best knack, else its body.
+func _gift_buttons(n: int) -> void:
+	var pet := collection.active()
+	if pet == null:
+		return
+	var slot := str(Knacks.best(catalog, pet, knack_gate).get("slot", "body"))
+	if Plushie.full(catalog, pet, slot):
+		slot = Plushie.wild_default(catalog, pet)
+	if slot != "" and Plushie.sew(catalog, pet, slot, n) > 0:
+		collection.pet_changed.emit(pet)
+		collection.active_changed.emit(pet)  # everything showing your pet redraws it
 
 
 ## The oldest news your pet hasn't told you yet, or "" (then forgotten).
@@ -623,6 +643,7 @@ func debug_new_game() -> void:
 	fever_until = 0.0
 	toys = Toys.fresh()
 	bits = {}
+	plushie = Plushie.fresh()
 	automation = Automation.fresh()
 	dungeon = Dungeon.fresh(catalog)
 	wisps = 0
@@ -840,6 +861,8 @@ func _busy_uids() -> Dictionary:
 	for uid in workers_of("adventures"):
 		if str(uid) != "":
 			out[str(uid)] = true
+	if feature_on("plushie") and str(plushie.keeper) != "":
+		out[str(plushie.keeper)] = true  # the plushie machine's keeper stays a card while it's picked
 	return out
 
 
@@ -1288,9 +1311,21 @@ func _take_off(uids: Array) -> Array:
 	return gone.keys()
 
 
+## How many pets of one count work somewhere (errands, machines and tables).
+func _herd_at_places(k: String) -> int:
+	var n := 0
+	for job_id in jobs:
+		n += int(_job_state(job_id).herd.get(k, 0))
+	var wh: Dictionary = automation.get("wherd", {})
+	for id in wh:
+		n += int(wh[id].get(k, 0))
+	return n
+
+
 ## Takes `n` pets of one count off wherever they work (errands first, then machines and tables), for
-## an adventure that needs more of them than are resting.
-func _herd_off_places(k: String, n: int) -> void:
+## an adventure that needs more of them than are resting. Returns how many it took.
+func _herd_off_places(k: String, n: int) -> int:
+	var want := n
 	var crews := false
 	for job_id in jobs:
 		var h: Dictionary = _job_state(job_id).herd
@@ -1311,6 +1346,7 @@ func _herd_off_places(k: String, n: int) -> void:
 		_crews_changed()
 	if workers:
 		_workers_changed()
+	return want - n
 
 
 func _speed_of(uid: String, job: Dictionary) -> float:
@@ -2080,15 +2116,19 @@ func army_cards() -> Array[Pet]:
 	return _strongest_first(out)
 
 
-## Cards that could go in the army (resting ones and the ones in it), the strongest first.
+## Cards that could go in the army (resting ones and the ones in it), the strongest first. Never the
+## plushie machine's keeper (a pet is in one place at a time).
 func army_choices() -> Array[Pet]:
 	var out: Array[Pet] = []
+	var keeper := plushie_keeper_uid()
 	if not dungeon_running():
 		for uid in dungeon.cards:
 			var pet := collection.get_pet(str(uid))
-			if pet:
+			if pet and pet.uid != keeper:
 				out.append(pet)
-	out.append_array(resting_cards())
+	for pet in resting_cards():
+		if pet.uid != keeper:
+			out.append(pet)
 	return _strongest_first(out)
 
 
@@ -2131,7 +2171,7 @@ func set_army_card(uid: String, on: bool) -> bool:
 		return false
 	if on:
 		var a := army()
-		if int(a.sent) >= int(a.entrance) or not resting_cards().any(func(p): return p.uid == uid):
+		if int(a.sent) >= int(a.entrance) or uid == plushie_keeper_uid() or not resting_cards().any(func(p): return p.uid == uid):
 			return false
 		dungeon.cards.append(uid)
 	else:
@@ -2321,7 +2361,7 @@ func _finish_dungeon_run() -> void:
 	var got := Dungeon.run_pay(run)
 	var to := Dungeon.cleared_to(run)
 	var deepest := to > int(dungeon.deep)
-	wisps += got
+	grant_wisps(got)
 	dungeon.deep = maxi(int(dungeon.deep), to)
 	for id in Dungeon.shown_bands(catalog, dungeon):
 		if not id in dungeon.bands:
@@ -2341,6 +2381,267 @@ func _finish_dungeon_run() -> void:
 	check_unlocks()
 	dungeon_changed.emit()
 	adventures_changed.emit()
+# ---- the plushie machine (F1/F2, see Plushie) --------------------------------
+
+## Whether the plushie machine is open (the sewing room's last room brings it, data/unlocks.json).
+func plushie_open() -> bool:
+	return feature_on("plushie")
+
+
+## Pets that can be the keeper, in the order ‹ › goes through them: your active pet, pets with
+## buttons (most first), favourites, then the other cards (rarest first). Not pets away on an
+## adventure or good pulls waiting to be seen.
+func plushie_keepers() -> Array[Pet]:
+	var gone := _out()  # not away on an adventure, not in the dungeon's army
+	var ranked := []
+	for pet in collection.pets:
+		if gone.has(pet.uid) or pet.uid in pinned:
+			continue
+		var kind := 3 if pet.uid == collection.active_uid else (2 if not pet.buttons.is_empty() else (1 if pet.fav else 0))
+		ranked.append([kind, Plushie.total(pet), catalog.rank(pet.rarity) * 10 + catalog.finish_rank(pet.finish), int(pet.uid), pet])
+	ranked.sort_custom(func(a, b):
+		for k in 3:
+			if a[k] != b[k]:
+				return a[k] > b[k]
+		return a[3] < b[3])
+	var out: Array[Pet] = []
+	for r in ranked:
+		out.append(r[4])
+	return out
+
+
+## The keeper: the pet you picked (null while it's away: it can't be sent, but an old save may have
+## it out). Only when there's none yet, or it's gone for good, the first pet on the list becomes the
+## keeper, and whatever the reels held is sewn onto it (no button is ever dropped).
+func plushie_keeper() -> Pet:
+	var uid := str(plushie.keeper)
+	var pet := collection.get_pet(uid) if uid != "" and not Herd.is_stand_in(uid) else null
+	if pet != null:
+		return null if _out().has(uid) else pet
+	var keepers := plushie_keepers()
+	if keepers.is_empty():
+		return null
+	var sewn := Plushie.set_keeper(catalog, plushie, keepers[0])
+	if not sewn.is_empty():
+		_plushie_sewn.call_deferred(keepers[0], sewn)
+		_plushie_saved.call_deferred()
+	return keepers[0]
+
+
+## The keeper's uid while the plushie machine is open ("" otherwise): it stays home, out of
+## adventures and the dungeon's army.
+func plushie_keeper_uid() -> String:
+	return str(plushie.keeper) if plushie_open() else ""
+
+
+## Whether ‹ › can pick another keeper: nothing held, and another pet could be the keeper (a cheap
+## count, not the sorted list).
+func plushie_can_swap() -> bool:
+	if Plushie.anything_held(plushie):
+		return false
+	var n := collection.pets.size() - pinned.size()
+	for uid in _out():
+		if not Herd.is_stand_in(str(uid)):
+			n -= 1
+	return n > 1
+
+
+## The next (d = 1) or previous (d = -1) keeper. Not while any reel holds buttons. Banked reels
+## stay banked for the fed pet (swapping there and back doesn't spin them again).
+func plushie_swap(d: int) -> bool:
+	if Plushie.anything_held(plushie):
+		return false
+	var keepers := plushie_keepers()
+	var now := plushie_keeper()
+	if keepers.is_empty() or (now != null and keepers.size() < 2):
+		return false
+	var i := keepers.find(now) if now != null else (-1 if d > 0 else 0)
+	Plushie.set_keeper(catalog, plushie, keepers[posmod(i + d, keepers.size())])
+	collection.refold()  # the old keeper may fold into the herd now
+	_plushie_saved()
+	return true
+
+
+## Pets from the herd of one rarity that could go into the hopper, and are resting (the + takes one
+## off a job only when none are).
+func plushie_herd(rarity: String) -> int:
+	var n := 0
+	for k in _plushie_keys(rarity):
+		n += collection.herd_count(k)
+	return n
+
+
+func _plushie_keys(rarity: String) -> Array[String]:
+	var out: Array[String] = []
+	for f in catalog.finishes:
+		if Herd.plain(catalog, f.id):
+			out.append(Herd.key(rarity, f.id))
+	return out
+
+
+## One pet from the herd of a rarity goes into the hopper (plain first, then shiny; resting ones
+## first, then off a job). It leaves your collection for good. False when none can.
+func plushie_feed_herd(rarity: String) -> bool:
+	if not plushie_open() or plushie.hopper.size() >= Plushie.hopper_max(catalog):
+		return false
+	var out := _stand_ins_out()
+	var out_of := {}
+	for uid: String in out:
+		Herd.put(out_of, Herd.key_of(uid), 1)
+	var resting := resting_herd()
+	var pick := ""
+	var off_job := false  # the pet comes off an errand or a worker job (none of that count rest)
+	for k in _plushie_keys(rarity):
+		if int(resting.get(k, 0)) > 0:
+			pick = k
+			break
+	if pick == "":
+		for k in _plushie_keys(rarity):
+			if collection.herd_count(k) - int(out_of.get(k, 0)) > 0 and _herd_at_places(k) > 0:
+				pick = k
+				off_job = true
+				break
+	if pick == "":
+		return false
+	var uids := collection.stand_in_uids(pick, 1, out)
+	var pet := collection.get_pet(uids[0]) if not uids.is_empty() else null
+	if pet == null:
+		return false
+	if off_job and _herd_off_places(pick, 1) <= 0:
+		return false
+	var d := pet.to_dict()
+	d.uid = ""
+	collection.remove([uids[0]])
+	Plushie.feed(catalog, plushie, d)
+	_plushie_saved()
+	return true
+
+
+## Cards that can go into the hopper: resting ones, never your active pet, the keeper, favourites,
+## pets with buttons or good pulls waiting to be seen.
+func plushie_cards() -> Array[Pet]:
+	var keeper := str(plushie.keeper)
+	var out: Array[Pet] = []
+	for pet in resting_cards():
+		if _plushie_card_ok(pet, keeper):
+			out.append(pet)
+	return out
+
+
+## Whether any card could go into the hopper (stops at the first one).
+func plushie_has_cards() -> bool:
+	var keeper := str(plushie.keeper)
+	for pet in resting_cards():
+		if _plushie_card_ok(pet, keeper):
+			return true
+	return false
+
+
+func _plushie_card_ok(pet: Pet, keeper: String) -> bool:
+	return not pet.fav and pet.buttons.is_empty() and pet.uid != keeper and not pet.uid in pinned
+
+
+## A card goes into the hopper (it leaves your collection for good). False when it can't.
+func plushie_feed_card(uid: String) -> bool:
+	if not plushie_open() or plushie.hopper.size() >= Plushie.hopper_max(catalog) or not plushie_cards().any(func(p): return p.uid == uid):
+		return false
+	var d := collection.get_pet(uid).to_dict()
+	d.uid = ""
+	collection.remove([uid])
+	Plushie.feed(catalog, plushie, d)
+	_plushie_saved()
+	return true
+
+
+## Pulls the lever: one spin, or the next pet hops in when the fed pet's spins are used up.
+## Returns what happened (see Plushie.spin; next_pet's { sewn, fed } with next = true), {} if nothing.
+func plushie_spin() -> Dictionary:
+	var keeper := plushie_keeper() if plushie_open() else null
+	if keeper == null:
+		return {}
+	var result: Dictionary
+	if Plushie.needs_next(plushie):
+		result = Plushie.next_pet(catalog, plushie, keeper)
+		result.next = true
+	else:
+		result = Plushie.spin(catalog, plushie, keeper, _rng, debug_land)
+		debug_land = {}
+		if result.is_empty():
+			return {}
+		wisps += int(result.wisps)
+	_plushie_sewn(keeper, result.sewn)
+	plushie_spun.emit(result)
+	_plushie_saved()
+	return result
+
+
+## Banks reel i (its held buttons are sewn on). Returns how many.
+func plushie_bank(i: int) -> int:
+	var keeper := plushie_keeper()
+	var got := Plushie.bank(catalog, plushie, keeper, i)
+	if got > 0:
+		var sewn := { Catalog.SLOTS[i]: got }
+		_plushie_sewn(keeper, sewn)
+		plushie_spun.emit({ "sewn": sewn, "banked": i })
+		_plushie_saved()
+	return got
+
+
+## Holds reel i for the next spin (or lets go). False when it can't.
+func plushie_hold(i: int) -> bool:
+	if not Plushie.toggle_hold(catalog, plushie, i):
+		return false
+	_plushie_saved()
+	return true
+
+
+## Nudges reel i down one. Returns what it lands on now ("" when it can't).
+func plushie_nudge(i: int) -> String:
+	var keeper := plushie_keeper()
+	var got := Plushie.nudge(catalog, plushie, keeper, i, _rng) if keeper != null else ""
+	if got != "":
+		plushie_spun.emit({ "nudged": i, "landed": { i: got } })
+		_plushie_saved()
+	return got
+
+
+## What the next nudge, hold or wild reel costs in wisps (-1: can't be bought now).
+func plushie_price(what: String) -> int:
+	return Plushie.price(catalog, plushie, plushie_keeper(), what)
+
+
+## Buys a nudge, a hold or the wild reel with wisps. False when it can't.
+func plushie_buy(what: String) -> bool:
+	var price := plushie_price(what)
+	if not plushie_open() or price < 0 or wisps < price:
+		return false
+	wisps -= price
+	Plushie.buy(catalog, plushie, plushie_keeper(), what)
+	_plushie_saved()
+	return true
+
+
+## Moves the wild reel to the next (1) or previous (-1) part.
+func plushie_wild_step(d: int) -> void:
+	Plushie.wild_step(catalog, plushie, plushie_keeper(), d)
+	_plushie_saved()
+
+
+## Reel i's odds in % for the keeper and the fed pet ({} when that part is full).
+func plushie_odds(i: int) -> Dictionary:
+	return Plushie.odds(catalog, plushie, plushie_keeper(), i)
+
+
+func _plushie_sewn(keeper: Pet, sewn: Dictionary) -> void:
+	if sewn.is_empty() or keeper == null:
+		return
+	collection.pet_changed.emit(keeper)  # its knacks grew
+	if keeper.uid == collection.active_uid:
+		collection.active_changed.emit(keeper)  # everything showing your pet redraws it
+
+
+func _plushie_saved() -> void:
+	plushie_changed.emit()
 	changed.emit()
 	save_game()
 
@@ -2366,10 +2667,11 @@ func _dungeon_first(first: Dictionary) -> void:
 
 # ---- grafting ----------------------------------------------------------------
 
-## Sews a part from the inventory onto your active pet (see Grafting). Returns { ok, old }, or {}.
-func sew_part(slot: String, part_id: String) -> Dictionary:
+## Sews a part from the inventory onto your active pet (see Grafting), with `buttons` buttons on it
+## (a part that came off a pet with buttons). Returns { ok, old }, or {}.
+func sew_part(slot: String, part_id: String, buttons := 0) -> Dictionary:
 	var pet := collection.active()
-	var result := Grafting.sew(pet, slot, part_id, parts, _rng, catalog)
+	var result := Grafting.sew(pet, slot, part_id, parts, _rng, catalog, buttons)
 	if result.is_empty():
 		return result
 	collection.pet_changed.emit(pet)
@@ -2455,14 +2757,16 @@ func away() -> Dictionary:
 	return out
 
 
-## Pets that can be sent: not your active pet, not already away or in the dungeon's army. Pets on errands can: going
-## on an adventure takes them off their errand. From each count in the herd, up to
-## data/herd.json "stand_ins" stand-ins (they come home into the count, or leave it).
+## Pets that can be sent: not your active pet or the plushie machine's keeper, and not already
+## away or in the dungeon's army. Pets on errands can: going on an adventure takes them off their
+## errand. From each count in the herd, up to data/herd.json "stand_ins" stand-ins (they come home
+## into the count, or leave it).
 func sendable_pets() -> Array[Pet]:
 	var gone := _out()
+	var keeper := plushie_keeper_uid()  # the plushie machine's keeper stays home
 	var out: Array[Pet] = []
 	for pet in collection.pets:
-		if pet.uid != collection.active_uid and not gone.has(pet.uid):
+		if pet.uid != collection.active_uid and pet.uid != keeper and not gone.has(pet.uid):
 			out.append(pet)
 	out.append_array(_sendable_stand_ins(gone))
 	return out
@@ -2712,11 +3016,22 @@ func grant(loot: Dictionary, boosted := true) -> void:
 				finds[rest] = true
 			"bit":
 				bits[rest] = int(bits.get(rest, 0)) + amount
+			"wisps":
+				wisps += maxi(0, amount)
 			"rumour":
 				_hear_rumours(amount)
 			_:
 				items[key] = int(items.get(key, 0)) + amount
 	check_unlocks()
+	changed.emit()
+
+
+## Gives wisps, the darker currency (the dungeon's cleared floors, plushie machine misses).
+## grant({ "wisps": n }) does the same.
+func grant_wisps(n: int) -> void:
+	if n <= 0:
+		return
+	wisps += n
 	changed.emit()
 
 
@@ -3302,6 +3617,7 @@ func save_game() -> void:
 		"machine": machine,
 		"toys": toys,
 		"bits": bits,
+		"plushie": plushie,
 		"started_at": started_at,
 		"milestones": milestones,
 		"idle_log": idle_log,
@@ -3338,9 +3654,8 @@ func load_game() -> bool:
 	parts.clear()
 	var saved_parts: Dictionary = data.get("parts", {})
 	for key in saved_parts:
-		var bits: PackedStringArray = str(key).split(":")
-		if bits.size() == 2 and bits[0] in Catalog.SLOTS and not catalog.part(bits[0], bits[1]).is_empty():
-			parts[key] = int(saved_parts[key])
+		if Grafting.valid_key(str(key), catalog) and int(saved_parts[key]) > 0:  # "slot:id", or "slot:id@n" with buttons (v25)
+			parts[str(key)] = int(saved_parts[key])
 	items.clear()
 	var saved_items: Dictionary = data.get("items", {})
 	for key in saved_items:
@@ -3379,7 +3694,7 @@ func load_game() -> bool:
 			runs.append(run)
 
 	# the dungeon before the jobs: its army's pets aren't on errands
-	wisps = maxi(0, int(data.get("wisps", 0)))  # v24 added the dungeon
+	wisps = maxi(0, int(data.get("wisps", 0)))  # v24 added the dungeon (it pays them), v25 the plushie machine (it spends them)
 	dungeon = Dungeon.clean(catalog, data.get("dungeon", {}))
 	var trips := away()
 	dungeon.cards = dungeon.cards.filter(func(uid): return collection.get_pet(uid) != null and uid != collection.active_uid \
@@ -3446,6 +3761,7 @@ func load_game() -> bool:
 	var saved_bits: Dictionary = data.get("bits", {})
 	for b in saved_bits:
 		bits[str(b)] = maxi(0, int(saved_bits[b]))
+	plushie = Plushie.clean(data.get("plushie", {}), catalog)
 	started_at = float(data.get("started_at", 0.0))
 	milestones = data.get("milestones", {})
 	toys = Toys.fresh()
@@ -3628,6 +3944,8 @@ func _migrate(data: Dictionary) -> Dictionary:
 	# v23: the herd. Collection.load_from reads the old collection (stars as [uid, palette], the first
 	# pet with each part marked), and load_game folds plain pets into counts once everything that
 	# keeps pets busy has loaded: old crews and workers of uids turn into counts by themselves.
+	# v25: the plushie machine (its state, wisps, buttons on pets, bag keys "slot:id@n"); older saves
+	# have none of it and load an empty machine
 	if version < 7:
 		# v7: dungeon places open one rumour at a time; saves that had the dungeons keep them all
 		var had: Array = data.get("unlocks", [])

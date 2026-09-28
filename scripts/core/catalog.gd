@@ -39,6 +39,7 @@ var herd := {}  # plain pets folded into counts, the room cap, see data/herd.jso
 var boosts := {}  # boost kinds and their sources, see data/boosts.json and Boosts
 var knacks := {}  # every part's named knack, see data/knacks.json and Knacks
 var dungeon := {}  # the old well, all the way down, see data/dungeon.json and Dungeon
+var plushie := {}  # the plushie machine: spins, odds, wisps, the shop, see data/plushie.json and Plushie
 var encounter_art := {}  # event id -> its pixel art on the trail, see data/encounter_art.json
 var tier_overrides := {}  # tier id -> Color, set by the player's colour theme (see UiTheme.apply)
 
@@ -108,6 +109,7 @@ func _init() -> void:
 	boosts = _load("boosts.json")
 	knacks = _load("knacks.json")
 	dungeon = _load("dungeon.json")
+	plushie = _load("plushie.json")
 	_rummage_by_id = _index(rummage_spots)
 
 

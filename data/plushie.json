@@ -1,0 +1,27 @@
+{
+	"_note": "The plushie machine (F1/F2, Plushie, the workbench's third page). Every number is a placeholder from the mockup (design/mockups/screens/sacrifice-reels.html look A). You pick a keeper and feed pets into the hopper; the best one in the hopper hops in. spins: how many spins a fed pet gives, by its rarity. nudges: how many nudges its finish adds to the pool. One reel per part: each spin lands on a button, a blank or a crack. button / crack: the chance in % of landing a button / a crack, by how many buttons that part has already (0, 1, 2, 3, 4; a part with max_buttons is full and doesn't spin); blank is the rest. crack_min: a crack never gets rarer than this (lucky pets). puff: wisps a miss puffs out, by the fed pet's rarity; crack_puff: a crack puffs this many times as much; perfection: every button the keeper has makes misses puff this much more (x 1 + perfection x buttons). knack_per_button: each button on a part makes that part's knack this much bigger (x 1 + knack_per_button x buttons). holds: reels you can hold at once, before buying more. hopper_max: pets waiting in the hopper at most. shop: what wisps buy (nudge and hold: the first costs wisps, each next one grow times as much; wild: the wild 6th reel for one fed pet costs wisps x (the fed pet's rarity step + 1); max: no price goes past this). traits: how a fed pet's traits tilt its reels (button / crack: + that many % points, spins: + that many spins, wisps: misses puff that many times as much).",
+	"spins": { "common": 1, "uncommon": 2, "rare": 3, "epic": 4, "legendary": 5, "mythic": 6 },
+	"nudges": { "normal": 0, "shiny": 1, "holo": 2, "ghost": 3, "glitch": 4, "prismatic": 5 },
+	"button": [34, 26, 18, 11, 5],
+	"crack": [8, 11, 15, 19, 24],
+	"crack_min": 2,
+	"puff": { "common": 1, "uncommon": 4, "rare": 12, "epic": 40, "legendary": 300, "mythic": 10000 },
+	"crack_puff": 2,
+	"perfection": 0.1,
+	"max_buttons": 5,
+	"knack_per_button": 0.5,
+	"holds": 2,
+	"hopper_max": 50,
+	"shop": {
+		"nudge": { "wisps": 60, "grow": 1.3 },
+		"hold": { "wisps": 400, "grow": 2.5 },
+		"wild": { "wisps": 250 },
+		"max": 4000000000000000000
+	},
+	"traits": {
+		"lucky": { "crack": -3 },
+		"curious": { "button": 2 },
+		"greedy": { "wisps": 1.5 },
+		"zoomy": { "spins": 1 }
+	}
+}

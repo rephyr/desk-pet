@@ -1,60 +1,86 @@
-# MERGE: B2 boost plumbing + D1 knacks into the C1 (herd) branch
+# MERGE: lanes/plushie + lanes/c1-c3 into the sewing lane (E1 dungeon)
 
-`git merge lanes/b2-d1` in this worktree (lanes/dungeon). Both branches fork at dde1560.
-play.py is the same commit on both sides (no conflict). A trial `git merge-tree` shows 6 files
-with conflicts; the rest (docs, adventures/automation/errands/machine tabs, fits.flow) auto-merge.
+Goal: one branch with the E1 dungeon, the F1 plushie machine and C3 new homes + the sorting rule,
+all working together, so E3 can open the plushie machine and add keep lines. No new features.
 
-## Save
-- C1 is at SAVE_VERSION 23 (herd counts, wherd, room). B2 and D1 made no save change (a run's
-  optional `knacks` field, old runs x1). So: keep 23 and C1's v22 -> v23 migration; nothing to
-  chain. Noted in docs/plans/MERGE-done.md for the renumbering later.
+## Order
 
-## Conflicts and how each is resolved (keep both sides)
-- `scripts/core/catalog.gd`: keep `herd` AND `boosts` + `knacks` (vars and `_load` lines).
-- `scripts/dev/dev_driver.gd`: keep both help blocks and both match arms (herd, room, fill-room,
-  fav, shelf, give-box + boosts, dress).
-- `tests/test_core.gd`: call `_test_herd`, `_test_herd_game` and `_test_knacks`.
-- `scripts/game_state.gd`:
-  - signals: keep `room_full` and `knacks_changed`.
-  - `job_rate`: C1's `size` (cards + herd) with B2's `* boost("errands")`; the herd sum uses
-    `_pet_speed(Herd.template(...), job)`.
-  - `put_on_job` / take-off: keep C1's `_pick` version, but its speed lambdas (2 places) use D1's
-    `_pet_speed` (own errand knacks) instead of `Jobs.pet_speed`.
-  - `workers_speed`: cards `* knack_own(pet, "automation")`; herd counts as C1 has them.
-  - Rule picked for counts: a herd count works at its template's speed with NO knack share (a
-    template has no look, just default parts). `knack_own` returns 1.0 for a pet with no uid
-    (templates) so the per-uid cache can't mix templates up. Stand-ins (whole pets with rolled
-    parts, e.g. on adventures) do count their knacks through `trip_knacks`. -> question below.
-  - After the merge: grep that no `toy_boost` is left (D1 removed it; C1's calls auto-merge to
-    `boost()`), and that D1's `_knacks_changed()` calls landed in C1's load/new-game paths.
-- `scripts/ui/pet_details.gd`: doc comment names both (knack badges + the heart); keep D1's
-  badges + knack card AND C1's fav + make-active button row.
-- `scripts/ui/collection_tab.gd` (the real one): C1 replaced the grid with bookcase + shelves, so
-  D1's grid code (_filtered, _select, _sorted, grid padding, PetCard(knack=true)) is dropped. Kept
-  from D1: `_knacks_seen` + `_knacks_key()`, set in `_rebuild()`, and `knacks_changed` ->
-  `_mark_dirty()` when the key changed (an open shelf rebuilds and its details redraw badges).
-  C1's new_game (close_shelf) and room_full hooks stay; D1's pets_removed hook is dropped (C1
-  already has one).
+1. `git merge --no-ff lanes/plushie` (1 commit, same base 09c7f0a as us)
+2. tests + balance, commit the merge
+3. `git merge --no-ff lanes/c1-c3` (5 commits, older base 099ceb2: it has no knacks, no toy boosts)
+4. tests + balance + flows, fix, commit
 
-## UI sketch (knacks on the shelves)
-- Details (right of an open shelf): badges row + knack card under the tags, fav + make active
-  below, as both sides had it. Must fit 920x600; if not, the knack card gets tighter.
-- The grid's "best knack on the card corner" moves to MiniCard: `MiniCard.new(pet, w, knack)`
-  draws the best knack's badge (~20 px) on the BOTTOM-right corner (top-left = moon/new!,
-  top-right = heart are taken). Only in an opened shelf (ShelfView), not on the cushion. Shelf
-  flow gets a little bottom margin so the last row's badges don't clip.
+## Save chain (every lane bumped 23 -> 24)
 
-## Flows / tests
-- `tests/flows/knacks.flow`: PetCard clicks -> open the shelf from the cushion
-  (`click MiniCard#1`, your active pet), then `click MiniCard#2` for "other pet".
-- `tests/flows/fits.flow`: D1's `click PetCard#1..3` -> `click MiniCard#1..3` (a shelf is open there).
-- Run: test_core, balance, flows fits, tutorial, pets_shelves, long_pet (C1), knacks, toys (D1),
-  plus errands_crowd, workers, automation (boost + herd both touch these). Check shots of knacks
-  (badges on shelf cards + details) and pets_shelves.
-- Then commit the merge ("merge boosts and knacks into the herd"), write docs/plans/MERGE-done.md
-  (what was resolved, save note, doc text for dev plan / CLAUDE.md).
+| version | what | code |
+|---|---|---|
+| v24 | E1 dungeon (ours): well line becomes bands, rumours/parties moved | `migrate` `if version < 24` stays |
+| v25 | F1 plushie: machine state, wisps, pet `buttons`, bag keys `slot:id@n` | comment only (old saves load an empty machine); comments in game_state/pet.gd say v25 |
+| v26 | C3 new homes: `new_homes`, per-job `join` from `jobs_auto`, full room opens the stall | load_game `from_version < 24` -> `< 26` (both places) |
 
-## Questions for Emilia
-- Herd counts have no looks: should their knacks count (e.g. an average share per rarity), or
-  stay x1 as picked here? Cards and stand-ins count theirs.
-- Best-knack badge on the cushion cards too, or only on an opened shelf (picked: shelf only)?
+SAVE_VERSION = 26. `wisps` is ONE field (both lanes added it for the same currency): the dungeon
+pays it, the plushie machine spends it. A v24 save from any lane loads (they only ever lived in
+test profiles; main is also at 24, the final merge renumbers again). Written up in MERGE-done.md.
+
+## Plushie merge: conflicts, keep both
+
+- data/themes.json `wisp`: both added the same colour with tiny differences: keep ours.
+- data/unlocks.json: note text gets both `floor` and `button_gift`/`given_by`; unlocks dungeon,
+  lead_army AND plushie; finds deep_rope, little_key AND plushie_machine.
+- catalog.gd: `dungeon` and `plushie`. ui_theme.gd: one WISP line, one comment.
+- game_state.gd: both signals; unlock apply does `learns` and `button_gift`; dungeon section and
+  plushie section both in; `_dungeon_first` kept.
+- dev_driver.gd: both sets of steps (dungeon steps + plushie steps).
+- tests: both test calls; feature list gets dungeon, lead_army, plushie; the "some event gives this
+  find" check accepts machine OR dungeon floor OR `given_by`; knack test keeps the dungeon gate and
+  the buttons check.
+
+Cross-feature fixes (a pet is only in one place):
+- `sendable_pets`: `_out()` (away + army) AND not the keeper.
+- `_busy_uids`: `_out()` + pinned + party leaders + the keeper.
+- `plushie_keepers`: `_out()` instead of `away()` (army pets can't be the keeper).
+- `army_choices` / `army_best`: never the keeper.
+- Check `army_power_of` goes through the knack path that counts buttons (a buttoned pet is
+  stronger down the well). Dungeon wisp payout uses `grant_wisps`.
+
+## c1-c3 merge: conflicts, keep both
+
+- `jobs_auto` is gone (C3: "new pets join here" per job). Active pet swap keeps our "your active
+  pet leads the army, it isn't in it" AND C3's `_place_new`.
+- `_pick` for workers: C3's `_add_workers` refactor, keeping our `* knack_own(p, "automation")`.
+- unlock earn: `floor` AND `room` / `homes_by_hand`; unlocks dungeon, lead_army, plushie, new_homes,
+  sorting.
+- collection.gd: our `lose_plain` (army losses) AND C3's `leave` (new homes); both write `fallen`
+  / `fallen_n`. `always_card` = plushie's (buttons) with C3's `_is_plain`.
+- automation_tab: both refresh key parts; box job keeps C3's pile text, army job kept.
+- collection_tab: both `_knacks_seen` and `_homes_key`. night_sky: both redraw hooks.
+- ui_theme icons: knack badges AND `new_part`. catalog: `new_homes` too. Signals: all.
+- docs/architecture.md: both sections.
+- tests + dev_driver: union.
+
+Cross-feature fixes:
+- New homes never take army pets: `homes_pick` busy set includes the army cards and the keeper;
+  its "working" herd count also subtracts the army's herd (`_resting()` army_herd), so the stall
+  can't pull pets off the rope.
+- Hopper, army and stall all read `resting_cards()`: check none of them can grab the same pet.
+- Pets with buttons are cards and never folded; the sorting rule only sees new pets from boxes, so
+  buttons are safe. (E3 adds keep lines.)
+
+## Checks
+
+- `tests/test_core.gd`, `tools/balance.gd` (profile test-sewing)
+- flows: fits, tutorial, dungeon, knacks, plushie, new_homes, pets_shelves, errands, automation,
+  workers (the jobs_auto change touches these)
+- new tests: a v23 save loads at 26 (dungeon bands, empty plushie, jobs_auto -> join); the keeper
+  is never sendable, never in the army; `homes_pick` never counts army herd or army cards.
+- look at shots of the workbench (plushie), adventures (dungeon), shelves stall.
+
+## Done-notes
+
+docs/plans/MERGE-done.md: save chain table, the cross-feature rules above, text for design.md /
+architecture.md / dev plan / CLAUDE.md.
+
+## Questions for Emilia (smallest safe pick in brackets)
+
+- Can the plushie keeper also go down the well in the army? [no: one place at a time]
+- Wisp colour: two nearly equal values [kept the dungeon lane's]
