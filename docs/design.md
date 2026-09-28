@@ -232,7 +232,8 @@ economy: currency, body parts, and rewards for mechanics not designed yet. Rewar
   friends can get hurt. (Coins grow with each pet, finds with the square root of the party.)
 - **The trail** (**Decided**): one pet or a small party can be watched walking the path. Things to
   grab turn up (coins, xp, a healing leaf, now and then a part). No click-spamming: "toss a
-  treat" makes the pets zoom (3x speed for 8 s), then it takes 15 s to be ready again.
+  treat" makes the pets zoom (3x speed for 8 s), then it takes 15 s to be ready again (the treat
+  pouch, see Gear, makes both better).
 - **Discovery:** pets spot neighbouring places on the way home; exploration trips (the far
   fields) bring back rumours, word of places further off (the orchard, the well and below). A
   rumour shows on the map; tapping it and saying yes opens the place. The pet explains this the
@@ -340,8 +341,24 @@ All opt-in, with odds shown before confirming:
 
 ## Gear
 
-- Bought or gambled (boxes), also found on adventures.
-- Equipped on pets for adventures. **Open:** slots, and whether gear can be crafted.
+- **Built (A2):** gear = upgrades to adventuring itself, bought with **xp** (the first thing xp
+  buys), on an **upgrades** page inside the adventures tab (adventures | upgrades, the switch shows
+  with the first xp). A crayon road snakes through gear stickers in path order; buying one can
+  bring the next onto the road (nothing unearned is drawn). Effects show as numbers, like the
+  errands pegboard. data/gear.json, `Gear`:
+  - comfy boots (trips 8% shorter a level, 5), a tote bag (+15% trip coins, 4), a treat pouch
+    (a treat every 13/11/9 s, zoom 9/10/11 s), sticky paws (trail finds +20% and streaks up to
+    x1.75/2/2.25), sharper eyes (each bit rolls again at 15% a level; once parts are open, trail
+    parts x1.5/2/2.5);
+  - once the meadow is open: a lucky charm (+4% a level on options whose failure hurts or loses,
+    under the 95% cap; the pet's words shift by themselves, no odds on the trail; gear owns luck
+    on risky choices, toys don't), a first-aid leaf (a pet hurt again stays hurt instead of lost:
+    one save a trip a level for a solo pet, parties 10% a level for each such pet);
+  - with the wheelbarrow (parties of 5): a comfy harness (hurt and lost x 1 - 10% a level).
+- Gear is packed when a trip sets off (yours, your pet's and the workers' parties), never in
+  dungeons (losses are the cost there). Prices 25-120 xp at x1.6 a level are placeholders until
+  the pacing sim (A1).
+- Later, maybe: gear bought or gambled (boxes), found on adventures, equipped on pets.
 
 ## Economy (first numbers, to be tuned)
 

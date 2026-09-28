@@ -43,8 +43,10 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   room), `MachineTab` (the capsule machine: `MachineStage` draws it and runs the lever, `Machine` in
   scripts/machine has its rules, `GameState.pull_lever()` pays out; a pet box out of a capsule is opened right there with a
   `PackOpening`), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
-  `CollectionTab` (pets grid + `PetDetails`, and the `BookView`), `AdventuresTab` (`MapView`,
-  the place card, trip cards, and `TrailView` for watching a trip), `ErrandsTab` (jobs: the corkboard; upgrades:
+  `CollectionTab` (pets grid + `PetDetails`, and the `BookView`), `AdventuresTab` (adventures:
+  `MapView`, the place card, trip cards, and `TrailView` for watching a trip; upgrades: `GearView`,
+  gear bought with xp, rules in `Gear`, levels in `GameState.gear`, packed onto each trip as
+  `RunState.gear`), `ErrandsTab` (jobs: the corkboard; upgrades:
   `ErrandToolsView`, the pegboard of tools bought with coins; rules in `Jobs`, levels in
   `GameState.errand_tools`), `AutomationTab` (a card per job your pet can do, `JobScene` draws each one; rules in
   `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:
@@ -89,6 +91,8 @@ for `feature:parts`). Save v20 re-gates saves from v15-v19: whatever `data/unloc
 closes again unless something earned opens it (`UnlockRules.stale`); places stay open, older
 saves (and the test saves) keep what their migrations gave them. Save v21 moves your pet opening boxes
 into automation: a save with the cushion gets the automation tab and the boxes job (doing it if it was on).
+Save v22 adds `gear` (older saves start with none; loading drops unknown gear and clamps levels);
+runs save the gear they packed and the leaf's saves (`RunState.gear`, `saves_used`).
 
 ## Testing
 

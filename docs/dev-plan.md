@@ -59,7 +59,7 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   prices for data/automation.json.
 - **Done when:** a report Emilia can read, with suggested numbers (not applied until she says).
 
-### A2. Gear: xp upgrades  (DECIDED 2026-09-28, ready)
+### A2. Gear: xp upgrades  (BUILT 2026-09-28)
 - **Emilia:** an "upgrades" page INSIDE the adventures tab (adventures | upgrades, like machine |
   upgrades), not its own tab. Look: gear.html's crayon path of gear stickers, words not numbers.
   Opens with the first xp. First upgrades: **walk speed** (shorter trips), **bigger bags** (more
@@ -89,6 +89,19 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   work), a bigger basket (→ sticky paws), a bit pouch (→ sharper eyes).
 - **Build:** data/gear.json, a pure Gear rules class, GameState xp spending, a GearView page in
   AdventuresTab, flow.
+- **Built (2026-09-28, plan in docs/plans/A2.md):** data/gear.json (8 upgrades, base values,
+  prices = xp x 1.6^level), `Gear` (scripts/adventure/gear.gd), `GameState.gear` (save v22 field
+  "gear"; buy_gear / gear_block / gear_price / shown_gear / gear_page_open), `RunState.gear` (the
+  levels a trip packs when it sets off, `Gear.for_trip`: never in dungeons) and `RunState.saves_used`
+  (the leaf), `GearView` (the crayon road of stickers + card) behind an adventures | upgrades
+  switch that shows with the first xp. Effects: boots in `AdventureRunner.gap` (`run_gap`), charm in
+  `success_chance` (risky options, not at safe places), harness + leaf in `play` / `Party.hurt`,
+  eyes in `_finish_treat` and the trail's part weight, tote in `_boost_trip_loot`, pouch in
+  `treat_every` / `treat_zoom`, paws in `trail_pickup` / `streak_max`. Dev steps `xp <n>`,
+  `gear <id> [levels]`, `page <tab> <n>`, `place <id>`; flow gear; tests `_test_gear`.
+  **Open questions for Emilia:** see docs/plans/A2.md (leaf only saves from "hurt"; harness shows
+  with the wheelbarrow; gear packed at set-off; the charm's card shows +4%; prices placeholders
+  until A1).
 
 ### A3. More errand jobs  (DECIDED 2026-09-28, ready)
 - **Emilia picked:** savings jar (fills slowly, pays one big chunk), kitchen (brings nothing,
@@ -280,7 +293,8 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
 
 - **X1. Navigation space:** the spine fits about 8 tabs + settings; it's full now (automation made
   it 8). The next tab (gear) needs a plan: group tabs, a second column, or tabs that live inside
-  others (e.g. gear inside adventures). **Prep:** mockup before A2.
+  others (e.g. gear inside adventures). **Done for A2:** gear lives inside adventures (adventures |
+  upgrades), no new tab.
 - **X2. GameState is big (~2400 lines):** split into parts (machine, errands, automation, runs)
   when a step touches it anyway.
 - **X3. Tuning numbers in data/**, not code (some still in game_state.gd).
