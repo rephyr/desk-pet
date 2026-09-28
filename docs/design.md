@@ -201,6 +201,8 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   spaced out: boxes after 4 trips, toys after 10 (data/unlocks.json "trips"), plus the finds as
   before. The machine only gives what's open (no boxes before the boxes tab, no toys before toys).
   Settings' dev part shows when each thing opened, in minutes, for pacing tests.
+  The whole early game is paced with tools/pace.gd (a pretend player on the real rules; findings and
+  suggested numbers in docs/reports/pace.md).
   Mockup: design/mockups/screens/capsules.html. **Next:** rummaging changes to finding machine bits;
   pull value grows with the rest of your income; new globes per map page; rewards get tuned.
 

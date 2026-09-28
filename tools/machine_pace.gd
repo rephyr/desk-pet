@@ -6,6 +6,7 @@ extends SceneTree
 ## BIT_EVERY seconds, the kind the player needs most (they pick where to go by it).
 ## Prints the minute each node is bought, averaged over RUNS players.
 ##   godot --headless -s tools/machine_pace.gd
+## (A quick tree-only check. tools/pace.gd plays the whole early game with the real GameState.)
 
 const LEVER_SECONDS := 0.9
 const BIT_EVERY := 150.0
