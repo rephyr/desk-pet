@@ -132,9 +132,36 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   faster", `Jobs.faster_words`, never "0% faster"), and sending a trip skips the "anything left to
   find?" look for auto parties (`GameState._place_known`).
 
-### A4. Book page rewards  (DECIDED 2026-09-28, ready: mockup design/mockups/screens/book.html)
+### A4. Book page rewards  (BUILT + VERIFIED 2026-09-28, mockup design/mockups/screens/book.html)
 - Filling a collection book page opens its reward sticker: a **small permanent boost** (the book
   becomes a multiplier source). Kinds: **coins %, luck, automation speed, errands**.
+- **Emilia (2026-09-28, evening): the kinds above win over book.html's stickers** (the mockup's
+  rest faster / shinies / trail grabs / spotting / bag room / finishes are OLD). Spread the 4 kinds
+  over the 6 pages (bodies, palettes, patterns, eyes, accessories, finishes; a kind may repeat).
+  Keep book.html's sticker look and object names where they fit, but never "sticky paws" (that's
+  a gear upgrade now). **Boosts from different sources multiply** (toys x1.25 x book x1.10 =
+  x1.375), like toys already stack.
+- **Built (2026-09-28, plan in docs/plans/A4.md):** data/book.json (`words` per kind with `{p}`,
+  6 `pages` of `{id, slot | finishes_of, name, kind, x}`: bodies a cozy blanket automation,
+  palettes a paint set coins, patterns a roll of washi tape errands, eyes a magnifying glass luck,
+  accessories a little wardrobe errands, blob finishes a glitter jar coins; all x1.10,
+  placeholders). `Book` (scripts/pets/book.gd, pure rules), `GameState.stickers` (save v24, kept
+  for good even when a page gains parts later) / `check_book()` (on pets_added and after load:
+  old saves open already-full pages with their popups) / `sticker_opened` / `boost(kind)` =
+  toy_boost x `book_x(kind)`. Coins + luck: every `toy_boost` call site for them is `boost` now
+  (grant, errands pay, machine, workers' machine, trip loot, UI lines). Errands: `job_rate`'s
+  speed x book errands (offline too). Automation: your pet's crank (`Automation.crank(..., x)`),
+  `workers_speed`, box opening out of sight; not auto adventures. Book: the reward tile ends each
+  sticker page (dashed gift spot with no words, then the gold sticker tilted 2 degrees), popup "<page> page
+  full!" with "show me" (opens that spread) / "lovely". Dev steps `book <page> [left]` and
+  `stickers off` (big `pets` steps fill random pages: errands_crowd, errand_jobs, workers, fits use it); flow book;
+  tests `_test_book`.
+  **Open questions for Emilia:** see docs/plans/A4.md (only blob's finishes page has a sticker;
+  kinds per page and +10% each; washi tape name; what errands / automation cover; the dropped "fill
+  the page for a surprise" line; numbers instead of words; old saves get their popups on load).
+- **Verified (2026-09-28):** tests + flow book pass (every spread `expect fits`), and the flows
+  whose big `pets` steps now fill pages (errand_jobs, errands_crowd, workers, fits) pass with
+  `stickers off` / closing the popup.
 
 ### A5. The machine's later ideas  (needs prep)
 - Rummaging → machine bits, pull value grows with income, a globe per map page, "better drops"

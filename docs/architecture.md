@@ -30,6 +30,11 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   roll. So the odds shown on a box are exactly what you get (checked by `tests/test_core.gd`).
 - `Collection` owns the pets, the active pet and the book counts (`part:<slot>:<id>`,
   `finish:<body>:<finish>`).
+- `Book` (scripts/pets/book.gd, pure rules, data/book.json) says which book page is full and what
+  its reward sticker multiplies. `GameState.stickers` keeps the opened ones for good,
+  `check_book()` opens new ones (`sticker_opened`, shown by `UnlockPopup`), and
+  `GameState.boost(kind)` = `toy_boost(kind)` x `book_x(kind)` is what coins and luck read;
+  errands speed (`job_rate`) and automation (crank, workers, boxes out of sight) take `book_x` too.
 - `PetLook` is the placeholder art (pixel maps in code). Real art replaces `PetLook` only;
   `PetView` (draws a pet, blinking, squash, finish shader) and everything above stay the same.
 - Finish effects are one shader, `shaders/finish.gdshader`; `finishes.json` picks the mode.
@@ -97,6 +102,8 @@ Save v22 adds `gear` (older saves start with none; loading drops unknown gear an
 runs save the gear they packed and the leaf's saves (`RunState.gear`, `saves_used`).
 Save v23 adds `scout_notes` (older saves start with 0); runs save the scout note they took
 (`RunState.scout`). The new jobs' crews and tool levels ride in the existing `jobs` / `errand_tools`.
+Save v24 adds `stickers` (book page ids; older saves start with none and get the stickers of
+already-full pages, with their popups, right after loading).
 
 ## Testing
 

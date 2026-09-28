@@ -129,7 +129,11 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
 - Tracks every part discovered, and every finish seen for each body.
 - Shows how many of each you've pulled, with undiscovered entries as silhouettes.
 - Owned pets: the list of pets you have, sortable by rarity, finish and stats.
-- **Open:** completion rewards (per page, per body, per finish set).
+- **Page rewards** (built, data/book.json): each part page and the first finishes page ends with
+  a gift spot; filling the page opens its reward sticker for good, a small permanent boost (coins,
+  luck, automation speed or errands speed, +10% each for now). Stickers multiply with each other
+  and with toys (toys x1.25 x book x1.10 = x1.375). **Open:** stickers for the other bodies'
+  finishes pages.
 
 ## Care (active side)
 
