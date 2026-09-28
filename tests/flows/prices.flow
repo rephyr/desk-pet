@@ -1,10 +1,12 @@
 # Boxes and errand tools are priced in capsules: their coin prices grow with the machine.
 from rich
 view full
+tiers all                   # every box tier on the counter
 tab boxes
 wait 1
-expect text "50 coins"      # one starter box, a capsule worth 1 coin
-expect text "250 coins"     # one lucky box
+expect text "50 coins"      # one sunny box, a capsule worth 1 coin
+expect text "400 coins"     # one sunset box
+expect text "3,200"         # one midnight box (its chip)
 expect fits
 shot boxes_start
 fix tape                    # capsules x2: boxes x2
@@ -12,8 +14,9 @@ tab home
 tab boxes
 wait 1
 expect text "100 coins"
-expect text "500 coins"
-click "10"
+expect text "800 coins"
+expect text "6,400"
+click name:amount_starter_10
 wait 1
 expect text "1,000 coins"
 expect fits
@@ -39,7 +42,7 @@ expect fits
 shot pegboard_big
 tab boxes
 wait 1
-click "50"
+click name:amount_starter_50
 wait 1
 expect text "need*"
 expect fits

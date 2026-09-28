@@ -170,13 +170,21 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
 
 ## Phase B: stage 2, coins get semi-automated → chase packs and a rare pet
 
-### B1. Pack tiers per map page  (DECIDED 2026-09-28; needs a shop mockup pick)
+### B1. Pack tiers per map page  (VERIFIED 2026-09-28, merged)
 - **Decided:** ~x5-10 cost per tier; a new tier appears in the shop when its **map page opens**
   (backyard tier 1, beyond the fence tier 2, zone 3 tier 3). A higher tier has ALL of: better
   rarity odds, more pets per box (2-3), gated finishes (some only from a tier up), gated parts
   (some body parts/palettes only exist from a tier up: new looks to collect).
 - **Prep:** shop mockup (2-3 looks); tier names.
 - **Build:** data/boxes.json tiers, gating in PetRoller, the boxes tab shelf, balance numbers.
+- **Built:** sunny / sunset / midnight boxes (data/boxes.json: page, stamp, pets, arrives; priced in
+  capsules 50 / 400 / 3200 through GameState.box_price), gated finishes and new looks (parts.json
+  `from`), lucky box retired (BoxShop.fix_retired on every load: lucky -> sunset; save v26 adds
+  boxes_bought + boxes_greeted), look C shop (counter row per tier with stamp, new looks stickers,
+  inside shapes; stash pile per tier; a switch per tier on the job card), a tier pops in once with a
+  sparkle + "new!" until bought, one box with 2-3 pets = ritual for the best + "also inside",
+  workers count boxes. Midnight waits for the next-door page (E2). Flow box_tiers. Questions for
+  Emilia in docs/plans/B1-done.md.
 
 ### B2. Multipliers  (partly decided)
 - Book page boosts (A4, decided), knacks from the active pet's parts (D1, decided: knacks),
@@ -368,6 +376,12 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   prices unchanged (tools match the old coins at a capsule worth 75, boxes at 1); later they keep
   up with the pay. Your pet's box reserve is in capsules too (boxes.json "reserve", save v25
   reserve_capsules). Flow: prices. Questions for Emilia in docs/plans/PRICES-done.md.
+- **Small picks (done, lane b1):** the pet's possessive slips cut (unlocks beyond line, voice
+  trail_part_kept, the scaredy rumour); the capsule machine shows its odds (a "prizes" tag in the
+  stage corner flips into the odds card, Machine.odds / GameState.machine_odds with every boost the
+  roll uses, flow machine_odds); fever stays a burst (machine.json fever_burst 0.8 of the relight
+  time caps it, base 8 s, +1 s a level of longer fever, 11 s max; counts in pulls). See
+  docs/plans/SMALL-done.md.
 
 ---
 

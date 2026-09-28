@@ -21,14 +21,19 @@ static func texture(art: Dictionary, width: int, ripped := false) -> ImageTextur
 	var bottom := ""
 	for x in range(4, 96, 6):
 		bottom += " L%d 120 L%d 124" % [x + 3, x + 6]
+	# 1-3 little stars printed on the front, one more per tier (data/boxes.json art "stars")
+	var stars := ""
+	var n := int(art.get("stars", 0))
+	for i in n:
+		stars += '<path transform="translate(%.1f 37) scale(.55)" d="M0 -9 L2.6 -2.8 L9 -2.6 L4 1.6 L5.6 8 L0 4.4 L-5.6 8 L-4 1.6 L-9 -2.6 L-2.6 -2.8 Z" fill="%s" stroke="%s" stroke-width="2" stroke-linejoin="round"/>' % [50.0 + (i - (n - 1) / 2.0) * 13.0, light, dark]
 	var strip := "" if ripped else '<path d="M4 6%s L96 22 L4 22 Z" fill="%s"/><path d="M8 22 L92 22" stroke="%s" stroke-width="2" stroke-dasharray="3 4" stroke-linecap="round"/>' % [top, dark, light]
 	var svg := '''<svg xmlns="http://www.w3.org/2000/svg" width="100" height="130" viewBox="0 0 100 130">%s
 		<path d="M4 24 Q3 70 5 118 L4 124%s L95 118 Q97 70 96 24 Z" fill="%s" stroke="%s" stroke-width="3" stroke-linejoin="round"/>
 		<path d="M18 30 L34 30 L14 104 L6 104 Z" fill="%s" opacity=".35"/>
 		<g transform="translate(50 72)"><circle r="21" fill="%s" stroke="%s" stroke-width="2.5"/>
 		<path d="M0 11 Q-13 2 -12 -5 Q-10 -12 -4 -10 Q-1 -9 0 -5 Q1 -9 4 -10 Q10 -12 12 -5 Q13 2 0 11 Z" fill="%s" stroke="%s" stroke-width="1.5" stroke-linejoin="round"/></g>
-		<path d="M22 108 Q50 104 78 108" stroke="%s" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".6"/></svg>''' % [
-		strip, bottom, body, dark, light, light, dark, emblem, dark, dark]
+		<path d="M22 108 Q50 104 78 108" stroke="%s" stroke-width="2.5" fill="none" stroke-linecap="round" opacity=".6"/>%s</svg>''' % [
+		strip, bottom, body, dark, light, light, dark, emblem, dark, dark, stars]
 	var img := Image.new()
 	img.load_svg_from_string(svg, width * 2 / 100.0)
 	var tex := ImageTexture.create_from_image(img)

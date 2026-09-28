@@ -419,7 +419,7 @@
 				],
 				"rumour": [
 					"i heard about {rumour}! we don't have to go! unless you want to!",
-					"{rumour}?! eek! i mean… yay!"
+					"{rumour}?! eek! that sounds big!"
 				],
 				"spotted": [
 					"{who} saw {spot}! it's new! new is fine!",
@@ -704,7 +704,7 @@
 		"rummage_empty": ["{spot} is empty… for now!", "nothing in there yet. i checked twice."],
 		"trail_part": ["look look look!!", "{trip} found something!!", "ooh, what's that? what's that!"],
 		"trail_part_quote": ["it was just lying there. staring at me.", "finders keepers!", "it was in the flowers. it wanted to come with me.", "still warm!"],
-		"trail_part_kept": ["into the bag it goes ♪", "mine now. i mean ours!", "we'll find a use for it. we always do."],
+		"trail_part_kept": ["into the bag it goes ♪", "this one's a keeper!", "we'll find a use for it. we always do."],
 		"trail_part_left": ["bye bye, little part…", "someone else will find it. probably.", "okay! walking on!"]
 	}
 }

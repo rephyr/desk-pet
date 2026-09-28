@@ -8,6 +8,8 @@ extends RefCounted
 ## Machine bits pets bring home from adventures, and the tree's branches.
 const BITS := ["gear", "spring", "bolt", "glass"]
 const BRANCHES := ["repair", "coins", "chutes", "balls", "shiny", "lights", "drops"]
+## The prize a capsule holds when its own kind can't come out yet (GameState._capsule swaps to it).
+const FALLBACK_PRIZE := "coins"
 
 
 # ---- the tree -------------------------------------------------------------------------
@@ -110,6 +112,11 @@ static func chutes(state: Dictionary, catalog: Catalog) -> int:
 	return 1 + int(add(state, catalog, "chutes"))
 
 
+## Whether a pull can drop more than one capsule (another chute, or double / triple drop).
+static func many_capsules(state: Dictionary, catalog: Catalog) -> bool:
+	return chutes(state, catalog) > 1 or add(state, catalog, "double") > 0.0 or add(state, catalog, "triple") > 0.0
+
+
 ## Whether the lucky lights work (and so fever).
 static func lights_on(state: Dictionary, catalog: Catalog) -> bool:
 	return add(state, catalog, "lights") > 0.0
@@ -122,6 +129,21 @@ static func lights_needed(_state: Dictionary, catalog: Catalog) -> int:
 
 static func fever_seconds(state: Dictionary, catalog: Catalog) -> float:
 	return float(catalog.machine.fever_seconds) + add(state, catalog, "fever_s")
+
+
+## The longest a fever can last at normal capsule speed: a bit less than lighting every light
+## again takes (a pull a capsule, "fever_burst" of lights x capsule seconds), so fever stays a burst
+## and never chains into the next one.
+static func fever_cap(state: Dictionary, catalog: Catalog) -> float:
+	return lights_needed(state, catalog) * reveal_seconds(state, catalog) * float(catalog.machine.fever_burst)
+
+
+## How long a fever that starts now lasts: the tree's fever seconds times your toys' fever boost,
+## never past fever_cap, then divided by `speed` (toys that make capsules quicker): fever counts in
+## pulls, so a speed toy gives the same number of fever pulls in less time and every longer fever
+## level still adds pulls.
+static func fever_for(state: Dictionary, catalog: Catalog, fever_boost := 1.0, speed := 1.0) -> float:
+	return minf(fever_seconds(state, catalog) * fever_boost, fever_cap(state, catalog)) / maxf(speed, 0.01)
 
 
 ## Chance a ball is shiny, and how much a shiny one multiplies what it holds.
@@ -171,6 +193,26 @@ static func roll(state: Dictionary, catalog: Catalog, rng: RandomNumberGenerator
 			continue
 		weights[i] = float(p.weight) * (toy_luck if p.get("lucky", false) else 1.0) * (toy_rate if p.kind == "toy" else 1.0) * (pet_rate if p.kind == "pet_box" else 1.0)
 	return prizes[Weighted.pick(weights, rng)]
+
+
+## The chance of each prize (by id) in one capsule, adding up to 1: the same weights roll() uses.
+## `gives` says whether a kind of prize can come out yet (a kind that can't comes out as coins, the
+## way GameState._capsule swaps it). `first`: the pull's first capsule, the only one that can hold a
+## pet box (in any other it's coins too). `pet_rate` makes pet boxes weigh more, as in roll().
+## For the machine's prize card.
+static func odds(state: Dictionary, catalog: Catalog, gives: Callable, lucky := false, toy_luck := 1.0, toy_rate := 1.0, first := true, pet_rate := 1.0) -> Dictionary:
+	var drops := add(state, catalog, "drops")
+	var weights := {}
+	for p: Dictionary in catalog.machine.prizes:
+		if lucky and not p.get("lucky", false):
+			continue
+		if drops < float(p.get("drops", 0)):
+			continue
+		var w := float(p.weight) * (toy_luck if p.get("lucky", false) else 1.0) * (toy_rate if p.kind == "toy" else 1.0) * (pet_rate if p.kind == "pet_box" else 1.0)
+		var opens: bool = gives.call(str(p.kind)) and (first or p.kind != "pet_box")
+		var id := str(p.id) if opens else FALLBACK_PRIZE
+		weights[id] = float(weights.get(id, 0.0)) + w
+	return Weighted.chances(weights)
 
 
 ## What a prize pays, e.g. { "coins": 4 }, { "xp": 1 }, { "part:eyes:round": 1 }, { "box:starter": 1 }.

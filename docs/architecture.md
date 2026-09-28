@@ -70,6 +70,14 @@ knows the UI exists; state changes are announced with signals (`GameState.change
 - `PetRoller` rolls pets like card packs: the rarity is rolled once with the box odds, one
   "signature" part gets that rarity, the others roll at or below it. The finish is a separate
   roll. So the odds shown on a box are exactly what you get (checked by `tests/test_core.gd`).
+  Box tiers: `PetRoller.roll_box` rolls a box's `pets` [min, max]; parts come from
+  `Catalog.parts_in(slot, tier, box)` (a part with `from` only rolls from that shop box or a later
+  one; `Rewards.roll_part` does the same with a place's box). `BoxShop` (scripts/pets) holds the
+  tier rules tests can reach: `open_tiers` (a tier is in the shop once its map page is open),
+  `split_open` (workers open N boxes, not N pets), `best_first`, and `fix_retired` (lucky boxes).
+  `Catalog.parts_in` and `box_rank` are cached (catalog data never changes after loading);
+  box workers open at most `GameState.WORKER_BOXES_MAX` boxes at once.
+  `GameState.shop_boxes / stash_boxes / box_is_new / boxes_bought / boxes_greeted`.
 - `Collection` owns the pets, the active pet and the book counts (`part:<slot>:<id>`,
   `finish:<body>:<finish>`).
 - `Book` (scripts/pets/book.gd, pure rules, data/book.json) says which book page is full and what
@@ -88,7 +96,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
 - `ExpandedView` - the full game: the `Spine` of tabs and the page. Tabs: `HomeTab` (the pet's
   room), `MachineTab` (the capsule machine: `MachineStage` draws it and runs the lever, `Machine` in
   scripts/machine has its rules, `GameState.pull_lever()` pays out; a pet box out of a capsule is opened right there with a
-  `PackOpening`), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
+  `PackOpening`; `OddsCard` is the "prizes" tag that flips into the odds card, from
+  `Machine.odds` via `GameState.machine_odds`, refilled on machine_upgraded / toys_changed /
+  unlocked / tutorial_changed while open, placed on the stage's resize), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
   `CollectionTab` (pets grid + `PetDetails`, and the `BookView`), `AdventuresTab` (adventures:
   `MapView`, the place card, trip cards, and `TrailView` for watching a trip; upgrades: `GearView`,
   gear bought with xp, rules in `Gear`, levels in `GameState.gear`, packed onto each trip as
@@ -149,6 +159,11 @@ already-full pages, with their popups, right after loading).
 Save v25 keeps your pet's box reserve in capsules (`reserve_capsules`, replacing `coin_reserve`):
 the coins an older save kept become capsules at what one was worth on its machine (at least 1 if
 it kept any). `GameState.coin_reserve()` is the coins that means now.
+Save v26 retires the lucky box and adds box tiers. `BoxShop.fix_retired` runs on every load,
+whatever the save's version (idempotent): lucky boxes on the pile, "save for me" and loot of runs
+still out (also pre-v5 runs' `boxes`) become sunset boxes, and unknown box ids are dropped from the
+bag. New fields `boxes_bought` (a tier is "new!" until the first) and `boxes_greeted` (its arrival
+played); a save without them counts what's on the pile as bought and greeted.
 
 ## Testing
 

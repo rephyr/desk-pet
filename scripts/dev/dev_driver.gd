@@ -9,7 +9,7 @@ extends Node
 ##   tab <id>              show a tab straight away (home, boxes, collection, adventures, ...)
 ##   page <tab> <n>        flips a tab's page switch (machine | upgrades, adventures | upgrades) to page n
 ##                         (0 or 1), like a click on it (the spine's tab has the same name as page 0)
-##   click <target>        clicks it (see _find, _click): "text", tab:<id>, Class#n, guide
+##   click <target>        clicks it (see _find, _click): "text", tab:<id>, name:<node name>, Class#n, guide
 ##   key <name>            a key press: space, escape, enter
 ##   wait <seconds>        or: wait ritual | wait popup | wait text "..." | wait tutorial <step> | wait event
 ##   expect <what>         tutorial <step> | tab <id> | text "..." | no-text "..." | pile <box> <n>
@@ -49,6 +49,7 @@ extends Node
 ##   boosts                logs every boost kind's total and its parts (data/boosts.json)
 ##   dress <slot>=<id> ... [finish=<id>]   your active pet gets these parts (and finish), e.g.
 ##                         dress body=bunny eyes=cyclops finish=holo (for knacks, data/knacks.json)
+##   tiers all | off       every box tier in the shop, map pages or not (for the 3-tier fits check)
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -192,8 +193,9 @@ func _step(w: PackedStringArray) -> String:
 			GameState.toys_changed.emit()
 		"fix":  # fix <node> [levels]: that machine tree node, for free (skips the building-up)
 			GameState.machine.bought[w[1]] = Machine.owned(GameState.machine, w[1]) + (int(w[2]) if w.size() > 2 else 1)
-			GameState._knack_gates_changed()  # like a real fix (no sparkles: machine_upgraded isn't sent)
+			GameState._knack_gates_changed()  # like a real fix
 			GameState.changed.emit()
+			GameState.machine_upgraded.emit(w[1])
 		"coins":  # coins <n>: you have exactly n coins
 			GameState.coins = int(w[1])
 			GameState.changed.emit()
@@ -293,6 +295,9 @@ func _step(w: PackedStringArray) -> String:
 			GameState.collection.pet_changed.emit(pet)
 			GameState.collection.active_changed.emit(pet)
 			GameState.save_game()
+		"tiers":  # tiers all: every box tier is in the shop, map pages or not (tiers off: back to normal)
+			GameState.debug_all_tiers = w.size() > 1 and w[1] == "all"
+			GameState.changed.emit()
 		"quit":
 			_finish()
 		_:
@@ -356,12 +361,18 @@ func _expect(w: PackedStringArray) -> String:
 ##   guide      whatever the tutorial is pointing at
 ##   "open 1"   a button or label showing that text (the topmost one); "next treat*" starts with it
 ##   tab:pets   a tab on the spine, by its id
+##   name:buy_sunset  a control by its node name
 ##   PetCard#2  the 2nd of a kind of control, top-left first
 func _find(what: String) -> Control:
 	if what == "guide":
 		var guides := _all(TutorialGuide)
 		return guides[0].current_target() if not guides.is_empty() else null
 	var shown := _all(Control).filter(func(c: Control): return c.is_visible_in_tree() and c.get_global_rect().has_area())
+	if what.begins_with("name:"):
+		for c in shown:
+			if c.name == what.substr(5):
+				return c
+		return null
 	if what.begins_with("tab:"):
 		for c in shown:
 			if c.is_in_group(Spine.TAB_GROUP) and c.get_meta("tab_id", "") == what.substr(4):

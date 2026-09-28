@@ -29,6 +29,7 @@ var DIM_ALPHA := 0.55 if UiTheme.DARK else 0.28  # how far the dim goes on big p
 var _stage := Stage.IDLE
 var _pet: Pet
 var _box_id := ""
+var _also: Array[Pet] = []  # the other pets in the same box (a sunset box holds 2-3): the result card shows them
 var _ritual := false  # this pull is rare enough for the mist
 var _mist_on := false  # the mist is still in front of the pet
 var _run := 0  # bumped on every new opening and skip, so older async steps stop
@@ -129,11 +130,13 @@ func _init() -> void:
 	_reset()
 
 
-## Starts the ritual for a pet that was just pulled from `box_id`.
-func play(pet: Pet, box_id: String) -> void:
+## Starts the ritual for a pet that was just pulled from `box_id`. `also`: the other pets that
+## were in the same box (the ritual is for the best one, the result card shows the rest).
+func play(pet: Pet, box_id: String, also: Array[Pet] = []) -> void:
 	_reset()
 	_pet = pet
 	_box_id = box_id
+	_also = also
 	_pet_view.pet = pet
 	var box: Dictionary = Catalog.shared().box(box_id)
 	_pack.set_art(box.get("art", {}))
@@ -372,7 +375,7 @@ func _show_result() -> void:
 	_pet_says("result")
 	_result.visible = true
 	_result.allow_again = allow_again
-	_result.show_pet(_pet, _box_id)
+	_result.show_pet(_pet, _box_id, _also)
 
 
 ## The rarity's jingle, once per opening.

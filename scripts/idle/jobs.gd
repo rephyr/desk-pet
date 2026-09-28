@@ -189,9 +189,10 @@ static func pay(job: Dictionary, fills: int, crew: int, rng: RandomNumberGenerat
 
 
 static func _uncommon_part(rng: RandomNumberGenerator, catalog: Catalog) -> Array:
-	var slots: Array = Catalog.SLOTS.filter(func(s): return not catalog.parts_of_tier(s, "uncommon").is_empty())
+	# like the commons: only looks the plainest box can hold (better boxes' looks stay theirs)
+	var slots: Array = Catalog.SLOTS.filter(func(s): return not catalog.parts_in(s, "uncommon", COMMON_BOX).is_empty())
 	var slot: String = slots[rng.randi_range(0, slots.size() - 1)]
-	var options := catalog.parts_of_tier(slot, "uncommon")
+	var options := catalog.parts_in(slot, "uncommon", COMMON_BOX)
 	return [slot, options[rng.randi_range(0, options.size() - 1)].id]
 
 

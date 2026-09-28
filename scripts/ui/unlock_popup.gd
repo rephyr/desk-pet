@@ -20,6 +20,7 @@ var _buttons := HBoxContainer.new()
 var _showing := false
 var _sticker_showing := false
 var _quiet_stickers := false  # the dev driver's "stickers off"
+static var up := false  # a card is up (other things that pop, like a new box tier arriving, wait for it)
 
 
 func _init() -> void:
@@ -99,6 +100,7 @@ func _show(entry: Dictionary) -> void:
 	_buttons.add_child(lovely)
 	_showing = true
 	_sticker_showing = entry.has("sticker")
+	up = true
 	visible = true
 	# centre the card, then pop it in
 	var holder := _card.get_parent() as Control
@@ -122,4 +124,10 @@ func quiet_stickers() -> void:
 
 func _close() -> void:
 	_showing = false
+	up = false
 	visible = false
+
+
+func _exit_tree() -> void:
+	if _showing:
+		up = false  # freed while up (a look change rebuilds the panel): the new one starts clear

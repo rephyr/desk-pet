@@ -45,7 +45,37 @@ func _init() -> void:
 				coins / TRIPS / minutes, parts / TRIPS, boxes / TRIPS, 100.0 * lost / TRIPS])
 	_errands(catalog, rng)
 	_rummage(catalog)
+	_box_tiers(catalog, rng)
 	quit()
+
+
+## The box tiers (data/boxes.json): what a pet costs from each (in capsules, = coins on a fresh
+## machine), how rare they come out, and how often a box holds one of the looks only that tier has.
+func _box_tiers(catalog: Catalog, rng: RandomNumberGenerator) -> void:
+	const BOXES := 20000
+	var roller := PetRoller.new(catalog, rng)
+	print("\nbox tiers, %d boxes each" % BOXES)
+	print("%-13s %6s %9s %11s %10s %9s %10s" % ["box", "caps", "pets/box", "caps/pet", "avg rank", "rare+", "new look"])
+	for box in catalog.shop_boxes():
+		var looks := {}
+		for l in catalog.new_looks(box.id):
+			looks["%s:%s" % [l.slot, l.id]] = true
+		var pets := 0
+		var rank_sum := 0
+		var rare := 0
+		var with_look := 0
+		for i in BOXES:
+			var got := roller.roll_box(box.id)
+			var has_look := false
+			for pet in got:
+				pets += 1
+				rank_sum += catalog.rank(pet.rarity)
+				rare += 1 if catalog.rank(pet.rarity) >= 2 else 0
+				for slot in Catalog.SLOTS:
+					has_look = has_look or looks.has("%s:%s" % [slot, pet.parts[slot]])
+			with_look += 1 if has_look else 0
+		print("%-13s %6d %9.2f %11.1f %10.2f %8.1f%% %9.1f%%" % [box.name, int(box.capsules), float(pets) / BOXES,
+			float(box.capsules) * BOXES / pets, float(rank_sum) / pets, 100.0 * rare / pets, 100.0 * with_look / BOXES])
 
 
 ## Rummaging in your pet's room, tapping every spot as soon as it's ready: the most it can bring.
