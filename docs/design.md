@@ -510,7 +510,8 @@ All opt-in, with odds shown before confirming:
     held), sitting on the stairs at 30+ (a held landing's guard is gone: not drawn, and a run walking past
     it doesn't fight it), with a coral count pill
     right of the shaft ('N' when held, a dashed 'N/M' while it fills, a dashed '0/500' on an empty
-    landing; at 20 under the landing, clear of the sewing room's door). Tapping a crowd or pill puts
+    landing; just under the landing once the sewing room's door is there, clear of it, with the
+    next floor's feeling word stepping down under it). Tapping a crowd or pill puts
     the hold card where "last time" sits: "landing N" + ✕ (+ a coral pennant once held), the crowd,
     how many, "holding the door"; while it fills a meter, a ‹ n › per shelf that has pets that may go
     (steps of need / 20) and "hold on tight!". Once a landing is fully held the orders card gets

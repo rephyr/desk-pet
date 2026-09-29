@@ -18,8 +18,8 @@ Built from docs/picks.md (F3 "held landings", Stars rule, round 3 look A) and la
   doorway + the leaf, once it's held), sitting on the stairs down to 30+ (a held stairs landing's guard
   is gone: not drawn, and a run walking past it doesn't fight it either; no lamp where a crowd stands). A coral count pill right of the shaft: solid coral 'N' when
   held, dashed lilac 'N/M' while it fills (dashed pink while its card is open), a dashed '0/500' on an
-  empty landing (the only sign there). At 20 the pill sits under the landing, clear of the sewing room's
-  door. Counts in the pill and meter are short (500, 1.2k, 8k).
+  empty landing (the only sign there). Once the sewing room's door is on 20 its pill sits just under the landing,
+  clear of the door, and floor 21's feeling word steps down a few px under it (WellColumn draw). Counts in the pill and meter are short (500, 1.2k, 8k).
 - Tapping a crowd or pill opens the hold card where "last time" sits (one card at a time with the perk
   cards; ✕ closes; the well scrolls the landing to the middle): "landing N" + ✕ (+ a coral pennant once
   held), the crowd (a Mound of stand-in faces), the big count, "holding the rope | door | stairs"; while
@@ -92,7 +92,7 @@ dropped, counts via Herd.clean_counts, each crowd cut to its need, start back to
 
 - `tests/flows/held.flow`: empty spots (dashed pills), the empty card (six shelves), a picked stepper,
   the shelf list staying scrolled after a step, "hold on tight!",
-  filling (dashed 200/500), rope held (coral 500 + pennant), door filling (1.2k/2k under the landing),
+  filling (dashed 200/500), rope held (coral 500 + pennant), door filling (1.2k/2k on the landing),
   door held (propped open, next to the sewing room's door), stairs held (no guard), start from landing
   30, the run popping out at 30, "last time" floor 31. `expect fits` at every shot.
 - Also played: fits, dungeon, perks, sewing (all pass).

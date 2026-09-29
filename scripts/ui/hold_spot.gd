@@ -4,7 +4,7 @@ extends Button
 ## crowd of pets holding it, posed by the band (around the rope at the bottom of the well, beside the
 ## propped-open door in the cellar, sitting on the stairs further down), and a coral count pill right of
 ## the shaft ('N' when it's fully held, a dashed 'N/M' while it fills; at the cellar's landing the pill
-## sits under the landing, clear of the sewing room's door). WellColumn places one per landing that can
+## sits just under the landing once the sewing room's door is there, clear of it). WellColumn places one per landing that can
 ## be held; a tap opens its card in the dungeon page's side column.
 ## Design: lanes/mockups2 design/mockups/screens/well-additions.html (look A, held landings).
 
@@ -39,7 +39,8 @@ func _init() -> void:
 
 ## Lays the spot out on landing `f` from the well's geometry `geo` (in the column): y (the landing),
 ## y0 (the landing above), l / r (the shaft's walls), cx, dip (how far a rope floor sags), kind
-## (rope, doors, stairs), door_x (the cellar floor's door, -1 if none). `faces`: Pets for the crowd.
+## (rope, doors, stairs), door_x (the cellar floor's door, -1 if none), sew_door (the sewing room's door
+## is on this landing). `faces`: Pets for the crowd.
 func setup(f: int, n: int, need: int, faces: Array, shown: int, geo: Dictionary) -> void:
 	landing = f
 	_n = n
@@ -54,10 +55,11 @@ func setup(f: int, n: int, need: int, faces: Array, shown: int, geo: Dictionary)
 	var spots := _lay(shown, geo)  # in the column
 	var y: float = geo.y
 	var r: float = geo.r
-	# the pill: right of the shaft, under the landing at the cellar's (the sewing room's door is above it)
+	# the pill: right of the shaft, on the landing; just under it when the sewing room's door is there
+	# (tucked up to the landing, the next floor's word nudges down under it, see WellColumn)
 	var font := _font()
 	var w := font.get_string_size(_pill_text(), HORIZONTAL_ALIGNMENT_LEFT, -1, FONT).x + 12.0
-	var pill := Rect2(Vector2(r + 5.0, y + 7.0 if _kind == "doors" else y - 8.0), Vector2(w, PILL_H))
+	var pill := Rect2(Vector2(r + 5.0, y + 1.0 if geo.get("sew_door", false) else y - 8.0), Vector2(w, PILL_H))
 	var box := pill
 	var crowd := Rect2()
 	for s in spots:
@@ -160,6 +162,11 @@ static func short(n: int) -> String:
 		if v < 1000.0:
 			return str(snappedf(v, 0.1) if v < 100.0 else roundf(v)).trim_suffix(".0") + u
 	return UiTheme.num(n)
+
+
+## The pill's bottom edge, in the column.
+func pill_bottom() -> float:
+	return position.y + _pill.end.y
 
 
 func _font() -> Font:

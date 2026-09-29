@@ -143,7 +143,8 @@ func _place_holds() -> void:
 		var cx := _cx()
 		var y := _ys[f]
 		var geo := { "y": y, "y0": _ys[f - 1], "l": cx - hw, "r": cx + hw, "cx": cx, "kind": kind,
-			"dip": (y - _ys[f - 1]) * 0.55, "down_right": f % 2 == 1, "door_x": -1.0 }
+			"dip": (y - _ys[f - 1]) * 0.55, "down_right": f % 2 == 1, "door_x": -1.0,
+			"sew_door": GameState.sewing_open() and f == int(catalog.sewing.get("door_floor", 20)) }
 		if kind == "doors" and Dungeon.floor_kind(catalog, f) in ["door", "tiny", "knock"]:
 			var dw := 6.0 if Dungeon.floor_kind(catalog, f) == "tiny" else 9.0
 			geo.door_x = cx - hw + 4.0 if f % 2 == 1 else cx + hw - 4.0 - dw
@@ -406,7 +407,10 @@ func _draw() -> void:
 			match str(word[1]):
 				"mid": color = UiTheme.TEXT
 				"hot": color = UiTheme.PINK
-			draw_string(font, Vector2(r + 6.0, y + 3.0), str(word[0]), HORIZONTAL_ALIGNMENT_LEFT, w - r - 8.0, 10, color)
+			var wy := y + 3.0
+			if _holds.has(f - 1):  # (a pill tucked under the landing above: the word steps down clear of it)
+				wy = clampf(_holds[f - 1].pill_bottom() + 2.0 + font.get_ascent(10), wy, wy + 4.0)
+			draw_string(font, Vector2(r + 6.0, wy), str(word[0]), HORIZONTAL_ALIGNMENT_LEFT, w - r - 8.0, 10, color)
 
 	# the target: a pink flag on its landing
 	var target := int(state.target)
