@@ -54,6 +54,26 @@ func _init() -> void:
 	resized.connect(_place_holds)
 
 
+func _notification(what: int) -> void:
+	# band names sit in the part of their band you can see: redraw them as the scroll moves
+	if what == NOTIFICATION_PARENTED and get_parent() is ScrollContainer:
+		var bar := (get_parent() as ScrollContainer).get_v_scroll_bar()
+		if not bar.value_changed.is_connected(_on_scrolled):
+			bar.value_changed.connect(_on_scrolled)
+
+
+func _on_scrolled(_value: float) -> void:
+	queue_redraw()
+
+
+## The part of the column that's in view: [top, bottom] (all of it outside a scroll).
+func _in_view() -> Vector2:
+	var scroll := get_parent() as ScrollContainer
+	if scroll == null or scroll.size.y <= 0.0:
+		return Vector2(0.0, size.y)
+	return Vector2(scroll.scroll_vertical, scroll.scroll_vertical + scroll.size.y)
+
+
 ## Works the drawing out again from the game (the army, its orders, what's lit). `a` and `rules`
 ## from GameState.army() and army_rules() when the page has them already.
 func refresh(a: Dictionary = {}, rules: Dictionary = {}) -> void:
@@ -420,13 +440,15 @@ func _draw() -> void:
 		draw_line(Vector2(px, ty - 1), Vector2(px, ty - 13), UiTheme.PINK, 2.0, true)
 		draw_colored_polygon(PackedVector2Array([Vector2(px, ty - 13), Vector2(px - 8, ty - 10), Vector2(px, ty - 7)]), UiTheme.PINK)
 
-	# band names, up the left edge (only the bands reached)
+	# band names, up the left edge (only the bands reached), in the part of their band that's in view
+	# so a long band's name never runs off the bottom of the column
+	var view := _in_view()
 	for b in Dungeon.data(catalog).bands:
 		var from := int(b.from)
 		if from > _to:
 			continue
-		var top := GROUND if from == 1 else _ys[from - 1]
-		var end := _ys[mini(_to, int(b.get("to", _to)))]
+		var top := maxf(GROUND if from == 1 else _ys[from - 1], view.x + 4.0)
+		var end := minf(_ys[mini(_to, int(b.get("to", _to)))], view.y - 4.0)
 		var name := str(b.name)
 		var nw2 := display.get_string_size(name, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
 		if end - top < nw2 + 6.0:
