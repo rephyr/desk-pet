@@ -358,6 +358,8 @@ func _step(w: PackedStringArray) -> String:
 		"workers":  # workers <job> <n>: n more spots for a job, for free (never past the caps), and resting pets on them
 			GameState._add_spots(w[1], mini(int(w[2]), GameState.spot_room(w[1])))
 			GameState.put_workers(w[1], -1)
+		"off":  # off <job> [n]: n of a job's workers go home to rest (all without n)
+			GameState.take_off_workers(w[1], int(w[2]) if w.size() > 2 else -1)
 		"others":  # others <job>: the other pets know that job (your pet needs to know it)
 			if not GameState.knows_job(w[1]):
 				return "your pet doesn't know %s" % w[1]
@@ -496,10 +498,11 @@ func _step(w: PackedStringArray) -> String:
 			GameState.school_changed_boost()
 			GameState.school_changed.emit()
 			GameState.changed.emit()
-		"give-box":  # give-box <id> <n>: boxes on your pile
+		"give-box":  # give-box <id> <n>: boxes on your pile ("=<n>": exactly n there)
 			if GameState.catalog.box(w[1]).is_empty():
 				return "unknown box %s" % w[1]
-			GameState.bag[w[1]] = GameState.in_bag(w[1]) + int(w[2])
+			var exact: bool = w[2].begins_with("=")
+			GameState.bag[w[1]] = maxi(0, int(w[2].trim_prefix("=")) + (0 if exact else GameState.in_bag(w[1])))
 			GameState.changed.emit()
 		"homes":  # homes <rarity> <n|all>: the stall takes them
 			if not GameState.catalog.tiers.any(func(t): return t.id == w[1]):
