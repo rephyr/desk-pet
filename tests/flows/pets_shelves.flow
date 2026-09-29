@@ -40,7 +40,7 @@ expect fits
 shot full
 click RoomPill#1
 wait 0.5
-expect text "more room"
+expect text "our house"
 expect fits
 shot room_card
 click RoomPill#1
@@ -105,3 +105,17 @@ place meadow
 wait 1
 expect fits
 shot picker
+# room steps are priced in capsules: the open card's price follows the machine (x8 once it's fixed up)
+tab collection
+wait 1
+room 1
+click RoomPill#1
+wait 0.5
+expect text "900"
+fix tape
+fix oil
+fix flap
+wait 0.5
+expect text "7,200"
+expect fits
+shot room_machine

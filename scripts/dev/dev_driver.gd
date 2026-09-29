@@ -24,7 +24,7 @@ extends Node
 ##   shot <name>           a screenshot of the game, from inside it (works while it's off-screen)
 ##   say "<text>"          your pet says it (for testing the bubble)
 ##   answer                every adventure waiting at an event takes its first choice
-##   pets <n>              n more pets from starter boxes (for testing crowds)
+##   pets <n> [seed]       n more pets from starter boxes (for testing crowds; a seed makes the rolls the same every run)
 ##   find <id>             a pet brings home this find (data/unlocks.json), opening what it opens
 ##   send <place> <n>      the first n spare pets go on an adventure there (and you watch it)
 ##   place <id>            opens that place's card on the map, as if you tapped it (like --pick)
@@ -65,7 +65,7 @@ extends Node
 ##                         dress body=bunny eyes=cyclops finish=holo (for knacks, data/knacks.json)
 ##   tiers all | off       every box tier in the shop, map pages or not (for the 3-tier fits check)
 ##   herd <rarity> <finish> <n>  n plain pets straight into the herd (fast: for thousands or millions)
-##   room <level>          the room is at that upgrade level (data/herd.json "room")
+##   room <level>          the room has that many steps built (data/herd.json "room" steps; the house card)
 ##   fill-room             plain commons into the herd until the room is exactly full
 ##   fav <n>               the newest n cards become favourites
 ##   shelf <rarity>        opens that shelf on the pets tab (collectibles)
@@ -250,7 +250,9 @@ func _step(w: PackedStringArray) -> String:
 					GameState.answer_event(run, AdventureRunner.allowed_options(run.current_event(catalog), run.party, catalog.location(run.location_id))[0])
 		"walk":  # every trip walks on to its next stop (or home), from any tab
 			GameState.debug_finish_runs()
-		"pets":
+		"pets":  # pets <n> [seed]: n more pets from a starter box (with a seed, the same pets every run)
+			if w.size() > 2:
+				GameState._roller.rng.seed = int(w[2])
 			GameState.debug_give_pets(int(w[1]))
 		"find":
 			GameState.grant({ "find:" + w[1]: 1 })
@@ -437,7 +439,7 @@ func _step(w: PackedStringArray) -> String:
 				return "no plain count %s" % key
 			GameState.collection.add_plain(key, int(w[3]))
 			GameState.changed.emit()
-		"room":  # room <level>: the room's upgrade level
+		"room":  # room <level>: that many room steps built
 			GameState.room = maxi(0, int(w[1]))
 			GameState.changed.emit()
 		"fill-room":  # plain commons into the herd until the room is exactly full

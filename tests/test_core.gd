@@ -80,6 +80,7 @@ func _init() -> void:
 	_test_party_places(catalog)
 	_test_workshop(catalog)
 	_test_workshop_game(catalog)
+	_test_room(catalog)
 	var result := "ALL PASSED" if _failures == 0 else "%d FAILED" % _failures
 	if not _skipped.is_empty():
 		result += ", BUT SKIPPED " + ", ".join(_skipped)
@@ -2990,6 +2991,36 @@ func _test_herd_game(catalog: Catalog) -> void:
 		_check(gs.last_moved == str(tapped[-1]), "your pet names the stand-in you tapped (%s)" % gs.last_moved)
 		gs.take_off_job("coin_hunt", 1, [tapped[-1]])
 		_check(gs.last_moved == str(tapped[-1]), "and the one you sent home")
+	# the kitchen and scouting with crews from the herd
+	gs.unlocks["job:kitchen"] = true
+	gs.unlocks["job:scouting"] = true
+	var coin_before: float = gs.job_rate("coin_hunt")
+	var k0: String = gs.resting_herd().keys()[0]
+	gs.put_on_job("kitchen", 4, c.stand_in_uids(k0, 4))
+	_check(gs.job_size("kitchen") == 4 and gs.job_crew("kitchen").is_empty(), "a kitchen crew all from the herd (%d)" % gs.job_size("kitchen"))
+	_check(gs.kitchen_bonus() > 0.0 and gs.job_rate("coin_hunt") > coin_before,
+		"herd cooks make the coin hunt faster (%.3f, %.4f -> %.4f)" % [gs.kitchen_bonus(), coin_before, gs.job_rate("coin_hunt")])
+	var k1: String = gs.resting_herd().keys()[0]
+	gs.put_on_job("scouting", 3, c.stand_in_uids(k1, 3))
+	_check(gs.job_size("scouting") == 3 and gs.job_rate("scouting") > 0.0, "a scouting crew all from the herd works")
+	gs.set_scout_notes(gs.scout_hold())
+	_check(gs.job_fill_now("scouting") == 1.0, "herd scouts with every note waiting: the meter waits full")
+	gs.set_scout_notes(0)
+	var resting_now: int = gs.resting_count()
+	var coin_size: int = gs.job_size("coin_hunt")
+	var scrap_size: int = gs.job_size("scrapyard")
+	gs.share_out()
+	_check(gs.job_size("kitchen") == 4 and gs.job_size("scouting") == 3 and gs.resting_count() == 0,
+		"sharing out skips the kitchen and scouting (%d resting went elsewhere)" % resting_now)
+	gs.set_job_join("kitchen", true)
+	_check(not gs.job_joins("kitchen"), "new pets never join the kitchen by themselves")
+	gs.take_off_job("coin_hunt", gs.job_size("coin_hunt") - coin_size)
+	gs.take_off_job("scrapyard", gs.job_size("scrapyard") - scrap_size)
+	gs.take_off_job("kitchen", -1)
+	gs.take_off_job("scouting", -1)
+	_check(gs.resting_count() == resting_now + 7, "everyone comes home again (%d)" % gs.resting_count())
+	gs.unlocks.erase("job:kitchen")
+	gs.unlocks.erase("job:scouting")
 	# workers from counts
 	var put: int = gs.put_workers("machine", -1)
 	_check(put == 10 and gs.workers_count("machine") == 50 and gs.workers_speed("machine") > 0.0, "workers fill up their machines from counts")
@@ -4481,7 +4512,9 @@ func _test_merged_lanes(catalog: Catalog) -> void:
 	var gs: Node = load("res://scripts/game_state.gd").new()
 	var c: Collection = gs.collection
 	var newest: int = load("res://scripts/game_state.gd").SAVE_VERSION
-	_check(newest == 39, "the save chain ends at v39 (herd + new homes 28, dungeon 33, plushie 34, the sewing room 35, perks 36, held landings 37, the wishing jar 38, the shed workshop 39)")
+	_check(newest == 40, "the save chain ends at v40 (herd + new homes 28, dungeon 33, plushie 34, the sewing room 35, perks 36, held landings 37, the wishing jar 38, the shed workshop 39, room steps 40)")
+	_check(gs.room_cap() >= c.plain_count() and (gs.room == 0 or Herd.room_cap(catalog, gs.room - 1) < ceili(c.plain_count() * 1.1)),
+		"v40: a v23 save's room is the fewest steps with room for its pets (%d steps, %d / %d)" % [gs.room, c.plain_count(), gs.room_cap()])
 	_check(gs.workshop == Workshop.fresh(catalog) and not gs.workshop_open(), "v39: an old save gets a fresh workshop, still closed")
 	_check(gs.wish == Wish.fresh() and not gs.wish_open(), "v38: an old save has nothing wished for and no jar yet")
 	_check("cellar" in gs.dungeon.bands, "v33: an old save's open cellar is a dungeon band")
@@ -4597,6 +4630,13 @@ func _test_prices(catalog: Catalog) -> void:
 	for t in Jobs.all_tools(catalog):
 		_check(Jobs.tool_cost(t, 200, 10, top) > 0, "errand tool %s never costs less than nothing" % t.id)
 	_check(game_state.box_cost(starter, top, 1000000) > 0, "a pile of boxes never costs less than nothing")
+	# the room's coin steps are priced in capsules too
+	for st: Dictionary in catalog.herd.get("room", {}).get("steps", []):
+		_check((float(st.get("capsules", 0)) > 0.0) != st.has("wisps") and not st.has("coins"), "room step %s costs capsules or wisps, one of them" % st.id)
+	_check(Herd.room_cost(catalog, 2, fixed) == roundi(8.0 * Herd.room_cost(catalog, 2, fresh)), "a coin room step costs 8x on a repaired machine (%d)" % Herd.room_cost(catalog, 2, fixed))
+	_check(Herd.room_cost(catalog, 0, fresh) == 10 * game_state.box_cost(starter, fresh), "the first room step costs 10 starter boxes")
+	for level in [0, 10, 100, 1000]:
+		_check(Herd.room_cost(catalog, level, top) > 0, "a room step after %d never costs less than nothing" % level)
 
 
 ## Knacks (data/knacks.json, Knacks): one per part, sized by rarity and finish, hidden until their
@@ -6088,3 +6128,98 @@ func _test_workshop_game(catalog: Catalog) -> void:
 	for f in [path, path + ".bak", path + ".tmp"]:
 		if FileAccess.file_exists(f):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+
+## Room steps (the house card): named steps that each hold more, coin steps priced in capsules and
+## squeeze-in steps in wisps (one currency each, hidden until wisps show up), endless steps after
+## the list, the shelves | jobs split, wisps in the save, and old room levels keeping their room.
+func _test_room(catalog: Catalog) -> void:
+	var r: Dictionary = catalog.herd.get("room", {})
+	var steps: Array = r.get("steps", [])
+	_check(steps.size() >= 2 and Herd.room_cap(catalog, 0) == int(r.start), "the room starts at %d with %d steps" % [int(r.start), steps.size()])
+	var grows := true
+	var coin_steps := 0
+	var wisps_after := true
+	for i in steps.size() + 6:
+		grows = grows and Herd.room_cap(catalog, i + 1) > Herd.room_cap(catalog, i)
+		var cur := Herd.room_currency(catalog, i)
+		if cur == "coins":
+			coin_steps += 1
+			wisps_after = wisps_after and coin_steps == i + 1  # every coin step comes before the wisp ones
+		if i > 0 and cur == Herd.room_currency(catalog, i - 1):
+			var v := 8.0 if cur == "coins" else 1.0
+			grows = grows and Herd.room_cost(catalog, i, v) > Herd.room_cost(catalog, i - 1, v)
+	_check(grows, "every room step holds more and costs more than the one before")
+	_check(coin_steps >= 1 and coin_steps < steps.size() and wisps_after, "coin steps first, then squeeze-in steps (%d coin steps)" % coin_steps)
+	var ui: Dictionary = catalog.voice.get("ui", {})
+	var said := true
+	for i in steps.size() + 2:  # every listed step and the endless ones: a name, and your pet's line for it
+		var s := Herd.room_step(catalog, i)
+		var id := str(s.get("id", ""))
+		var ok: bool = str(s.get("name", "")) != "" and id != "" and not ui.get("room_" + id, []).is_empty()
+		if not ok:
+			print("  room step %d (%s) has no name or no room_%s line" % [i, id, id])
+		said = said and ok
+	_check(said, "every room step has a name and a line")
+	_check(Herd.room_cost(catalog, coin_steps, 8.0) == Herd.room_cost(catalog, coin_steps, 1000.0) and Herd.room_currency(catalog, coin_steps) == "wisps",
+		"a squeeze-in step costs wisps, whatever a capsule is worth (%d)" % Herd.room_cost(catalog, coin_steps))
+	for level in [30, 100]:
+		var cap := Herd.room_cap(catalog, level)
+		_check(cap > Herd.room_cap(catalog, level - 1) or cap >= int(Herd.ROOM_TOP), "endless step %d still holds more (%d)" % [level, cap])
+		_check(cap > 0 and Herd.room_cost(catalog, level) > 0 and Herd.room_currency(catalog, level) == "wisps", "endless step %d holds and costs more than nothing" % level)
+	_check(str(Herd.room_step(catalog, steps.size()).name) != "" and Herd.room_cap(catalog, steps.size() + 1) == 2 * Herd.room_cap(catalog, steps.size()),
+		"after the list the room keeps doubling")
+	_check(Herd.room_cap(catalog, Herd.room_level_for(catalog, 5000)) >= 5000 and Herd.room_cap(catalog, Herd.room_level_for(catalog, 5000) - 1) < 5000,
+		"the fewest steps that hold 5000 pets")
+	if not DevProfile.active():
+		print("  skipped the room in the game: it needs a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	var game_state: GDScript = load("res://scripts/game_state.gd")
+	var clear := func():
+		for f in [path, path + ".bak", path + ".tmp"]:
+			if FileAccess.file_exists(f):
+				DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	# old saves: a v28-v39 room level becomes steps that hold at least as much
+	for version in [28, 39]:
+		for level in [0, 1, 2, 5, 10]:
+			clear.call()
+			SaveFile.write(path, { "version": version, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(), "room": level })
+			var gs: Node = game_state.new()
+			var old_cap := maxi(50, roundi(500.0 * pow(1.5, level) / 50.0) * 50)
+			var fewest: bool = gs.room == 0 or Herd.room_cap(catalog, gs.room - 1) < old_cap
+			_check(gs.room_cap() >= old_cap and fewest,
+				"a v%d room at level %d keeps its room (%d, was %d)" % [version, level, gs.room_cap(), old_cap])
+			gs.free()
+	# a game: coin steps take coins, squeeze-in steps wait for wisps and take only wisps
+	clear.call()
+	SaveFile.write(path, { "version": 40, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(), "coins": 1000000000,
+		"unlocks": ["feature:errands", "tab:errands"], "room": 0,
+		"collection": { "pets": [_plain_pet(catalog, "common", "normal", 7).to_dict()], "herd": { "common:normal": 399 }, "active": "1", "next_id": 2, "seen": {} },
+		"jobs": { "coin_hunt": { "crew": [], "herd": { "common:normal": 120 }, "fill": 0.0 } } })
+	var gs: Node = game_state.new()
+	var split: Array = gs.room_split()
+	_check(split[0] + split[1] == gs.collection.plain_count() and split[1] == gs.job_size("coin_hunt") and split[1] > 0,
+		"the room counts pets on jobs too: %d on the shelves, %d on jobs, %d in all" % [split[0], split[1], gs.collection.plain_count()])
+	var coins_before: int = gs.coins
+	var price: int = gs.room_price()
+	_check(gs.buy_room() and gs.room == 1 and gs.coins == coins_before - price and gs.room_cap() == Herd.room_cap(catalog, 1), "a coin step takes its coins")
+	gs.room = coin_steps
+	_check(gs.room_next().is_empty() and not gs.buy_room() and gs.room == coin_steps, "the squeeze-in steps stay hidden until wisps show up")
+	var short := Herd.room_cost(catalog, coin_steps) - 1
+	gs.grant({ "wisps": short })
+	if short == 0:
+		gs.wisps = 0
+		gs.unlock("feature:dungeon")  # the first squeeze-in step costs a single wisp: the dungeon opening shows them
+	_check(gs.wisps_shown() and str(gs.room_next().get("name", "")) == str(Herd.room_step(catalog, coin_steps).name), "then the next squeeze-in step shows")
+	var coins_now: int = gs.coins
+	_check(not gs.buy_room() and gs.wisps == short, "short on wisps: nothing built")
+	gs.grant_wisps(short + 1)
+	var wprice: int = gs.room_price()
+	_check(gs.buy_room() and gs.room == coin_steps + 1 and gs.wisps == 2 * short + 1 - wprice and gs.coins == coins_now, "a squeeze-in step takes only wisps (%d), no coins" % wprice)
+	gs.save_game()
+	var gs2: Node = game_state.new()
+	_check(gs2.wisps == gs.wisps and gs2.room == coin_steps + 1, "wisps and the room load back")
+	gs2.free()
+	gs.free()
+	clear.call()

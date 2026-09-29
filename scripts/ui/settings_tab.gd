@@ -66,10 +66,13 @@ func _init() -> void:
 	if GameState.feature_on("shopping"):  # once it has the piggy bank, it buys boxes too
 		work.body.add_child(_switch("buy boxes when the pile runs out", GameState.buying_on, func(on): GameState.set_job("buying", on)))
 		# the reserve is kept in capsules like box prices, shown in coins at what a capsule is worth now
-		var value := GameState.capsule_value()
+		var in_coins := func(v): return UiTheme.num(roundi(v * GameState.capsule_value()))
 		var kept := _slider_row(work.body, "coins %s always keeps" % who, 0, GameState.reserve_max(), GameState.reserve_step(),
-			GameState.reserve_capsules, func(v): return UiTheme.num(roundi(v * value)), func(v): GameState.set_reserve(int(v)))
+			GameState.reserve_capsules, in_coins, func(v): GameState.set_reserve(int(v)))
 		kept.add_theme_color_override("font_color", UiTheme.CYAN)
+		GameState.changed.connect(func():  # a machine fix makes a capsule worth more while this is open
+			if is_instance_valid(kept):
+				kept.text = in_coins.call(GameState.reserve_capsules))
 
 	var sound := _section("sound")
 	col.add_child(sound.panel)

@@ -1,0 +1,90 @@
+# The house card (room upgrades, look A the dollhouse): the room pill opens one cut-away house that
+# grows a step at a time, the next step in pencil. Coin steps first (priced in capsules), then
+# wisp squeeze-in steps (hidden until wisps show up) that keep going. Pets on jobs count too.
+from rich
+view full
+herd common normal 380
+herd uncommon normal 70
+herd rare normal 12
+unlock feature:errands
+unlock tab:errands
+job coin_hunt 50
+coins 100000
+tab collection
+wait 1
+click RoomPill#1
+wait 1
+expect text "our house"
+expect text "a second plank"
+expect text "build it"
+expect no-text "squeeze in"
+expect fits
+shot card
+# build it: the plank goes solid with sparkles, the card stays open on the next step
+click "build it"
+shot built
+expect text "bunk beds"
+expect fits
+wait 1.5
+shot bunks_next
+# every coin step built: no wisps yet, so nothing more shows
+click RoomPill#1
+room 4
+click RoomPill#1
+wait 1
+expect text "everyone's moved in*"
+expect no-text "squeeze in"
+expect no-text "beds three high"
+expect fits
+shot moved_in
+# wisps show up: the squeeze-in steps appear, priced in wisps
+wisps 500
+wait 0.5
+expect text "beds three high"
+expect text "squeeze in"
+expect fits
+shot squeeze
+click "squeeze in"
+wait 0.3
+expect text "hammocks"
+expect fits
+shot squeezed
+wait 1.5
+# short on wisps: the button stays tappable and your pet says so
+wisps 1                        # short (hammocks cost more), still shown
+click "squeeze in"
+wait text "we need more wisps*"
+expect fits
+shot poor_wisps
+# every listed step built, then the endless ones tuck in one more pet each
+click RoomPill#1
+wisps 100000000
+room 9
+herd common normal 60000
+click RoomPill#1
+wait 1
+expect text "one more squeeze"
+expect fits
+shot all_listed
+click RoomPill#1
+room 16
+click RoomPill#1
+wait 1
+expect text "one more squeeze"
+expect fits
+shot endless
+# short on coins on a coin step: your pet says so
+click RoomPill#1
+room 1
+coins 0
+click RoomPill#1
+wait 0.5
+click "900"
+wait text "more room costs*"
+expect fits
+shot poor
+# tapping outside closes it
+click RoomPill#1
+wait 0.5
+expect no-text "our house"
+shot closed

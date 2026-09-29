@@ -234,7 +234,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   repairs in place of "next up"; `MachineTreeView` frames a globe's `view` of the tree with a sign
   per globe to pan, `MachineMini` draws a node's own globe), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
   `CollectionTab` (pets: the `Bookcase` with its cushion of `MiniCard`s and a `ShelfPlank` per
-  rarity with a `Mound`; a plank opens the `ShelfView` with `PetDetails`; the `RoomPill`; and the
+  rarity with a `Mound`; a plank opens the `ShelfView` with `PetDetails`; the `RoomPill`, which opens the `HouseCard` (the
+  room steps: `HouseDrawing` draws the cut-away house as an SVG made in code, pets pasted in, split
+  only where a later shape covers a pet; the card redraws it only when the steps or looks change); and the
   `BookView`), `AdventuresTab` (adventures:
   `MapView`, the place card, trip cards, and `TrailView` for watching a trip; next door's page
   is drawn by `StreetPage` (night paper, house backs whose windows are the lights, gardens coloured
@@ -243,8 +245,10 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   gear bought with xp, rules in `Gear`, levels in `GameState.gear`, packed onto each trip as
   `RunState.gear`), `ErrandsTab` (jobs: the corkboard; upgrades:
   `ErrandToolsView`, the pegboard of tools bought with coins; rules in `Jobs`, levels in
-  `GameState.errand_tools`; tool and box prices are in capsules x `GameState.capsule_value()`
-  (`Jobs.tool_cost(tool, have, n, value)`, `GameState.box_price` / static `box_cost`); the kitchen speeds every other job via `GameState.kitchen_bonus()`, a `kitchen` part of `boost("errands")` (its line: `Jobs.faster_words`),
+  `GameState.errand_tools`; tool, box and room prices are in capsules x `GameState.capsule_value()`
+  (`Jobs.tool_cost(tool, have, n, value)`, `GameState.box_price` / static `box_cost`,
+  `Herd.room_cost(catalog, level, value)` via `GameState.room_price()`; a squeeze-in room step costs
+  wisps instead, `Herd.room_currency`); the kitchen speeds every other job via `GameState.kitchen_bonus()`, a `kitchen` part of `boost("errands")` (its line: `Jobs.faster_words`),
   scouting fills `GameState.scout_notes` and `send_on_adventure` packs one onto `RunState.scout`,
   read by `Intel.roll` and `AdventureRunner`), `AutomationTab` (a card per job your pet can do, `JobScene` draws each one; rules in
   `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:
@@ -512,6 +516,12 @@ workshop shown, the pills, bell postcards one at a time, `_open_letterbox`), `Ma
 chart), `UiTheme.drawing(art, size, color, width)` (a 48 px crayon sheet), `NewHomesStall.face_for`.
 Dev steps `helpers <drawing> <n> [qual]`, `build <drawing>`, `expect built <id>`, `expect postcards
 <n>`; `visit` now also calls `check_unlocks`. Flow: workshop.
+Save v40 (HOUSE, built as v27 in the house lane) makes `room` the number of room steps built
+(data/herd.json "room" steps + the endless "more"; `Herd.room_step / room_cap / room_cost /
+room_currency`, `GameState.room_next / room_price / room_currency / buy_room / room_split`). The
+squeeze-in steps cost wisps (the one purse) and show once `GameState.wisps_shown()` (wisps held, the
+dungeon or the plushie machine open). A v28-v39 save's old level (500 x 1.5^L) becomes the fewest
+steps that hold at least as much (`_migrate`); older saves get the margin rule on steps.
 
 ## Testing
 

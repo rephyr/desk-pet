@@ -38,7 +38,7 @@ var save_path := DevProfile.path("save.json")  # user://save.json, or a test pro
 ## Headless tests set this before making a GameState: it starts empty and never loads or saves
 ## (a test turns saving on with its own save_path).
 static var testing := false
-const SAVE_VERSION := 39
+const SAVE_VERSION := 40
 const WORKER_BOXES_MAX := 2000  # box workers open at most this many boxes in one go (every pet is rolled)
 const OFFLINE_CAP := 12.0 * 3600.0
 const FRAME_GAP := 5.0  # a frame this long means the computer slept: counts as closed (no care drain)
@@ -107,7 +107,7 @@ var _was_active := ""  # the active pet before it changed (it goes back to work)
 var last_moved := ""  # the uid of the last pet put on or taken off an errand (for your pet to name it)
 ## Who's resting, worked out once until crews, workers, trips or the herd change (see _rest_changed)
 var _rest := {}
-var room := 0  # room upgrades bought: the room holds this many plain pets, see Herd.room_cap
+var room := 0  # room steps built (the house card): the room holds this many plain pets, see Herd.room_cap
 ## New homes: the stall's jar, the sorting rule and its count, see NewHomes and data/new_homes.json
 var homes := NewHomes.fresh(Catalog.shared())
 var workshop := Workshop.fresh(Catalog.shared())  # the shed workshop's drawings, see Workshop
@@ -508,9 +508,52 @@ func room_is_cozy() -> bool:
 	return collection.plain_count() >= room_cap() * float(catalog.herd.get("room", {}).get("cozy_at", 0.9))
 
 
-## What the next room upgrade costs.
+## What the next room step costs, in its one currency (room_currency).
 func room_price() -> int:
-	return Herd.room_cost(catalog, room)
+	return Herd.room_cost(catalog, room, capsule_value())
+
+
+## What the next room step is paid in: "coins" or "wisps".
+func room_currency() -> String:
+	return Herd.room_currency(catalog, room)
+
+
+## The next room step to show on the house card: { id, name, cap, capsules | wisps }, or {} when
+## it's a squeeze-in step and wisps haven't shown up yet (hidden until earned).
+func room_next() -> Dictionary:
+	var s := Herd.room_step(catalog, room)
+	if s.has("wisps") and not wisps_shown():
+		return {}
+	return s
+
+
+## Every plain pet in the room, split: [at home on the shelves, out working]. Out working: herd
+## pets on errands, at worker spots, away (stand-ins) or in the dungeon's army, and plain cards on
+## errands, working, away or in the army. The two add up to plain_count() (pets on jobs count
+## toward the room too).
+func room_split() -> Array:
+	var total := collection.plain_count()
+	var gone := _out()
+	var out := 0
+	var used := _herd_used(gone)
+	var army := _army_herd(used)
+	for k in used:
+		out += int(used[k])
+	for k in army:
+		out += int(army[k])
+	var cards := gone.duplicate()
+	for uid in _job_of:
+		cards[str(uid)] = true
+	for uid in _worker_of:
+		cards[str(uid)] = true
+	for uid: String in cards:
+		if Herd.is_stand_in(uid):
+			continue  # counted with the herd
+		var pet := collection.get_pet(uid)
+		if pet and Herd.plain(catalog, pet.finish):
+			out += 1
+	out = clampi(out, 0, total)
+	return [total - out, out]
 
 
 ## The room shows (the pill on the pets tab) once a pet has folded into the herd.
@@ -518,16 +561,27 @@ func room_shown() -> bool:
 	return collection.herd_ever or room > 0
 
 
-## Buys the next room upgrade with coins. Returns whether you could.
+## Builds the next room step, paid in its one currency (coins or wisps). Returns whether you could.
 func buy_room() -> bool:
 	var price := room_price()
-	if coins < price:
-		return false
-	coins -= price
+	if room_currency() == "wisps":
+		if not wisps_shown() or wisps < price:
+			return false
+		wisps -= price
+	else:
+		if coins < price:
+			return false
+		coins -= price
 	room += 1
 	changed.emit()
 	save_game()
 	return true
+
+
+## Whether wisps have shown up yet (hidden until earned: nothing priced in wisps shows before):
+## the dungeon or the plushie machine is open (the two places that pay them), or you hold some.
+func wisps_shown() -> bool:
+	return wisps > 0 or dungeon_open() or plushie_open()
 
 
 # ---- new homes: the stall on the pets tab and the sorting rule (see NewHomes) ---------------
@@ -5945,7 +5999,7 @@ func _load_save() -> bool:
 	scout_notes = clampi(int(data.get("scout_notes", 0)), 0, scout_hold())  # v23
 	_crews_changed()
 	gear = Gear.clean(catalog, data.get("gear", {}))  # v22 added gear: older saves start with none
-	room = maxi(0, int(data.get("room", 0)))  # v28 added the room
+	room = maxi(0, int(data.get("room", 0)))  # v28 added the room (v40: steps built on the house card)
 	if from_version < 28:
 		# a save from before the room that already had more pets gets room for them (and a bit more),
 		# so boxes and box jobs keep opening (before the catch-up below: box workers open boxes there)
@@ -6303,6 +6357,13 @@ func _migrate(data: Dictionary) -> Dictionary:
 	# v39 (built as v27 in the workshop lane): the shed workshop. Nothing to convert here: load_game's
 	# Workshop.clean gives older saves a fresh one (the first 3 drawings pinned, nothing built), and
 	# toys being played with load without a play length (the toy shelf doesn't hand those again)
+	if version >= 28 and version < 40 and data.has("room"):
+		# v40 (built as v27 in the house lane): the room grows in named steps (the house card) instead
+		# of levels of 500 x 1.5^L: an old level becomes the fewest steps that hold at least as much,
+		# so nobody loses room (a big old room can land on a squeeze-in step: kept, for free)
+		var level := maxi(0, int(data.get("room", 0)))
+		var old_cap := maxi(50, roundi(minf(500.0 * pow(1.5, level), 1.0e15) / 50.0) * 50)
+		data.room = Herd.room_level_for(catalog, old_cap)
 	data.version = SAVE_VERSION
 	return data
 

@@ -302,7 +302,10 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   shelves and jobs counts). Coin steps first (cap x1.5 each, priced in capsules, growing with
   capsule value like errands), then wisp "squeeze in" steps (x2 cap) that keep going (pets in the
   teapot, under the rug...); each step is ONE currency; sizes set by the pace sim. **Every plain
-  pet counts toward the room, pets on jobs too.** BUILDING in lane house, not merged.
+  pet counts toward the room, pets on jobs too.** BUILT (lane house, notes in
+  docs/plans/HOUSE-done.md), merged as save v40: 4 coin steps (capsules x coin value), then wisp
+  squeeze-in steps (hidden until wisps: the dungeon or the plushie machine open), then endless "one
+  more squeeze". Placeholders: sizes and prices wait for the pace sim. Flow: house.
 - **Built 2026-09-28 (lane c1-c3, notes in docs/plans/C1-done.md):** look A, the bookcase: cushion
   (active, favourites, best), a plank per rarity (tag, newest 4, a mound that grows with the count,
   shiny count, the best knack's badge on each card's corner), a shelf opened (herd chips,

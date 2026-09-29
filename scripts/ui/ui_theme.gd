@@ -457,10 +457,20 @@ static func named_color(color_name: String, fallback := PINK) -> Color:
 	return fallback
 
 
+## A whole number in full with thousands commas: 1,234,567.
+static func full_num(n: int) -> String:
+	var s := str(absi(n))
+	var out := ""
+	while s.length() > 3:
+		out = "," + s.right(3) + out
+		s = s.left(s.length() - 3)
+	return ("-" if n < 0 else "") + s + out
+
+
 static func num(n: float) -> String:
 	var a := absf(n)
 	if a < 10000.0:
-		return ExpandedView._thousands(roundi(n))
+		return full_num(roundi(n))
 	var units := ["k", "M", "B", "T"]
 	var v := a
 	for u in units:
@@ -599,6 +609,7 @@ const DOODLES := {
 	"settings": '<circle cx="12" cy="12" r="2.4"/><path d="M12 3.6 Q14.6 3.8 13.9 7.2 M12 3.6 Q9.4 3.8 10.1 7.2 M19.3 7.8 Q20.4 10.2 17.1 11.1 M19.3 7.8 Q17.7 5.7 15.3 8.3 M19.3 16.2 Q17.9 18.4 15.3 15.8 M19.3 16.2 Q20.5 13.9 17.1 12.9 M12 20.4 Q9.4 20.2 10.1 16.8 M12 20.4 Q14.6 20.2 13.9 16.8 M4.7 16.2 Q3.6 13.8 6.9 12.9 M4.7 16.2 Q6.3 18.3 8.7 15.7 M4.7 7.8 Q6.1 5.6 8.7 8.2 M4.7 7.8 Q3.5 10.1 6.9 11.1"/>',
 	"coin": '<path d="M12 3 L19.6 10.4 L12 21.2 L4.4 10.4 Z" fill="{cyan}" stroke="{cyan}"/><path d="M5 10.4 L19 10.4 M9.2 10.4 L12 4.2 L14.8 10.4 L12 19.8 L9.2 10.4" stroke="{page}" stroke-width="1.1"/>',
 	"xp": '<path d="M12 2.6 Q13.1 10 21.4 12 Q13.1 14 12 21.4 Q10.9 14 2.6 12 Q10.9 10 12 2.6 Z" fill="{gold}" stroke="{gold}"/>',
+	"shelf": '<path d="M5 3.8 L5.2 20.2 M18.8 3.8 L18.6 20.2 M5 9 L18.8 8.8 M5.1 14.5 L18.7 14.4 M4.4 20.2 L19.4 20.1"/>',
 	"heart": '<path d="M12 20.1 Q3.4 13.6 4.3 8.4 Q5.4 4.2 9.3 5.1 Q11.2 5.7 12 8 Q12.9 5.6 14.8 5.1 Q18.7 4.3 19.7 8.4 Q20.6 13.5 12 20.1 Z" fill="{pink}" stroke="{pink}"/>',
 	"jar": '<path d="M8 3.5 L16 3.5 M9 3.5 L9 6.5 Q4.6 8 4.8 13 L5.2 18.6 Q12 21 18.8 18.6 L19.2 13 Q19.4 8 15 6.5 L15 3.5"/><path d="M8 14 L10 12 L12 14 L14 12 L16 14" opacity=".8"/>',
 }
@@ -620,6 +631,8 @@ const PIXELS := {
 	"coin": ["....w....", "...wab...", "..waaab..", ".waaaaab.", "waaaaaaab", ".aaaaabb.", "..aaabb..", "...abb...", "....b...."],
 	"xp": ["....g....", "....g....", "...ggg...", "..ggwgg..", "gggwwwggg", "..ggwgg..", "...ggg...", "....g....", "....g...."],
 	"jar": ["..ooooo..", "...o.o...", "..o...o..", ".o.....o.", ".o.o.o.o.", ".oo.o.oo.", ".o.....o.", ".o.....o.", "..ooooo.."],
+	"wisp": ["...kkk...", ".kkkkkkk.", "kkwkkkkkk", "kkkkkkkkk", ".kkkkkkk.", "..kkkkk..", "....k....", "....k....", ".....k..."],
+	"shelf": ["o.......o", "o.......o", "ooooooooo", "o.......o", "o.......o", "ooooooooo", "o.......o", "o.......o", "ooooooooo"],
 	"heart": [".pp...pp.", "pwpp.pppp", "pwppppppp", "ppppppppd", ".pppppdd.", "..pppdd..", "...pdd...", "....d....", "........."],
 }
 
@@ -661,8 +674,8 @@ static func icon_rect(icon_name: String, size := 18, color := TEXT) -> TextureRe
 
 
 static func _pixel_texture(icon_name: String, size: int, color: Color) -> ImageTexture:
-	var shine := { "xp": Color("fff6d6"), "heart": Color("ffd1ea") }
-	var fixed := { "w": shine.get(icon_name, Color("e8fbff")), "a": CYAN, "b": CYAN.darkened(0.3), "g": GOLD, "p": PINK, "d": PINK.darkened(0.2) }
+	var shine := { "xp": Color("fff6d6"), "heart": Color("ffd1ea"), "wisp": Color("ffd6c7") }
+	var fixed := { "w": shine.get(icon_name, Color("e8fbff")), "a": CYAN, "b": CYAN.darkened(0.3), "g": GOLD, "p": PINK, "d": PINK.darkened(0.2), "k": WISP }
 	var rows: Array = PIXELS[icon_name]
 	var img := Image.create_empty(9, 9, false, Image.FORMAT_RGBA8)
 	for y in rows.size():
