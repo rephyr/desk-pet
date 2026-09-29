@@ -143,7 +143,7 @@ func _place_holds() -> void:
 		var cx := _cx()
 		var y := _ys[f]
 		var geo := { "y": y, "y0": _ys[f - 1], "l": cx - hw, "r": cx + hw, "cx": cx, "kind": kind,
-			"dip": (y - _ys[f - 1]) * 0.55, "down_right": f % 2 == 1, "door_x": -1.0,
+			"w": size.x, "dip": (y - _ys[f - 1]) * 0.55, "down_right": f % 2 == 1, "door_x": -1.0,
 			"sew_door": GameState.sewing_open() and f == int(catalog.sewing.get("door_floor", 20)) }
 		if kind == "doors" and Dungeon.floor_kind(catalog, f) in ["door", "tiny", "knock"]:
 			var dw := 6.0 if Dungeon.floor_kind(catalog, f) == "tiny" else 9.0

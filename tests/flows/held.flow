@@ -5,7 +5,8 @@
 # dashed 'N/M'; once it's full, a coral 'N' and a pennant on the card. The crowds: around the rope at
 # 10, propping the door at 20 (the pill under the landing, clear of the sewing room's door), sitting
 # on the stairs at 30 (its guard is gone). Then the orders card gets "start from": the army starts at
-# landing 30 and skips the floors above. Everything stays inside the window.
+# landing 30 and skips the floors above. Deep down the wide dashed pills slide left and under their
+# landings to stay inside the well. Everything stays inside the window.
 from rich
 view full
 herd common normal 30000
@@ -113,3 +114,15 @@ expect text "last time"
 expect text "floor 3*"
 expect fits
 shot home
+deep 62                              # deep landings: wide dashed pills stay inside the well's column
+herd common normal 150000
+holders 50 common 35100
+holders 60 common 109000
+wait 1
+click HoldSpot#6
+wait 0.5
+expect text "landing 60"
+expect text "109k"
+expect no-text "109,000"             # the card's count reads like the pill and the meter
+expect fits
+shot deep_pills                      # 35.1k/72k and 109k/216k slid in, under their landings

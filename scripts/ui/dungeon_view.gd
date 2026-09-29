@@ -753,7 +753,7 @@ func _hold_card(f: int, keep := 0) -> Control:
 	line.add_child(mound)
 	var words := VBoxContainer.new()
 	words.add_theme_constant_override("separation", 1)
-	words.add_child(UiTheme.title(UiTheme.num(n), 22, UiTheme.TEXT))
+	words.add_child(UiTheme.title(HoldSpot.short(n), 22, UiTheme.TEXT))
 	words.add_child(UiTheme.label("holding %s" % Dungeon.hold_what(catalog, f), UiTheme.MUTED, UiTheme.SMALL))
 	line.add_child(words)
 	col.add_child(line)
@@ -775,7 +775,7 @@ func _hold_card(f: int, keep := 0) -> Control:
 	count.add_child(of)
 	meter_row.add_child(count)
 	col.add_child(meter_row)
-	# a stepper per shelf with pets that may go (each "of N" at most what the landing still needs)
+	# a stepper per shelf with pets that may go ("of N": all of them; a stepper goes at most as far as the landing still needs)
 	var room := GameState.hold_room(f)
 	var step := ceili(need / maxf(1.0, float(catalog.dungeon.get("hold", {}).get("steps_to_fill", 20))))
 	var picked := 0
@@ -796,7 +796,7 @@ func _hold_card(f: int, keep := 0) -> Control:
 		var tname := VBoxContainer.new()
 		tname.add_theme_constant_override("separation", -2)
 		tname.add_child(UiTheme.label(str(tier.name), catalog.tier_color(tier.id), UiTheme.SMALL + 1))
-		tname.add_child(UiTheme.label("of %s" % UiTheme.num(have), UiTheme.MUTED, UiTheme.SMALL - 1))
+		tname.add_child(UiTheme.label("of %s" % UiTheme.num(int(GameState.homes_pick(tier.id).n)), UiTheme.MUTED, UiTheme.SMALL - 1))
 		tname.size_flags_horizontal = SIZE_EXPAND_FILL
 		r.add_child(tname)
 		var id := str(tier.id)

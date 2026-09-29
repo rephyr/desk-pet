@@ -4,7 +4,8 @@ extends Button
 ## crowd of pets holding it, posed by the band (around the rope at the bottom of the well, beside the
 ## propped-open door in the cellar, sitting on the stairs further down), and a coral count pill right of
 ## the shaft ('N' when it's fully held, a dashed 'N/M' while it fills; at the cellar's landing the pill
-## sits just under the landing once the sewing room's door is there, clear of it). WellColumn places one per landing that can
+## sits just under the landing once the sewing room's door is there, clear of it; a pill too wide for
+## the gap right of the shaft slides left, under the landing, and stays inside the column). WellColumn places one per landing that can
 ## be held; a tap opens its card in the dungeon page's side column.
 ## Design: lanes/mockups2 design/mockups/screens/well-additions.html (look A, held landings).
 
@@ -60,6 +61,15 @@ func setup(f: int, n: int, need: int, faces: Array, shown: int, geo: Dictionary)
 	var font := _font()
 	var w := font.get_string_size(_pill_text(), HORIZONTAL_ALIGNMENT_LEFT, -1, FONT).x + 12.0
 	var pill := Rect2(Vector2(r + 5.0, y + 1.0 if geo.get("sew_door", false) else y - 8.0), Vector2(w, PILL_H))
+	# (kept inside the column: slid left when it's too wide for the gap, and dropped just under the
+	# landing, clear of its floor line, when it has to reach back over the shaft's wall)
+	var right := float(geo.get("w", 0.0)) - 2.0
+	if right <= r:  # (no width yet)
+		right = INF
+	if pill.end.x > right:
+		pill.position.x = maxf(float(geo.l), right - w)
+		if pill.position.x < r + 2.0:
+			pill.position.y = y + 1.0
 	var box := pill
 	var crowd := Rect2()
 	for s in spots:
