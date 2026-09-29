@@ -1,7 +1,7 @@
 # SHOP: the shed workshop (F3, look A): done notes (lane workshop)
 
-**Status: built, review fixes in (see the end), tests + balance + flows pass.** Save **v26 -> v27** (one bump
-from this branch's 26; renumber at merge).
+**Status: VERIFIED 2026-09-29** (after the review fixes at the end; tests + balance + flows pass).
+Save **v26 -> v27** (one bump from this branch's 26; renumber at merge).
 
 Built from docs/plans/SHOP.md, picks.md (Brainstorm 3 F3, Look picks round 3: the shed workshop
 look A) and lanes/mockups2 design/mockups/screens/shed-workshop.html look A + its drawings table.
