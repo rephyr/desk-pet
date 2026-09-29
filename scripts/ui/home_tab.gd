@@ -155,6 +155,8 @@ func _init() -> void:
 	GameState.adventures_changed.connect(func(): _dirty = true)
 	GameState.collection.active_changed.connect(func(_p): _dirty = true)
 	GameState.gifts_changed.connect(func(): _dirty = true)
+	GameState.unlocked.connect(func(_id): _dirty = true)  # a note goes up with its tab
+	GameState.tutorial_changed.connect(func(): _dirty = true)
 	visibility_changed.connect(func():
 		if is_visible_in_tree():
 			_refresh()
@@ -758,28 +760,31 @@ func _refresh() -> void:
 	var waiting := GameState.runs.filter(func(r): return r.status == RunState.Status.WAITING).size()
 	var away := GameState.runs.size()
 	if back > 0:
-		_set_note("adventures", "%d back home!" % back if back > 1 else "someone's back home!", "say welcome back", true)
+		_set_note("adventures", "%d back home!" % back if back > 1 else "someone's back home!", "", true)
 	elif waiting > 0:
-		_set_note("adventures", "%d waiting for you" % waiting, "pick what to do", true)
+		_set_note("adventures", "%d waiting for you" % waiting, "", true)
 	elif away > 0:
-		_set_note("adventures", "%d out and about" % away, "watch them go", false)
+		_set_note("adventures", "%d out and about" % away, "", false)
 	else:
-		_set_note("adventures", "nobody's away", "send someone", false)
+		_set_note("adventures", "nobody's away", "", false)
+	_show_note("adventures", _tab_shown("adventures"))
 
 	var boxes := GameState.boxes_on_pile()
 	if GameState.can_auto_open() and boxes > 0:
 		_set_note("boxes", "%s is opening the pile" % _name.text, "%d left" % boxes, true)
 	else:
-		_set_note("boxes", "%d boxes on your pile" % boxes if boxes > 0 else "your pile is empty", "open them" if boxes > 0 else "buy some", boxes > 0)
+		_set_note("boxes", "%d boxes on your pile" % boxes if boxes > 0 else "your pile is empty", "", boxes > 0)
+	_show_note("boxes", _tab_shown("boxes"))
 
 	var parts := 0
 	for key in GameState.parts:
 		parts += int(GameState.parts[key])
-	_set_note("parts", "%d parts to sew on" % parts if parts > 0 else "no parts yet", "try them on" if parts > 0 else "pets find them on adventures", parts > 0)
-	_note_parts.parts.panel.get_parent().visible = GameState.tab_open("inventory")
+	_set_note("parts", "%d parts to sew on" % parts if parts > 0 else "no parts yet", "", parts > 0)
+	_show_note("parts", _tab_shown("inventory"))
 
 	var ready := GameState.spotted.size() + GameState.rumours.size()
-	_set_note("map", "somewhere new to go!" if ready > 0 else "the map", "go and look" if ready > 0 else "plan an adventure", ready > 0)
+	_set_note("map", "somewhere new to go!" if ready > 0 else "the map", "", ready > 0)
+	_show_note("map", _tab_shown("adventures"))
 
 	for id in _spots:
 		_spots[id].visible = GameState.rummage_open()
@@ -793,7 +798,18 @@ func _set_note(note_name: String, line: String, hint: String, waiting: bool) -> 
 	var n: Dictionary = _note_parts[note_name]
 	n.line.text = line
 	n.hint.text = hint
+	n.hint.visible = hint != ""
 	n.panel.modulate.a = 1.0 if waiting else 0.62
+
+
+## A note is only on the wall once the tab it leads to is (hidden until earned).
+func _show_note(note_name: String, on: bool) -> void:
+	_note_parts[note_name].panel.get_parent().visible = on
+
+
+## Whether the spine shows this tab right now: earned, and not held back by the tutorial.
+static func _tab_shown(tab_id: String) -> bool:
+	return tab_id in ExpandedView.TUTORIAL_TABS.get(GameState.tutorial, [tab_id]) and GameState.tab_open(tab_id)
 
 
 func _first_box_in_bag() -> String:
