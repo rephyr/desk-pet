@@ -15,8 +15,8 @@ shot first_pet
 expect tutorial machine
 click tab:collection
 shot collectibles
-click "???"
-shot toys_locked
+expect no-text "toys"         # hidden until earned: no toys switch yet
+expect no-text "???"
 tab machine
 pull 5
 expect tutorial machine

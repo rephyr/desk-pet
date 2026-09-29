@@ -70,7 +70,7 @@ func _init() -> void:
 	_shelf.closed.connect(close_shelf)
 	add_child(toys)
 	toys.visible = false
-	# the toys switch is locked ("???") until toys open (through adventures)
+	# the toys switch isn't there until toys open (hidden until earned)
 	_toys_button = _mode.get_child(0).get_child(1) as Button
 	_lock_toys()
 	GameState.changed.connect(_lock_toys)
@@ -187,16 +187,14 @@ func _show_jar() -> void:
 
 func _lock_toys() -> void:
 	var open := GameState.feature_on("toys")
-	_toys_button.text = "toys" if open else "???"
-	_toys_button.icon = null if open else UiTheme.icon("lock", 12, UiTheme.LOCKED)
-	_toys_button.tooltip_text = "" if open else GameState.catalog.unlock_list.filter(func(e): return e.id == "toys")[0].get("hint", "")
+	_toys_button.visible = open
+	if not open and toys.visible:
+		show_mode(0)
 
 
 func _show_mode(mode: int) -> void:
 	if mode == 1 and not GameState.feature_on("toys"):
-		# locked: your pet says what opens it, and you stay on the pets
-		PetBubble.say(self, "toys? " + _toys_button.tooltip_text + "!")
-		show_mode(0)
+		show_mode(0)  # not earned yet (the switch doesn't even show it)
 		return
 	_book_row.visible = mode == 2
 	toys.visible = mode == 1

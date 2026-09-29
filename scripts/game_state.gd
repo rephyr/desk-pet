@@ -1023,25 +1023,13 @@ func feature_on(feature: String) -> bool:
 	return is_unlocked("feature:" + feature)
 
 
-## Whether a tab can be opened: nothing locks it, or what locks it has been unlocked.
+## Whether a tab is there: nothing opens it (always there), or what opens it has been unlocked.
+## A tab that isn't open is out of sight (hidden until earned, never shown locked).
 func tab_open(tab_name: String) -> bool:
-	return tab_hint(tab_name) == ""
-
-
-## The hint on a locked tab, or "" if it's open.
-func tab_hint(tab_name: String) -> String:
 	for entry in catalog.unlock_list:
 		if ("tab:" + tab_name) in entry.opens and not is_unlocked("tab:" + tab_name):
-			return str(entry.get("hint", "not yet"))
-	return ""
-
-
-## Whether a locked tab stays out of sight until it opens ("show": "hidden" in data/unlocks.json).
-func tab_hidden(tab_name: String) -> bool:
-	for entry in catalog.unlock_list:
-		if ("tab:" + tab_name) in entry.opens and not is_unlocked("tab:" + tab_name):
-			return entry.show == "hidden"
-	return false
+			return false
+	return true
 
 
 ## Opens whatever you've earned on your adventures (data/unlocks.json).

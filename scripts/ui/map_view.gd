@@ -335,6 +335,11 @@ func _place_hotspots() -> void:
 		spot.mouse_filter = MOUSE_FILTER_IGNORE
 		spot.size = Vector2(HIT, HIT) * 2.0
 		spot.position = _at(node) - spot.size / 2.0
+		# the name and bit lines drawn under the doodle (see _draw_node): the tutorial's bubble goes below them
+		var k := clampf(_scale / UNIT * 1.25, 0.75, 1.3)
+		var n_bits: int = bits_of(node.location).size() if not node.location.is_empty() else 0
+		var bottom := (62.0 + 16.0 * (n_bits - 1) + 5.0) * k if n_bits > 0 else 50.0 * k
+		spot.set_meta("guide_below", maxf(0.0, bottom - HIT))
 		add_child(spot)
 		_hotspots[node.id] = spot
 
@@ -816,7 +821,7 @@ func _bit_line(at: Vector2, bit: String, text: String, k: float, alpha: float) -
 	var font_size := int(13 * k)
 	var s := 15.0 * k
 	var width := s + 4.0 * k + _note_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	var left := at.x - width / 2.0
+	var left := _inside(at.x - width / 2.0, width)
 	draw_texture_rect(UiTheme.icon("bit_" + bit, int(ceilf(s))), Rect2(Vector2(left, at.y - s + 2.0 * k), Vector2(s, s)), false, Color(1, 1, 1, alpha))
 	draw_string(_note_font, Vector2(left + s + 4.0 * k, at.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(bit_color(bit), alpha))
 
@@ -857,7 +862,13 @@ func _heart(at: Vector2, r: float, color: Color) -> void:
 
 func _label(at: Vector2, text: String, color: Color, font: Font, font_size: int) -> void:
 	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	draw_string(font, at - Vector2(width / 2.0, 0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
+	draw_string(font, Vector2(_inside(at.x - width / 2.0, width), at.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
+
+
+## Where a line of `width` starting at `left` has to start so it stays on the map (never cut off at its edges).
+func _inside(left: float, width: float) -> float:
+	const MARGIN := 10.0
+	return clampf(left, MARGIN, maxf(MARGIN, size.x - MARGIN - width))
 
 
 func _little_pet(at: Vector2, color: Color, seed: int) -> void:

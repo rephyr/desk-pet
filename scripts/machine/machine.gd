@@ -199,7 +199,7 @@ static func maxed(state: Dictionary, catalog: Catalog, id: String) -> bool:
 
 
 ## How a node shows on the tree: "owned" (fixed, at least one level), "next" (what it grows from is
-## fixed: you can work on it), "dim" (you can see it coming, not yet), "hidden" (a "?") or "away"
+## fixed: you can work on it), "dim" (you can see it coming, not yet), "hidden" (not drawn yet) or "away"
 ## (its globe isn't home yet: not there at all).
 static func look(state: Dictionary, catalog: Catalog, id: String) -> String:
 	var n := node(catalog, id)

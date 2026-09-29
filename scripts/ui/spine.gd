@@ -143,36 +143,26 @@ func set_current(id: String) -> void:
 	for tab_id in _tabs:
 		var b: Button = _tabs[tab_id]
 		var on: bool = tab_id == id
-		if b.get_meta("locked", false):
-			continue
 		var patch := UiTheme.stitched(UiTheme.PINK, UiTheme.RAISED, 10, 2)
 		b.add_theme_stylebox_override("normal", patch if on else StyleBoxEmpty.new())
 		b.add_theme_stylebox_override("hover", patch if on else StyleBoxEmpty.new())
 		b.add_theme_color_override("font_color", UiTheme.PINK if on else UiTheme.MUTED)
-		if not b.has_meta("locked") or not b.get_meta("locked"):
-			b.icon = UiTheme.icon(b.get_meta("icon_name"), 18, UiTheme.PINK if on else UiTheme.MUTED)
+		b.icon = UiTheme.icon(b.get_meta("icon_name"), 18, UiTheme.PINK if on else UiTheme.MUTED)
 		(b.get_parent() as Tilted).degrees = -3.0 if on else 0.0
 
 
-## Shows or hides a tab (tutorial), locks it (padlock and "???"), and its news dot.
-func set_tab_state(id: String, shown: bool, locked: bool, news := false) -> void:
+## Shows or hides a tab (the tutorial, or not earned yet: never shown locked), and its news dot.
+func set_tab_state(id: String, shown: bool, news := false) -> void:
 	var b: Button = _tabs[id]
 	b.get_parent().visible = shown
-	b.set_meta("locked", locked)
-	if locked:
-		b.icon = UiTheme.icon("lock", 18, UiTheme.LOCKED)
-		b.add_theme_color_override("font_color", UiTheme.LOCKED)
-	b.set_meta("label", b.get_meta("label", b.text))
-	b.text = "???" if locked else b.get_meta("label")
-	_news[id].visible = news and not locked
-	if not locked:
-		set_current(_current)
+	_news[id].visible = news and shown
+	set_current(_current)
 
 
 ## The gold dot on a tab: something new there.
 func set_news(id: String, news: bool) -> void:
 	if _news.has(id):
-		_news[id].visible = news and not _tabs[id].get_meta("locked", false)
+		_news[id].visible = news and _tabs[id].get_parent().visible
 
 
 func tab_button(id: String) -> Button:

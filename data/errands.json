@@ -53,6 +53,5 @@
 		{ "id": "naps", "name": "comfy naps", "icon": "tool_nap", "what": "+1 h at full speed while you're away", "capsules": 40, "grow": 1.8, "max": 8, "each": { "away_hours": 1 } },
 		{ "id": "pebbles", "name": "shiny pebbles", "icon": "tool_pebble", "what": "errands find shiny ones like the machine", "capsules": 110, "grow": 1, "max": 1, "machine": "shiny", "each": { "shiny": 1 } },
 		{ "id": "team", "name": "teamwork", "icon": "tool_team", "what": "each extra pet on a job helps more", "capsules": 270, "grow": 3, "max": 3, "each": { "crew_power": 0.05 } }
-	],
-	"coming": { "name": "something behind the shed…", "hint": "keep finding things on adventures" }
+	]
 }

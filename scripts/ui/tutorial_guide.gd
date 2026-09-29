@@ -39,7 +39,9 @@ func _process(delta: float) -> void:
 	# under the target if there's room, otherwise above it; always inside the window
 	var rect := _target_rect()
 	var bubble_size := _bubble.get_combined_minimum_size()
-	var pos := Vector2(rect.position.x, rect.end.y + 10)
+	# a target with words drawn under it (a place's name on the map) says how far: the bubble goes below them
+	var below := float(_target.get_meta("guide_below", 0.0))
+	var pos := Vector2(rect.position.x, rect.end.y + below + 10)
 	if pos.y + bubble_size.y > size.y:
 		pos.y = rect.position.y - bubble_size.y - 10
 	pos.x = clampf(pos.x, 4, size.x - bubble_size.x - 4)

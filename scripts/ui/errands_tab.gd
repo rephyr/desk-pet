@@ -21,7 +21,6 @@ const PHOTO_TILTS := [-4.0, 3.0, -2.0, 5.0, -3.0, 2.0, 4.0, -5.0, 1.0]
 
 var _notes := GridContainer.new()
 var _steps_row := HBoxContainer.new()
-var _subtitle: Label
 var _box := VBoxContainer.new()
 var _meters := {}  # job id -> Meter
 var _countdowns := {}  # job id -> the "full in 24m 10s" label of a job that pays in one chunk (the jar)
@@ -82,9 +81,7 @@ func _init() -> void:
 	var head := HBoxContainer.new()
 	head.add_theme_constant_override("separation", 10)
 	head.add_child(UiTheme.title("errands", 20))
-	_subtitle = _shrinkable(UiTheme.label("pets work here while they rest. nobody wanders off.", UiTheme.MUTED, UiTheme.SMALL + 1))
-	_subtitle.size_flags_vertical = SIZE_SHRINK_CENTER
-	head.add_child(_subtitle)
+	head.add_child(UiTheme.spacer())
 	_steps_row.add_theme_constant_override("separation", 6)
 	var move := UiTheme.label("move", UiTheme.MUTED, UiTheme.SMALL)
 	move.size_flags_vertical = SIZE_SHRINK_CENTER
@@ -252,9 +249,6 @@ func _rebuild() -> void:
 		var wait := shown_wait(job)
 		if not wait.is_empty():
 			notes.append(_waiting_note(job, wait))
-	var coming: Dictionary = catalog.errands.get("coming", {})
-	if not coming.is_empty():
-		notes.append(_coming_note(coming))
 	for i in notes.size():
 		var tilted := Tilted.new(notes[i], TILTS[i % TILTS.size()])
 		tilted.size_flags_horizontal = SIZE_EXPAND_FILL  # the notes share the board's width
@@ -372,7 +366,7 @@ static func _streams(job: Dictionary) -> bool:
 	return not job.get("chunk", false) and not pay.has("meal") and not pay.has("note")
 
 
-## A job still to come that shows as a waiting note (and a waiting shelf of tools): only when it's
+## A job still to come that shows as a waiting note: only when it's
 ## the NEXT goal of a job that's open, so there's never a row of locked notes. { job, level } or {}.
 static func shown_wait(job: Dictionary) -> Dictionary:
 	var wait := level_wait(job)
@@ -424,22 +418,6 @@ func _waiting_note(job: Dictionary, wait: Dictionary) -> Control:
 	var count := _wrapped("%d / %d" % [mini(have, wait.level), wait.level], UiTheme.LOCKED)
 	count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(count)
-	return panel
-
-
-func _coming_note(coming: Dictionary) -> Control:
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(NOTE_WIDTH, 300)
-	panel.add_theme_stylebox_override("panel", UiTheme.stitched(UiTheme.LINE, Color(UiTheme.DEEP, 0.5), 8, 12))
-	var col := _column(panel, 6)
-	col.alignment = BoxContainer.ALIGNMENT_CENTER
-	var icon := UiTheme.icon_rect("job_coming", 40, UiTheme.LOCKED)
-	icon.size_flags_horizontal = SIZE_SHRINK_CENTER
-	col.add_child(icon)
-	for line in [[coming.name, UiTheme.LOCKED], [coming.hint, UiTheme.LOCKED]]:
-		var l := _wrapped(str(line[0]), line[1])
-		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		col.add_child(l)
 	return panel
 
 

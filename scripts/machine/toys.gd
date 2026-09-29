@@ -130,7 +130,13 @@ static func slots(state: Dictionary, catalog: Catalog) -> int:
 
 
 static func set_done(state: Dictionary, set_data: Dictionary) -> bool:
-	return set_data.toys.all(func(t): return has_toy(state, t.id))
+	return set_data.toys.all(func(t): return t.tier == "secret" or has_toy(state, t.id))
+
+
+## The toys of a set that show: all but a secret one you haven't found (hidden until earned; it's
+## a bonus, not needed to finish the set).
+static func shown_toys(state: Dictionary, set_data: Dictionary) -> Array:
+	return set_data.toys.filter(func(t): return t.tier != "secret" or has_toy(state, t.id))
 
 
 ## Editions working right now: the ones being played with, and favourites (always on).

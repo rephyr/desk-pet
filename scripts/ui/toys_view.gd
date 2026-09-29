@@ -2,7 +2,7 @@ class_name ToysView
 extends HBoxContainer
 ## The toys page of the collectibles tab. Along the top, what your pet is playing with (a toy only
 ## boosts while it's played with; you can't switch until it's done: "do not disturb me!"). Under it,
-## the set: every toy as a card (a silhouette until you find it, the secret one a "?"). On the right,
+## the set: every toy as a card (a silhouette until you find it; the secret one isn't there until found). On the right,
 ## the picked toy up close: what it does, each finish you own as its own edition (level, spares, how
 ## worn it is), and the play buttons. Toys come from the capsule machine (Toys, data/toys.json).
 ## Design: design/mockups/screens/toys.html.
@@ -129,8 +129,9 @@ func _rebuild() -> void:
 	if not sets.any(func(x): return x.id == _set_id):
 		_set_id = str(sets[0].id)
 	var set_data: Dictionary = sets.filter(func(x): return x.id == _set_id)[0]
-	if _picked == "" or not set_data.toys.any(func(t): return t.id == _picked):
-		_picked = str(set_data.toys[0].id)
+	var shown := Toys.shown_toys(state, set_data)
+	if _picked == "" or not shown.any(func(t): return t.id == _picked):
+		_picked = str(shown[0].id)
 	# one set: its name; more: a chip per set to pick which one shows
 	_set_title.text = str(set_data.name)
 	_set_tabs.visible = sets.size() > 1
@@ -146,9 +147,9 @@ func _rebuild() -> void:
 				_edition = ""
 				_rebuild())
 			_set_tabs.add_child(chip)
-	var owned: int = set_data.toys.filter(func(t): return Toys.has_toy(state, t.id)).size()
-	_set_count.text = "%d of %d" % [owned, set_data.toys.size()]
-	_set_meter.max_value = set_data.toys.size()
+	var owned: int = shown.filter(func(t): return Toys.has_toy(state, t.id)).size()
+	_set_count.text = "%d of %d" % [owned, shown.size()]
+	_set_meter.max_value = shown.size()
 	_set_meter.value = owned
 	_set_bonus.text = "finished! +1 play slot" if Toys.set_done(state, set_data) else "finish it: +1 play slot"
 
@@ -167,8 +168,8 @@ func _rebuild() -> void:
 		_playing_row.add_child(_playing_slot(str(k), now))
 
 	UiTheme.clear(_grid)
-	for i in set_data.toys.size():
-		_grid.add_child(_card(set_data.toys[i], TILTS[i % TILTS.size()], now))
+	for i in shown.size():
+		_grid.add_child(_card(shown[i], TILTS[i % TILTS.size()], now))
 	_build_detail(now)
 
 
@@ -222,7 +223,6 @@ func _card(t: Dictionary, tilt: float, now: float) -> Control:
 	var catalog := Catalog.shared()
 	var state: Dictionary = GameState.toys
 	var have := Toys.has_toy(state, t.id)
-	var secret: bool = t.tier == "secret"
 	var tier_color := MachineTab.MachineStage._tier_color(t.tier)
 	var editions := _editions(t.id)
 	var best := str(editions.back()) if not editions.is_empty() else ""
@@ -249,10 +249,10 @@ func _card(t: Dictionary, tilt: float, now: float) -> Control:
 	var art := ToyView.new(t.id, Toys.split(best)[1] if best != "" else "normal", 4, not have)
 	art.size_flags_horizontal = SIZE_SHRINK_CENTER
 	col.add_child(art)
-	var name_label := UiTheme.label(t.name if have or not secret else "???", UiTheme.TEXT if have else UiTheme.LOCKED, UiTheme.SMALL + 1)
+	var name_label := UiTheme.label(t.name, UiTheme.TEXT if have else UiTheme.LOCKED, UiTheme.SMALL + 1)
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(name_label)
-	var tier_label := UiTheme.label(t.tier if have or not secret else "a secret one", tier_color if have else UiTheme.LOCKED, UiTheme.SMALL)
+	var tier_label := UiTheme.label(t.tier, tier_color if have else UiTheme.LOCKED, UiTheme.SMALL)
 	tier_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(tier_label)
 	for c in col.get_children():
@@ -331,13 +331,8 @@ func _build_detail(now: float) -> void:
 		var art := ToyView.new(_picked, "normal", 7, true)
 		art.size_flags_horizontal = SIZE_SHRINK_CENTER
 		_detail.add_child(art)
-		var secret: bool = t.tier == "secret"
-		_detail.add_child(_centered(UiTheme.title("???" if secret else str(t.name), 20)))
-		_detail.add_child(_centered(UiTheme.label("a secret one" if secret else "not found yet", UiTheme.LOCKED, UiTheme.SMALL + 1)))
-		var hint := UiTheme.label("something's hiding in the capsule machine…" if secret else "keep pulling! it's in there somewhere.", UiTheme.MUTED, UiTheme.SMALL + 1)
-		hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		_detail.add_child(hint)
+		_detail.add_child(_centered(UiTheme.title(str(t.name), 20)))
+		_detail.add_child(_centered(UiTheme.label("not found yet", UiTheme.LOCKED, UiTheme.SMALL + 1)))
 		return
 	if _edition == "" or not _edition in editions:
 		_edition = editions.back()

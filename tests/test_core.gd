@@ -929,7 +929,7 @@ func _test_unlocks(catalog: Catalog) -> void:
 	var tabs := ["home", "machine", "boxes", "collection", "adventures", "errands", "automation", "inventory", "settings"]
 	var page_ids := catalog.pages.map(func(p): return p.id)
 	for entry in catalog.unlock_list:
-		_check(entry.show in ["locked", "hidden"], "unlock %s is shown locked or hidden" % entry.id)
+		_check(entry.show == "hidden" and not entry.has("hint"), "unlock %s stays hidden until earned (never shown locked)" % entry.id)
 		for o in entry.opens:
 			var bits := str(o).split(":")
 			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "whistle", "new_homes", "sorting", "edge", "school", "dungeon", "lead_army", "plushie", "sewing", "keep_lines", "wish", "workshop"]) or (bits[0] == "page" and bits[1] in page_ids) \

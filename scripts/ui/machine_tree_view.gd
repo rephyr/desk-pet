@@ -3,7 +3,7 @@ extends HBoxContainer
 ## The machine tab's upgrades page: the old broken capsule machine's upgrade tree
 ## (data/machine_tree.json, Machine). The repairs are the trunk; the branches (coins, chutes, extra
 ## balls, shiny balls, lights) grow off them. Fixed nodes are filled in, the ones you can work on
-## now breathe, the ones coming later are dark, the rest are "?". On the right, the picked node:
+## now breathe, the ones coming next are dark, the rest aren't drawn yet (hidden until earned). On the right, the picked node:
 ## a little picture of the machine (what's still broken), what it does, and what it costs in coins
 ## and bits (pets bring bits home from adventures). Design: design/mockups/screens/machine-tree.html.
 ## A later globe's repairs grow off the old rusted hatch: the page frames the newest globe's part of
@@ -150,9 +150,7 @@ func _build_detail() -> void:
 	_detail.add_child(mini)
 	var look := Machine.look(state, catalog, _picked)
 	if look == "hidden" or look == "away":
-		_detail.add_child(_centered(UiTheme.title("???", 19)))
-		_detail.add_child(_wrapped("something else is broken in there… fix what's next to it first.", UiTheme.MUTED))
-		return
+		return  # not on the tree yet
 	var color := node_color(n)
 	_detail.add_child(_centered(UiTheme.title(str(n.name), 19)))
 	var level := Machine.owned(state, _picked)
@@ -267,7 +265,7 @@ class TreeMap extends Control:
 		return (26.0 if n.branch in MachineTreeView.REPAIRS else 21.0) * clampf(_scale(), 0.75, 1.2)
 
 	func _shown(n: Dictionary) -> bool:
-		return Machine.look(GameState.machine, Catalog.shared(), n.id) != "away"
+		return not Machine.look(GameState.machine, Catalog.shared(), n.id) in ["away", "hidden"]
 
 	## A colour faded like the node being drawn.
 	func _k(c: Color) -> Color:
@@ -309,8 +307,8 @@ class TreeMap extends Control:
 		var font := UiTheme.BODY_FONT
 		for n in nodes:
 			var look := Machine.look(state, catalog, n.id)
-			if look == "away":
-				continue
+			if look == "away" or look == "hidden":
+				continue  # not there yet: nothing unearned shows as a "?"
 			_alpha = 1.0 if not many or Machine.globe_of(catalog, n) == viewing else 0.45
 			var c := _at(n)
 			var r := _radius(n)
@@ -326,16 +324,9 @@ class TreeMap extends Control:
 					_dashed_ring(c, r, color)
 				_:
 					draw_circle(c, r, _k(UiTheme.DEEP))
-					if look == "hidden":
-						_dashed_ring(c, r, UiTheme.LINE)
-					else:
-						draw_arc(c, r, 0, TAU, 40, _k(UiTheme.LINE), 3.0, true)
+					draw_arc(c, r, 0, TAU, 40, _k(UiTheme.LINE), 3.0, true)
 			if n.id == picked_id:
 				draw_arc(c, r + 3.0, 0, TAU, 40, _k(UiTheme.TEXT), 2.0, true)
-			if look == "hidden":
-				var q := "?"
-				draw_string(UiTheme.DISPLAY_FONT, c + Vector2(-6, 7), q, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, _k(UiTheme.LOCKED))
-				continue
 			var icon := UiTheme.icon("tree_" + str(n.icon), 22, color if look != "dim" else UiTheme.LOCKED)
 			draw_texture_rect(icon, Rect2(c - Vector2(11, 11), Vector2(22, 22)), false, Color(1, 1, 1, _alpha))
 			var level := Machine.owned(state, n.id)

@@ -120,15 +120,13 @@ func _rebuild() -> void:
 	for job in catalog.jobs:
 		if job.get("tools", []).is_empty():
 			continue
-		var is_open := open.any(func(j): return j.id == job.id)
-		var wait := ErrandsTab.shown_wait(job)
-		if not is_open and wait.is_empty():
-			continue  # only the next job to open shows its tools early, the rest stay hidden
-		var sub := "lv %d" % GameState.job_level(job.id) if is_open else "opens at %s lv %d" % [wait.job.name, wait.level]
+		if not open.any(func(j): return j.id == job.id):
+			continue  # a job's tools stay hidden until the job opens (hidden until earned)
+		var sub := "lv %d" % GameState.job_level(job.id)
 		_shelves.add_child(_shelf(str(job.name), sub, UiTheme.named_color(str(job.get("color", ""))), job.tools.map(func(t):
 			var tool: Dictionary = t.duplicate()
 			tool.job = str(job.id)
-			return tool), is_open))
+			return tool), true))
 	var everyone: Array = Jobs.all_tools(catalog).filter(func(t): return t.job == "")
 	_shelves.add_child(_shelf("for everyone", "", UiTheme.LILAC, everyone, true))
 	var all := Jobs.all_tools(catalog)
@@ -307,7 +305,7 @@ class ToolTag extends MarginContainer:
 		top.add_theme_constant_override("separation", 6)
 		top.mouse_filter = MOUSE_FILTER_IGNORE
 		top.add_child(UiTheme.icon_rect(str(tool.icon), 22, UiTheme.LOCKED if locked else color))
-		var name_label := UiTheme.label("???" if why == "closed" else str(tool.name), UiTheme.LOCKED if locked else UiTheme.TEXT, UiTheme.SMALL + 1)
+		var name_label := UiTheme.label(str(tool.name), UiTheme.LOCKED if locked else UiTheme.TEXT, UiTheme.SMALL + 1)
 		name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		name_label.size_flags_horizontal = SIZE_EXPAND_FILL
 		name_label.custom_minimum_size = Vector2(60, 0)

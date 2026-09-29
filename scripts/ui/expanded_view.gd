@@ -159,8 +159,7 @@ func _refresh_tabs() -> void:
 			"boxes": news = GameState.box_news()
 			"adventures": news = back
 			"machine": news = GameState.globe_news() != ""
-		spine.set_tab_state(tab_id, tab_id in shown and not GameState.tab_hidden(tab_id), not GameState.tab_open(tab_id), news)
-		spine.tab_button(tab_id).tooltip_text = GameState.tab_hint(tab_id)
+		spine.set_tab_state(tab_id, tab_id in shown and GameState.tab_open(tab_id), news)
 	# the very start: the capsule machine
 	if GameState.tutorial == "pull":
 		show_tab("machine")
@@ -168,9 +167,7 @@ func _refresh_tabs() -> void:
 
 func _on_tab_pressed(tab_id: String) -> void:
 	if not GameState.tab_open(tab_id):
-		# locked: the pet says what opens it, and you stay where you were
-		PetBubble.say(self, GameState.tab_hint(tab_id))
-		return
+		return  # not earned yet (its button isn't even there)
 	show_tab(tab_id)
 
 
