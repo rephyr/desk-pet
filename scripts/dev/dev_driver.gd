@@ -288,7 +288,7 @@ func _step(w: PackedStringArray) -> String:
 			var page := Book.page(GameState.catalog, w[1])
 			if page.is_empty():
 				return "unknown book page %s" % w[1]
-			var keys := Book.keys(GameState.catalog, page)
+			var keys := Book.keys(GameState.catalog, page, GameState.book_rank())
 			for k in keys.slice(0, keys.size() - (int(w[2]) if w.size() > 2 else 0)):
 				if GameState.collection.times_seen(k) == 0:
 					GameState.collection.see(k)  # the book redraws, full pages open

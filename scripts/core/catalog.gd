@@ -54,6 +54,7 @@ var _location_by_id := {}
 var _rumour_by_id := {}
 var _job_by_id := {}
 var _box_rank := {}  # box id -> its place among the shop's boxes (see box_rank)
+var _finish_box_rank := {}  # finish id -> the rank of the first shop box that has it (see finish_box_rank)
 var _parts_in_cache := {}  # "slot|tier|box rank" -> parts_in's answer (catalog data never changes)
 
 
@@ -85,6 +86,9 @@ func _init() -> void:
 	for b in boxes:
 		if not b.get("hidden", false):
 			_box_rank[b.id] = _box_rank.size()
+			for f in b.get("finishes", {}):
+				if float(b.finishes[f]) > 0.0 and not _finish_box_rank.has(f):
+					_finish_box_rank[f] = _box_rank[b.id]
 	reveal = _load("reveal.json")
 	sounds = _load("sounds.json")
 	var adventures := _load("adventures.json")
@@ -173,6 +177,12 @@ func parts_in(slot: String, tier_id: String, box_id: String) -> Array[Dictionary
 ## count as the first.
 func box_rank(box_id: String) -> int:
 	return _box_rank.get(box_id, 0)
+
+
+## The rank of the first box in the shop that can hold this finish (a finish no box has counts as
+## the first).
+func finish_box_rank(finish_id: String) -> int:
+	return _finish_box_rank.get(finish_id, 0)
 
 
 ## The boxes the shop can sell, cheapest tier first (whether they're in the shop yet depends on

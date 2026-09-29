@@ -147,6 +147,10 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
 
 - Tracks every part discovered, and every finish seen for each body.
 - Shows how many of each you've pulled, with undiscovered entries as silhouettes.
+- Looks that only come from a box tier not in the shop yet (parts.json `from`, a finish only a
+  later box has) stay off the book, and off its sticker pages, until that box arrives (or you
+  find one anyway): midnight looks never hold a sticker back before next door (Book `rank`,
+  GameState.book_rank).
 - Owned pets: the **bookcase** (C1, look A, built): a pink cushion on top with your active pet,
   favourites and the best ones (holo and better, a part new to the book), then a plank per rarity
   you have: a tilted tag ("common 48,210"), the newest 4 standing, a mound of tiny pets that grows

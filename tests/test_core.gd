@@ -1594,6 +1594,40 @@ func _test_book(catalog: Catalog) -> void:
 	_check(Book.full(catalog, c, fin), "every blob finish fills the finishes page")
 	_check(Book.newly_full(catalog, c, []) == ["eyes", "finishes"], "newly full lists the full pages")
 	_check(Book.newly_full(catalog, c, ["eyes"]) == ["finishes"], "newly full skips stickers already open")
+	# looks from a box that isn't in the shop yet don't count (midnight needs next door)
+	var bodies := Book.page(catalog, "bodies")
+	var sunny := catalog.box_rank("starter")
+	var sunset := catalog.box_rank("sunset")
+	_check(not Book.keys(catalog, bodies, sunny).has(Collection.part_key("body", "fox"))
+		and not Book.keys(catalog, bodies, sunny).has(Collection.part_key("body", "dragon")), "with only the sunny box, fox and dragon aren't on the bodies page")
+	_check(Book.keys(catalog, bodies, sunset).has(Collection.part_key("body", "fox"))
+		and not Book.keys(catalog, bodies, sunset).has(Collection.part_key("body", "dragon")), "the sunset box brings fox, not dragon")
+	_check(Book.keys(catalog, bodies).size() == catalog.slots.body.size(), "with every box, every body counts")
+	var fin_sunset := Book.keys(catalog, fin, sunset)
+	_check(fin_sunset.has(Collection.finish_key("blob", "glitch")) and not fin_sunset.has(Collection.finish_key("blob", "prismatic"))
+		and not Book.keys(catalog, fin, sunny).has(Collection.finish_key("blob", "glitch")), "glitch counts from the sunset box, prismatic only with midnight")
+	var c3 := Collection.new()
+	for k in Book.keys(catalog, bodies, sunset):
+		c3.see(k)
+	_check(Book.full(catalog, c3, bodies, sunset) and not Book.full(catalog, c3, bodies), "no dragon needed while the midnight box isn't out")
+	# every look a page counts can really come out of a box in the shop by then
+	var unearnable: Array[String] = []
+	for rank in [sunny, sunset, catalog.box_rank("midnight")]:
+		var shop := catalog.shop_boxes().filter(func(b): return catalog.box_rank(str(b.id)) <= rank)
+		for p in pages:
+			for k: String in Book.keys(catalog, p, rank):
+				var bits := k.split(":")
+				var ok := false
+				for b in shop:
+					if p.has("slot"):
+						var part := catalog.part(str(p.slot), bits[2])
+						ok = ok or (float(b.tiers.get(str(part.rarity), 0)) > 0.0
+							and catalog.parts_in(str(p.slot), str(part.rarity), str(b.id)).any(func(x): return x.id == part.id))
+					else:
+						ok = ok or float(b.finishes.get(bits[2], 0)) > 0.0
+				if not ok:
+					unearnable.append("%s@%d" % [k, rank])
+	_check(unearnable.is_empty(), "every look a book page counts comes out of a box in the shop (%s)" % [unearnable])
 	_check(is_equal_approx(Boosts.total(Book.parts(catalog, [], "coins")), 1.0), "no stickers, no boost")
 	_check(is_equal_approx(Boosts.total(Book.parts(catalog, ["palettes", "finishes"], "coins")), 1.21), "both coins stickers multiply to x1.21")
 	_check(is_equal_approx(Boosts.total(Book.parts(catalog, ["palettes", "finishes"], "luck")), 1.0), "kinds don't mix")
@@ -1623,6 +1657,7 @@ func _test_book(catalog: Catalog) -> void:
 	var last: Array[Pet] = [body_pets.pop_back()]
 	gs.collection.add(body_pets)
 	_check(opened.is_empty() and gs.stickers.is_empty(), "no sticker while a body is missing")
+	_check(gs.book_rank() == catalog.box_rank("starter"), "a new game's book counts the sunny box's looks")
 	var tb: float = gs.workers_speed("machine")
 	var crank_before := Automation.crank_seconds(catalog, gs.automation, gs.boost("automation"))
 	var auto_before: float = gs.boost("automation")

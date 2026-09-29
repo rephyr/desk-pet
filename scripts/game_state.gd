@@ -293,6 +293,14 @@ func shop_boxes() -> Array[Dictionary]:
 	return BoxShop.open_tiers(catalog, page_open, debug_all_tiers and OS.is_debug_build())
 
 
+## The best box rank in the shop: the book only counts looks those boxes can hold (Book).
+func book_rank() -> int:
+	var best := 0
+	for b in shop_boxes():
+		best = maxi(best, catalog.box_rank(str(b.id)))
+	return best
+
+
 func box_in_shop(box_id: String) -> bool:
 	return shop_boxes().any(func(b): return b.id == box_id)
 
@@ -3391,7 +3399,7 @@ func trip_knacks(pets: Array) -> Dictionary:
 func check_book() -> void:
 	if _loading:
 		return
-	var opened := Book.newly_full(catalog, collection, stickers)
+	var opened := Book.newly_full(catalog, collection, stickers, book_rank())
 	if opened.is_empty():
 		return
 	for id in opened:

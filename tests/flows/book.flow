@@ -27,6 +27,8 @@ click "show me"
 wait 1
 expect text "a cozy blanket"
 expect text "automation 10% faster"
+expect no-text "dragon"                # box looks not in the shop yet stay off the page (sunny box only here)
+expect no-text "fox"
 expect fits
 shot bodies_open
 book palettes

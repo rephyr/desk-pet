@@ -155,6 +155,9 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   full!" with "show me" (opens that spread) / "lovely". Dev steps `book <page> [left]` and
   `stickers off` (big `pets` steps fill random pages: errands_crowd, errand_jobs, workers, fits use it); flow book;
   tests `_test_book`.
+  **Merge fix (B1 x A4):** a page only counts looks from box tiers in the shop (`Book.keys(..., rank)`,
+  `GameState.book_rank`), and the book hides the rest until found: the midnight looks (dragon,
+  midnight, halo, prismatic) made 4 of 6 stickers unearnable before next door.
   **Open questions for Emilia:** see docs/plans/A4.md (only blob's finishes page has a sticker;
   kinds per page and +10% each; washi tape name; what errands / automation cover; the dropped "fill
   the page for a surprise" line; numbers instead of words; old saves get their popups on load).

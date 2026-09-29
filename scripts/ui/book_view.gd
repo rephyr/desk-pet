@@ -50,6 +50,7 @@ func _init() -> void:
 	GameState.collection.pets_added.connect(func(_p): _mark_dirty())
 	GameState.sticker_opened.connect(func(_id): _mark_dirty())
 	GameState.collection.seen_changed.connect(_mark_dirty)
+	GameState.unlocked.connect(func(_e): _mark_dirty())  # a new box tier brings its looks into the book
 	visibility_changed.connect(_rebuild_if_needed)
 
 
@@ -73,20 +74,30 @@ func _collect() -> void:
 	var collection := GameState.collection
 	var got := 0
 	var total := 0
+	var rank: int = GameState.book_rank()  # looks from boxes not in the shop yet stay off the page until found
 	for slot in Catalog.SLOTS:
 		var tiles: Array = []
 		for part in catalog.slots[slot]:
+			var seen := collection.times_seen(Collection.part_key(slot, part.id))
+			if seen == 0 and not Book.part_open(catalog, part, rank):
+				continue
 			var parts := SHOWCASE.duplicate()
 			parts[slot] = part.id
 			var shown_name: String = "no hat" if slot == "accessory" and part.id == "none" else part.name
-			tiles.append({ "parts": parts, "finish": "normal", "name": shown_name, "tier": part.rarity, "seen": collection.times_seen(Collection.part_key(slot, part.id)) })
+			tiles.append({ "parts": parts, "finish": "normal", "name": shown_name, "tier": part.rarity, "seen": seen })
 		_pages.append({ "title": SLOT_TITLES[slot], "bookmark": SLOT_TITLES[slot], "tiles": tiles, "sticker": Book.page_for(catalog, slot) })
 	for body in catalog.slots.body:
 		var tiles: Array = []
+		var body_open := Book.part_open(catalog, body, rank)
 		for f in catalog.finishes:
+			var seen := collection.times_seen(Collection.finish_key(body.id, f.id))
+			if seen == 0 and not (body_open and Book.finish_open(catalog, str(f.id), rank)):
+				continue
 			var parts := SHOWCASE.duplicate()
 			parts.body = body.id
-			tiles.append({ "parts": parts, "finish": f.id, "name": f.name if f.name != "" else "normal", "tier": f.rarity, "seen": collection.times_seen(Collection.finish_key(body.id, f.id)) })
+			tiles.append({ "parts": parts, "finish": f.id, "name": f.name if f.name != "" else "normal", "tier": f.rarity, "seen": seen })
+		if tiles.is_empty():
+			continue  # a body nobody can pull yet has no finishes page
 		_pages.append({ "title": "%s finishes" % body.name, "bookmark": "finishes" if body == catalog.slots.body[0] else "", "tiles": tiles,
 			"sticker": Book.page_for(catalog, "", str(body.id)) })
 	for page in _pages:

@@ -4,6 +4,11 @@ extends RefCounted
 ## good, a small permanent boost of one kind (coins, luck, automation, errands). Pure rules; the
 ## stickers you've opened are a list of page ids kept in the save (GameState.stickers).
 ## A page is a part slot's page ("slot") or one body's finishes page ("finishes_of").
+## A look only counts on its page once the first box it comes out of is in the shop (`rank` = the
+## best box rank in the shop, GameState.book_rank; ALL counts every look): midnight looks can't
+## hold a sticker back before the midnight box exists.
+
+const ALL := 1 << 30
 
 
 static func pages(catalog: Catalog) -> Array:
@@ -27,29 +32,42 @@ static func page_for(catalog: Catalog, slot: String, body := "") -> Dictionary:
 	return {}
 
 
-## The book keys (Collection.part_key / finish_key) a page needs, in book order.
-static func keys(catalog: Catalog, p: Dictionary) -> Array[String]:
+## Whether a part can come out of the boxes up to this rank (its `from` box is open).
+static func part_open(catalog: Catalog, part: Dictionary, rank: int = ALL) -> bool:
+	return not part.has("from") or catalog.box_rank(str(part.from)) <= rank
+
+
+## Whether a finish can come out of the boxes up to this rank.
+static func finish_open(catalog: Catalog, finish_id: String, rank: int = ALL) -> bool:
+	return catalog.finish_box_rank(finish_id) <= rank
+
+
+## The book keys (Collection.part_key / finish_key) a page needs, in book order: only the looks
+## the boxes up to `rank` can hold.
+static func keys(catalog: Catalog, p: Dictionary, rank: int = ALL) -> Array[String]:
 	var out: Array[String] = []
 	if p.has("slot"):
 		for part in catalog.slots.get(str(p.slot), []):
-			out.append(Collection.part_key(str(p.slot), str(part.id)))
+			if part_open(catalog, part, rank):
+				out.append(Collection.part_key(str(p.slot), str(part.id)))
 	elif p.has("finishes_of"):
 		for f in catalog.finishes:
-			out.append(Collection.finish_key(str(p.finishes_of), str(f.id)))
+			if finish_open(catalog, str(f.id), rank):
+				out.append(Collection.finish_key(str(p.finishes_of), str(f.id)))
 	return out
 
 
-## Whether every sticker on a page has been found.
-static func full(catalog: Catalog, collection: Collection, p: Dictionary) -> bool:
-	var need := keys(catalog, p)
+## Whether every sticker on a page that the boxes up to `rank` can hold has been found.
+static func full(catalog: Catalog, collection: Collection, p: Dictionary, rank: int = ALL) -> bool:
+	var need := keys(catalog, p, rank)
 	return not need.is_empty() and need.all(func(k): return collection.times_seen(k) > 0)
 
 
 ## Pages that are full now but whose sticker isn't open yet (ids, in book order).
-static func newly_full(catalog: Catalog, collection: Collection, stickers: Array) -> Array[String]:
+static func newly_full(catalog: Catalog, collection: Collection, stickers: Array, rank: int = ALL) -> Array[String]:
 	var out: Array[String] = []
 	for p in pages(catalog):
-		if not stickers.has(str(p.id)) and full(catalog, collection, p):
+		if not stickers.has(str(p.id)) and full(catalog, collection, p, rank):
 			out.append(str(p.id))
 	return out
 
