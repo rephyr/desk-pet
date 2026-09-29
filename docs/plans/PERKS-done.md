@@ -146,3 +146,11 @@ the plushie machine. data/perks.json, Perks, PerkNail, save v28 (renumber), flow
    lanterns/pets are perks-only kinds and could stay off the receipt).
 8. The tips' price grows x3 a level from 20k (the balance table: lv 6 = 14.6M). Too steep to feel
    endless, or right as a sink?
+
+## Verified
+
+- Step verified: test_core ALL PASSED (4173 checks), balance runs clean with the perks table, flows
+  perks, fits, dungeon, sewing, plushie, automation and workers pass (`expect fits` on every perks
+  screen).
+- Commits on lanes/sewing: "wisps perks on the well wall" (the step), plus this note. Not pushed.
+  Save bump v27 -> v28 needs renumbering at the merge (and the "save chain ends at v28" test with it).
