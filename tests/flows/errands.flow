@@ -10,7 +10,7 @@ shot popup
 click "show me"
 expect tab errands
 wait 1
-expect text "tap a pet, then a job"
+expect no-text "tap a pet"
 shot nobody_working
 click "+ a pet"
 click "+ a pet"

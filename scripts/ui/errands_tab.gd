@@ -429,7 +429,8 @@ func _rebuild_box() -> void:
 		_box.add_child(_away_note(away))
 	_box.add_child(_heading("resting", _resting_n))
 	if _resting_n <= RESTING_POLAROIDS:
-		_box.add_child(_wrapped("now tap a job" if _picked != "" else ("tap a pet, then a job" if _resting_n > 0 else "everyone's busy!"), UiTheme.MUTED))
+		if _resting_n == 0:
+			_box.add_child(_wrapped("everyone's busy!", UiTheme.MUTED))
 		var grid := GridContainer.new()
 		grid.columns = 3
 		grid.add_theme_constant_override("h_separation", 6)
@@ -452,7 +453,6 @@ func _rebuild_box() -> void:
 			PetBubble.say_line(self, "errands_share"))
 		share.add_theme_stylebox_override("normal", _primary())
 		_box.add_child(share)
-		_box.add_child(_wrapped("or tap a job's + to send %s" % ("them all" if _step < 0 else str(_step)), UiTheme.MUTED))
 	if GameState.spare_count() > STEPS_AFTER and not GameState.built("chart"):  # the chore chart: every errand, no switches
 		# busy paws: a switch per errand (the notes are full already), new pets start on the ones on
 		_box.add_child(_heading("new pets join", -1))

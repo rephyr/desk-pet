@@ -160,7 +160,7 @@ func _rebuild() -> void:
 	for p in busy:
 		_playing_row.add_child(_playing_slot(str(p.key), now))
 	for i in Toys.slots(state, catalog) - busy.size():
-		var free := UiTheme.label("a free spot: pick a toy and tap play", UiTheme.LOCKED, UiTheme.SMALL + 1)
+		var free := UiTheme.label("a free spot", UiTheme.LOCKED, UiTheme.SMALL + 1)
 		free.size_flags_vertical = SIZE_SHRINK_CENTER
 		_playing_row.add_child(free)
 	var favs: Array = state.owned.keys().filter(func(k): return Toys.is_favourite(state, catalog, k))

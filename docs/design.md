@@ -450,8 +450,8 @@ economy: currency, body parts, and rewards for mechanics not designed yet. Rewar
   after the wheelbarrow) 10. Each find gets an unlock popup. Finds are never a choice: the pet
   says "i found a basket!" and brings it home (the cart can stay stuck in the mud for a later trip,
   the hay wagon only turns up for 3+ pets). Why bring more pets is said in plain
-  words on the place card: more friends bring home more and tricky bits get easier, but more
-  friends can get hurt. (Coins grow with each pet, finds with the square root of the party.)
+  words on the cart / wheelbarrow unlock cards (not on the place card: no hint text): more friends
+  bring home more and tricky bits get easier, but more friends can get hurt. (Coins grow with each pet, finds with the square root of the party.)
 - **The trail** (**Decided**): one pet or a small party can be watched walking the path. Things to
   grab turn up (coins, xp, a healing leaf, now and then a part). No click-spamming: "toss a
   treat" makes the pets zoom (3x speed for 8 s), then it takes 15 s to be ready again (the treat

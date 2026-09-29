@@ -362,8 +362,6 @@ func _draw() -> void:
 	draw_string(_note_font, Vector2(x + 18, 57), "%d xp" % (run.xp + _xp_grabbed), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UiTheme.GOLD)
 	var hint := ""
 	match run.status:
-		RunState.Status.WALKING:
-			hint = "grab things on the path!"
 		RunState.Status.WAITING:
 			hint = "something's up! pick what to do on the adventure card"
 		RunState.Status.DONE:

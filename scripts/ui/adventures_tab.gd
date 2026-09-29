@@ -24,7 +24,6 @@ var _lights := Control.new()  # next door: the little windows of the house behin
 var _stuck: Tilted  # holds the place card on the map (it moves to the left on the street when the garden is on the right)
 var _odds := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
 ## Why you'd send more than one pet, in plain words (shown once parties are open)
-var _why := UiTheme.label("more friends bring home more, and tricky bits get easier. but more friends can get hurt.", UiTheme.LILAC, UiTheme.SMALL)
 var _send: Button
 var _picked := {}  # uid -> true
 var _picked_label := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
@@ -371,8 +370,6 @@ func _build_picker() -> void:
 	col.add_child(_facts)
 	_odds.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	col.add_child(_odds)
-	_why.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(_why)
 
 	var who := HBoxContainer.new()
 	who.add_child(UiTheme.label("who's going?", UiTheme.MUTED, UiTheme.SMALL))
@@ -632,7 +629,6 @@ func _refresh_send() -> void:
 	_lights.queue_redraw()
 	var pets := _picked_pets()
 	var most := _max_party()
-	_why.visible = most > 1
 	UiTheme.clear(_facts)
 	var packed := GameState.trip_gear(_location_id)
 	# what they'd pack: your active pet's knacks and their own (walking big swarms is slow, so kept)
@@ -665,7 +661,7 @@ func _refresh_send() -> void:
 	_send.tooltip_text = "pick who's going first" if pets.is_empty() else ""
 	_send.text = "send %s" % pets[0].display_name(catalog) if pets.size() == 1 else "send them"
 	if pets.is_empty():
-		_odds.text = "tap a pet to pick it"
+		_odds.text = ""
 		return
 	var time := _duration(AdventureRunner.duration(d, Party.make(pets, catalog), walk))
 	match Chooser.kind_for(pets.size()):
