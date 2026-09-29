@@ -17,7 +17,7 @@
 				{ "event": "garden_apples", "weight": 2 }, { "event": "garden_bees", "weight": 1 },
 				{ "event": "garden_pond", "weight": 2 }
 			],
-			"leads_to": [{ "to": "meadow", "spot": 1.0 }, { "to": "pond", "spot": 0.3 }, { "to": "shed", "spot": 0.25 }],
+			"leads_to": [{ "to": "meadow", "spot": 1.0 }, { "to": "pond", "spot": 0.6 }, { "to": "shed", "spot": 0.25 }],
 			"map": { "x": 0.0, "y": 0.0, "doodle": "house", "note": "home" }
 		},
 		{

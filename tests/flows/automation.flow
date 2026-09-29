@@ -5,7 +5,7 @@ from rich
 view full
 pets 6
 fix drops
-coins 20000000
+coins 900000000000
 expect no-text "automation"
 find tiny_machine
 wait popup
@@ -20,7 +20,7 @@ expect fits
 shot start
 click "teach for*"
 wait 1
-expect text "a pull every 48s"
+expect text "a pull every 15s"
 expect fits
 shot cranking
 crank 1
@@ -28,7 +28,7 @@ wait 0.4
 shot popped
 click "a smoother crank"
 wait 1
-expect text "a pull every 44s"
+expect text "a pull every 14s"
 unlock feature:auto_adventures
 wait 1
 click "run adventures"

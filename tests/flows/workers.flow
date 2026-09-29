@@ -6,7 +6,7 @@ view full
 stickers off                  # the pets here can fill a book page now and then: no sticker popups
 pets 12
 fix drops
-coins 900000000
+coins 900000000000
 find tiny_machine
 wait popup
 click "show me"

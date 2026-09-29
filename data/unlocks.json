@@ -51,7 +51,7 @@
 			"earn": { "find": "tiny_machine", "machine": "drops" }, "announce": "i watched you fix every single gear. i fixed the tiny machine all by myself! can i crank it?" },
 		{ "id": "auto_adventures", "opens": ["feature:auto_adventures"], "show": "hidden",
 			"popup": { "title": "new: run adventures!", "text": "your pet can learn to run adventures: it sends a party out and sends it again when it's home.", "go": "automation" },
-			"earn": { "open": "tab:automation", "taught": "machine", "trips": 60 }, "announce": "i could send the others out for you! i know all the places by now." },
+			"earn": { "open": "tab:automation", "taught": "machine", "trips": 30 }, "announce": "i could send the others out for you! i know all the places by now." },
 		{ "id": "packs", "opens": ["feature:packs"], "show": "hidden",
 			"popup": { "title": "new: open boxes!", "text": "on its comfy cushion, your pet can open the boxes on your pile for you. teach it in the automation tab; pick which boxes it may open in the boxes tab.", "go": "automation" },
 			"earn": { "find": "cushion", "packs_opened": 200, "open": "tab:automation" }, "announce": "a comfy cushion! i could sit here and open boxes for you!" },

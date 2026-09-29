@@ -266,8 +266,8 @@ static func tool_cost(tool: Dictionary, have: int, n := 1, value := 1.0) -> int:
 	var a := have
 	var b := have + n  # levels a .. b-1
 	if n <= 64:  # a few levels: one by one (exactly the prices you'd pay buying them one at a time)
-		for i in range(a, b):
-			total += base * (pow(grow, i) if i < flat else pow(grow, flat) * pow(late, i - flat))
+		for i in range(a, b):  # each level rounded the way a single buy rounds it
+			total += maxf(1.0, roundf(base * (pow(grow, i) if i < flat else pow(grow, flat) * pow(late, i - flat))))
 	else:
 		if a < flat:
 			total += _geo(grow, a, mini(b, flat))

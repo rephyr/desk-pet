@@ -70,7 +70,7 @@ click "your pet"
 wait 1
 expect fits
 # box workers: "pets a minute" at the top of the automation tab
-coins 900000000
+coins 900000000000
 unlock feature:packs
 teach boxes
 wait 1

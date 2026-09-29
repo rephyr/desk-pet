@@ -786,7 +786,7 @@ func _test_errand_tools(catalog: Catalog) -> void:
 	var lemon: Dictionary = catalog.job("lemonade")
 	_check(Jobs.tool_cost(Jobs.tool(catalog, "noses"), 0, 3) == Jobs.tool_cost(Jobs.tool(catalog, "noses"), 0) + Jobs.tool_cost(Jobs.tool(catalog, "noses"), 1) + Jobs.tool_cost(Jobs.tool(catalog, "noses"), 2), "buying 3 levels costs the 3 levels added up")
 	_check(Jobs.level(coin, { "noses": 4, "paws": 3, "snack": 9 }) == 7, "a job's level is its own tools' levels")
-	_check(Jobs.goal_x(coin, 24) == 1.0 and Jobs.goal_x(coin, 25) == 2.0 and Jobs.goal_x(coin, 50) == 4.0, "coin hunt goals double its coins at lv 25 and 50")
+	_check(Jobs.goal_x(coin, 24) == 1.0 and is_equal_approx(Jobs.goal_x(coin, 25), 1.25) and is_equal_approx(Jobs.goal_x(coin, 50), 1.5625), "coin hunt goals grow its coins at lv 25 and 50 (and stack)")
 	_check(str(Jobs.next_goal(coin, 3).get("text", "")).contains("lemonade"), "the coin hunt's first goal is the lemonade stand")
 	_check(catalog.unlock_list.any(func(u): return "job:lemonade" in u.opens and int(u.earn.get("job_level", {}).get("coin_hunt", 0)) == int(coin.goals[0].at)), "the lemonade stand opens at the coin hunt's first goal")
 	_check(Jobs.tool_sum(catalog, "coin_hunt", "all_speed", { "snack": 2 }) > 0.0 and Jobs.tool_sum(catalog, "coin_hunt", "speed", { "sign": 5 }) == 0.0, "tools for everyone reach every job, a job's own only that job")
@@ -825,8 +825,8 @@ func _test_more_jobs(catalog: Catalog) -> void:
 			var other := catalog.job(str(other_id))
 			_check(other.get("goals", []).any(func(g): return int(g.at) == int(levels[other_id]) and str(g.get("text", "")) != ""),
 				"errand %s opens at a goal of the %s that says so (lv %d)" % [job.id, other_id, int(levels[other_id])])
-	_check(Jobs.goal_words(lemon, lemon.goals[0]) == "x2 tips and a savings jar opens", "a goal with both reads: %s" % Jobs.goal_words(lemon, lemon.goals[0]))
-	_check(Jobs.goal_words(coin, coin.goals[1]) == "x2 coins and a kitchen opens", "the coin hunt's lv 25: %s" % Jobs.goal_words(coin, coin.goals[1]))
+	_check(Jobs.goal_words(lemon, lemon.goals[0]) == "x1.25 tips and a savings jar opens", "a goal with both reads: %s" % Jobs.goal_words(lemon, lemon.goals[0]))
+	_check(Jobs.goal_words(coin, coin.goals[1]) == "x1.25 coins and a kitchen opens", "the coin hunt's lv 25: %s" % Jobs.goal_words(coin, coin.goals[1]))
 	# the jar: extra pets barely help; one pet in it beats one on the coin hunt, a crew doesn't
 	var jar_hour := func(n): return Jobs.rate(jar, n, 1.0, power) * 3600.0 * float(jar.pay.capsules)
 	var coin_hour := func(n): return Jobs.rate(coin, n, 1.0, power) * 3600.0 * float(coin.pay.capsules)
@@ -837,8 +837,11 @@ func _test_more_jobs(catalog: Catalog) -> void:
 	_check(is_equal_approx(Jobs.rate(jar, 4, 1.0, power, 0.1) / Jobs.rate(jar, 4, 1.0, power), pow(4.0, 0.1)), "teamwork still adds to the jar's own crew power")
 	# the kitchen: soft, capped, never beats a real job
 	var bonus := [1, 2, 4, 10].map(func(c): return Jobs.kitchen_bonus(kitchen, c, 1, power))
-	_check(absf(bonus[0] - 0.10) < 0.005 and absf(bonus[1] - 0.15) < 0.005 and absf(bonus[2] - 0.20) < 0.005 and absf(bonus[3] - 0.25) < 0.005,
-		"1/2/4/10 cooks: every job 10/15/20/25%% faster (%s)" % [bonus])
+	var k_most := float(kitchen.kitchen.most)
+	var k_half := float(kitchen.kitchen.half)
+	var soft := [1, 2, 4, 10].map(func(c): return k_most * c / (c + k_half))
+	_check(range(4).all(func(i): return absf(bonus[i] - soft[i]) < 0.005) and bonus[0] < bonus[1] and bonus[2] < bonus[3],
+		"1/2/4/10 cooks: most x cooks / (cooks + half), each cook adds less (%s)" % [bonus])
 	_check(Jobs.kitchen_bonus(kitchen, 1000.0, 1, power) <= float(kitchen.kitchen.most), "the kitchen never goes past its most")
 	_check(Jobs.kitchen_bonus(kitchen, 2.0, 1000, power) < 0.002, "with 1000 pets elsewhere, 2 cooks barely matter (%.4f)" % Jobs.kitchen_bonus(kitchen, 2.0, 1000, power))
 	var thin := Jobs.faster_words(Jobs.kitchen_bonus(kitchen, 2.0, 1000, power))
@@ -1135,7 +1138,7 @@ func _test_whistle(catalog: Catalog) -> void:
 	var m_next := Jobs.tool_cost(Automation.job(catalog, "machine").spot, 10, 1)
 	var t_next := Jobs.tool_cost(Automation.job(catalog, "boxes").spot, 0, 1)
 	var cheap := "machine" if m_next < t_next else "boxes"
-	var solo := Automation.whistle_plan(catalog, w.merged({ "tools": { "wagon": 0 } }), jobs, rich, rooms, 100, 1)
+	var solo := Automation.whistle_plan(catalog, w.merged({ "tools": { "wagon": 0 } }, true), jobs, rich, rooms, 100, 1)
 	_check(solo.buys.keys() == [cheap], "the cheapest spot comes home first (%s)" % [solo.buys])
 	_check(int(plan.fill.get("machine", 0)) == 10 + int(plan.buys.get("machine", 0)) - 2, "empty machines get resting pets (%s)" % [plan.fill])
 	var keep := Automation.keep(catalog, w)
@@ -2036,7 +2039,7 @@ func _test_wish(catalog: Catalog) -> void:
 	c.add_plain("common:normal", 400)
 	c.add_plain("common:shiny", 20)
 	c.add_plain("rare:normal", 30)
-	gs.coins = 100000000
+	gs.coins = 10000000000
 	gs.check_unlocks()
 	_check(not gs.wish_open(), "the jar is hidden before the box tables")
 	_check(not gs.set_wish("part:pattern:plain"), "no wishing before the jar")
