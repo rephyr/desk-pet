@@ -49,7 +49,7 @@ room 1
 coins 0
 click RoomPill#1
 wait 0.5
-click "900"
+click "build it"
 wait text "more room costs*"
 expect fits
 shot room_poor
@@ -111,11 +111,11 @@ wait 1
 room 1
 click RoomPill#1
 wait 0.5
-expect text "900"
+expect text "17,500"
 fix tape
 fix oil
 fix flap
 wait 0.5
-expect text "7,200"
+expect text "140,000"
 expect fits
 shot room_machine
