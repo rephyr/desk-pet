@@ -254,3 +254,26 @@ Prep lines) once that run finishes.
 - Care: pats give +8 mood at most once every 30 s (longer cooldown or a daily cap?); care buffs
   never count for closed time; the kitchen now multiplies errand speed (was additive); the
   automation sticker also speeds on-screen box opening. Quiet paws needs ~92 px beside the pet.
+
+## Answers after the merge (2026-09-29 afternoon)
+
+- **The rope into the dungeon:** not one party of ~100 any more. Every pet ever sent to the well
+  counts (save field `sent`, pets per place; an old save starts from its visits plus the parties
+  still out). Once ~100 have gone down (`after_sent` on the event, data/adventures.json), the next
+  party at the well, of any size, finds "the rope goes further down".
+- **Errands: hidden until earned.** No waiting notes for jobs still to come ("a lemonade stand /
+  opens at coin hunt lv 10") and no "opens" goal lines ("scouting opens at savings jar lv 10"):
+  the goal line and the stars show only pay boosts ahead; a goal that only opens a job shows its
+  star once reached. The job just turns up when its goal is reached.
+- **The music box (wisps perk):** away runs never lose pets. While the game is closed the army
+  only goes as deep as floors it clears safely (power at least `away_safe` x the floor's,
+  data/dungeon.json, 2 = "a stroll" or easier): nobody is lost or hurt there, and it turns home
+  before the first floor that isn't. Losses only happen while you're here.
+- **The edge and the wishing jar popups:** the "don't come back" lines are cut (show, don't
+  explain: the night sky's stars say it).
+- **The sunset globe's later fixes** stay shown dim by name and cost (already so). **The plushie
+  keeper** stays one place at a time (already so: no adventures, no army).
+- **new_homes.flow** clicks the stall's own take buttons by name (`name:homes_take_10`), so a pet
+  count reading 10 can't catch the click.
+- **The well column's band names** ("further down") sit in the part of their band that's in view,
+  so they never run off the bottom of the column.

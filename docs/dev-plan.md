@@ -766,8 +766,8 @@ are collected at the end of docs/picks.md. The bigger ones:
   the shop opens (5k-10M coins: too steep?).
 - X4: the welcome-back payout multiplies one lucky capsule thousands of times (roll more, or scale
   only plain coins?).
-- A5: the sunset globe's later fixes show by name and cost (dim) like the mockup (or "?"; note
-  the "no ???" rule); bits pills show only the bits open upgrades need (or every bit you own?);
+- A5: the sunset globe's later fixes show by name and cost (dim) like the mockup (kept, answered
+  2026-09-29); bits pills show only the bits open upgrades need (or every bit you own?);
   sunset repair prices are a few pulls each, bits are the real gate (tune prices up?).
 - B2 receipt: it folds on a tab switch; a prize draws over the open machine slip and the slip
   stays open after the pull; the tag shows only once coins have a source; should it shrink to fit
