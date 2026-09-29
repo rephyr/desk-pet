@@ -290,6 +290,15 @@
         ],
         "createdAt": "2026-09-27T08:51:05.990Z",
         "reason": "Claude: 34px header row is vertically centred; the scene is a drawn canvas, not a text box"
+      },
+      {
+        "rule": "dark-glow",
+        "value": "*",
+        "files": [
+          "design/mockups/screens/shop-tiers.html"
+        ],
+        "createdAt": "2026-09-28T17:16:55.691Z",
+        "reason": "DESIGN.md 'Reward glow' rule: gold glow only on a newly arrived pack tier (a reward)"
       }
     ]
   }
