@@ -41,28 +41,28 @@ Built (see CLAUDE.md "Where we left off"):
   and coin sink), capsule toys + the workbench, rummaging, boxes (the pack ritual), pet boxes.
 - **Automation layer 1:** your pet does one job (crank its own machine, run adventures, open
   boxes), taught with coins; the workers page (teach the others, bought spots, you assign).
-- **On test (2026-09-28):** A2 gear, A3 more errand jobs, A4 book rewards (save v24).
-- **Merged in lanes/merge (2026-09-29, goes to test once the merge passes):** X4 tests, A1 pace
-  sim, PRICES (save v25), B2 boost plumbing + D1 knacks, B1 box tiers + the small picks (save
-  v26), B3 the whistle (save v27), C1 the bookcase + the herd + C3 new homes (save v28), the round 2
-  mockups, later lanes (see each step), F3 the wishing jar (save v38), F3 the shed workshop (save v39).
+- **On test (2026-09-29, wave A):** A2 gear, A3 more errand jobs, A4 book rewards, X4 tests, A1
+  pace sim, PRICES, B2 boost plumbing + D1 knacks, B1 box tiers + the small picks, B3 the whistle,
+  C1 the bookcase + the herd, C3 new homes (save v28).
+- **Merged in lanes/merge (2026-09-29, wave B, goes to test once the merge verify passes):** B2
+  the receipt, care A/E/C (presents save v29), A5 the sunset globe (v30), E2 next door (v31), C2
+  past the edge + the little school (v32), E1 the old well (v33), F1/F2 the plushie machine (v34),
+  E3 the sewing room (v35), the wisps perk wall (v36), held landings (v37), the wishing jar (v38),
+  the shed workshop (v39), the room house card (v40), the round 3 mockups; then the A1 balance
+  picks, a pace re-run and the rule-break cleanup (see "Still to do around the merge").
 - Tools: tests/test_core.gd, tools/play.py flows, tools/balance.gd, tools/pace.gd (A1),
   tools/machine_pace.gd.
 
 **Lanes (2026-09-29):** steps are built in parallel in git worktrees under
 ~/projects/desk-pets-lanes/ (branches `lanes/<name>`), each writes docs/plans/<STEP>-done.md,
-and `lanes/merge` merges them one by one (save versions renumbered in merge order). Built in a
-lane and verified there, **not merged yet**: A5 sunset globe
-(`lanes/globes`), E2 next door (`lanes/nextdoor`), C2 past the edge + the school (`lanes/edge`),
-E1 the dungeon (`lanes/dungeon`), F1 the plushie machine (`lanes/plushie`), care A/E/C
-(`lanes/care`), room upgrades / the dollhouse (`lanes/house`), E3 the sewing room + the perk
-wall (`lanes/sewing`),
-round 3 mockups (`lanes/mockups2`).
+and `lanes/merge` merges them one by one (save versions renumbered in merge order). play.py takes
+`DESK_PETS_LANE=<lane>` so each lane plays in its own test profile and Xvfb display. **Every lane
+is merged now; nothing is building.**
 
 Known small open items: the "new: the bag!" popup can land on the trip postcard; balance note (a
-huge scrapyard crew floods the bag); the sunny tree's node labels overlap at this window size
-("triple drop" / "double drop", "a second chute" / "third chute"); the welcome-back payout scales
-200 rolled capsules up to every pull (one lucky golden can be multiplied thousands of times).
+huge scrapyard crew floods the bag); the welcome-back payout scales 200 rolled capsules up to
+every pull (one lucky golden can be multiplied thousands of times). (The sunny tree's overlapping
+node labels are fixed: names wrap to their room.)
 
 ---
 
@@ -90,8 +90,16 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   0.05, snack all_speed 0.03, coin hunt + lemonade goals x1.25 / 1.25 / 1.5); **errand tools and
   boxes priced in capsules** (DONE, see PRICES); your pet's crank ~1-2% of the lever (machine job
   seconds 48 -> 15); automation prices ~x100 (table in the report); auto_adventures trips 60 ->
-  30; garden -> pond spot 0.3 -> 0.6. **Still to apply** (everything except the capsule prices),
-  then re-run the sim on the merged game and report the new curve.
+  30; garden -> pond spot 0.3 -> 0.6. **Applied on lanes/merge (2026-09-29)**, plus the kitchen
+  tuned to `most` 0.5 / `half` 1.
+- **Re-run on the merged game (docs/reports/pace.md, save v40):** before boxes errands sit at
+  0.4-1.5x the lever (a bit under the 1-3x target: capsule prices and tweak C stack); after better
+  drops errands earn 100-300x (crews of 500 at crew^0.8, only the room stops the flood); automation
+  is still bought the minute it opens (crank 1-2% of the lever as picked, workers 0.5-1%); scouting
+  never opens in 4 h and the jar is late (81 min); bits stay the only tree gate; casual players
+  reach new glass at ~3.5 h. Suggested (not applied): crew_power 0.8 -> 0.6 or starter box 500
+  capsules, lemons / bigger_jar grow 1.3, scouting at jar lv 5, new glass 1 glass, teach the sim
+  to buy room steps. Emilia's questions are at the end of the report.
 - Follow-up idea: a GameState clock (now()/tick) so the pace sim stops copying rules.
 
 ### A2. Gear: xp upgrades  (BUILT + VERIFIED 2026-09-28)
@@ -200,7 +208,7 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   whose big `pets` steps now fill pages (errand_jobs, errands_crowd, workers, fits) pass with
   `stickers off` / closing the popup.
 
-### A5. The machine's later ideas  (DECIDED; sunset globe BUILDING in lane globes, not merged)
+### A5. The machine later: a globe per map page  (sunset globe BUILT + VERIFIED 2026-09-29, lane globes, merged as save v30)
 - Rummaging → machine bits, pull value grows with income, a globe per map page, "better drops"
   mystery balls. **Prep:** which of these still matter now that automation exists.
 - **Emilia picked (2026-09-28, docs/picks.md): a globe per map page** (sunny today, sunset from
@@ -215,6 +223,16 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   tree). **The older globe is workers only**; your hand is for the newest. New bits: **corks,
   pulleys, copper wire, amber glass** (orchard: corks + amber glass; old well: pulleys; far fields:
   copper wire). Bits pills show the newest globe's bits.
+- **Built (lane globes, merged as save v30, notes in docs/plans/A5-done.md):** look A. Globes +
+  bits in data/machine_tree.json; the sunset globe comes home from the far fields after the tiny
+  machine (event `fields_sunset_globe`), broken, beside the sunny one; 5 repairs off the old hatch
+  (nest > cork > pulley > amber > hatch) with corks + amber glass (orchard), pulleys (old well),
+  copper wire (far fields), only once it's home. The newest working globe is the hand; your pet,
+  workers and errands use the one behind. Shared vs own-globe effects (chutes, lights, glass per
+  globe), step x12, the hatch = sunset boxes + the sunset toy set (firefly, hedgehog, sleepy owl,
+  paper lantern). Fixes list, a sign per globe on the tree. **Midnight is data only** (next door
+  is in now, so it can be built next). Flow globes. Open: dim named fixes vs the "no ???" rule,
+  which bits the pills show, repair prices vs bits as the gate.
 - Done already (small picks): fever stays a burst, the capsule machine shows its odds, design.md's
   stale "the machine is NEVER automated" fixed.
 
@@ -289,7 +307,7 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
 
 ## Phase C: stage 3, pack opening gets automated → managing pets
 
-### C1. The pets tab as containers  (BUILT + VERIFIED, merged; the herd is save v28)
+### C1. The pets tab as containers  (BUILT + VERIFIED, merged; the herd is save v28, the house card v40)
 - **Emilia:** sections are **automatic, by rarity** (a shelf per rarity with a count, tap to open
   it), with favourites / the best ones **pinned at the top**. Needed before thousands of pets.
 - **Emilia picked (2026-09-28):** look A, the bookcase (favourites on a pink cushion on top, a
@@ -311,7 +329,7 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   shiny count, the best knack's badge on each card's corner), a shelf opened (herd chips,
   always-cards, newest 20, sticker with heart + make active), the room pill.
 
-### C2. Pets per second  (DECIDED; past the edge + the school BUILDING in lane edge, not merged)
+### C2. Pets per second  (past the edge + the little school BUILT 2026-09-29, lane edge, merged as save v32)
 - **Emilia:** once opening is automated you get pets per second; pets become the midgame
   currency. Shown as **a pill at the top of the automation tab** ("N pets a minute"), like errands'
   coins a minute, once box workers exist. **Prep:** what spends them first.
@@ -331,6 +349,15 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
 - **Huge parties can't go down the well line** before dungeons (meadow, pond and other risky places
   only). Settling places is dropped. **Stars: only pets that leave or are lost** add a star;
   teachers stay on, so they don't (merge fix for the edge lane).
+- **Built (lane edge, merged as save v32, notes in docs/plans/C2-done.md):** past the edge (look A,
+  the tucked page: the torn beyond map, the signpost "the edge", the next page tucked under it
+  filling with scribbles, "N to go", the edge card with shelves and 1/10/100/all; pets never come
+  back, a star each; 500 opens next door through `GameState.open_page`) and the little school
+  (look A, the classroom: `your pet | workers | whistle | school`, classes 40/100/220/450/900/x2
+  fill 24 desks, you ring the bell, every worker x(1 + step) per class). The school is the `school`
+  source of `boost("automation")` and `boost("errands")` ("the little school" on the receipt), so
+  it also quickens your pet's crank and box opening. The sorting rule can send pets to school.
+  "N pets a minute" pill once box workers exist. Flows edge, school.
 
 ### C3. A place for "bad" pets  (BUILT + VERIFIED, merged; herd + new homes save v28)
 - **Emilia (2026-09-28):** early on they're **put to work** (workers, party fodder), later they
@@ -371,9 +398,12 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   toward a box 1/2/5/12/20/40 per 25, jar + pile, "they'll have a big garden!"), stars for every pet
   that leaves, the sorting rule card (after 300 by hand; below / go to new homes or work / keep a
   finish and up, new parts and favourites always; off by default; box openings only; "sorted
-  today"). Save v28 (herd + new homes in one bump at the merge). Still to do: feed the machine
-  (F1, lane plushie), room upgrades (lane house). The pace sim staffs errands from resting cards and
-  up to 10 stand-ins a count (roughly right for the herd).
+  today"). Save v28 (herd + new homes in one bump at the merge). The pace sim staffs errands from
+  resting cards and up to 10 stand-ins a count (roughly right for the herd).
+- **Since merged:** feed the machine = the plushie machine's hopper takes herd shelves and card
+  pets (F1, v34); room upgrades = the house card (v40); the rule can also send pets to school
+  (C2) and keeps "keep lines" from the sewing room (E3). A pet is in one place at a time: the
+  stall never takes the army, the plushie keeper or buttoned pets.
 
 ---
 
@@ -405,7 +435,7 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
 
 ## Phase E: THE LOOP BREAK
 
-### E1. Combat adventures and dungeons  (DECIDED; the old well built in lane dungeon, merged as save v33)
+### E1. Combat adventures and dungeons  (the old well BUILT, merged as save v33; perk wall v36, held landings v37)
 - **Emilia:** adventures go from exploration to actual combat; dungeons need ARMIES of good,
   perfectly rolled pets; this is where the player gets clues they're a dictator managing an army
   "for their own good". Swarms follow standing policies (PolicyChooser, rules still to come).
@@ -454,11 +484,25 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   **A chain**, each thing needs the one above; **2 endless tips** (coins, pets/sec, +3-5% a level at
   x3 the price) open once the chain is done. Unbought things are dashed outlines; nails below the
   deepest floor reached stay fully hidden. Plushie perks hang there too, hidden until the machine
-  opens. BUILDING with E3 in lane sewing.
+  opens.
+- **Perk wall built (lane sewing, PERKS, merged as save v36):** 12 links on nails down the left
+  lane (the bow = the entrance first; little flag, dinner bell, spool, nightlight, lunchbox, woolly
+  scarf, pinwheel, music box, paper star; thimble + ribbon hidden until the plushie machine) + 2
+  endless tips (the lucky coin, the rattle; x3 a level from 20k) once every link is bought once.
+  Boost source `perks` (front, herd_power, cellar, stairs, lanterns, pets); the music box runs the
+  army while away. data/perks.json, Perks, PerkNail; `dungeon.entrance` moved into `perks`. Flow
+  perks.
 - **Held landings** (F3): crowds hold well landings 10/20/30 (crowds + count pills on the
   landings), armies can start from the deepest held one (skipped floors pay no lanterns).
+  **Built (lane sewing, HELD, merged as save v37):** every 10th cleared landing is held by a crowd
+  sent by shelf (500 / 2k / 8k, then x3; data/dungeon.json hold); the orders start from the
+  deepest held one ("start from ‹the top | landing N›"); skipped floors pay no lanterns and take
+  no time; a held guard landing has no guard; holders stay on for good with no star. Flow held.
+- Still open from E1: nothing sends 100 pets at once in normal play, so the rope find (min_party
+  100, after the whistle) needs a way there (big parties from the whistle, or fewer pets); the
+  wall under 0.4 of a floor's strength; the knock-back miss pays nothing.
 
-### E2. The next map page (zone 3) and the invasion lore  (DECIDED; BUILDING in lane nextdoor, not merged)
+### E2. The next map page (zone 3) and the invasion lore  (BUILT 2026-09-29, lane nextdoor, merged as save v31)
 - **Emilia:** you conquer the backyard, then intel opens places beyond; the real lore is invading
   and expanding your territory. **Prep:** zone 3's places, how its intel comes.
 - **Emilia picked (2026-09-28): zone 3 is "next door"**: a row of back gardens at night, recoloured
@@ -472,8 +516,16 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   through their gate. Places: their gate, garden path, greenhouse, pond, porch (broken capsule
   machine = the midnight globe), doghouse (risky); lights 3/4/5/5/6/8 (placeholders); the gate and
   path start as ours.
+- **Built (lane nextdoor, merged as save v31, notes in docs/plans/E2-done.md):** next door, look A
+  (the street): data/unlocks.json page `next_door` (night paper, street layout), 6 places in
+  data/adventures.json, places become ours (`Ours`: one light out per visit, then your pet colours
+  it in with its own colour + a flag; danger x0.5, loot x1.2, `local` events stop; backyard after
+  40 visits once next door is open), `StreetPage` draws it, place card lights row / risky / x1.2.
+  Opened by past the edge (C2) through `GameState.open_page("next_door")` (unlock `earn: called`).
+  Next door brings midnight boxes and looks. Flow next_door. Not yet: the porch's midnight globe
+  (A5), next door adding worker machines/tables to the whistle's caps.
 
-### E3. The hard dungeon unlocks sacrificing  (DECIDED; BUILDING in lane sewing, not merged)
+### E3. The hard dungeon unlocks sacrificing  (the sewing room BUILT 2026-09-29, lane sewing, merged as save v35)
 - **Emilia picked (2026-09-29): the sewing room**: a side door on well floor 20 (tap it and the
   cross-section pans sideways); ~8-10 rooms (button tin, pin cushion, thread maze, ribbon drawer,
   the big scissors), each with a strength (E1's army maths) AND a chalk-drawn lock: part pictures
@@ -483,12 +535,20 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   **keep lines, capped** (each keeps the last ~50 matching pets as cards). **The last room gives a
   working plushie machine and sews one free button onto your active pet.** After F1, rolled rooms
   farm forever with **button locks** (same lanterns as the well).
+- **Built (lane sewing, merged as save v35, notes in docs/plans/E3-done.md):** a pink door on floor
+  20 once the tiny key is found; the column slides to the rooms; 9 fixed rooms with chalk locks
+  (part pictures, traits, finishes, tiers, buttons; filled by front-row pets, ticks, a tap = where
+  it comes from), each one army fight; keep lines from the tin (+1 at rooms 4 and 7, cap 50); the
+  last room opens the plushie machine (F1) and sews a free button; rolled rooms with button locks
+  forever. data/sewing.json, Sewing, SewingRoom, ChalkMark, SewDoor; flow sewing. While the room
+  shows, your pet leading the army waits at home so a room gets a turn. Open: exact vs "or better"
+  marks, room names past the first five, room floors vs the pace sim.
 
 ---
 
 ## Phase F: mid game, a new layer on pets
 
-### F1. The sacrifice machine: upgrading parts  (BUILT 2026-09-29, lane plushie, merged)
+### F1. The sacrifice machine: upgrading parts  (BUILT 2026-09-29, lane plushie, merged as save v34)
 - **Emilia:** old perfect pets go into a machine; the better the pet, the more likely one of its
   parts gets upgraded; probably a slot machine UI. Pitched: the reels are the pet's parts, where
   they stop picks the part; a better pet gives an extra reel or a nudge.
@@ -504,7 +564,7 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   pick). It opens from E3's last room (a working plushie machine + one free button on your active
   pet).
 
-### F2. A new layer on pets: perfect is hard again  (BUILT 2026-09-29, lane plushie, merged)
+### F2. A new layer on pets: perfect is hard again  (BUILT 2026-09-29, lane plushie, merged as save v34)
 - **Built:** the plushie machine (look A, the cabinet), a workbench page hidden until the sewing
   room's last room gives find:plushie_machine (E3 grants it; one free button on the active pet).
   Keeper ‹ ›, hopper from herd shelves (+) and card pets, 5 reels with odds shown, bank / hold /
@@ -512,8 +572,8 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   buy nudges, holds and the wild reel (the same purse as the dungeon's lanterns). Buttons 0-5 per
   part multiply its knack (x1.5 each), stay on grafted parts (slot:id@n), make a pet always a card.
   The keeper stays home (no adventures, no army). data/plushie.json, Plushie, PlushieMachine,
-  save v34 (plushie, buttons). Flow: plushie. Open: handoff rules (bank at 3...), plushie perks on
-  the well wall, balance.
+  save v34 (plushie, buttons). Flow: plushie. The plushie perks (thimble, ribbon) are on the well
+  wall now. Open: handoff rules (bank at 3...), balance.
 - **Emilia:** the mid-game main goal: a new layer so a perfect pet is really, really hard again;
   a new gambling loop more complex than a lever (so pets can't automate it at first); it earns
   something darker than coins (maybe "perk points"), slowly at first, billions later. Old layers
@@ -554,7 +614,7 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
 - **Watch out:** only ONE thing may hand out parts from pets (parts flood, see the scrapyard
   note): the machine gives stuffing, not parts back.
 
-### F3. Pets as currency, spent everywhere  (DECIDED; wish jar BUILT, merged as save v38; shed workshop BUILT, merged as save v39)
+### F3. Pets as currency, spent everywhere  (BUILT: the edge + school v32, held landings v37, wish jar v38, shed workshop v39)
 - **Emilia:** pets are a stepping stone: spent on automation, dungeons, adventures, scouting,
   tech, science, to earn the real currency that moves you on.
 - **Emilia picked (2026-09-29): the wish list, then the shed workshop, then held landings** (no
@@ -586,7 +646,8 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   `GameState.party_places()` (the whistle's and bought parties never go into dungeons or risky
   places that aren't ours), unlock popups' "show me" hands the tab what the unlock opens.
   Next: tune the needs against the herd at whistle time (pace sim).
-- **Held landings:** see E1. Stars only for pets that leave or are lost (helpers and holders stay).
+- **Held landings:** built, see E1 (save v37). Stars only for pets that leave or are lost
+  (teachers, helpers and holders stay).
 
 ---
 
@@ -595,7 +656,8 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
 - Care / the desktop pet (buffs and check-in rewards), sound pass, real art, the Windows build
   (WindowSource backend), Steam page and rating (target PEGI 7-12; loot-box law notes in
   docs/design.md).
-- **Care, picked 2026-09-29: A, then E, then C** (BUILDING in lane care, not merged).
+- **Care, picked 2026-09-29: A, then E, then C** (all three BUILT in lane care, merged; presents
+  are save v29).
   A: care becomes buffs: food and mood **freeze while the game is closed**; the kitchen keeps food
   up to 70; above 70 = full tummy coins x1.2, happy luck x1.1 (through the B2 boosts, on the
   receipt); an empty bowl is just no bonus, never a sad pet; **snacks cost capsules**; the old
@@ -606,6 +668,19 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   pocket of 3, from when the boxes tab opens; **boxes of your newest tier + sometimes a toy
   capsule, never bits, never a pet**; out on your windows your pet digs the present up and wears it
   until you tap it.
+- **Care A built:** food/mood only drain while the game is open, full tummy (coins x1.2) / happy
+  (luck x1.1) above 70 as `care` boost parts (only while open: none on offline catch-up), kitchen
+  keeps 70, snacks 3 capsules x coin_value, pats +8 mood once per 30 s, coin trickle removed, new
+  games start at 70/70. data/care.json, `Care`, flow care. No save bump.
+- **Quiet paws (care E) built:** out on your windows your pet acts out its job with poses only
+  (boxes routine on a window edge, tiny crank machine, a good pull held up 4 s, foot tap facing the
+  corner panel while an adventure waits). Setting "out on your windows" off / big things /
+  everything (settings.json, no save bump). Flow paws.
+- **Presents (care C) built:** `Gifts`, one every 3 h of wall clock, pocket of 3, from when the
+  boxes tab opens; a box of the newest open tier (`newest_box_id`), 1 in 5 two, 1 in 5 a toy
+  capsule too; your pet holds it on the home tab, digs one up on a window edge and wears it until
+  you tap it. Save v29 `gifts`. Flow gifts.
+- Still in G: sound pass, real art, the Windows build, Steam page and rating.
 
 ---
 
@@ -641,20 +716,29 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
 
 ## Still to do around the merge (2026-09-29)
 
-- Merge the lanes that are built but not merged yet (see "Lanes" at the top), renumbering their
-  save bumps from v29 on, then re-run every flow and the tests on the merged game.
-- Apply the A1 balance picks that aren't in yet (errands tweak "C", crank 48 -> 15, automation
-  prices ~x100, auto_adventures 60 -> 30, pond spot 0.6) and re-run the pace sim.
-- Tool scripts (-s) must never save: GameState `_can_save = false` when a tool script is the main
-  loop (today only `GameState.testing` turns saving off).
-- Old rule breaks seen in screenshots: '???' placeholders are still in the spine's locked tab, the
-  collectibles toys switch (collection_tab.gd), the errands pegboard's closed tools
-  (errand_tools_view.gd), the machine tree's detail card and secret toys; the errands board's "?"
-  card and hint text under the errands title; map lead labels cut off at the edges ("gears out
-  this way?", "bolts out this w"), "the garden path" label under the speech bubble; the errands
-  header ellipsis.
-- Flows with big `pets` / `herd` steps need `stickers off` after `view full`, or A4's sticker
-  popup covers every later shot (pets_shelves and new_homes were fixed in the merge).
+Done on lanes/merge: every lane merged (save v29-v40, renumbered in merge order); the A1 balance
+picks applied and the pace sim re-run (docs/reports/pace.md); tool scripts (-s) never load or
+save a save; flows with big `pets` / `herd` steps turn stickers off first. Rule-break cleanup:
+no '???' tabs, tools, tree nodes or secret toys, no errands hint card, no hint lines on
+adventures, the trail, errands, toys, the workbench, the bag, the bit chips or the home notes
+(home notes wait for their tabs; the map note says "nothing new spotted"); map labels and place
+notes stay on the page and keep clear of the walking tag; the pet says two bits of news one
+bubble after the other; machine tree names wrap; the prizes card sits over the tape; the chest
+finds no parts before parts are in the game.
+
+Left:
+- **Re-run the merge verify** on the cleanup commits (the last verify ran before the workbench /
+  bag / map note / bubble fixes), then push lanes/merge to `test`.
+- The backyard map by the garden path was crowded (walking tag on "home ♡", the workshop's bell on
+  the shed's "dusty" note, the basket by the path's label): the last fix moves the tag and the
+  basket; look at the bits_map / gear / next_door / workshop map shots again in the re-verify.
+- **Emilia's call:** locked errands things still show their requirement ("a lemonade stand /
+  opens at coin hunt lv 10 / 0 / 10", "scouting opens at savings jar lv 10", pegboard tools "at lv
+  10" / "needs shiny balls"). That's the deliberate "next goal" note (errands_tab.gd
+  `shown_wait`), but it goes against "hidden until earned". Keep or hide?
+- The pace findings (errands flood after better drops, automation bought at once, scouting never
+  opens in 4 h): pick from the report's suggestions.
+- Old saves: v29-v40 only ever lived in test profiles; real saves on test are at v28.
 
 ## Open questions from the lanes (ask Emilia)
 
@@ -673,7 +757,7 @@ are collected at the end of docs/picks.md. The bigger ones:
 - B3: the whistle at 30 workers, caps (backyard 60 / 20, beyond 600 / 200) also stop buying by
   hand, set aside starts at 250k, hauls go to the cheapest next spot.
 - C1: holo+ are always cards (~150k cards after a million pulls: only holo+ with something extra?);
-  room numbers (500, x1.5, 500 coins x1.8); herd pets work at average stats with no traits.
+  room sizes and prices (now the house card's steps) wait for the pace sim; herd pets work at average stats with no traits.
 - C3: errand join switches live in the shoebox; the rule's "below" tops out at mythic (add "any
   rarity"?); a million commons pay 40,000 boxes at once (shrink points as the herd grows?).
 - D1: knacks open with parts (40 trips; earlier?); the crown says "automation" (keep "workers"?);
@@ -682,13 +766,49 @@ are collected at the end of docs/picks.md. The bigger ones:
   the shop opens (5k-10M coins: too steep?).
 - X4: the welcome-back payout multiplies one lucky capsule thousands of times (roll more, or scale
   only plain coins?).
+- A5: the sunset globe's later fixes show by name and cost (dim) like the mockup (or "?"; note
+  the "no ???" rule); bits pills show only the bits open upgrades need (or every bit you own?);
+  sunset repair prices are a few pulls each, bits are the real gate (tune prices up?).
+- B2 receipt: it folds on a tab switch; a prize draws over the open machine slip and the slip
+  stays open after the pull; the tag shows only once coins have a source; should it shrink to fit
+  a short list?
+- Care: pats +8 mood once per 30 s (longer or a daily cap?); buffs never count for closed time;
+  snack = 3 capsules; new games start at 70/70. Quiet paws: default "everything" or "big things";
+  it needs ~92 px beside the pet. Presents: first one 3 h after the boxes tab opens; a toy comes
+  with a box, not instead.
+- E2: two or more trips back share one tag "N parties are back!"; ours trips aren't quicker;
+  backyard places become ours after 40 visits only once next door is open; next door adds no
+  worker machines/tables to the whistle's caps (should places that became ours add some?).
+- C2: a page's need lowered below what a save already sent carries the extra on (or drop it?);
+  the school speeds machine, box and errand workers (not worker parties); it opens after 100 pets
+  past the edge; the edge popup says pets "don't come back" (keep or cut?).
+- E1: nothing sends 100 pets at once, so the rope can't be found in normal play; floor 10's epic
+  part waits until parts open (or give it straight away?); a floor below 0.4 of its strength is a
+  wall; army picks stay reserved while home.
+- F1: buttoned parts can still slip when sewn (buttons lost); the hopper has no take-back; the
+  free button goes on the best-knack part; the keeper can go on errands / worker jobs.
+- E3: tier and finish marks match exactly (not "or better"); room names past the first five are
+  placeholders; while the sewing room shows, your pet leading the army waits (or queue the room?).
+- Perks: the tips need every link bought once (and wait for the plushie links); the music box runs
+  real army runs while away (losses can happen); tips x3 a level from 20k (too steep?).
+- Held landings: holders come off errands and machines like new homes; steppers in need / 20;
+  skipped floors take no time; a held guard landing loses its guard in the fight too.
+- Wish jar: opens with box tables; weights x1.5/x2/x3/x4; every jar keeps its boost after a
+  switch; "no hat" can be wished for; the popup says pets "don't come back out" (keep or cut?).
+- Shed workshop: the "adventure ›" / "workshop ›" pills; the chore chart = every errand joins;
+  the treat banner tosses full treats; letterbox postcards aren't saved; needs (40..5000) may be
+  small at whistle time.
+- House: after the attic the room waits for wisps (late); endless steps x4 wisps grow very fast;
+  "more room" costs 500 capsules x1.8 a level (97M coins on a maxed machine: too steep?).
+- Merges: herd counts count no knacks (x1); a sunset box opens with 1 space left (the room can go
+  over by a pet or two); parties the game places skip dungeons and risky places that aren't ours.
 
 ## Suggested order
 
-Merge the waiting lanes (A5 sunset globe, C2 edge + school, E2 next door, E1 the
-well, care, room house, E3 sewing room + perk wall, F1 plushie machine, F3 wish jar + shed
-workshop) → the balance picks + a new pace run → the rule-break cleanup → A5's midnight globe
-(needs E2) → F2's handoff rules → X2 (split GameState).
+Re-verify lanes/merge and push it to `test` → Emilia's answers (the errands "next goal" note, the
+lane questions above, the pace suggestions) → apply the pace picks + a new pace run → A5's midnight
+globe (next door is in) → something that sends 100 pets (the rope) → F2's handoff rules → X2
+(split GameState, ~6000+ lines now) → Phase G (sound, art, Windows build).
 
 Each step's **Prep** can be done ahead: answering its questions or picking its mockup look makes
 it ready, so a long unattended run can build ready steps back to back.

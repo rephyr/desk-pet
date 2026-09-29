@@ -206,3 +206,51 @@ Prep lines) once that run finishes.
 - A2 gear: the leaf saves only from 'hurt', not 'lost'; the harness shows at the wheelbarrow.
 - A3: a floor on the kitchen's bonus at huge crews? A4: several full book pages at once queue
   their sticker popups one by one (or one popup?).
+- C2: a page's need lowered below what a save already sent: carry the extra pets on to the next
+  page (current) or drop them? Teachers must stop adding stars (merge fix, per Brainstorm 3).
+- E1: floor 10's epic part waits until parts open (40 trips) and its glint stays hidden until
+  then (or give it straight away?).
+- B1: after long away, box workers open at most 2000 boxes at load (rest wait on the pile).
+- B3: the whistle fills parties first and keeps a crew free for each (or machines first?).
+- B2: should automation speed also speed automated adventures? Should gear count as a shared
+  boost on the receipt?
+- A5: once the sunset globe is home, its later fixes show by name and cost (dim), like the
+  mockup (or "?" until the one before is fixed? note the "no ??? placeholders" rule). Bits pills
+  show only the bits open upgrades need (or every bit you own?). The globes flow failed once in
+  ~12 runs ("4 resources still in use at exit"): watch it in the merge.
+- B2 receipt: a prize draws over the open machine slip and the slip stays open after the pull.
+  The tag shows only once COINS has a source (an active pet with only non-coin badges shows no
+  receipt): OK? Existing: the trip postcard grows under the 'away' column with 3 part cards.
+- E2: two or more trips back share one tag "N parties are back!". The slipper trace moved to the
+  porch steps (the gate and path start as ours).
+- Existing: sunny tree node labels overlap/cut off at this window size ("triple drop"/"double
+  drop", "a second chute"/"third chute").
+
+## Look picks, round 3 (mockups in lanes/mockups2: well-additions, wish-list, shed-workshop, room-house)
+
+- **Well additions: Look A, on the walls** (everything drawn on the column at once in lanes:
+  coral things on nails down the left soil lane joined by a coral thread, solid down to the last
+  bought, dashed chalk after; the bow on the roof post = the entrance; crowds + count pills on
+  landings 10/20/30; the 2 endless tips at the bottom). **The perk tree is a chain**, each thing
+  needs the one above; **the 2 endless tips open once the chain is done**. Unbought things show as
+  dashed outlines; nails below the deepest floor reached stay fully hidden. Names from the mockup
+  (woolly scarf, nightlight, dinner bell, lunchbox, pinwheel, music box, paper star, lucky coin,
+  rattle).
+- **The wish list: Look A, the wishing jar** (a jar sticker in a side column beside a narrower
+  book spread, the wished sticker as the label, pets fill it with dots in their colours, 4 bands,
+  a gold star per full step, the lid glows when done; 'N / M', shelf chips, 1/10/100/all). Steps
+  200/600/2k/6k each (8,800 in all), **every pet counts 1**, switching the wish keeps the old
+  one's filled steps, no finishes, it ends after 4 steps.
+- **The shed workshop: Look A, the card on the map** (tapping the shed sticks a workshop card on
+  the backyard map, 3 drawings pinned on a plank with progress bars, the picked one's needs as
+  helpers + rarity bars, 1/10/100/all, 'not yet' / 'build it!'; built things stand around the
+  backyard). **All 3 pinned drawings fill at once; you tap 'build it!'.** Chores that are manual
+  on purpose stay manual (the weather vane only answers plain trip choices; the school bell and
+  reel banking stay yours). The 8 drawings from the mockup table as the start (tune later).
+- **The room house: Look A, the dollhouse** (one cut-away house that grows, the next step drawn
+  in pencil inside it, a 'next up' row with the room growing and 'build it' / 'squeeze in'; chips
+  for shelves and jobs counts). **Wisp squeeze-in steps keep going** (pets in the teapot, under the
+  rug...); coin prices grow with capsule value like errands; sizes set by the pace sim.
+- Care: pats give +8 mood at most once every 30 s (longer cooldown or a daily cap?); care buffs
+  never count for closed time; the kitchen now multiplies errand speed (was additive); the
+  automation sticker also speeds on-screen box opening. Quiet paws needs ~92 px beside the pet.

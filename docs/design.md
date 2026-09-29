@@ -558,7 +558,7 @@ Nobody is ever lost on an errand, and errands never bring rare parts or new plac
   x "grow" per level): set so a capsule worth 75 coins (about when the basket opens) gives the old
   coin prices, and they keep up with the pay as the machine grows (Jobs.tool_base / tool_cost).
 - **Job levels and goals:** a job's level is its tools' levels added up; gold stars along a dotted
-  track mark its goals (coin hunt: lv 10 the lemonade stand, lv 25 and 50 x2 coins, lv 100 x3). An
+  track mark its goals (coin hunt: lv 10 the lemonade stand, lv 25 and 50 x1.25 coins, lv 100 x1.5). An
   unlock can wait for a level (`earn.job_level`).
 - **The player assigns pets** (tap a resting pet then a job, or + / −). **Busy paws** (C3): each
   errand and each workers' job (machines, box tables; not adventures) has a "new pets join here"
@@ -612,11 +612,11 @@ see the memory note on the automation tab for the plan.
   drops), and your pet fixes it by itself ("i watched you fix every single gear"). Hidden until then.
 - **Jobs are taught with coins** (`data/automation.json`, `scripts/idle/automation.gd`), and a job
   that isn't there yet is fully hidden:
-  - **crank a machine** (with the tab): your pet cranks its own little machine, a pull every 48 s
+  - **crank a machine** (with the tab): your pet cranks its own little machine, a pull every 15 s
     at first (you pull about 2 a second), each a plain capsule worth what yours are (coins, toys, a
     box now and then), no lucky lights, fever or pet boxes. Tools: a smoother crank (faster), a comfy
     stool (keeps cranking while the game is closed, an hour a level; without it the machine stops).
-  - **run adventures** (after 60 trips once the machine job is taught, `feature:auto_adventures`):
+  - **run adventures** (after 30 trips once the machine job is taught, `feature:auto_adventures`):
     pick a place (‹ ›) and how many pets (− +); the party is welcomed back quietly when it's home and
     sent out again, events take their usual pick.
   - **open boxes** (the cushion, which now waits for the tab too): your pet opens your pile, but

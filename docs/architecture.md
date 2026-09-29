@@ -278,6 +278,11 @@ speed setting and skipping apply to all of it.
 A new tab is a new Control added in `ExpandedView._init`. Shared colours, the Theme and small
 widget helpers live in `UiTheme`.
 
+Your pet talks through `PetBubble` (two rows at most). Two bits of news at once go through
+`PetBubble.show_lines()`, one bubble after the other, never joined into one long line that gets
+cut off. On the map, `MapView._inside()` keeps names, bit lines and place notes on the page, and
+the walking tag steps aside from a place's note.
+
 ## Platform
 
 `WindowSource` is the only place that talks to the OS or compositor about windows:
