@@ -61,6 +61,7 @@ var _scribbles := []  # [points, colour] in the tucked page's own space, see _sh
 var _scribble_key := ""
 var _anchor := []  # map points the fit keeps room for though nothing's drawn there (the finished edge)
 var _popping := {}  # workshop drawing id -> msec it was built (it pops up on the map)
+var _taken: Array[Rect2] = []  # where words and drawings are on the map this frame (walking pets' tags keep clear)
 var _letterbox := Control.new()  # over the letterbox while postcards wait in it (for test flows to click)
 
 
@@ -432,6 +433,7 @@ func _draw() -> void:
 		by_id[node.id] = node
 	for edge in _edges:
 		_dotted(_screen(by_id[edge.from].pos), _screen(by_id[edge.to].pos), DIM if edge.faint else PEACH, hash(edge.from + edge.to))
+	_taken.clear()
 	if _street.is_empty():
 		_draw_built()
 		for node in _nodes:
@@ -493,10 +495,15 @@ func _draw_node(node: Dictionary) -> void:
 			_bit_line(at + Vector2(0, line_y) * k, b, "%s here!" % MachineTab.bit_name(b, 2), k, 1.0)
 			line_y += 16.0
 		var note := str(location.map.get("note", ""))
+		var note_w := _note_font.get_string_size(note, HORIZONTAL_ALIGNMENT_LEFT, -1, int(14 * k)).x
+		var full_w := note_w + (16.0 * k if doodle == "house" else 0.0)
+		# up and to the right of the doodle, or to its left when that would run off the map
+		var note_x := _note_x(node, at, k, full_w)
+		_taken.append(Rect2(note_x, at.y - 38.0 * k, full_w, 18.0 * k))
 		if note != "":
-			draw_string(_note_font, at + Vector2(30, -24) * k, note, HORIZONTAL_ALIGNMENT_LEFT, -1, int(14 * k), YELLOW if doodle != "house" else PINK)
+			draw_string(_note_font, Vector2(note_x, at.y - 24.0 * k), note, HORIZONTAL_ALIGNMENT_LEFT, -1, int(14 * k), YELLOW if doodle != "house" else PINK)
 		if doodle == "house":
-			_heart(at + Vector2(30, -28) * k + Vector2(_note_font.get_string_size(note, HORIZONTAL_ALIGNMENT_LEFT, -1, int(14 * k)).x + 10, 0), 6.0 * k, PINK)
+			_heart(Vector2(note_x + note_w + 10.0, at.y - 28.0 * k), 6.0 * k, PINK)
 	else:
 		if bit != "":  # a little icon after the name: what's waiting there
 			var w := _title_font.get_string_size(location.name, HORIZONTAL_ALIGNMENT_LEFT, -1, int(17 * k)).x
@@ -509,6 +516,31 @@ func _draw_node(node: Dictionary) -> void:
 		var line := "%s saw this!" % by if by != "" else "someone saw this!"
 		_label(at + Vector2(0, 62) * k, line, DIM, _note_font, int(13 * k))
 		_label(at + Vector2(0, 79) * k, "tap to go!", PINK, _note_font, int(13 * k))
+
+
+## Where a place's note starts: up and to the right of its doodle, or to its left when the right
+## would run off the map or into the next place over.
+func _note_x(node: Dictionary, at: Vector2, k: float, width: float) -> float:
+	var right := at.x + 30.0 * k
+	var left := at.x - 30.0 * k - width
+	var clear := func(x: float) -> bool:
+		if x < 10.0 or x + width > size.x - 10.0:
+			return false
+		var r := Rect2(x, at.y - 38.0 * k, width, 18.0 * k)
+		for other in _nodes:
+			if other.id != node.id and _hits_circle(r, _screen(other.pos), 30.0 * k):
+				return false
+		return true
+	if clear.call(right):
+		return right
+	if clear.call(left):
+		return left
+	return _inside(right, width)
+
+
+static func _hits_circle(r: Rect2, c: Vector2, radius: float) -> bool:
+	var near := Vector2(clampf(c.x, r.position.x, r.end.x), clampf(c.y, r.position.y, r.end.y))
+	return near.distance_to(c) < radius
 
 
 ## A place that wants a tap: spotted by a pet and waiting for your yes, or open but never been to.
@@ -697,7 +729,17 @@ func _draw_signpost(node: Dictionary, at: Vector2, k: float, seed: int) -> void:
 ## A trip's little pet and its tag ("3 pets", "is back!").
 func _walker(run: RunState, spot: Vector2) -> void:
 	_little_pet(spot, LILAC, hash(run.rng_seed))
-	draw_string(_note_font, spot + Vector2(10, -8), _tag(run), HORIZONTAL_ALIGNMENT_LEFT, -1, 11, LILAC)
+	var tag := _tag(run)
+	var w := _note_font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
+	# beside the little pet, on whichever side is clear of other words (home's note, another tag)
+	var at := spot + Vector2(10, -8)
+	for off: Vector2 in [Vector2(10, -8), Vector2(10, 14), Vector2(-10 - w, -8), Vector2(-10 - w, 14), Vector2(-w / 2.0, 26), Vector2(-w / 2.0, -20)]:
+		var r := Rect2(spot + off - Vector2(0, 10), Vector2(w, 13))
+		if r.position.x >= 8.0 and r.end.x <= size.x - 8.0 and not _taken.any(func(t: Rect2) -> bool: return t.intersects(r)):
+			at = spot + off
+			break
+	_taken.append(Rect2(at - Vector2(0, 10), Vector2(w, 13)))
+	draw_string(_note_font, at, tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, LILAC)
 
 
 func _tag(run: RunState) -> String:
@@ -761,6 +803,7 @@ func _draw_built() -> void:
 			for i in 3:
 				draw_circle(r.get_center(), (r.size.x * 0.9 - i * 6.0) * (1.0 - t * 0.5), Color(YELLOW, 0.05 + i * 0.03) * Color(1, 1, 1, 1.0 - t))
 		draw_texture_rect(UiTheme.drawing(str(d.art), px, LILAC, 3.4), r, false)
+		_taken.append(r)
 	var waiting := GameState.postcards.size()
 	if GameState.built("letter") and waiting > 0:
 		var r := _built_rect(Workshop.drawing(catalog, "letter"))
@@ -822,6 +865,7 @@ func _bit_line(at: Vector2, bit: String, text: String, k: float, alpha: float) -
 	var s := 15.0 * k
 	var width := s + 4.0 * k + _note_font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 	var left := _inside(at.x - width / 2.0, width)
+	_taken.append(Rect2(left, at.y - s + 2.0 * k, width, s))
 	draw_texture_rect(UiTheme.icon("bit_" + bit, int(ceilf(s))), Rect2(Vector2(left, at.y - s + 2.0 * k), Vector2(s, s)), false, Color(1, 1, 1, alpha))
 	draw_string(_note_font, Vector2(left + s + 4.0 * k, at.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, Color(bit_color(bit), alpha))
 
@@ -862,7 +906,9 @@ func _heart(at: Vector2, r: float, color: Color) -> void:
 
 func _label(at: Vector2, text: String, color: Color, font: Font, font_size: int) -> void:
 	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
-	draw_string(font, Vector2(_inside(at.x - width / 2.0, width), at.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
+	var left := _inside(at.x - width / 2.0, width)
+	_taken.append(Rect2(left, at.y - font_size * 0.8, width, font_size))
+	draw_string(font, Vector2(left, at.y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
 
 
 ## Where a line of `width` starting at `left` has to start so it stays on the map (never cut off at its edges).

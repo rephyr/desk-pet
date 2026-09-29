@@ -31,7 +31,7 @@
 			"chore": "tapping the rummage spots in the room when they twinkle",
 			"say": "a spade! the corners of my room can dig themselves.", "done": "the garden spade is ready! dig dig.",
 			"art": "<path d=\"M17 5 L31 5 M24 5 L24 26\"/><path d=\"M16 26 L32 26 L30 37 Q24 46 18 37 Z\"/><path d=\"M5 45 Q10 39 15 45 M34 45 Q39 40 44 45\"/>" },
-		{ "id": "basket", "name": "the sewing basket", "need": 1000, "tier": "legendary", "count": 10, "at": [0.41, 0.72], "size": 0.5,
+		{ "id": "basket", "name": "the sewing basket", "need": 1000, "tier": "legendary", "count": 10, "at": [0.45, 0.86], "size": 0.5,
 			"chore": "fixing worn toys at the workbench",
 			"say": "a sewing basket! tiny stitches while the toys have a nap.", "done": "the sewing basket is ready! snip snip.",
 			"art": "<path d=\"M6 24 L42 24 L38 43 L10 43 Z\"/><path d=\"M8 32 L40 32 M16 24 L17 43 M24 24 L24 43 M32 24 L31 43\"/><path d=\"M14 24 Q24 8 34 24\"/><path d=\"M33 16 L44 5\"/><path d=\"M36 13 Q30 8 26 12 Q22 16 28 18\"/>" },
