@@ -360,18 +360,6 @@ func _draw() -> void:
 	x += 30.0 + _note_font.get_string_size(bag, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
 	draw_texture_rect(_xp_icon, Rect2(x, 45, 14, 14), false)
 	draw_string(_note_font, Vector2(x + 18, 57), "%d xp" % (run.xp + _xp_grabbed), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UiTheme.GOLD)
-	var hint := ""
-	match run.status:
-		RunState.Status.WAITING:
-			hint = "something's up! pick what to do on the adventure card"
-		RunState.Status.DONE:
-			hint = "back home! say welcome back" if run.party.size() > 0 else "the adventure is over. say welcome back"
-	# never under the treat button: a smaller hand when it's tight
-	var room := (_treat.position.x if _treat.visible else size.x) - 28.0
-	var hint_size := 14
-	while hint_size > 10 and _note_font.get_string_size(hint, HORIZONTAL_ALIGNMENT_LEFT, -1, hint_size).x > room:
-		hint_size -= 1
-	draw_string(_note_font, Vector2(16, size.y - 18.0), hint, HORIZONTAL_ALIGNMENT_LEFT, -1, hint_size, UiTheme.LILAC)
 	if run.status == RunState.Status.WAITING:
 		draw_string(_title_font, Vector2(_pet_x() + 22.0, ground - 90.0), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, UiTheme.PINK)
 	if _streak >= 2:
