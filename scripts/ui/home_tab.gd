@@ -783,7 +783,7 @@ func _refresh() -> void:
 	_show_note("parts", _tab_shown("inventory"))
 
 	var ready := GameState.spotted.size() + GameState.rumours.size()
-	_set_note("map", "somewhere new to go!" if ready > 0 else "the map", "", ready > 0)
+	_set_note("map", "somewhere new to go!" if ready > 0 else "nothing new spotted", "", ready > 0)
 	_show_note("map", _tab_shown("adventures"))
 
 	for id in _spots:
