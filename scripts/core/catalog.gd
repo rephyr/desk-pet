@@ -47,6 +47,7 @@ var gifts := {}  # presents: one every few hours of wall clock, see data/gifts.j
 var edge := {}  # past the edge: the pages it fills, see data/edge.json and Edge
 var school := {}  # the little school: class sizes, stand points, steps, see data/school.json and School
 var dungeon := {}  # the old well, all the way down, see data/dungeon.json and Dungeon
+var plushie := {}  # the plushie machine: spins, odds, wisps, the shop, see data/plushie.json and Plushie
 var encounter_art := {}  # event id -> its pixel art on the trail, see data/encounter_art.json
 var tier_overrides := {}  # tier id -> Color, set by the player's colour theme (see UiTheme.apply)
 
@@ -133,6 +134,7 @@ func _init() -> void:
 	edge = _load("edge.json")
 	school = _load("school.json")
 	dungeon = _load("dungeon.json")
+	plushie = _load("plushie.json")
 	_rummage_by_id = _index(rummage_spots)
 
 

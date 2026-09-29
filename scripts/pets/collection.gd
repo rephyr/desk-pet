@@ -4,7 +4,7 @@ extends RefCounted
 ## part and each body+finish combo has been pulled).
 ## Pets come in two kinds (see Herd, data/herd.json):
 ##   CARDS, whole Pet records in `pets`: favourites, the active pet, holo or better, a pet that
-##   brought a part new to the book, pets something needs whole right now (`busy`: away on an
+##   brought a part new to the book, a pet with buttons (the plushie machine), pets something needs whole right now (`busy`: away on an
 ##   adventure, a good pull waiting to be seen, leading a party), and each shelf's newest
 ##   keep_cards plain pets.
 ##   THE HERD, `herd`: every other plain pet, folded into a count per rarity x finish. When a shelf
@@ -339,8 +339,7 @@ func seen_keys() -> Array:
 
 ## Whether a pet always stays a card, whatever else happens.
 func always_card(pet: Pet) -> bool:
-	# F2: pets with buttons sewn on will stay cards too
-	return pet.fav or pet.new_part or pet.uid == active_uid or not _is_plain(pet.finish)
+	return pet.fav or pet.new_part or not pet.buttons.is_empty() or pet.uid == active_uid or not _is_plain(pet.finish)
 
 
 ## Folds the oldest plain cards of every shelf that has more than keep_cards of them that may fold.

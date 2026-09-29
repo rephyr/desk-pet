@@ -2,19 +2,22 @@ class_name WorkbenchTab
 extends VBoxContainer
 ## The workbench (was the bag): "your pet" is the bag and the sewing table (InventoryTab), "toys"
 ## is the toy bench (ToyBench): combine spares into levels, fix wear, sacrifice spares for a chance
-## at a special finish. Design: design/mockups/screens/upgrading.html.
+## at a special finish; "plushie machine" (PlushieMachine) sews buttons onto a pet's parts, hidden
+## until the machine is found. Design: design/mockups/screens/upgrading.html, sacrifice-reels.html.
 
 var bag := InventoryTab.new()
 var bench := ToyBench.new()
+var plushie := PlushieMachine.new()
 var _mode: PanelContainer
 
 
 func _init() -> void:
 	add_theme_constant_override("separation", 8)
 	size_flags_vertical = SIZE_EXPAND_FILL
-	_mode = UiTheme.segmented(["your pet", "toys"], 0, func(i):
+	_mode = UiTheme.segmented(["your pet", "toys", "plushie machine"], 0, func(i):
 		bag.visible = i == 0
 		bench.visible = i == 1
+		plushie.visible = i == 2
 		if i == 1:
 			PetBubble.say_line(self, "workbench_toys"))
 	_mode.size_flags_horizontal = SIZE_SHRINK_BEGIN
@@ -24,19 +27,42 @@ func _init() -> void:
 	bench.size_flags_vertical = SIZE_EXPAND_FILL
 	bench.visible = false
 	add_child(bench)
-	# sewing parts onto your pet comes much later: until then the workbench is just for toys
+	plushie.visible = false
+	add_child(plushie)
+	# sewing parts onto your pet comes much later: until then the workbench is just for toys; the
+	# plushie machine stays out of sight until it's found
 	var sewing := _mode.get_child(0).get_child(0) as Control
-	var parts_open := func():
+	var machine := _mode.get_child(0).get_child(2) as Control
+	var pages_open := func():
 		sewing.visible = GameState.feature_on("parts")
-		if not sewing.visible and bag.visible:
-			(_mode.get_child(0).get_child(1) as Button).pressed.emit()
-	GameState.changed.connect(parts_open)
-	parts_open.call()
+		machine.visible = GameState.plushie_open()
+		if (not sewing.visible and bag.visible) or (not machine.visible and plushie.visible):
+			show_page(1)
+	GameState.changed.connect(pages_open)
+	pages_open.call()
+	visibility_changed.connect(speak)
+	# the machine just came home: the workbench opens on it
+	GameState.unlocked.connect(func(entry: Dictionary):
+		if "feature:plushie" in entry.get("opens", []):
+			pages_open.call()
+			show_page(2))
+
+
+## Your pet says something about the toys page when the tab opens on it (the other pages speak for
+## themselves when they show; having speak() keeps the full game from adding a general line too).
+func speak() -> void:
+	if is_visible_in_tree() and bench.visible:
+		PetBubble.say_line(self, "workbench_toys")
+
+
+## 0 your pet, 1 toys, 2 the plushie machine (flips the switch at the top too).
+func show_page(page: int) -> void:
+	(_mode.get_child(0).get_child(page) as Button).pressed.emit()
 
 
 ## Opens the toy bench with this edition picked (from the toys page).
 func show_toy(edition: String) -> void:
-	(_mode.get_child(0).get_child(1) as Button).pressed.emit()
+	show_page(1)
 	bench.pick(edition)
 
 

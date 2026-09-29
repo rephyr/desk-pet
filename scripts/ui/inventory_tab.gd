@@ -2,7 +2,8 @@ class_name InventoryTab
 extends HBoxContainer
 ## Your bag: boxes pets found on trips, and loose parts as stickers (filter by slot). On the right
 ## the sewing table: pick a part to see your active pet before and after, how tricky the stitch
-## is (in words, never a number), and sew it on (Grafting). Rarer parts slip more often.
+## is (in words, never a number), and sew it on (Grafting). Rarer parts slip more often. A part that
+## came off a pet with buttons (the plushie machine) keeps them: its sticker shows them.
 
 signal open_box_requested(box_id: String)
 
@@ -17,7 +18,7 @@ var _parts := GridContainer.new()
 var _filter := "all"
 var _filter_chips := {}
 var _dirty := true
-var _picked := ""  # "slot:id" of the part on the sewing table
+var _picked := ""  # the bag key ("slot:id", or "slot:id@n" with buttons) of the part on the sewing table
 var _sew_card := PanelContainer.new()
 var _sew_body := VBoxContainer.new()
 var _rng := RandomNumberGenerator.new()
@@ -155,7 +156,7 @@ func _rebuild() -> void:
 
 func _part_tile(key: String, count: int, i: int) -> Control:
 	var catalog := Catalog.shared()
-	var bits := key.split(":")
+	var bits := Grafting.split_key(key)
 	var part := catalog.part(bits[0], bits[1])
 	var color := catalog.tier_color(part.rarity)
 	var panel := PanelContainer.new()
@@ -185,6 +186,8 @@ func _part_tile(key: String, count: int, i: int) -> Control:
 			var r := Rect2(panel.size.x - w + 4.0, -7.0, w, 18.0)
 			panel.draw_style_box(UiTheme.box(UiTheme.DEEP, UiTheme.LINE, 9, 2, 0), r)
 			panel.draw_string(UiTheme.BODY_FONT, r.position + Vector2(6, 13), badge, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.SMALL, UiTheme.TEXT)
+		if int(bits[2]) > 0:  # its buttons, along the top
+			KnackBadge.draw_button_row(panel, int(bits[2]), Vector2(12, 10), 3.4)
 		if picked:
 			panel.draw_style_box(UiTheme.stitched(UiTheme.PINK, Color(0, 0, 0, 0), 14, 0), Rect2(Vector2(-5, -5), panel.size + Vector2(10, 10))))
 	panel.gui_input.connect(func(e: InputEvent):
@@ -207,7 +210,7 @@ func _show_sewing() -> void:
 	if pet == null or _picked == "":
 		_sew_body.add_child(_muted("pick a part to try it on your active pet"))
 		return
-	var bits := _picked.split(":")
+	var bits := Grafting.split_key(_picked)
 	_sew_body.add_child(_muted("onto %s, your active pet" % pet.display_name(catalog)))
 	var ba := HBoxContainer.new()
 	ba.add_theme_constant_override("separation", 6)
@@ -224,8 +227,8 @@ func _show_sewing() -> void:
 		thread.draw_line(Vector2(24, 42), Vector2(30, 48), UiTheme.PINK, 2.4)
 		thread.draw_line(Vector2(24, 54), Vector2(30, 48), UiTheme.PINK, 2.4))
 	ba.add_child(thread)
-	var can := Grafting.can_sew(pet, bits[0], bits[1], GameState.parts)
-	ba.add_child(_framed(Grafting.preview(pet, bits[0], bits[1]), "after", UiTheme.stitched(UiTheme.PINK, UiTheme.DEEP, 12, 6)))
+	var can := Grafting.can_sew(pet, bits[0], bits[1], GameState.parts, bits[2])
+	ba.add_child(_framed(Grafting.preview(pet, bits[0], bits[1], bits[2]), "after", UiTheme.stitched(UiTheme.PINK, UiTheme.DEEP, 12, 6)))
 	_sew_body.add_child(ba)
 
 	var part := catalog.part(bits[0], bits[1])
@@ -238,6 +241,8 @@ func _show_sewing() -> void:
 		["stitch", _stitch_words(Grafting.fail_chance(bits[0], bits[1], catalog)), UiTheme.GOLD],
 		["mood", "changes how it feels" if bits[0] == "eyes" else "no change", UiTheme.MINT],
 	]
+	if int(bits[2]) > 0:
+		rows.append(["buttons", str(bits[2]), UiTheme.PINK])
 	for row in rows:
 		facts.add_child(UiTheme.label(row[0], UiTheme.MUTED, UiTheme.SMALL + 1))
 		facts.add_child(UiTheme.label(row[1], row[2], UiTheme.SMALL + 1))
@@ -245,7 +250,7 @@ func _show_sewing() -> void:
 	var fill := Control.new()
 	fill.size_flags_vertical = SIZE_EXPAND_FILL
 	_sew_body.add_child(fill)
-	var sew := UiTheme.button("sew it on" if can else _why_not_sew(pet, bits[0], bits[1]), _sew.bind(bits[0], bits[1]))
+	var sew := UiTheme.button("sew it on" if can else _why_not_sew(pet, bits[0], bits[1]), _sew.bind(bits[0], bits[1], bits[2]))
 	sew.disabled = not can
 	_sew_body.add_child(sew)
 	var fine := _muted("if the stitch holds, the old %s goes back in your bag" % bits[0])
@@ -277,10 +282,10 @@ func _framed(pet: Pet, caption: String, frame: StyleBox) -> Control:
 	return col
 
 
-func _sew(slot: String, part_id: String) -> void:
+func _sew(slot: String, part_id: String, buttons := 0) -> void:
 	var catalog := Catalog.shared()
 	var pet := GameState.collection.active()
-	var result := GameState.sew_part(slot, part_id)
+	var result := GameState.sew_part(slot, part_id, buttons)
 	if result.is_empty() or pet == null:
 		return
 	PetBubble.say(self, PetVoice.graft_line(pet, "success" if result.ok else "fail", 0.0, _rng, catalog))
@@ -336,5 +341,5 @@ static func part_preview(slot: String, id: String) -> Pet:
 
 
 static func _rank(key: String) -> int:
-	var bits := key.split(":")
-	return Catalog.shared().rank(Catalog.shared().part(bits[0], bits[1]).rarity)
+	var bits := Grafting.split_key(key)
+	return Catalog.shared().rank(Catalog.shared().part(bits[0], bits[1]).rarity) * 10 + int(bits[2])

@@ -106,6 +106,49 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   tape 2, slip 3, receipt 4, the machine's prize picture 4, bubble 5, the unlock popup and the
   tutorial guide 10 (z is shared by the whole window); a popup showing folds the receipt. `expect fits` also checks every visible BoostReceipt and WhySlip is inside the window.
 
+- Buttons (F1/F2) grow knacks: `Knacks.of` / `sum_in` / `parts` multiply a part's size by
+  `Plushie.knack_x(buttons)` (1 + knack_per_button x buttons; x1 with none), read off `Pet.buttons`.
+  Buttons are sewn through `GameState._plushie_sewn` (pet_changed, so `_knacks_changed()` runs).
+
+## The plushie machine
+
+- `Plushie` (scripts/machine/plushie.gd, static, pure) holds the rules over a plain state dict
+  (`GameState.plushie`, saved as it is): `{ keeper, hopper: [pet dicts], nudges, bought: { nudge,
+  hold }, try: { fed, spins, spins_max, reels: [5 x { strip, held, hold, banked, fresh, before,
+  was_hold }], wild: {} or { slot, strip } } }`. `spin(catalog, state, keeper, rng, forced)` banks
+  unheld reels, lands the live ones (`forced`: slot or "wild" -> symbol, the dev driver's `land`),
+  returns `{ sewn, landed, puffed, wisps, wild }`; `next_pet`, `bank`, `can_hold` /
+  `toggle_hold`, `nudge`, `wild_available`, `price` / `buy` (capped at shop.max), `wild_step`,
+  `odds_for`, `puff`, `clean` (from a save). `set_keeper(catalog, state, pet)` banks anything still
+  held onto the new keeper and keeps `banked` (only `next_pet` clears it), so a swap there and back
+  never spins a banked reel again. The UI asks `can_hold` / `wild_available`, never re-derives them.
+- `GameState.plushie_*` are thin wrappers: `plushie_keepers()` (sorted, for ‹ ›) / `plushie_keeper()`
+  (read-only: null while the keeper is away; only when none is picked or it's gone for good does
+  the first on the list take over), `plushie_can_swap()` (a cheap count), `plushie_swap`,
+  `plushie_feed_herd(rarity)` (a stand-in from a resting count, else one off a job: the pet is
+  found first, then `_herd_off_places` takes it off and returns how many it took; `collection.remove`
+  so it's a star), `plushie_cards()` / `plushie_has_cards()` / `plushie_feed_card(uid)`, `plushie_spin()` (next pet when
+  `Plushie.needs_next`), `plushie_bank / hold / nudge / buy / wild_step / price / odds`. Signals
+  `plushie_changed` and `plushie_spun(result)` (the UI plays the landings from it). The keeper is in
+  `_busy_uids()` while the machine is open, so it never folds into the herd mid-try, and
+  `sendable_pets()` leaves it out, so it never goes on an adventure.
+- Wisps: `GameState.wisps` (top level in the save), `grant_wisps(n)` and `grant({ "wisps": n })`.
+  `UiTheme.WISP` (themes.json `wisp` in all 5 themes), doodles `wisp`, `button`, `reel_blank`,
+  `reel_crack`.
+- The one opening hook: data/unlocks.json `plushie` (earn `find: plushie_machine`, opens
+  `feature:plushie` + `tab:inventory`, `button_gift: 1` -> `GameState._gift_buttons`). The find
+  has `given_by` (the sewing room, E3): E3 only has to `grant({ "find:plushie_machine": 1 })`.
+- Grafting keeps buttons: bag keys are `slot:id` or `slot:id@n` (`Grafting.key`, `split_key`,
+  `valid_key`); a part that comes off goes back with the slot's buttons, sewing an `@n` part on sets
+  them. `InventoryTab` reads keys through `split_key` and draws the buttons on the sticker.
+- UI: `PlushieMachine` (scripts/ui/plushie_machine.gd, the workbench's `plushie`): the cabinet
+  (Hopper, Bulbs, ReelView x5 + the wild one, Marks, odds, bank / hold, Lever, the spin button) and
+  the side card (keeper, hopper rows or the card picker, wisps, the shop); effects on an Fx layer.
+  The hopper rows are rebuilt only when the rarities shown change (herd / cards / jobs / plushie
+  signals mark them; counts update in place); the picker shows 20 card pets a page (‹ n/m ›).
+  `busy()` while reels roll (the dev driver waits on it). `KnackBadge.draw_buttons` puts the buttons
+  on a badge's rim (the details and the shelf cards' corners).
+
 ## Pets
 
 - `Pet` is plain data (parts, finish, traits, stats, rarity) with `to_dict` / `from_dict`.
@@ -348,6 +391,13 @@ tick finishes it (`_finish_dungeon_run`: `Collection.remove` / `lose_plain` add 
 migration turns an old save's open cellar/below places into bands, drops rumours about them and moves
 parties going there to the well. Band places have `"band"` in data/adventures.json and are never
 open (`location_open`); retired rumours are never heard (`Rumours.hearable`).
+Save v34 (F1/F2, built as v24 in its lane) adds the plushie machine: top-level `plushie` (see
+`Plushie.fresh`), optional `buttons` (slot -> 1..5) on pet dicts, and bag keys `slot:id@n`. Older
+saves load an empty machine (nothing to move); `Plushie.clean` and `Pet.from_dict` fix up odd values.
+Wisps are one purse (`GameState.wisps`, saved since v33): the dungeon's floors and the machine's
+misses both pay in through `grant_wisps` (`grant({ "wisps": n })` too). The keeper stays home: not
+sendable, never in the army (`army_choices`, `set_army_card`), and an army pet can't be the keeper
+(`plushie_keepers` skips `_out()`).
 
 ## Testing
 

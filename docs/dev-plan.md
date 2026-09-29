@@ -485,7 +485,7 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
 
 ## Phase F: mid game, a new layer on pets
 
-### F1. The sacrifice machine: upgrading parts  (DECIDED; BUILDING in lane plushie, not merged)
+### F1. The sacrifice machine: upgrading parts  (BUILT 2026-09-29, lane plushie, merged)
 - **Emilia:** old perfect pets go into a machine; the better the pet, the more likely one of its
   parts gets upgraded; probably a slot machine UI. Pitched: the reels are the pet's parts, where
   they stop picks the part; a better pet gives an extra reel or a nudge.
@@ -501,7 +501,16 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   pick). It opens from E3's last room (a working plushie machine + one free button on your active
   pet).
 
-### F2. A new layer on pets: perfect is hard again  (DECIDED 2026-09-28)
+### F2. A new layer on pets: perfect is hard again  (BUILT 2026-09-29, lane plushie, merged)
+- **Built:** the plushie machine (look A, the cabinet), a workbench page hidden until the sewing
+  room's last room gives find:plushie_machine (E3 grants it; one free button on the active pet).
+  Keeper ‹ ›, hopper from herd shelves (+) and card pets, 5 reels with odds shown, bank / hold /
+  nudge, auto-bank, spins run out -> banked, wild 6th reel, wisps (candy floss coral) from misses
+  buy nudges, holds and the wild reel (the same purse as the dungeon's lanterns). Buttons 0-5 per
+  part multiply its knack (x1.5 each), stay on grafted parts (slot:id@n), make a pet always a card.
+  The keeper stays home (no adventures, no army). data/plushie.json, Plushie, PlushieMachine,
+  save v34 (plushie, buttons). Flow: plushie. Open: handoff rules (bank at 3...), plushie perks on
+  the well wall, balance.
 - **Emilia:** the mid-game main goal: a new layer so a perfect pet is really, really hard again;
   a new gambling loop more complex than a lever (so pets can't automate it at first); it earns
   something darker than coins (maybe "perk points"), slowly at first, billions later. Old layers

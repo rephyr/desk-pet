@@ -67,6 +67,8 @@ func _init() -> void:
 	_test_edge_school_game(catalog)
 	_test_herd_knacks(catalog)
 	_test_dungeon(catalog)
+	_test_plushie(catalog)
+	_test_plushie_game(catalog)
 	var result := "ALL PASSED" if _failures == 0 else "%d FAILED" % _failures
 	if not _skipped.is_empty():
 		result += ", BUT SKIPPED " + ", ".join(_skipped)
@@ -913,7 +915,7 @@ func _test_unlocks(catalog: Catalog) -> void:
 		_check(entry.show in ["locked", "hidden"], "unlock %s is shown locked or hidden" % entry.id)
 		for o in entry.opens:
 			var bits := str(o).split(":")
-			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "whistle", "new_homes", "sorting", "edge", "school", "dungeon", "lead_army"]) or (bits[0] == "page" and bits[1] in page_ids) \
+			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "whistle", "new_homes", "sorting", "edge", "school", "dungeon", "lead_army", "plushie"]) or (bits[0] == "page" and bits[1] in page_ids) \
 				or (bits[0] == "job" and catalog.jobs.any(func(j): return str(j.get("needs", "")) == o))
 			_check(ok, "unlock %s opens something real (%s)" % [entry.id, o])
 		if entry.earn.has("find"):
@@ -922,7 +924,8 @@ func _test_unlocks(catalog: Catalog) -> void:
 	for find in catalog.finds:
 		var machine_gives: bool = find == str(catalog.machine.get("intel", {}).get("find", ""))
 		var dungeon_gives: bool = catalog.dungeon.get("firsts", {}).values().any(func(f): return str(f.get("find", "")) == find)
-		_check(machine_gives or dungeon_gives or catalog.events.values().any(func(e): return e.get("find", "") == find), "some event (or the machine, or a dungeon floor) gives %s" % find)
+		var later := str(catalog.finds[find].get("given_by", "")) != ""  # a step not built yet gives it (see data/unlocks.json)
+		_check(machine_gives or dungeon_gives or later or catalog.events.values().any(func(e): return e.get("find", "") == find), "some event (or the machine, or a dungeon floor) gives %s" % find)
 	var meadow := catalog.location("meadow")
 	var seen := false
 	for t in 200:
@@ -3938,6 +3941,319 @@ func _test_edge_school_game(catalog: Catalog) -> void:
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 
 
+## The plushie machine (F1/F2, Plushie, data/plushie.json): odds by a part's buttons, the spin rules
+## (auto-bank, hold doubles, cracks, caps), bank / hold / nudge, the wild reel, wisps, buttons on
+## knacks and through grafting.
+func _test_plushie(catalog: Catalog) -> void:
+	var d: Dictionary = catalog.plushie
+	var most := Plushie.max_buttons(catalog)
+	_check(most == 5 and d.button.size() == most and d.crack.size() == most, "a part holds 0-5 buttons, with odds for 0-4")
+	for t in catalog.tiers:
+		_check(int(d.spins.get(t.id, 0)) >= 1 and int(d.puff.get(t.id, 0)) >= 1, "every rarity gives spins and puffs wisps (%s)" % t.id)
+	for f in catalog.finishes:
+		_check(d.nudges.has(f.id), "every finish has nudges (%s)" % f.id)
+	for tr in d.traits:
+		_check(catalog.trait_info(tr).size() > 0, "trait tilt %s is a real trait" % tr)
+	for n in most:
+		for traits in [[], ["lucky"], ["curious"], ["lucky", "curious", "greedy", "zoomy"]]:
+			var o := Plushie.odds_for(catalog, n, traits)
+			_check(int(o.button) + int(o.blank) + int(o.crack) == 100 and int(o.blank) >= 0, "odds add up to 100%% (%d buttons, %s)" % [n, traits])
+			_check(int(o.crack) >= int(d.crack_min), "a crack never gets rarer than crack_min (%d buttons, %s)" % [n, traits])
+	_check(Plushie.odds_for(catalog, most, []).is_empty(), "a full part has no odds (it doesn't spin)")
+	_check(Plushie.odds_for(catalog, 0, []).button == 34 and Plushie.odds_for(catalog, 4, []).button == 5, "button 34% at none, 5% at four")
+	_check(Plushie.odds_for(catalog, 0, ["lucky"]).crack == 5 and Plushie.odds_for(catalog, 0, ["curious"]).button == 36, "lucky: fewer cracks, curious: more buttons")
+	_check(Plushie.spins_for(catalog, { "rarity": "epic" }) == 4 and Plushie.spins_for(catalog, { "rarity": "common", "traits": ["zoomy"] }) == 2,
+		"spins by rarity (epic 4), zoomy +1")
+	# a try
+	var keeper := Pet.new()
+	keeper.uid = "1"
+	keeper.parts = { "body": "bunny", "palette": "gold", "pattern": "stars", "eyes": "cyclops", "accessory": "horns" }
+	var st := Plushie.fresh()
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	_check(Plushie.needs_next(st) and Plushie.spin(catalog, st, keeper, rng).is_empty(), "nobody in the machine: no spin")
+	Plushie.feed(catalog, st, { "rarity": "common", "finish": "normal", "traits": [] })
+	Plushie.feed(catalog, st, { "rarity": "rare", "finish": "shiny", "traits": [] })
+	Plushie.feed(catalog, st, { "rarity": "uncommon", "finish": "normal", "traits": [] })
+	var hop := Plushie.next_pet(catalog, st, keeper)
+	_check(hop.fed.rarity == "rare" and st.try.spins == 3 and st.nudges == 1 and st.hopper.size() == 2,
+		"the best pet hops in first: a shiny rare, 3 spins, 1 nudge")
+	var all_forced := { "body": "button", "palette": "crack", "pattern": "blank", "eyes": "button", "accessory": "blank" }
+	var r1 := Plushie.spin(catalog, st, keeper, rng, all_forced)
+	var reels: Array = st.try.reels
+	_check(r1.landed.size() == 5 and reels[0].held == 1 and reels[1].held == 0 and reels[2].held == 0 and reels[3].held == 1,
+		"a button holds one, a crack and a blank hold nothing")
+	_check(r1.puffed.size() == 3 and r1.puffed[1] == 24 and r1.puffed[2] == 12 and r1.wisps == 48, "misses puff wisps by rarity, a crack twice as much (%s)" % [r1.puffed])
+	_check(st.try.spins == 2 and Plushie.total(keeper) == 0, "a spin used, nothing sewn on yet")
+	_check(Plushie.toggle_hold(catalog, st, 0) and reels[0].hold, "hold the body reel")
+	_check(not Plushie.toggle_hold(catalog, st, 2), "a reel holding nothing can't be held")
+	var r2 := Plushie.spin(catalog, st, keeper, rng, { "body": "button", "palette": "blank", "pattern": "blank", "accessory": "blank" })
+	_check(Plushie.buttons(keeper, "eyes") == 1 and reels[3].banked and r2.sewn.get("eyes", 0) == 1, "an unheld button banks by itself at the next spin")
+	_check(not r2.landed.has(3), "a banked reel stops for this pet")
+	_check(reels[0].held == 3 and not reels[0].hold, "a held reel that lands a button gets two more (3), and needs holding again")
+	var nudges_before := int(st.nudges)
+	reels[0].strip = ["crack", "button", "blank"]
+	_check(Plushie.can_nudge(catalog, st, keeper, 0) and Plushie.nudge(catalog, st, keeper, 0, rng) == "crack", "a nudge moves the cell above into the middle")
+	_check(reels[0].held == 0 and st.nudges == nudges_before - 1, "nudged onto a crack: the held buttons go, a nudge is used")
+	reels[0].strip = ["button", "crack", "blank"]
+	st.nudges = 1
+	Plushie.nudge(catalog, st, keeper, 0, rng)
+	_check(reels[0].held == 3 and st.nudges == 0, "nudged back onto the button: lands again from before the spin (3)")
+	_check(not Plushie.can_nudge(catalog, st, keeper, 0), "no nudges left in the pool")
+	_check(Plushie.toggle_hold(catalog, st, 0), "hold the body again")
+	var r3 := Plushie.spin(catalog, st, keeper, rng, { "body": "crack", "palette": "blank", "pattern": "button", "accessory": "blank" })
+	_check(reels[0].held == 0 and Plushie.buttons(keeper, "body") == 0, "a crack takes the held buttons away")
+	_check(st.try.spins == 0 and Plushie.needs_next(st), "the spins are used up")
+	_check(r3.landed.size() == 4, "every reel still going landed")
+	_check(not Plushie.toggle_hold(catalog, st, 2), "no holding with no spins left")
+	var r4 := Plushie.next_pet(catalog, st, keeper)
+	_check(Plushie.buttons(keeper, "pattern") == 1 and r4.sewn.get("pattern", 0) == 1, "whatever's held when the spins run out is banked")
+	_check(r4.fed.rarity == "uncommon" and not reels.any(func(r): return r.banked or r.held > 0), "the next pet hops in, the reels start over")
+	# keepers: a swap there and back doesn't spin a banked reel again; a new keeper gets what's held
+	var st_b: Dictionary = st.duplicate(true)
+	var keeper_b := Pet.from_dict(keeper.to_dict(), catalog)
+	var other := Pet.from_dict(keeper.to_dict(), catalog)
+	other.uid = "2"
+	other.buttons = {}
+	Plushie.spin(catalog, st_b, keeper_b, rng, { "body": "button", "palette": "blank", "pattern": "blank", "eyes": "blank", "accessory": "blank" })
+	_check(Plushie.bank(catalog, st_b, keeper_b, 0) == 1 and st_b.try.reels[0].banked, "bank the body")
+	_check(not Plushie.can_hold(catalog, st_b, 0) and not Plushie.can_hold(catalog, st_b, 1), "a banked reel or one holding nothing can't be held")
+	Plushie.set_keeper(catalog, st_b, other)
+	Plushie.set_keeper(catalog, st_b, keeper_b)
+	_check(st_b.try.reels[0].banked and st_b.keeper == "1", "a keeper swap there and back: the banked reel stays banked for this pet")
+	var rb := Plushie.spin(catalog, st_b, keeper_b, rng, { "body": "button", "palette": "button", "pattern": "button", "eyes": "button", "accessory": "button" })
+	_check(not rb.landed.has(0) and Plushie.anything_held(st_b), "so it doesn't spin again")
+	var sewn_b := Plushie.set_keeper(catalog, st_b, other)
+	_check(sewn_b.size() == 4 and Plushie.total(other) == 4 and not Plushie.anything_held(st_b), "a new keeper: whatever the reels held is sewn onto it, never dropped")
+	st_b.try = Plushie.fresh_try()
+	Plushie.next_pet(catalog, st_b, keeper_b)
+	_check(not st_b.try.reels.any(func(r): return r.banked), "the next pet starts every reel again")
+	# caps, full parts, bank, the hold limit
+	keeper.buttons["body"] = 4
+	Plushie.spin(catalog, st, keeper, rng, { "body": "button", "palette": "button", "pattern": "button", "eyes": "button", "accessory": "button" })
+	_check(reels[0].held == 1, "a part with 4 buttons can only hold 1 more")
+	_check(Plushie.bank(catalog, st, keeper, 0) == 1 and Plushie.full(catalog, keeper, "body") and reels[0].banked, "bank: sewn on, the body is full")
+	_check(not Plushie.active(catalog, st, keeper, 0) and Plushie.odds(catalog, st, keeper, 0).is_empty(), "a full part doesn't spin")
+	_check(Plushie.toggle_hold(catalog, st, 1) and Plushie.toggle_hold(catalog, st, 2) and not Plushie.toggle_hold(catalog, st, 3), "two holds at once to start with")
+	st.bought.hold = 1
+	_check(Plushie.toggle_hold(catalog, st, 3), "a bought hold makes three")
+	_check(Plushie.toggle_hold(catalog, st, 3) and not reels[3].hold, "tap again to let go")
+	# the shop and the wild reel
+	st.bought = { "nudge": 0, "hold": 0 }
+	_check(Plushie.price(catalog, st, keeper, "nudge") == 60 and Plushie.price(catalog, st, keeper, "hold") == 400, "a nudge 60 wisps, a hold 400")
+	Plushie.buy(catalog, st, keeper, "nudge")
+	_check(Plushie.price(catalog, st, keeper, "nudge") == 78 and st.nudges == 1, "a bought nudge goes in the pool, the next costs more")
+	_check(Plushie.price(catalog, st, keeper, "wild") == 500, "the wild reel: 250 x the fed pet's rarity step (uncommon: 500)")
+	_check(Plushie.wild_default(catalog, keeper) == "palette", "the wild reel starts on the part with the fewest buttons")
+	var stuffed := Pet.from_dict(keeper.to_dict(), catalog)
+	for slot in Catalog.SLOTS:
+		stuffed.buttons[slot] = most
+	_check(not Plushie.wild_available(catalog, st, stuffed) and Plushie.price(catalog, st, stuffed, "wild") == -1, "no wild reel when every part is full")
+	var pricey: Dictionary = st.duplicate(true)
+	pricey.bought.nudge = 5000
+	_check(Plushie.price(catalog, pricey, keeper, "nudge") == roundi(float(d.shop.max)), "prices stop at shop.max")
+	Plushie.buy(catalog, st, keeper, "wild")
+	_check(st.try.wild.slot == "palette" and Plushie.price(catalog, st, keeper, "wild") == -1, "one wild reel per pet")
+	Plushie.wild_step(catalog, st, keeper, -1)
+	_check(st.try.wild.slot == "accessory", "‹ › skips the full body")
+	Plushie.wild_step(catalog, st, keeper, 1)
+	st.try.reels[1].hold = false
+	var before := Plushie.buttons(keeper, "palette")
+	var r5 := Plushie.spin(catalog, st, keeper, rng, { "wild": "button", "palette": "blank", "pattern": "blank", "eyes": "blank", "accessory": "blank" })
+	_check(r5.wild.symbol == "button" and Plushie.buttons(keeper, "palette") >= before + 1, "the wild reel's button goes straight onto the part you picked")
+	var r6 := Plushie.next_pet(catalog, st, keeper)
+	_check(r6.fed.rarity == "common" and st.try.wild.is_empty(), "the wild reel was for that pet only")
+	# wisps
+	var plain := Pet.new()
+	var gifted := Pet.new()
+	gifted.buttons = { "body": 5, "eyes": 5 }
+	st.try.fed = { "rarity": "epic", "traits": [] }
+	_check(Plushie.puff(catalog, st, plain, false) == 40 and Plushie.puff(catalog, st, plain, true) == 80, "an epic's miss puffs 40, a crack 80")
+	_check(Plushie.puff(catalog, st, gifted, false) == 80, "perfection: a keeper with 10 buttons makes misses puff twice as much")
+	st.try.fed = { "rarity": "epic", "traits": ["greedy"] }
+	_check(Plushie.puff(catalog, st, plain, false) == 60, "greedy pets puff half as much again")
+	# saved and loaded
+	var round_trip := Plushie.clean(JSON.parse_string(JSON.stringify(st)), catalog)
+	_check(round_trip.try.reels.size() == 5 and int(round_trip.nudges) == int(st.nudges) and round_trip.hopper.size() == st.hopper.size(),
+		"the machine survives a save")
+	_check(Plushie.clean({ "try": { "reels": ["odd", { "strip": ["x"] }] }, "hopper": "nope" }, catalog).try.reels.size() == 5, "a broken save loads a fresh machine")
+	# buttons make knacks bigger
+	var open := func(_gate: String) -> bool: return true
+	keeper.buttons.erase("eyes")
+	var bare: Dictionary = Knacks.of(catalog, keeper, open).filter(func(k): return k.slot == "eyes")[0]
+	keeper.buttons["eyes"] = 5
+	var sewn_eyes: Dictionary = Knacks.of(catalog, keeper, open).filter(func(k): return k.slot == "eyes")[0]
+	_check(sewn_eyes.buttons == 5 and sewn_eyes.n == roundi(float(bare.n) * 3.5), "5 buttons: the part's knack x3.5 (%d -> %d)" % [bare.n, sewn_eyes.n])
+	var agree := true
+	for kind in Boosts.kinds(catalog):
+		var by_rows := 0
+		for k in Knacks.of(catalog, keeper, open):
+			if Knacks.covers(catalog, str(k.kind), kind):
+				by_rows += int(k.n)
+		agree = agree and by_rows == Knacks.total(catalog, keeper, kind, open)
+	_check(agree, "lean knack totals count the buttons too")
+	var copy := Pet.from_dict(JSON.parse_string(JSON.stringify(keeper.to_dict())), catalog)
+	_check(copy.buttons == keeper.buttons, "buttons survive a save")
+	_check(Pet.from_dict({ "buttons": { "body": 9, "tail": 2 } }, catalog).buttons == { "body": 5 }, "odd buttons from a save are fixed up")
+	# grafting keeps buttons on the part
+	_check(Grafting.split_key("body:bunny@3") == ["body", "bunny", 3] and Grafting.split_key("eyes:round") == ["eyes", "round", 0], "bag keys with buttons")
+	_check(Grafting.valid_key("body:bunny@3", catalog) and not Grafting.valid_key("body:bunny@9", catalog) and not Grafting.valid_key("body:bunny@0", catalog),
+		"a bag key names a real part with 1-5 buttons")
+	var pet := Pet.new()
+	for slot in Catalog.SLOTS:
+		pet.parts[slot] = catalog.default_part(slot)
+	var old_body: String = pet.parts.body
+	pet.buttons = { "body": 3 }
+	var sure := RandomNumberGenerator.new()
+	var bag := { "body:bunny": 1 }
+	var held_ok := false
+	for t in 200:
+		sure.seed = t
+		bag = { "body:bunny": 1 }
+		var p2 := Pet.from_dict(pet.to_dict(), catalog)
+		var res := Grafting.sew(p2, "body", "bunny", bag, sure, catalog)
+		if res.ok:
+			held_ok = bag.get("body:%s@3" % old_body, 0) == 1 and not p2.buttons.has("body")
+			var bag2 := bag.duplicate()
+			var back := Grafting.sew(p2, "body", old_body, bag2, sure, catalog, 3)
+			if back.is_empty() or not back.ok:
+				continue
+			held_ok = held_ok and p2.buttons.get("body", 0) == 3 and bag2.get("body:bunny", 0) == 1
+			break
+	_check(held_ok, "a part keeps its buttons: off into the bag as slot:id@3, and back on with them")
+	# a pet with buttons is always a card
+	var c := Collection.new()
+	var one := Pet.new()
+	one.parts = pet.parts.duplicate()
+	one.rarity = "common"
+	var two := Pet.from_dict(one.to_dict(), catalog)
+	c.add([one, two] as Array[Pet])
+	two.new_part = false
+	_check(not c.always_card(two), "a plain pet may fold")
+	two.buttons = { "eyes": 1 }
+	_check(c.always_card(two), "a pet with buttons always stays a card")
+
+
+## The plushie machine in the game: nothing before the find, then the machine and a free button;
+## feeding from the herd and from cards (pets leave for good, each a star); the keeper stays a card;
+## a try survives a save; a save from before the machine loads an empty one.
+func _test_plushie_game(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped the plushie machine in the game: it needs a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 21
+	var roller := PetRoller.new(catalog, rng)
+	var pets := []
+	for i in 6:
+		var p := roller.roll("starter", "common")
+		p.finish = "normal"
+		p.uid = str(i + 1)
+		p.parts.body = "bunny"  # a knack for the free button to go on
+		pets.append(p.to_dict())
+	pets[2].fav = true
+	var old := { "version": 33, "coins": 1000, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(), "wisps": 9,
+		"unlocks": ["feature:parts", "feature:errands", "tab:errands", "tab:inventory"],
+		"parts": { "body:bunny": 1, "body:bunny@2": 3, "body:nope@1": 1 },
+		"collection": { "pets": pets, "herd": { "common:normal": 30, "rare:shiny": 2 }, "active": "1", "next_id": 7 } }
+	SaveFile.write(path, old)
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	var c: Collection = gs.collection
+	_check(not gs.plushie_open() and Plushie.needs_next(gs.plushie) and gs.plushie.hopper.is_empty(),
+		"a v33 save (before the machine) loads with none of it")
+	_check(gs.wisps == 9, "the wisps the dungeon paid stay: one purse (%d)" % gs.wisps)
+	_check(gs.parts.get("body:bunny@2", 0) == 3 and not gs.parts.has("body:nope@1"), "bag keys with buttons load (unknown parts don't)")
+	gs.check_unlocks()
+	_check(not gs.plushie_open(), "nothing opens the machine before its find")
+	_check(not gs.plushie_feed_herd("common") and gs.plushie_spin().is_empty(), "and it can't be used before then")
+	var active: Pet = c.active()
+	gs.grant({ "find:plushie_machine": 1 })
+	_check(gs.plushie_open() and Plushie.total(active) == 1, "the find opens the machine and sews one free button onto your active pet")
+	_check(Plushie.buttons(active, str(Knacks.best(catalog, active, gs.knack_gate).slot)) == 1, "on the part with its best knack")
+	gs.grant({ "find:plushie_machine": 1 })
+	_check(Plushie.total(active) == 1, "only once")
+	gs.grant({ "wisps": 5 })
+	gs.grant_wisps(7)
+	_check(gs.wisps == 21, "wisps come through grant and grant_wisps, into the same purse")
+	# keepers
+	var keepers: Array = gs.plushie_keepers()
+	_check(keepers[0] == active and keepers[1].uid == "3", "keepers: your active pet first, then favourites")
+	_check(gs.plushie_keeper() == active, "your active pet is the keeper to start with")
+	# feeding
+	var stars := c.fallen_n
+	var count := c.count()
+	_check(gs.plushie_feed_herd("common") and gs.plushie_feed_herd("rare"), "pets from the herd go into the hopper")
+	_check(c.herd_count("common:normal") == 29 and c.herd_count("rare:shiny") == 1, "they leave their counts")
+	_check(c.fallen_n == stars + 2 and c.count() == count - 2, "each one that goes in adds a star")
+	_check(not gs.plushie_feed_herd("mythic"), "no mythics in the herd, none to feed")
+	var cards: Array = gs.plushie_cards()
+	_check(not cards.any(func(p): return p.uid in ["1", "3"]), "never your active pet or a favourite")
+	_check(gs.plushie_feed_card("2") and c.get_pet("2") == null, "a card goes in and leaves for good")
+	_check(not gs.plushie_feed_card("1") and not gs.plushie_feed_card("3"), "the active pet and favourites can't be fed")
+	gs.put_on_job("coin_hunt", -1)
+	_check(gs.resting_herd().get("common:normal", 0) == 0, "every common from the herd is on the coin hunt")
+	var on_job: int = gs.job_size("coin_hunt")
+	_check(gs.plushie_feed_herd("common") and gs.job_size("coin_hunt") == on_job - 1, "none resting: one comes off its job")
+	_check(gs.plushie.hopper.size() == 4, "four in the hopper")
+	# a try
+	var res: Dictionary = gs.plushie_spin()
+	_check(res.get("next", false) and gs.plushie.try.fed.rarity == "rare" and gs.plushie.try.spins == 3, "the lever brings the best pet in first (the shiny rare)")
+	_check(gs.plushie.nudges == 1, "its shine adds a nudge")
+	gs.debug_land = { "body": "button", "palette": "crack", "pattern": "blank", "eyes": "button", "accessory": "blank" }
+	var wisps_before: int = gs.wisps
+	res = gs.plushie_spin()
+	_check(res.landed.size() == 5 and gs.wisps > wisps_before, "a spin lands every reel and misses puff wisps")
+	_check(gs.plushie_hold(0), "hold the body")
+	gs.save_game()
+	var gs2: Node = load("res://scripts/game_state.gd").new()
+	var st2: Dictionary = gs2.plushie
+	_check(gs2.plushie_open() and gs2.wisps == gs.wisps and st2.try.reels[0].hold and st2.try.reels[0].held == 1 and st2.try.spins == 2,
+		"a try survives a save (held, on hold, spins left)")
+	_check(st2.hopper.size() == 3 and gs2.collection.active().buttons == active.buttons, "the hopper and the buttons too")
+	_check(gs2.plushie_keeper().uid == "1", "and the keeper")
+	gs2.free()
+	# the keeper stays a card; swapping waits until nothing's held
+	_check(not gs.plushie_swap(1), "no new keeper while a reel holds buttons")
+	gs.plushie_bank(0)
+	gs.plushie_bank(3)
+	_check(Plushie.total(active) >= 3, "banked buttons are sewn on")
+	_check(gs.plushie_can_swap(), "‹ › can go once nothing's held")
+	_check(gs.plushie_swap(1) and gs.plushie_keeper().uid == "3", "then ‹ › picks the next keeper")
+	_check(gs._busy_uids().has("3"), "the keeper can't fold into the herd")
+	_check(gs.plushie.try.reels[0].banked and gs.plushie.try.reels[3].banked, "banked reels stay banked across a swap")
+	_check(gs.plushie_swap(-1) and gs.plushie_keeper().uid == "1" and gs.plushie.try.reels[0].banked, "and there and back again")
+	gs.plushie_swap(1)
+	_check(not gs.sendable_pets().any(func(p): return p.uid == "3"), "the keeper can't go on an adventure")
+	# an old save with the keeper away: the machine waits for it, nothing is reset
+	var trip: RunState = gs.send_on_adventure("garden", [c.get_pet("4")] as Array[Pet])
+	_check(trip != null, "a pet goes on an adventure")
+	gs.plushie.keeper = "4"
+	gs.plushie.try.reels[2].held = 1
+	_check(gs.plushie_keeper() == null and str(gs.plushie.keeper) == "4" and gs.plushie.try.reels[2].held == 1 and gs.plushie.try.reels[0].banked,
+		"a keeper that's away: no keeper for now, the reels keep what they hold")
+	_check(gs.plushie_spin().is_empty(), "and no spins until it's home")
+	gs.plushie.try.reels[2].held = 0
+	gs.plushie.keeper = "3"
+	_check(gs._herd_off_places("mythic:normal", 1) == 0, "nobody of that count on a job: none taken off")
+	# the dungeon's army (merge): the keeper stays home, and an army pet can't be the keeper
+	gs.unlocks["feature:dungeon"] = true
+	gs.take_off_job("coin_hunt", 3, ["3", "5", "6"])
+	_check(gs.resting_cards().any(func(p): return p.uid == "3") and not gs.army_choices().any(func(p): return p.uid == "3") and not gs.set_army_card("3", true),
+		"the keeper can't go in the dungeon's army")
+	var soldier: Pet = gs.army_choices()[0]
+	_check(gs.set_army_card(soldier.uid, true), "another resting card can")
+	_check(not gs.plushie_keepers().has(soldier), "a pet in the army can't be the keeper")
+	gs.set_army_card(soldier.uid, false)
+	gs.free()
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+
 func _check(ok: bool, what: String) -> void:
 	_checks += 1
 	if not ok:
@@ -4017,6 +4333,7 @@ func _test_knacks(catalog: Catalog) -> void:
 	_check(Knacks.size(catalog, "tough", "common") == 3, "a common blob is 3% tougher")
 	_check(Knacks.size(catalog, "tough", "legendary") == 24, "legendary x-eyes: 24% tougher")
 	_check(Knacks.size(catalog, "spots", "epic", "holo") == 30, "a holo cyclops: 20 x1.5 = 30% spotting")
+	_check(Knacks.size(catalog, "spots", "epic", "holo", 2) == 60, "with 2 buttons: x2 = 60%")
 	var open := func(gate: String) -> bool: return gate != "feature:dungeon"  # everything but the dungeon
 	var shut := func(gate: String) -> bool: return gate != "feature:parts"
 	var pet := Pet.new()

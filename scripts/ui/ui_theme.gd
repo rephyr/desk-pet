@@ -588,6 +588,12 @@ const DOODLES := {
 	"sign": '<path d="M12 21 L12 3.4"/><path d="M4 5.6 L16.6 5.6 L19.8 8.6 L16.6 11.6 L4 11.6 Z"/><path d="M7.4 14.4 L18 14.4 M8 21 L16 21" opacity=".6"/>',
 	"school": '<path d="M3.6 11 L12 5.6 L20.4 11"/><path d="M5.6 10 L5.6 20.4 L18.4 20.4 L18.4 10"/><path d="M10.2 20.4 L10.2 15.4 L13.8 15.4 L13.8 20.4"/><path d="M12 5.6 L12 2.6 L15 3.6 L12 4.6"/>',
 	"bell": '<path d="M6.4 16.6 Q6.6 8 12 7.6 Q17.4 8 17.6 16.6 Z"/><path d="M4.6 16.8 L19.4 16.8"/><circle cx="12" cy="19.2" r="1.6"/><path d="M12 7.6 L12 5"/>',
+	# the plushie machine (design/mockups/screens/sacrifice-reels.html): a button, a blank, a crack
+	# with stuffing coming out, and a puff of wisps (always in their own colours)
+	"button": '<circle cx="12" cy="12" r="8.4" fill="{pink}" fill-opacity=".35" stroke="{pink}" stroke-width="2.2"/><circle cx="12" cy="12" r="5.2" stroke="{pink}" stroke-width="1.2" opacity=".6"/><circle cx="10" cy="10" r="1.3" fill="{deep}" stroke="none"/><circle cx="14" cy="10" r="1.3" fill="{deep}" stroke="none"/><circle cx="10" cy="14" r="1.3" fill="{deep}" stroke="none"/><circle cx="14" cy="14" r="1.3" fill="{deep}" stroke="none"/>',
+	"reel_blank": '<path d="M8 12.4 Q12 11.2 16 12.4" stroke="{muted}" stroke-width="2.4" opacity=".7"/>',
+	"reel_crack": '<path d="M4.5 13 L8 9.5 L11 13.5 L14 9 L17 13 L19.5 10.5" stroke="{text}" stroke-width="2.2"/><circle cx="11" cy="16.6" r="2.6" fill="{wisp}" stroke="none"/><circle cx="13.6" cy="17.4" r="2" fill="{wisp}" stroke="none"/><circle cx="9" cy="17.6" r="1.7" fill="{wisp}" stroke="none"/>',
+	"wisp": '<circle cx="9" cy="13.5" r="5" fill="{wisp}" stroke="none"/><circle cx="14.5" cy="11" r="5.6" fill="{wisp}" stroke="none"/><circle cx="17.5" cy="15.4" r="3.8" fill="{wisp}" stroke="none"/><path d="M6 17.8 Q12 19.6 20 17.6" stroke="{page}" stroke-width="1.2" opacity=".5"/>',
 	"star": '<path d="M12 2.5 L14.6 9 L21.5 9.4 L16.2 13.8 L17.9 20.6 L12 16.9 L6.1 20.6 L7.8 13.8 L2.5 9.4 L9.4 9 Z" fill="{c}"/>',
 	"bag": '<path d="M8.4 8.2 Q8.5 3.7 12 3.8 Q15.5 3.8 15.6 8.1"/><path d="M4.7 8.3 Q12 7.6 19.3 8.2 L18.7 19.6 Q12 20.5 5.3 19.7 Z"/><path d="M9.5 12.5 Q12 14.1 14.5 12.4"/>',
 	"lock": '<path d="M7.4 11 Q7 4.3 12 4.2 Q17 4.2 16.7 11"/><path d="M5 11.1 Q12 10.5 19 10.9 L18.7 19.8 Q12 20.5 5.3 19.9 Z"/><path d="M12 14.2 L12 16.4"/>',
@@ -633,7 +639,7 @@ static func icon(icon_name: String, size := 18, color := TEXT, style := "") -> T
 			# a machine bit, in its colour from data (with two darker shades of it)
 			var bit_c := named_color(str(Machine.bit_info(Catalog.shared(), icon_name.trim_prefix("bit_")).get("color", "text")), TEXT)
 			body = body.replace("{bit}", _hex(bit_c)).replace("{bit_mid}", _hex(bit_c.darkened(0.35))).replace("{bit_dark}", _hex(bit_c.darkened(0.5)))
-		body = body.replace("{c}", _hex(color)).replace("{cyan}", _hex(CYAN)).replace("{gold}", _hex(GOLD)).replace("{pink}", _hex(PINK)).replace("{page}", _hex(PAGE)).replace("{mint}", _hex(MINT)).replace("{lilac}", _hex(LILAC))
+		body = body.replace("{c}", _hex(color)).replace("{cyan}", _hex(CYAN)).replace("{gold}", _hex(GOLD)).replace("{pink}", _hex(PINK)).replace("{page}", _hex(PAGE)).replace("{mint}", _hex(MINT)).replace("{lilac}", _hex(LILAC)).replace("{wisp}", _hex(WISP)).replace("{deep}", _hex(DEEP)).replace("{muted}", _hex(MUTED)).replace("{text}", _hex(TEXT))
 		var svg := '<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="%s" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">%s</svg>' % [_hex(color), body]
 		tex = _svg_texture(svg, size * 2 / 24.0)
 	_icons[key] = tex

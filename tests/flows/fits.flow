@@ -70,3 +70,18 @@ tab errands
 wait 1
 expect fits
 shot errands_many
+herd common normal 20               # the plushie machine: the cabinet and its side card fit, with a pet in and a wild reel
+open-plushie
+wait popup
+click "lovely"
+tab inventory
+page inventory 2
+herd uncommon normal 5
+hopper common 2
+hopper uncommon 1
+wisps 2000
+spin                                # the uncommon hops in (two spins)
+buy wild
+spin
+expect fits
+shot plushie

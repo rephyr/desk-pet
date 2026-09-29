@@ -750,6 +750,17 @@
 		"trail_part": ["look look look!!", "{trip} found something!!", "ooh, what's that? what's that!"],
 		"trail_part_quote": ["it was just lying there. staring at me.", "finders keepers!", "it was in the flowers. it wanted to come with me.", "still warm!"],
 		"trail_part_kept": ["into the bag it goes ♪", "this one's a keeper!", "we'll find a use for it. we always do."],
-		"trail_part_left": ["bye bye, little part…", "someone else will find it. probably.", "okay! walking on!"]
+		"trail_part_left": ["bye bye, little part…", "someone else will find it. probably.", "okay! walking on!"],
+		"plushie": ["the plushie machine! pick someone to make extra special!", "ooh, the lever's so shiny. can i watch?"],
+		"plushie_empty": ["the hopper's empty! who wants a turn?", "somebody hop in! it's so fun in there!"],
+		"plushie_hop": ["{name} hops in! wheee!", "in you go, {name}! have fun!", "{name}'s turn! look at it wiggle!"],
+		"plushie_cheer": ["wheee!", "go go go!!", "round and round!", "spin spin spin!", "ooh, here it comes!"],
+		"plushie_yay": ["a new button!! so pretty!", "ooh! ooh! a button! look!", "another button! best day ever!"],
+		"plushie_fluff": ["oops, a bit of fluff! so soft!", "fluff everywhere, like snow!", "it's just stuffing! it's fine!"],
+		"plushie_kept": ["sewn on tight!", "that one's staying forever!", "all snug now!"],
+		"plushie_keeper": ["can i help? i'll hold the thread!", "ooh, this one's so cuddly!", "we'll make it the fluffiest!"],
+		"plushie_done": ["all done! that was the best!", "everyone had a turn! again?"],
+		"plushie_fed": ["in the hopper! it's waiting its turn.", "a little queue! so polite!"],
+		"plushie_bought": ["ooh, shopping!", "that's so fluffy of you!"]
 	}
 }

@@ -15,6 +15,7 @@ var box := ""  # which box it came from
 var pulled_at := 0  # unix time
 var fav := false  # a favourite: on the pets tab's cushion, and always a card (never folds into the herd)
 var new_part := false  # it brought a part the book hadn't seen yet: always a card
+var buttons := {}  # slot -> buttons sewn on that part by the plushie machine (1..5, see Plushie): always a card
 
 
 func display_name(catalog: Catalog) -> String:
@@ -43,6 +44,8 @@ func to_dict() -> Dictionary:
 		d.fav = true
 	if new_part:
 		d.new_part = true
+	if not buttons.is_empty():
+		d.buttons = buttons.duplicate()
 	return d
 
 
@@ -67,4 +70,10 @@ static func from_dict(d: Dictionary, catalog: Catalog = Catalog.shared()) -> Pet
 	p.pulled_at = int(d.get("pulled_at", 0))
 	p.fav = bool(d.get("fav", false))
 	p.new_part = bool(d.get("new_part", false))
+	var saved_buttons = d.get("buttons", {})  # v24: the plushie machine's buttons
+	if saved_buttons is Dictionary:
+		for slot in saved_buttons:
+			var n := clampi(int(saved_buttons[slot]), 0, Plushie.max_buttons(catalog))
+			if str(slot) in Catalog.SLOTS and n > 0:
+				p.buttons[str(slot)] = n
 	return p

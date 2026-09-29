@@ -1,7 +1,8 @@
 class_name Knacks
 extends RefCounted
 ## Knacks: every part has a named knack (data/knacks.json), e.g. the bunny body's "big ears"
-## (+spotting). Its size n (a %) is the kind's step x the part's rarity x the pet's finish, and it
+## (+spotting). Its size n (a %) is the kind's step x the part's rarity x the pet's finish x the
+## part's buttons (the plushie machine: x 1 + knack_per_button per button, see Plushie), and it
 ## multiplies by 1 + n/100. Nothing is saved: a pet's knacks come from its parts and finish.
 ## Your active pet's knacks are the "knacks" boost source (GameState.boost_parts); other pets'
 ## count a share ("own") on their own errands, worker jobs and trips.
@@ -23,11 +24,12 @@ static func of_part(catalog: Catalog, slot: String, part_id: String) -> Dictiona
 	return data(catalog).get("parts", {}).get("%s:%s" % [slot, part_id], {})
 
 
-## A knack's size in % for a kind, a part rarity and a finish (rounded to a whole %).
-static func size(catalog: Catalog, kind: String, rarity: String, finish := "normal") -> int:
+## A knack's size in % for a kind, a part rarity, a finish and the part's buttons (rounded to a
+## whole %).
+static func size(catalog: Catalog, kind: String, rarity: String, finish := "normal", buttons := 0) -> int:
 	var d := data(catalog)
 	var step := float(kind_info(catalog, kind).get("step", 0))
-	return roundi(step * float(d.rarity_x.get(rarity, 1)) * float(d.finish_x.get(finish, 1)))
+	return roundi(step * float(d.rarity_x.get(rarity, 1)) * float(d.finish_x.get(finish, 1)) * Plushie.knack_x(catalog, maxi(buttons, 0)))
 
 
 ## Whether the whole system is open (knacks show at all).
@@ -62,10 +64,11 @@ static func of(catalog: Catalog, pet: Pet, open: Callable) -> Array[Dictionary]:
 			continue
 		var p := catalog.part(slot, id)
 		var tier := str(p.get("rarity", "common"))
-		var n := size(catalog, kind, tier, pet.finish)
+		var b := Plushie.buttons(pet, slot)
+		var n := size(catalog, kind, tier, pet.finish, b)
 		var info := kind_info(catalog, kind)
 		out.append({ "slot": slot, "part": id, "part_name": str(p.get("name", id)), "name": str(k.get("name", "")),
-			"kind": kind, "tier": tier, "n": n, "x": 1.0 + n / 100.0,
+			"kind": kind, "tier": tier, "n": n, "x": 1.0 + n / 100.0, "buttons": b,
 			"text": str(info.get("text", "")).replace("{n}", str(n)), "icon": str(info.get("icon", "")) })
 	return out
 
@@ -122,8 +125,13 @@ static func sum_in(catalog: Catalog, pet: Pet, table: Dictionary) -> int:
 	for slot: String in table:
 		var base = table[slot].get(pet.parts.get(slot, ""))
 		if base != null:
-			n += roundi(float(base) * fx)
+			n += roundi(float(base) * fx * _button_x(catalog, pet, slot))
 	return n
+
+
+## A part's knack multiplier from its buttons (1.0 with none).
+static func _button_x(catalog: Catalog, pet: Pet, slot: String) -> float:
+	return 1.0 if pet.buttons.is_empty() else Plushie.knack_x(catalog, Plushie.buttons(pet, slot))
 
 
 ## `own` with the counting kinds already worked out (1.0 with none).
@@ -151,9 +159,10 @@ static func parts(catalog: Catalog, pet: Pet, kind: String, open: Callable) -> A
 	for slot in Catalog.SLOTS:
 		var id := str(pet.parts.get(slot, ""))
 		var base = table.get(slot, {}).get(id)
-		if base != null and roundi(float(base) * fx) > 0:
+		var bx := _button_x(catalog, pet, slot)
+		if base != null and roundi(float(base) * fx * bx) > 0:
 			ids.append("%s:%s" % [slot, id])
-			n += roundi(float(base) * fx)
+			n += roundi(float(base) * fx * bx)
 	if n > 0:
 		out.append(Boosts.part("knacks", "+".join(ids), 1.0 + n / 100.0))
 	return out
