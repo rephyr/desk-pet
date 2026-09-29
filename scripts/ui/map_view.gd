@@ -445,6 +445,8 @@ func _draw_node(node: Dictionary) -> void:
 	var at := _screen(node.pos)
 	var k := clampf(_scale / UNIT * 1.25, 0.75, 1.3)
 	var seed := hash(node.id)
+	# the drawing itself (house, cloud, signpost): walking pets' tags keep off it
+	_taken.append(Rect2(at - Vector2(30, 28) * k, Vector2(60, 56) * k))
 	if node.kind == "edge":
 		_draw_signpost(node, at, k, seed)
 		return
@@ -731,13 +733,25 @@ func _walker(run: RunState, spot: Vector2) -> void:
 	_little_pet(spot, LILAC, hash(run.rng_seed))
 	var tag := _tag(run)
 	var w := _note_font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x
-	# beside the little pet, on whichever side is clear of other words (home's note, another tag)
+	# beside the little pet, on whichever side is clear of other words and drawings (home's note,
+	# the house, another tag); a bit further out when all near sides are taken, else the least crowded
 	var at := spot + Vector2(10, -8)
-	for off: Vector2 in [Vector2(10, -8), Vector2(10, 14), Vector2(-10 - w, -8), Vector2(-10 - w, 14), Vector2(-w / 2.0, 26), Vector2(-w / 2.0, -20)]:
+	var least := INF
+	for off: Vector2 in [Vector2(10, -8), Vector2(10, 14), Vector2(-10 - w, -8), Vector2(-10 - w, 14),
+			Vector2(-w / 2.0, 26), Vector2(-w / 2.0, -20), Vector2(10, -24), Vector2(-10 - w, -24),
+			Vector2(10, 30), Vector2(-10 - w, 30), Vector2(-w / 2.0, 40), Vector2(-w / 2.0, -34)]:
 		var r := Rect2(spot + off - Vector2(0, 10), Vector2(w, 13))
-		if r.position.x >= 8.0 and r.end.x <= size.x - 8.0 and not _taken.any(func(t: Rect2) -> bool: return t.intersects(r)):
+		if r.position.x < 8.0 or r.end.x > size.x - 8.0 or r.position.y < 8.0 or r.end.y > size.y - 8.0:
+			continue
+		var crowd := 0.0
+		for t in _taken:
+			crowd += t.intersection(r).get_area()
+		if crowd < least:
+			least = crowd
 			at = spot + off
+		if crowd == 0.0:
 			break
+	_taken.append(Rect2(spot - Vector2(8, 12), Vector2(16, 20)))  # the little pet
 	_taken.append(Rect2(at - Vector2(0, 10), Vector2(w, 13)))
 	draw_string(_note_font, at, tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 11, LILAC)
 
