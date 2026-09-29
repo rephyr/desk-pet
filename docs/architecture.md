@@ -238,8 +238,13 @@ border and "sorted today" tag.
   those when they change. Report: docs/reports/pace.md. `tools/machine_pace.gd` is the older
   tree-only check.
 - `python3 tools/play.py <flow>` - plays `tests/flows/<flow>.flow` in a test profile (its own save
-  and settings, window parked off-screen), prints the log and saves screenshots. Steps are listed
+  and settings) on a hidden Xvfb screen of its own (a free display number, software rendering;
+  `--show` plays on the real desktop), prints the log and saves screenshots. Steps are listed
   in `DevDriver`; `expect fits` checks the full game fits its window. Test saves: `tests/saves/`.
+  `DESK_PETS_LANE=<name>` adds a suffix to the profile (`play-<flow>-<name>`) so several
+  worktrees (the lanes in ~/projects/desk-pets-lanes) can play flows at once. Flows with big
+  `pets` / `herd` steps send `stickers off` after `view full`, or the book's sticker popup covers
+  the later shots.
 - A headless script check must use a profile: `godot --headless --quit-after 30 -- --profile=check`
   (without one it loads and saves the real save).
 - `godot -s tests/look_sheet.gd -- out.png` - renders every part and finish into one picture.

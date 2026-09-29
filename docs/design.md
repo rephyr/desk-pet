@@ -229,9 +229,11 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   only comes in a pull's first capsule, so once a pull can drop more than one capsule (a second
   chute, double / triple drop) the pet box moves under its own "a pull" row with its chance a pull. The upgrade shelf (Cookie Clicker's
   store): fuller capsules, a springier spring, shinier capsules, luckier lights, and locked ones
-  found on adventures later. **Decided (Emilia):** it is NEVER automated. Pets don't work it (they
-  earn on errands); it stays relevant all game as a side objective you keep building, so the game
-  is never fully automated and sitting there pulling is always best. Its point: coins to get pets.
+  found on adventures later. **Decided (Emilia):** your lever is not automated in the early stages;
+  later your pet cranks its own slow machine and workers crank bought machines (automation tab).
+  It stays relevant all game as a side objective you keep building: **the newest globe turns by
+  hand only** (a globe per map page, A5), while your pet, workers and errands pay at the globe one
+  step behind, so pulling by hand is always best. Its point: coins to get pets.
   **Capsule toys (built, data/toys.json, Toys):** the machine's own chase. About 1 capsule in 15
   holds a pixel-art toy from a SET (the first: backyard friends, 4 common, 2 uncommon, 1 rare,
   1 secret "???"), in a finish (normal, holo, gold foil, ghost). A good prize pops up as a PICTURE.
