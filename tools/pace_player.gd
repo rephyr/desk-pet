@@ -30,6 +30,8 @@ const GATE_NODES := ["chute2"]  # machine nodes off the repair/drops branches th
 const SOURCES := ["lever", "errands", "adventures", "auto trips", "pet crank", "workers", "rummage"]
 
 var style := "steady"
+var pick := "trunk"  # --pick=: where the party goes first: "trunk" (one look at a place where something new could be, then a bit the next repair needs, then a find, then any bit), "bits" (any bit, then a find) or "finds" (a find, then any bit: the first reports, as if it knew where every find was)
+var trace := false  # --trace: prints every trip sent and every one collected
 var treats := false  # the player also tosses every treat on its own trips (GameState.toss_treat, the pouch counts)
 var gs  # GameState
 var catalog: Catalog
@@ -60,7 +62,11 @@ var _party_minutes := 0.0  # auto party minutes seen, for guessing what one more
 var _party_coins := 0.0
 var _seen_unlocks := {}
 var _seen_finds := {}
+var _looked := {}  # find event id -> true once a party went to have a look for it (pick "trunk")
 var _treat := {}  # RunState -> { zoom_until, ready_at } in sim seconds, as GameState._treats
+var _pat_next := 0.0  # sim second a pat gives mood again (data/care.json pat.every)
+var pats := 0  # pats that gave mood
+var happy_seconds := 0.0  # seconds with the happy buff on (mood above its line)
 
 
 func _init(p_style: String, rng_seed: int) -> void:
@@ -109,10 +115,15 @@ func play(minutes: float) -> void:
 		_passive()
 		gs._work_for(1.0)
 		_automation()
-		_trips(style == "steady" or t >= _next_decide)
+		var here := style == "steady" or t >= _next_decide
+		_trips(here)
 		if t >= _next_decide:
 			_next_decide = t + (checks_every if t < 1800.0 or style != "steady" else 15.0)
+			if gs.tutorial_active():
+				_next_decide = t + 5.0  # the tutorial holds everyone's hand: casual players follow it through too
 			_decide()
+		if here and gs.tutorial in ["send", "done"] and _hand_run() == null:
+			_send_party()  # after the check-in's buys, so a repair just bought points the party on
 		_notice()
 		if fmod(t, WINDOW) == 0.0:
 			_close_window()
@@ -144,6 +155,8 @@ func _passive() -> void:
 	gs.happiness = mood
 	if crossed:
 		gs._check_care()
+	if Care.on(Care.buff_of(catalog, "mood"), food, mood):
+		happy_seconds += 1.0
 
 
 ## What GameState._work_for_automation does in a second, split so your pet's crank and the
@@ -207,14 +220,14 @@ func _trips(here: bool) -> void:
 		var c0: int = gs.coins
 		lost += run.party.lost.size()
 		_treat.erase(run)
+		if trace:
+			print("  %6.1f  home from %s after %.1f min" % [t / 60.0, run.location_id, (epoch + t - run.started) / 60.0])
 		gs.collect_run(run)
 		_earn("adventures", gs.coins - c0)
 		for id in gs.spotted.keys():
 			gs.follow_lead(id)
 		for r in gs.rumours.duplicate():
 			gs.follow_rumour(r)
-	if gs.tutorial in ["send", "done"] and _hand_run() == null:
-		_send_party()
 
 
 ## Treats on the trail, as GameState.toss_treat / _zoom_runs: a treat as soon as the last one allows,
@@ -263,6 +276,8 @@ func _send_party() -> void:
 	if run != null:
 		_shift(run, real)
 		_count("trip " + place)
+		if trace:
+			print("  %6.1f  send %d to %s (bits %s)" % [t / 60.0, going.size(), place, str(gs.bits)])
 
 
 func _stat_sum(pet: Pet) -> float:
@@ -280,27 +295,18 @@ func _pick_place(have: int) -> String:
 	var open := _places()
 	if open.is_empty():
 		return ""
-	for l in open:  # a find waiting there
-		if _find_at(l, mini(have, gs.max_party(l.id))):
-			return str(l.id)
-	var bit := _wanted_bit()
-	if bit != "":
-		var near := ""
-		var near_score := -1.0
-		for l in open:
-			for r in l.get("finish_rewards", []):
-				if str(r.get("kind", "")) == "bit" and str(r.get("id", "")) == bit:
-					var score := float(r.get("chance", 1.0)) * sqrt(mini(have, gs.max_party(l.id))) / float(l.minutes)
-					if score > near_score:
-						near_score = score
-						near = str(l.id)
-		if near != "":
-			return near
-		for l in open:  # nowhere open has it: go where it could be spotted
-			for lead in l.get("leads_to", []):
-				var to: Dictionary = catalog.location(str(lead.to))
-				if not gs.location_open(to) and to.get("finish_rewards", []).any(func(r): return str(r.get("id", "")) == bit):
-					return str(l.id)
+	var order: Array = { "finds": ["find", "bit"], "bits": ["bit", "find"] }.get(pick, ["look", "trunk", "find", "bit"])
+	for step in order:
+		var place := ""
+		match step:
+			"look":
+				place = _find_place(open, have, true)
+			"find":
+				place = _find_place(open, have)
+			_:
+				place = _bit_place(open, have, _wanted_bit(step == "trunk"))
+		if place != "":
+			return place
 	for l in open:  # somewhere new
 		if not gs.visited.has(l.id):
 			return str(l.id)
@@ -318,8 +324,46 @@ func _pick_place(have: int) -> String:
 	return best
 
 
-## Whether a trip here could bring home a find nobody has yet.
-func _find_at(l: Dictionary, party: int) -> bool:
+## The first open place with a find waiting there, or "". `once`: only a place not looked at yet
+## since a find there became possible (a player goes to have a look once after the machine or a
+## find changes things, but doesn't know a find is there), and it's marked looked at.
+func _find_place(open: Array[Dictionary], have: int, once := false) -> String:
+	for l in open:
+		var id := _find_at(l, mini(have, gs.max_party(l.id)))
+		if id == "" or (once and _looked.has(id)):
+			continue
+		if once:
+			_looked[id] = true
+		return str(l.id)
+	return ""
+
+
+## Where to go for a bit: the open place that brings it best, else one that could spot a place
+## that has it ("" for no bit, or nowhere).
+func _bit_place(open: Array[Dictionary], have: int, bit: String) -> String:
+	if bit == "":
+		return ""
+	var near := ""
+	var near_score := -1.0
+	for l in open:
+		for r in l.get("finish_rewards", []):
+			if str(r.get("kind", "")) == "bit" and str(r.get("id", "")) == bit:
+				var score := float(r.get("chance", 1.0)) * sqrt(mini(have, gs.max_party(l.id))) / float(l.minutes)
+				if score > near_score:
+					near_score = score
+					near = str(l.id)
+	if near != "":
+		return near
+	for l in open:  # nowhere open has it: go where it could be spotted
+		for lead in l.get("leads_to", []):
+			var to: Dictionary = catalog.location(str(lead.to))
+			if not gs.location_open(to) and to.get("finish_rewards", []).any(func(r): return str(r.get("id", "")) == bit):
+				return str(l.id)
+	return ""
+
+
+## A find nobody has yet that a trip here could bring home (its event id), or "".
+func _find_at(l: Dictionary, party: int) -> String:
 	var ids: Array = l.get("events", []) + l.get("pool", []).map(func(p): return p.event)
 	for id in ids:
 		var e: Dictionary = catalog.events.get(id, {})
@@ -331,15 +375,18 @@ func _find_at(l: Dictionary, party: int) -> bool:
 			continue
 		if party < int(e.get("min_party", 1)):
 			continue
-		return true
-	return false
+		return str(id)
+	return ""
 
 
-## The first bit the cheapest node you could work on is short of ("" if none).
-func _wanted_bit() -> String:
+## The first bit the cheapest node you could work on is short of ("" if none); `trunk`: only the
+## gates (the repairs, better drops and GATE_NODES).
+func _wanted_bit(trunk := false) -> String:
 	var want := ""
 	var cheapest := INF
 	for n in catalog.machine_tree.nodes:
+		if trunk and not (str(n.branch) in ["repair", "drops"] or n.id in GATE_NODES):
+			continue
 		var look := Machine.look(gs.machine, catalog, n.id)
 		if look not in ["next", "owned"] or Machine.maxed(gs.machine, catalog, n.id):
 			continue
@@ -407,6 +454,7 @@ func _rummage() -> void:
 
 
 func _care() -> void:
+	_pat()
 	if t < _next_care:
 		return
 	_next_care = t + 60.0
@@ -414,9 +462,19 @@ func _care() -> void:
 	while gs.hunger <= 70.0 and gs.feed():  # keeps it above the full tummy line
 		_spend_on("food", price)
 		price = gs.snack_price()
-	if gs.happiness < 80.0:
-		gs._pat_at = 0.0  # the pat cooldown runs on the real clock; the sim pats once a minute
-		gs.pat()
+	_pat()
+
+
+## A pat whenever it gives mood (the cooldown, data/care.json pat.every, on the sim's clock) and
+## the mood isn't full already. Steady players pat as soon as it's back; casual ones at a check-in.
+func _pat() -> void:
+	var p: Dictionary = catalog.care.get("pat", {})
+	if t < _pat_next or gs.happiness > 100.0 - float(p.get("mood", 8)):
+		return
+	gs._pat_at = -INF  # GameState's cooldown runs on the real clock: the sim keeps its own
+	gs.pat()
+	_pat_next = t + float(p.get("every", 0))
+	pats += 1
 
 
 ## Boxes (once the boxes tab is open): the ones on the pile get opened, and more are bought for
@@ -604,6 +662,14 @@ func _candidates() -> Array[Dictionary]:
 	if gs.knows_others("adventures") and Automation.spots(gs.automation, "adventures") > 0 and gs.spot_room("adventures") > 0 and _party_minutes > 30.0:
 		var gain := _party_coins / _party_minutes - _pet_worth() * 3.0
 		out.append({ "kind": "spot", "id": "adventures", "cost": int(gs.spot_plan("adventures", 1)[1]), "gain": gain, "name": "spot adventures" })
+	# a room step (data/herd.json room), once the boxes tab is open and the room is nearly full: pays
+	# back what the pets that fit in the new room make, less their boxes
+	if gs.tab_open("boxes") and gs.room_currency() == "coins" and gs.room_left() < BOXES_PER_MINUTE and gs.collection.count() < MAX_PETS:
+		var add := mini(Herd.room_cap(catalog, gs.room + 1) - gs.room_cap(), MAX_PETS - gs.collection.count())
+		var price: int = gs.room_price()
+		var boxes: float = float(add) * gs.box_price("starter")
+		var gain := float(add) * _pet_worth() * price / maxf(1.0, price + boxes)  # payback counts the boxes too
+		out.append({ "kind": "room", "id": "room", "cost": price, "gain": gain, "name": "room step" })
 	return out
 
 
@@ -681,6 +747,12 @@ func _buy(c: Dictionary) -> void:
 			kind = "automation"
 			if ok:
 				_fill_spots(c.id)
+		"room":
+			var step := Herd.room_step(catalog, gs.room)
+			ok = gs.buy_room()
+			kind = "room"
+			if ok:
+				_mark("room: %s (%d)" % [str(step.get("name", "")), gs.room_cap()])
 	if not ok:
 		return
 	_spend_on(kind, c0 - gs.coins)

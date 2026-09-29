@@ -40,11 +40,16 @@ func _init() -> void:
 	for r in runs:
 		var p = PacePlayer.new(style, seed_base * 1000 + r)
 		p.treats = "--treats" in OS.get_cmdline_user_args()
+		p.trace = "--trace" in OS.get_cmdline_user_args()
+		p.pick = _arg("pick", "trunk")
 		p.play(minutes)
 		players.append(p)
-		print("  player %d done in %.1f s: %s coins, %d pets, %d trips, %d pets stayed behind on your trips" % [r + 1,
-			(Time.get_ticks_msec() - started) / 1000.0, _num(p.gs.coins), p.gs.collection.count(), p.gs.trips_done, p.lost])
+		print("  player %d done in %.1f s: %s coins, %d pets (room %d), %d trips, %d pets stayed behind on your trips, %d pats, happy %d%% of the time" % [r + 1,
+			(Time.get_ticks_msec() - started) / 1000.0, _num(p.gs.coins), p.gs.collection.count(), p.gs.room_cap(), p.gs.trips_done, p.lost,
+			p.pats, roundi(100.0 * p.happy_seconds / maxf(1.0, p.t))])
 		started = Time.get_ticks_msec()
+	if "--why" in OS.get_cmdline_user_args():
+		_print_why(players)
 	_print_milestones(players)
 	_print_income(players)
 	_print_gates(players)
@@ -104,6 +109,20 @@ static func _median(a: Array) -> float:
 	if s.is_empty():
 		return NAN
 	return s[s.size() / 2] if s.size() % 2 == 1 else (s[s.size() / 2 - 1] + s[s.size() / 2]) / 2.0
+
+
+## --why: each player's errands at the end, job by job (crew, fills a minute, what a fill pays).
+func _print_why(players: Array) -> void:
+	print("\n== errands at the end (--why) ==")
+	for p in players:
+		var gs = p.gs
+		print("  capsule %s (hand %s), lever %s/min, errands %s/min, boost coins %.2f errands %.2f" % [_num(gs.capsule_value()),
+			_num(Machine.coin_value(gs.machine, gs.catalog)), _num(p._lever_per_min(gs.machine)), _num(gs.errands_per_minute()), gs.boost("coins"), gs.boost("errands")])
+		for job in gs.open_jobs():
+			var b: Dictionary = gs.job_boost(job.id)
+			var tools: Array = gs._job_tool_numbers(job.id)
+			print("    %-10s crew %5d  fills/min %8.2f  power %.2f speed x%.2f  capsules %.0f  x %.2f  big %.2f" % [job.id, gs.job_size(job.id),
+				gs.job_rate(job.id) * 60.0, tools[0], tools[1], float(job.get("pay", {}).get("capsules", 0)) + float(b.get("worth", 0)), float(b.get("x", 1)), float(b.get("big", 0))])
 
 
 func _print_milestones(players: Array) -> void:
