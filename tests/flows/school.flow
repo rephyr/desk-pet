@@ -88,6 +88,9 @@ wait 1
 click "+1 table for*"
 wait 1
 click "fill up"
+wait popup                    # box tables bring the wishing jar
+expect text "new: a wishing jar!"
+click "lovely"
 wait 1
 # no boxes on the pile and a full room: nobody's arriving, so no pill
 expect no-text "pets a minute"
@@ -105,6 +108,7 @@ shot pace_school
 # the whistle's button sits between workers and the school
 find whistle
 wait popup
+expect text "new: the whistle!"
 click "lovely"
 tab automation
 wait 1

@@ -66,6 +66,9 @@ wait 1
 click "+1 party for*"
 wait 1
 click "fill up"
+wait popup                    # the workers' machines drop the first toy by now
+expect text "new: the workbench!"
+click "lovely"
 wait 3
 expect fits
 shot workers_parties
