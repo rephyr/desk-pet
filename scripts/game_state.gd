@@ -3507,7 +3507,9 @@ func floor_words(from: int, to: int, rules: Dictionary = {}) -> Dictionary:
 ## Sends the army down the well with its orders: the whole run is worked out now (Dungeon.simulate),
 ## its pets stay busy until it's home. Returns whether it went. `quiet` (the music box's runs while
 ## loading): no signals and no save, the caller does those once after.
-func send_army(quiet := false) -> bool:
+## `away`: a music box run while the game is closed: it only goes as deep as floors it clears
+## safely (data/dungeon.json away_safe), nobody is lost.
+func send_army(quiet := false, away := false) -> bool:
 	if not dungeon_open() or dungeon_running() or tutorial_active():
 		return false
 	var cards := army_cards()
@@ -3523,6 +3525,8 @@ func send_army(quiet := false) -> bool:
 	var start := int(dungeon.start) if int(dungeon.start) in Dungeon.starts(catalog, dungeon) else 0
 	var orders := { "target": int(dungeon.target), "start": start, "held": Dungeon.held_landings(catalog, dungeon), "home_at": int(dungeon.home_at), "entrance": perk_level("entrance"),
 		"pay_x": boost("lanterns"), "first": str(dungeon.first) if Dungeon.first_earned(catalog, dungeon) else "" }
+	if away:
+		orders.safe = float(Dungeon.data(catalog).get("away_safe", 2.0))
 	var result := Dungeon.simulate(catalog, _army_rules(cards, herd_keys), orders, rng)
 	dungeon.run = { "at": Time.get_unix_time_from_system(), "floors": result.floors, "why": result.why, "turned": result.turned,
 		"cards": cards.map(func(p): return p.uid), "herd": herd_keys.duplicate(), "sent": sent, "target": int(dungeon.target), "start": start }
@@ -3937,8 +3941,9 @@ func perk_away_hours() -> float:
 
 ## The game was closed `away` seconds (it was saved at `saved_at`): with the music box, your pet
 ## leading the army kept taking it down back to back for up to its hours. Real runs, worked out one
-## after another from where the last one was (losses and firsts as usual, wisps only: nothing else
-## counts closed time here). The run that was out finishes too; the last one sent may still be
+## after another from where the last one was, but safe ones: only as deep as floors it clears with
+## no losses (send_army away; losses only happen while you're here). Firsts as usual, wisps only:
+## nothing else counts closed time here. The run that was out finishes too; the last one sent may still be
 ## down there. What they brought goes in the idle log and the dungeon news. Returns the wisps.
 ## At most data/perks.json away_runs_max runs; each one runs quiet (the refold, unlocks and signals
 ## happen once after the loop).
@@ -3972,10 +3977,14 @@ func _army_while_away(saved_at: float, now: float) -> int:
 			nail = nail or bool(dungeon_news.get("nail", false))
 			to = maxi(to, int(dungeon_news.get("floor", 0)))
 			t = maxf(t, ends)
-		if t >= until or not send_army(true):
+		if t >= until or not send_army(true, true):
 			break
 		sent_any = true
 		dungeon.run.at = t  # it set off back then
+		if dungeon.run.floors.is_empty() and str(dungeon.run.why) == "safe":
+			dungeon.run = {}  # not even the first floor is safe: it stays home till you're back
+			_rest_changed()
+			break
 	if came_home or sent_any:
 		_home_again()  # once for all of them
 		changed.emit()

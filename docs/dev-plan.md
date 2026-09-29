@@ -789,8 +789,9 @@ are collected at the end of docs/picks.md. The bigger ones:
   free button goes on the best-knack part; the keeper can go on errands / worker jobs.
 - E3: tier and finish marks match exactly (not "or better"); room names past the first five are
   placeholders; while the sewing room shows, your pet leading the army waits (or queue the room?).
-- Perks: the tips need every link bought once (and wait for the plushie links); the music box runs
-  real army runs while away (losses can happen); tips x3 a level from 20k (too steep?).
+- Perks: the tips need every link bought once (and wait for the plushie links); the music box's
+  away runs never lose pets (only floors cleared safely, answered 2026-09-29); tips x3 a level from
+  20k (too steep?).
 - Held landings: holders come off errands and machines like new homes; steppers in need / 20;
   skipped floors take no time; a held guard landing loses its guard in the fight too.
 - Wish jar: opens with box tables; weights x1.5/x2/x3/x4; every jar keeps its boost after a

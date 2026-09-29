@@ -5125,6 +5125,20 @@ func _test_dungeon(catalog: Catalog) -> void:
 		"a weaker army loses more on the way (%d)" % (lost_hurt[0].size() + Herd.total(lost_hurt[1])))
 	_check(Dungeon.run_pay(fine) == Dungeon.run_pay(hurt) and Dungeon.run_pay(fine) > 0, "and brings home just as much: pay never looks at losses (%d, %d)" % [Dungeon.run_pay(fine), Dungeon.run_pay(hurt)])
 
+	# the music box's away runs: only floors cleared safely (power at least away_safe x the floor's), nobody lost
+	var safe_x := float(catalog.dungeon.get("away_safe", 0.0))
+	var mid_army := _army(20, 15.0, 280, 1.0)
+	rng.seed = 11
+	var safe_run := Dungeon.simulate(catalog, mid_army, { "target": 10, "home_at": 90, "safe": safe_x }, rng)
+	var lost_safe := Dungeon.run_lost(safe_run)
+	_check(safe_x > float(catalog.dungeon.stuck) and safe_run.why == "safe" and Dungeon.cleared_to(safe_run) < 10 and lost_safe[0].is_empty() and Herd.total(lost_safe[1]) == 0,
+		"an away run turns home before the first floor it can't clear safely, nobody lost (%s at %d)" % [safe_run.why, Dungeon.cleared_to(safe_run)])
+	var next_f := Dungeon.cleared_to(safe_run) + 1
+	_check(Dungeon.army_power(catalog, mid_army, Dungeon.floor_kind(catalog, next_f)) / Dungeon.strength(catalog, next_f) < safe_x,
+		"the floor it turned at wasn't safe")
+	var easy_run := Dungeon.simulate(catalog, _army(20, 1.0e6, 280, 1.0e5), { "target": 5, "home_at": 90, "safe": safe_x }, rng)
+	_check(easy_run.why == "target" and Dungeon.cleared_to(easy_run) == 5 and Dungeon.run_pay(easy_run) > 0, "a strong army goes all the way down safely and brings its wisps")
+
 	# come home when X% are gone
 	rng.seed = 2
 	var home := Dungeon.simulate(catalog, _army(20, 12.0, 280, 1.0), { "target": 10, "home_at": 10 }, rng)
@@ -5699,7 +5713,9 @@ func _test_perks_game(catalog: Catalog) -> void:
 	_check(gs2.wisps > 0 and int(gs2.idle_log.get("wisps", 0)) > 0, "the music box: wisps from runs while away (%d)" % gs2.wisps)
 	_check(gs2.dungeon_news.get("got", 0) > 0, "and your pet has news about them")
 	var herd_left: int = gs2.collection.herd_count("common:normal")
-	_check(herd_left < 3000, "real runs: some pets didn't come back (%d left)" % herd_left)
+	var herd_was := int(away.collection.herd.get("common:normal", 0))
+	_check(herd_left == herd_was and herd_was > 0, "away runs never lose pets: losses only happen while you're here (%d of %d)" % [herd_left, herd_was])
+	_check(gs2.collection.pets.size() == away.collection.pets.size(), "and no card pets lost either (%d of %d)" % [gs2.collection.pets.size(), away.collection.pets.size()])
 	_check(gs2.wisps > 10 * Dungeon.pay(catalog, 1, 1, 2), "several runs' worth (%d, a run takes %d s)" % [gs2.wisps, int(one_run)])
 	# the cap is data (perks.json away_runs_max) and a save with no saved_at plays nothing
 	var cap_was = gs2.catalog.perks.get("away_runs_max", 500)

@@ -755,7 +755,8 @@ All opt-in, with odds shown before confirming:
     sewing room), the nightlight (13, power in the cellar), the lunchbox (17, pets/sec: box opening),
     the woolly scarf (20, power on the stairs and in the sewing rooms), the pinwheel (24, front row
     20 → 22 → 24 cards), the music box (28, while you're away: your pet leading the army keeps
-    taking it down for 1/2/4/8 hours of closed time, real runs, wisps only), the paper star (33, army
+    taking it down for 1/2/4/8 hours of closed time, wisps only; away runs never lose pets: they only
+    go as deep as floors cleared safely, power at least `away_safe` x the floor's), the paper star (33, army
     power, shared with knacks), the thimble (36, +1/+2 plushie holds) and the ribbon (40, +1/+2
     nudges per pet that hops in), the last two hidden until the plushie machine opens. Once every
     link has a level, 2 endless tips hang at the bottom: the lucky coin (coins) and the rattle

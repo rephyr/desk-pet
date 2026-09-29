@@ -362,6 +362,9 @@ static func _tiny_rank(catalog: Catalog) -> int:
 ## { key: n }, pay }], why: target | home | stuck | knock | gone, turned: the floor they turned back
 ## at (0 if none) }. A knock door that isn't answered sends them home (no losses, no pay for it); a
 ## floor too strong to pass takes its losses and pays nothing. Pay never looks at losses.
+## `orders.safe` (the music box's runs while the game is closed, see away_safe): the army only goes
+## as deep as floors it clears safely (its power at least `safe` x the floor's): nobody is lost or
+## hurt there, and it turns home before the first floor that isn't (why "safe").
 static func simulate(catalog: Catalog, army: Dictionary, orders: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
 	var d := data(catalog)
 	var cards: Array = army.get("cards", []).duplicate()
@@ -381,6 +384,7 @@ static func simulate(catalog: Catalog, army: Dictionary, orders: Dictionary, rng
 	var turned := 0
 	var f := clampi(int(orders.get("start", 0)), 0, maxi(0, int(orders.get("target", 1)) - 1))
 	var held: Array = orders.get("held", [])
+	var safe := float(orders.get("safe", 0.0))
 	while f < int(orders.get("target", 1)) and sent > 0:
 		f += 1
 		var kind := kind_at(catalog, f, held)
@@ -389,7 +393,10 @@ static func simulate(catalog: Catalog, army: Dictionary, orders: Dictionary, rng
 			turned = f
 			break
 		var ratio := _power(catalog, cards, hurt, herd, herd_hurt, info, kind, army) / strength(catalog, f, f in held)
-		var gone := _fight(catalog, ratio, first, cards, hurt, herd, herd_hurt, rng, front_n(catalog, army))
+		if safe > 0.0 and ratio < safe:
+			why = "safe"  # losses only happen while you're here
+			break
+		var gone := [[], {}] if safe > 0.0 else _fight(catalog, ratio, first, cards, hurt, herd, herd_hurt, rng, front_n(catalog, army))
 		lost_n += gone[0].size() + Herd.total(gone[1])
 		var cleared := ratio >= float(d.get("stuck", 0.4))
 		floors.append({ "f": f, "cleared": cleared, "lost_cards": gone[0], "lost_herd": gone[1],
