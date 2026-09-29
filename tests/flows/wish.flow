@@ -17,6 +17,7 @@ coins 99999999
 teach boxes others                  # box tables: pets arrive steadily, the jar turns up
 wait popup
 expect text "new: a wishing jar!"
+expect text "a big glass jar turned up next to the sticker book. wish for a sticker, and pets who hop in help it come true."
 expect fits
 shot popup
 click "show me"

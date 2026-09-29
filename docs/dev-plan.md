@@ -781,7 +781,7 @@ are collected at the end of docs/picks.md. The bigger ones:
   worker machines/tables to the whistle's caps (should places that became ours add some?).
 - C2: a page's need lowered below what a save already sent carries the extra on (or drop it?);
   the school speeds machine, box and errand workers (not worker parties); it opens after 100 pets
-  past the edge; the edge popup says pets "don't come back" (keep or cut?).
+  past the edge; the edge popup's "don't come back" line is cut (answered 2026-09-29).
 - E1: floor 10's epic
   part waits until parts open (or give it straight away?); a floor below 0.4 of its strength is a
   wall; army picks stay reserved while home.
@@ -795,7 +795,8 @@ are collected at the end of docs/picks.md. The bigger ones:
 - Held landings: holders come off errands and machines like new homes; steppers in need / 20;
   skipped floors take no time; a held guard landing loses its guard in the fight too.
 - Wish jar: opens with box tables; weights x1.5/x2/x3/x4; every jar keeps its boost after a
-  switch; "no hat" can be wished for; the popup says pets "don't come back out" (keep or cut?).
+  switch; "no hat" can be wished for; the popup's "don't come back out" line is cut (answered
+  2026-09-29: show, don't explain; the night sky's stars say it).
 - Shed workshop: the "adventure ›" / "workshop ›" pills; the chore chart = every errand joins;
   the treat banner tosses full treats; letterbox postcards aren't saved; needs (40..5000) may be
   small at whistle time.

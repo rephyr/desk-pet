@@ -23,6 +23,7 @@ lead cellar
 lead below
 wait popup
 expect text "new: the edge!"
+expect text "past the orchard the map just stops. pets who go past the edge draw the rest of the map for us!"
 expect fits
 shot popup
 click "lovely"
