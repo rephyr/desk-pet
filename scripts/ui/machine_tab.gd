@@ -295,7 +295,6 @@ func _build_bits(bits: Array[String]) -> void:
 		var n := int(GameState.bits.get(b, 0))
 		var chip := UiTheme.chip("bit_" + b, "%d %s" % [n, Machine.bit_name(catalog, b, n)], UiTheme.TEXT if n > 0 else UiTheme.LOCKED)
 		chip.name = "bits_" + b
-		chip.tooltip_text = "machine bits: pets find them on adventures"
 		_bits_row.add_child(chip)
 
 

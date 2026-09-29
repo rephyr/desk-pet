@@ -166,7 +166,7 @@ class ToyBench extends VBoxContainer:
 
 	# ---- the benches -------------------------------------------------------------------
 
-	func _bench(title: String, what: String, accent: Color) -> Array:
+	func _bench(title: String, accent: Color) -> Array:
 		var panel := PanelContainer.new()
 		panel.size_flags_horizontal = SIZE_EXPAND_FILL
 		panel.add_theme_stylebox_override("panel", UiTheme.stitched(accent.lerp(UiTheme.LINE, 0.5), UiTheme.RAISED, 14, 12))
@@ -176,11 +176,6 @@ class ToyBench extends VBoxContainer:
 		var head := UiTheme.title(title, 17, accent)
 		head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		col.add_child(head)
-		var about := UiTheme.label(what, UiTheme.MUTED, UiTheme.SMALL + 1)
-		about.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		about.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-		about.custom_minimum_size.x = 150
-		col.add_child(about)
 		return [panel, col]
 
 	func _row_of(edition: String, n: int, pixel := 3, missing := false) -> Control:
@@ -198,7 +193,7 @@ class ToyBench extends VBoxContainer:
 		return c
 
 	func _combine_bench() -> Control:
-		var parts := _bench("combine", "spares of the same toy make it a level better. always works.", UiTheme.MINT)
+		var parts := _bench("combine", UiTheme.MINT)
 		var col: VBoxContainer = parts[1]
 		if _picked == "":
 			col.add_child(_grow())
@@ -229,7 +224,7 @@ class ToyBench extends VBoxContainer:
 		return parts[0]
 
 	func _fix_bench() -> Control:
-		var parts := _bench("fix", "sew a well-loved toy back up. good as new.", UiTheme.CYAN)
+		var parts := _bench("fix", UiTheme.CYAN)
 		var col: VBoxContainer = parts[1]
 		if _picked == "":
 			col.add_child(_grow())
@@ -262,7 +257,7 @@ class ToyBench extends VBoxContainer:
 	func _sacrifice_bench() -> Control:
 		var catalog := Catalog.shared()
 		var sac: Dictionary = catalog.toys.sacrifice
-		var parts := _bench("sacrifice", "%d spares of a toy for a chance at a special one. gone either way." % int(sac.spares), UiTheme.PINK)
+		var parts := _bench("sacrifice", UiTheme.PINK)
 		var col: VBoxContainer = parts[1]
 		if _picked == "":
 			col.add_child(_grow())

@@ -642,7 +642,6 @@ func _refresh_send() -> void:
 	_facts.add_child(UiTheme.tag("1 pet" if most == 1 else ("as many as you like" if most > 999 else "up to %d pets" % most)))
 	for bit in MapView.bits_of(d):
 		var brings := UiTheme.chip("bit_" + bit, "brings home %s" % MachineTab.bit_name(bit, 2), MapView.bit_color(bit))
-		brings.tooltip_text = "machine bits: they fix up the capsule machine"
 		(brings.find_child("Amount", true, false) as Label).add_theme_font_size_override("font_size", UiTheme.SMALL)
 		_facts.add_child(brings)
 	if d.get("risky", false) and not ours:

@@ -130,7 +130,7 @@ func _rebuild() -> void:
 		open.size_flags_vertical = SIZE_SHRINK_CENTER
 		_boxes_row.add_child(open)
 	if not any_box:
-		var none := UiTheme.label("no boxes yet. pets find some on adventures", UiTheme.MUTED, UiTheme.SMALL + 1)
+		var none := UiTheme.label("no boxes yet", UiTheme.MUTED, UiTheme.SMALL + 1)
 		none.size_flags_vertical = SIZE_SHRINK_CENTER
 		_boxes_row.add_child(none)
 	# anything else trips bring back that nothing uses yet
@@ -148,7 +148,7 @@ func _rebuild() -> void:
 	for i in keys.size():
 		_parts.add_child(_part_tile(keys[i], int(GameState.parts[keys[i]]), i))
 	if keys.is_empty():
-		var none := UiTheme.label("no parts yet. pets sometimes find them on adventures", UiTheme.MUTED, UiTheme.SMALL + 1)
+		var none := UiTheme.label("no parts yet", UiTheme.MUTED, UiTheme.SMALL + 1)
 		_parts.add_child(none)
 	if not _showing_result:
 		_show_sewing()
@@ -208,7 +208,6 @@ func _show_sewing() -> void:
 	var pet := GameState.collection.active()
 	_sew_body.add_child(UiTheme.title("sew it on?", 18))
 	if pet == null or _picked == "":
-		_sew_body.add_child(_muted("pick a part to try it on your active pet"))
 		return
 	var bits := Grafting.split_key(_picked)
 	_sew_body.add_child(_muted("onto %s, your active pet" % pet.display_name(catalog)))
@@ -253,9 +252,6 @@ func _show_sewing() -> void:
 	var sew := UiTheme.button("sew it on" if can else _why_not_sew(pet, bits[0], bits[1]), _sew.bind(bits[0], bits[1], bits[2]))
 	sew.disabled = not can
 	_sew_body.add_child(sew)
-	var fine := _muted("if the stitch holds, the old %s goes back in your bag" % bits[0])
-	fine.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	_sew_body.add_child(fine)
 
 
 ## Why a part can't be sewn on right now, as the greyed-out button's text.
