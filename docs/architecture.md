@@ -175,7 +175,8 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `BookView`), `AdventuresTab` (adventures:
   `MapView`, the place card, trip cards, and `TrailView` for watching a trip; next door's page
   is drawn by `StreetPage` (night paper, house backs whose windows are the lights, gardens coloured
-  in when they're ours); upgrades: `GearView`,
+  in when they're ours); past the edge: `MapView` draws the torn paper, the tucked page's scribbles
+  and the signpost, `EdgeCard` sends pets, rules in `Edge`, state in `GameState.edge`; upgrades: `GearView`,
   gear bought with xp, rules in `Gear`, levels in `GameState.gear`, packed onto each trip as
   `RunState.gear`), `ErrandsTab` (jobs: the corkboard; upgrades:
   `ErrandToolsView`, the pegboard of tools bought with coins; rules in `Jobs`, levels in
@@ -186,7 +187,10 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:
   `WorkerCard` / `WorkerSpot`, `GameState.put_workers` / `buy_spots` / `teach_others`; the whistle page: `Clipboard`,
   `TodoRow`, `Tick`, `TinyCrowd`, rules in `Automation.whistle_plan` / `exist` / `checks`, applied by
-  `GameState._whistle_checks`, caps via `GameState.spot_room`), `InventoryTab`
+  `GameState._whistle_checks`, caps via `GameState.spot_room`; the school page: `SchoolView`, rules in
+  `School`, state in `GameState.school`, `GameState.school_boost()` is the `school` source of the
+  automation and errands boosts; `HerdPicker` is the shelves + 1 / 10 / 100 / all the edge and the
+  school share; pages are strings: `pet`, `workers`, `whistle`, `school`), `InventoryTab`
   (the bag and sewing) and `SettingsTab` (general and video pages).
   Tabs can be locked or hidden until something opens them (`data/unlocks.json`).
 - The full game is laid out at 920x600 (`home.gd` `EXPANDED_SIZE`) and scaled to the chosen
@@ -313,6 +317,23 @@ looking at (`GameState.ours_shown`), keeps the colouring-in timing itself (`_col
 Unlocks with `"earn": { "called": true }` are opened only by code: `GameState.open_page(page_id)`
 fires the page's unlock (popup, announce) through the same `_open_entry` as `check_unlocks`, and
 emits `page_opened`; `UnlockRules.stale` never closes them.
+Save v32 (C2, built as v24 in its lane) adds `edge` (`{ page, sent, ever, marks }`, see `Edge`) and
+`school` (`{ seated: { count key: n }, classes: [{ size, step, faces }] }`, see `School`); older saves
+start with fresh ones (`Edge.clean`, `School.clean`), and a class with more pets than seats gives
+the rest back to the herd (`School.trim`). A page whose `need` dropped below a save's `sent` opens
+on load (the rest carry on to the next page); `_init` runs `check_unlocks` and `_open_edge_pages`
+deferred after every load, so an update's new unlocks a save has already earned open (with their
+popups) right away. A full page past the edge opens its map page with `GameState.open_page` (next
+door's unlock is `called`). The school's boost is cached (`school_changed_boost()` after the bell,
+a load, a new game; it resets the kept boosts) and is the `school` part of `boost("automation")`
+and `boost("errands")` (on the receipt as "the little school"). Teacher and desk faces are
+`GameState.school_face(key, n)` = stand-in number `-1 - n`: live stand-ins count up from 0, so
+they never share a look or a cached Pet. Pets past the edge and in the school are off the herd
+(`Collection.take_plain`, stand-in numbers skip past them); pets past the edge get stars from
+`Collection.add_stars(palettes, n)` (a few colours kept, the rest counted; `stars_added` redraws
+the sky). Teachers stay on, so the bell adds no stars. The sorting rule's `to` can be `school`
+(`GameState.rule_destinations()`, once the school is open): `_sort_pet` seats the pet while there
+are seats (else it stays) and `Collection.add` drops it without a star.
 
 ## Testing
 

@@ -22,6 +22,7 @@ signal seen_changed  # see() counted a book key without a pet (the book redraws,
 signal pets_folded(uids: Array, keys: Array)  # these cards became counts in the herd (same order)
 signal herd_changed(keys: Array)  # these counts in the herd went up or down
 signal pets_left(n: int)  # n pets left for new homes (a star each)
+signal stars_added(n: int)  # pets left for good without a uid of their own (past the edge, the school)
 
 var pets: Array[Pet] = []  # the cards, in pull order
 var herd := {}  # "rarity:finish" -> how many plain pets are folded into it
@@ -88,11 +89,12 @@ func new_keys(box_pets: Array[Pet]) -> Dictionary:
 
 ## Adds new pets (their uid is given here, and the book counts them). `sorter` (the sorting rule,
 ## see NewHomes) is asked about each pet once the book has counted it (so a part new to the book is
-## known): "homes" and the pet leaves straight away (a star; it never takes room). Returns the pets
-## that left.
+## known): "homes" and the pet leaves straight away (a star; it never takes room), "school" and it
+## has sat down in the school's class (no star). Returns the pets that left.
 func add(new_pets: Array[Pet], sorter := Callable()) -> Array[Pet]:
 	var kept: Array[Pet] = []
 	var left: Array[Pet] = []
+	var homes_n := 0
 	for pet in new_pets:
 		pet.uid = str(_next_id)
 		_next_id += 1
@@ -103,9 +105,12 @@ func add(new_pets: Array[Pet], sorter := Callable()) -> Array[Pet]:
 			_see(key)
 		_see(finish_key(pet.parts.body, pet.finish))
 		pet.new_part = pet.new_part or first
-		if sorter.is_valid() and str(sorter.call(pet)) == "homes":
+		var to := str(sorter.call(pet)) if sorter.is_valid() else ""
+		if to == "homes" or to == "school":  # it leaves straight away (new homes: a star; school: it stays on, no star)
 			left.append(pet)
-			_star(str(pet.parts.palette))
+			if to == "homes":
+				_star(str(pet.parts.palette))
+				homes_n += 1
 			continue
 		pets.append(pet)
 		_by_uid[pet.uid] = pet
@@ -116,8 +121,8 @@ func add(new_pets: Array[Pet], sorter := Callable()) -> Array[Pet]:
 	var became_active := active_uid == "" and auto_active and not pets.is_empty()
 	if became_active:
 		active_uid = pets[0].uid
-	if not left.is_empty():
-		pets_left.emit(left.size())
+	if homes_n > 0:
+		pets_left.emit(homes_n)
 	if not kept.is_empty() or left.is_empty():
 		pets_added.emit(kept)
 	if became_active:
@@ -237,6 +242,35 @@ func leave(counts: Dictionary, uids: Array) -> int:
 	if not keys.is_empty():
 		herd_changed.emit(keys)
 	return n
+## Takes up to `n` pets off a count for good (past the edge, into the school). Their looks never come
+## back as stand-ins. Returns [how many, palettes of up to `keep` of them] (for scribbles and stars).
+func take_plain(key: String, n: int, keep := 0) -> Array:
+	var take := mini(n, herd_count(key))
+	if take <= 0:
+		return [0, []]
+	var palettes := []
+	for uid in stand_in_uids(key, mini(take, keep)):
+		var face := Herd.stand_in(_catalog(), uid)
+		if face:
+			palettes.append(str(face.parts.palette))
+	stand_next[key] = int(stand_next.get(key, 0)) + take
+	_herd_less(key, take)
+	herd_changed.emit([key])
+	return [take, palettes]
+
+
+## `n` pets left for good (not from the cards): a star each, tinted by `palettes` as far as they go
+## (the night sky borrows colours for the rest).
+func add_stars(palettes: Array, n: int) -> void:
+	if n <= 0:
+		return
+	var keep := int(_catalog().herd.get("fallen_keep", 16384))
+	for p in palettes.slice(0, n):
+		if fallen.size() >= keep:
+			break
+		fallen.append(str(p))
+	fallen_n += n
+	stars_added.emit(n)
 
 
 ## A card by its uid, or a stand-in for a pet from a count ("h:common:normal:3", while that count

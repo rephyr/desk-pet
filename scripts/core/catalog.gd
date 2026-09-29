@@ -44,6 +44,8 @@ var herd := {}  # plain pets folded into counts, the room cap, see data/herd.jso
 var new_homes := {}  # the new homes stall and the sorting rule, see data/new_homes.json and NewHomes
 var care := {}  # your active pet's food and mood as buffs, see data/care.json and Care
 var gifts := {}  # presents: one every few hours of wall clock, see data/gifts.json and Gifts
+var edge := {}  # past the edge: the pages it fills, see data/edge.json and Edge
+var school := {}  # the little school: class sizes, stand points, steps, see data/school.json and School
 var encounter_art := {}  # event id -> its pixel art on the trail, see data/encounter_art.json
 var tier_overrides := {}  # tier id -> Color, set by the player's colour theme (see UiTheme.apply)
 
@@ -127,6 +129,8 @@ func _init() -> void:
 	new_homes = _load("new_homes.json")
 	care = _load("care.json")
 	gifts = _load("gifts.json")
+	edge = _load("edge.json")
+	school = _load("school.json")
 	_rummage_by_id = _index(rummage_spots)
 
 

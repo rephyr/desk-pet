@@ -1,0 +1,12 @@
+{
+	"_note": "Past the edge (C2): the beyond-the-fence map stops at a torn edge with a signpost spot, 'the edge'. You send herd pets there by the shelf (1 / 10 / 100 / all); they never come back (a night-sky star each). The next page is tucked under the tear and fills with their crayon scribbles; 'pages' is every page in order: 'need' pets fill it, then it opens (GameState.open_page(page id): next door's unlock is 'called' in data/unlocks.json). Later pages come with their own content (x50-100 a page). 'page' is the map page that ends at the edge; 'map' is where the signpost sits on it, in map units (like a place's map). marks_max: the most scribbles one page shows (one per pet up to this, then spread). stars_kept_per_send: star colours kept one by one per send (the rest are only counted, like the herd's). The map paper stops 'peek' of the map's width short, so the tucked page shows; on the narrower paper the page is redrawn with 'layout' (place id or 'edge' -> [x, y] in map units; places not listed keep their own). Numbers are placeholders.",
+	"pages": [
+		{ "id": "next_door", "need": 500 }
+	],
+	"page": "beyond",
+	"map": { "x": 5.1, "y": -2.3 },
+	"peek": 0.3,
+	"layout": { "fields": [0.92, 1.28], "below": [2.46, 1.3], "orchard": [1.76, 2.44], "edge": [2.84, 2.2], "well": [0.98, 3.6], "cellar": [2.12, 3.8] },
+	"marks_max": 520,
+	"stars_kept_per_send": 64
+}

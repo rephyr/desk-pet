@@ -72,7 +72,8 @@ func _refresh() -> void:
 	_today_n.text = UiTheme.num(GameState.sorted_today())
 	var rarities := GameState.rule_rarities()
 	var finishes := GameState.rule_finishes()
-	var key := "%s|%s|%s" % [str(rule), str(rarities), str(finishes)]
+	var places := GameState.rule_destinations()
+	var key := "%s|%s|%s|%s" % [str(rule), str(rarities), str(finishes), str(places)]
 	if key == _key:
 		return
 	_key = key
@@ -92,9 +93,9 @@ func _refresh() -> void:
 	_lines.add_child(_em("new pets"))
 	_lines.add_child(_row("below", _stepper(catalog.tier_at(catalog.rank(str(rule.below))).name, catalog.tier_color(str(rule.below)),
 		func(d): _step("below", rarities, str(rule.below), d))))
-	var to_names := { "homes": "new homes", "work": "work" }
+	var to_names := { "homes": "new homes", "work": "work", "school": "school" }
 	_lines.add_child(_row("go to", _stepper(to_names.get(str(rule.to), str(rule.to)), UiTheme.TEXT,
-		func(d): _step("to", NewHomes.TO, str(rule.to), d))))
+		func(d): _step("to", places, str(rule.to), d))))
 	UiTheme.clear(_keeps)
 	var keep := HBoxContainer.new()
 	keep.add_theme_constant_override("separation", 3)

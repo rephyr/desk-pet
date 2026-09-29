@@ -1,0 +1,56 @@
+# Past the edge (C2 look A, the tucked page). First a rumour of it on the beyond map; then every
+# place past the fence opens, so the map stops at a torn edge with a signpost ("the edge") and the
+# next page tucked under it ("500 to go"). Tap the signpost, pick a shelf, send 1 / 10 / 100 / all:
+# they never come back, and the page fills with their scribbles until it's full (the next page's
+# unlock opens quietly here: its own step adds the page and its popup).
+from rich
+view full
+pets 6
+herd common normal 3000
+herd uncommon normal 800
+herd rare normal 120
+herd epic normal 12
+unlock page:beyond
+unlock location:orchard
+rumour edge
+map-page beyond
+wait 1
+expect fits
+shot rumour
+lead well
+lead cellar
+lead below
+wait popup
+expect text "new: the edge!"
+expect fits
+shot popup
+click "lovely"
+map-page beyond
+wait 1
+expect no-text "they'll draw the rest of the map!"
+expect fits
+shot edge_map
+edge
+wait 1
+expect text "they'll draw the rest of the map!"
+expect text "uncommon"
+expect fits
+shot edge_card
+click "100"
+wait 1.5
+expect fits
+shot after_100
+click "uncommon"
+click "10"
+wait 0.5
+click "rare"
+click "10"
+wait 1
+expect fits
+shot mixed
+click "common"
+click "all"
+wait 1.5
+expect no-text "uncommon"
+expect fits
+shot full

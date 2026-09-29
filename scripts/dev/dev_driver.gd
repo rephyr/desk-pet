@@ -85,6 +85,14 @@ extends Node
 ##   open <page>           opens a map page the way the game's code does (GameState.open_page:
 ##                         popup and all), e.g. open next_door
 ##   visit <place> [n]     n more visits to a place (next door's lights go out, places become ours)
+##   map-page <id>         the adventures tab on that page of the map (backyard, beyond)
+##   edge                  taps the signpost at the edge (on its map page)
+##   edge-send <rarity> <n | all>  sends n resting herd pets of that rarity past the edge
+##   rumour <id>           a pet brings home that rumour (data/adventures.json): it's on the map
+##   lead <place>          a pet spotted that place and you say yes (it opens, like tapping it)
+##   seat <rarity> <n | all>  sits n resting herd pets of that rarity down in the school's class
+##   bell                  rings the school's bell (when the class is full)
+##   classes <n>           n more finished classes of plain commons, for free (the school's x number)
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -396,6 +404,49 @@ func _step(w: PackedStringArray) -> String:
 			home.full_game().show_tab("collection")
 			home.full_game().collection.show_mode(0)
 			home.full_game().collection.open_shelf(w[1])
+		"map-page":  # map-page <id>: the adventures tab on that map page
+			if not GameState.page_open(w[1]):
+				return "the %s page isn't open" % w[1]
+			home.full_game().show_tab("adventures")
+			home.full_game().adventures.show_map_page(w[1])
+		"edge":  # taps the signpost at the edge
+			if not GameState.edge_open():
+				return "the edge isn't open"
+			home.full_game().show_tab("adventures")
+			home.full_game().adventures.show_map_page(str(GameState.catalog.edge.get("page", "beyond")))
+			home.full_game().adventures.pick_edge()
+		"edge-send":  # edge-send <rarity> <n | all>
+			var sent := GameState.send_past_edge(w[1], -1 if w[2] == "all" else int(w[2]))
+			if sent <= 0:
+				return "nobody went past the edge"
+		"rumour":  # rumour <id>: heard, and on the map
+			if GameState.catalog.rumour(w[1]).is_empty():
+				return "unknown rumour %s" % w[1]
+			GameState.heard[w[1]] = true
+			if not w[1] in GameState.rumours:
+				GameState.rumours.append(w[1])
+			GameState.adventures_changed.emit()
+		"lead":  # lead <place>: spotted and followed, as a tap on the map would
+			if GameState.catalog.location(w[1]).is_empty():
+				return "unknown place %s" % w[1]
+			GameState.spotted[w[1]] = { "by": "", "from": "" }
+			GameState.follow_lead(w[1])
+		"seat":  # seat <rarity> <n | all>: into the school's class
+			if GameState.seat_in_school(w[1], -1 if w[2] == "all" else int(w[2])) <= 0:
+				return "nobody sat down"
+		"bell":
+			if not GameState.ring_bell():
+				return "the class isn't full"
+		"classes":  # classes <n>: finished classes of commons, for free
+			var k := Herd.key(GameState.catalog.tiers[0].id, "normal")
+			for i in int(w[1]):
+				var number: int = GameState.school.classes.size()
+				GameState.school.classes.append({ "size": School.class_size(GameState.catalog, number),
+					"step": School.step(GameState.catalog, { k: 1 }), "faces": [GameState.school_face(k, number * 8),
+					GameState.school_face(k, number * 8 + 1), GameState.school_face(k, number * 8 + 2)] })
+			GameState.school_changed_boost()
+			GameState.school_changed.emit()
+			GameState.changed.emit()
 		"give-box":  # give-box <id> <n>: boxes on your pile
 			if GameState.catalog.box(w[1]).is_empty():
 				return "unknown box %s" % w[1]

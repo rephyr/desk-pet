@@ -2,14 +2,14 @@ class_name NewHomes
 extends RefCounted
 ## New homes (data/new_homes.json): pets leave for good and pay points toward a box. The stall on
 ## the pets tab takes them by the shelf; the sorting rule sends new pets from box openings to new
-## homes (or to work) as they arrive. Pure rules on the state from the save:
+## homes (or to work, or to school) as they arrive. Pure rules on the state from the save:
 ##   { points: toward the next box, by_hand: pets you sent from the stall ever, sorted: pets the
 ##     rule sorted ever, room_was_full: the room has been full at least once (the stall opens),
-##     rule: { on, below: rarity id, to: "homes" | "work", keep: finish id },
+##     rule: { on, below: rarity id, to: "homes" | "work" | "school", keep: finish id },
 ##     today: { day: "YYYY-MM-DD", n: pets the rule sorted that day } }
 ## GameState keeps the state, takes the pets out of the collection and hands out the boxes.
 
-const TO := ["homes", "work"]
+const TO := ["homes", "work", "school"]  # school: only once it's open (GameState.rule_destinations)
 
 
 static func fresh(catalog: Catalog) -> Dictionary:

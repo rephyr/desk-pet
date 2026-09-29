@@ -17,6 +17,7 @@ func _init() -> void:
 	resized.connect(queue_redraw)
 	GameState.collection.pets_removed.connect(func(_uids): queue_redraw())
 	GameState.collection.pets_left.connect(func(_n): queue_redraw())
+	GameState.collection.stars_added.connect(func(_n): queue_redraw())
 	GameState.new_game.connect(queue_redraw)
 
 

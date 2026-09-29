@@ -1,0 +1,123 @@
+# The little school (C2 look A, the classroom). It opens once 100 pets have gone past the edge and
+# the automation tab is there: a school page next to your pet (| workers | whistle). Classes of spare herd
+# pets fill 24 desks; a full class makes "ring the bell" glow and you ring it: the class stays on
+# as teachers (the teachers row; no stars, they stay) and every worker gets quicker (the x number). Then class 2, and a
+# much later school with a million pets.
+from rich
+view full
+pets 12
+fix drops
+herd common normal 3000
+herd uncommon normal 400
+herd rare normal 60
+herd epic normal 8
+find tiny_machine
+wait popup
+click "lovely"
+unlock page:beyond
+unlock feature:edge
+edge-send common 100
+wait popup
+expect text "new: the little school!"
+expect fits
+shot popup
+click "show me"
+wait 1
+click "school"
+wait 1
+expect text "class is in! everybody sit nicely."
+expect text "0 of 40"
+expect fits
+shot empty
+click "uncommon"
+click "10"
+wait 0.5
+click "rare"
+click "1"
+wait 0.5
+click "common"
+click "all"
+wait 1
+expect text "40 of 40"
+expect text "everyone's here! ring the bell!"
+expect fits
+shot full
+click "ring the bell"
+wait 0.4
+shot bell
+wait 1
+expect text "x1.03"
+expect text "teachers"
+expect text "0 of 100"
+expect fits
+shot rang
+seat common 60
+wait 1
+expect text "60 of 100"
+expect fits
+shot class_2
+classes 3
+herd common normal 1000000
+herd uncommon normal 250000
+herd rare normal 40000
+herd epic normal 3000
+herd legendary normal 200
+herd mythic normal 12
+wait 1
+expect fits
+shot million
+click "your pet"
+wait 1
+expect fits
+# box workers: "pets a minute" at the top of the automation tab
+coins 900000000
+unlock feature:packs
+teach boxes
+wait 1
+click "open boxes"
+wait 1
+click "teach the others"
+wait 1
+click "workers"
+wait 1
+click "open boxes"
+wait 1
+click "+1 table for*"
+wait 1
+click "+1 table for*"
+wait 1
+click "fill up"
+wait 1
+# no boxes on the pile and a full room: nobody's arriving, so no pill
+expect no-text "pets a minute"
+room 40
+give-box starter 100000
+wait 1
+expect text "pets a minute"
+expect fits
+shot pace
+click "school"
+wait 1
+expect text "pets a minute"
+expect fits
+shot pace_school
+# the whistle's button sits between workers and the school
+find whistle
+wait popup
+click "lovely"
+tab automation
+wait 1
+expect text "whistle"
+expect text "school"
+expect fits
+shot switch_whistle
+# the sorting rule can send new pets to school ("go to: school")
+unlock feature:new_homes
+unlock feature:sorting
+rule on rare school holo
+tab collection
+wait 1
+expect text "go to"
+expect text "school"
+expect fits
+shot rule_school
