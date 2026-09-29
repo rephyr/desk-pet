@@ -39,10 +39,10 @@ shot picked
 # commons: 10, then 100 (110 points: 4 boxes and 10 in the jar), your pet cheers
 click ShelfPlank#1
 homes-points 0
-click "10"
+click name:homes_take_10          # the stall's own button: a random pet's count can read 10 too
 wait text "they'll have a big garden!"
 expect text "10/25"
-click "100"
+click name:homes_take_100
 wait 0.2
 shot box_pop
 wait 1
@@ -50,7 +50,7 @@ expect text "10/25"
 expect pile starter 7
 expect fits
 shot taken
-click "all"
+click name:homes_take_all
 wait 1
 expect fits
 shot all_commons
@@ -135,7 +135,7 @@ wait 1
 click ShelfPlank#1
 expect fits
 shot million
-click "all"
+click name:homes_take_all
 wait 1
 expect fits
 shot million_gone

@@ -63,6 +63,7 @@ func _init() -> void:
 	for n in GameState.catalog.new_homes.get("takes", [1, 10, 100, -1]):
 		var b := UiTheme.button("all" if int(n) < 0 else str(int(n)), _take.bind(int(n)))
 		b.size_flags_horizontal = SIZE_EXPAND_FILL
+		b.name = "homes_take_all" if int(n) < 0 else "homes_take_%d" % int(n)  # for flows: other labels can read "10" too
 		if int(n) < 0:
 			b.add_theme_stylebox_override("normal", UiTheme.box(UiTheme.DEEP, UiTheme.PINK_SEAM, 8, 2, 5))
 		takes.add_child(b)
