@@ -1,5 +1,6 @@
 # A3: the savings jar, the kitchen and scouting open at goals on job levels (lemonade lv 10, coin
-# hunt lv 25, savings jar lv 10). Only the next goal's job shows as a waiting note. Then crews on
+# hunt lv 25, savings jar lv 10). A job still to come isn't there at all: no waiting notes, no
+# "opens" line ahead of its goal (hidden until earned). Then crews on
 # the new jobs, their note lines, the pegboard's new shelves, and a trip taking a scout note.
 from rich
 view full
@@ -17,14 +18,15 @@ wait popup
 expect text "new: a lemonade stand!"
 click "show me"
 wait 1
-expect text "a savings jar"
-expect text "a kitchen"
+expect no-text "a savings jar"
+expect no-text "a kitchen"
+expect no-text "opens at*"
 expect no-text "scouting"
 expect fits
-shot waiting_notes
+shot no_waiting_notes
 scroll 400
 wait 0.5
-shot waiting_notes_below
+shot no_waiting_notes_below
 scroll 0
 tool lemons 10
 wait popup

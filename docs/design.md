@@ -572,8 +572,9 @@ Nobody is ever lost on an errand, and errands never bring rare parts or new plac
 - **Offline:** full speed for 8 h, then half, up to the 12 h cap; the tab notes what came in.
 - **More jobs (A3, built 2026-09-28, plan docs/plans/A3.md)**, each opened by a goal on another
   job's level (lemonade lv 10 → the savings jar, coin hunt lv 25 → the kitchen, savings jar lv 10 →
-  scouting). Only the job that is an open job's NEXT goal shows as a waiting note / waiting shelf,
-  so there's never a row of locked notes.
+  scouting). Hidden until earned (2026-09-29): a job still to come isn't on the board at all, and
+  what a goal opens never shows ahead (the goal line and stars show only pay boosts); the job just
+  turns up when its goal is reached.
   - **Savings jar:** fills slowly (30 min with one pet) and pays one big lump (100 capsules' worth),
     with its own crew power 0.5: one pet there beats one on the coin hunt, a crew doesn't. The note
     says "7.4k coins when full" and "full in 24m 10s"; a full jar pops a big gold number and a coin

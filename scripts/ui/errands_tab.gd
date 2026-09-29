@@ -243,12 +243,8 @@ func _rebuild() -> void:
 	UiTheme.clear(_notes)
 	var catalog := Catalog.shared()
 	var notes: Array[Control] = []
-	for job in GameState.open_jobs():
+	for job in GameState.open_jobs():  # a job still to come isn't there at all: it just turns up at its goal
 		notes.append(_job_note(job))
-	for job in catalog.jobs:
-		var wait := shown_wait(job)
-		if not wait.is_empty():
-			notes.append(_waiting_note(job, wait))
 	for i in notes.size():
 		var tilted := Tilted.new(notes[i], TILTS[i % TILTS.size()])
 		tilted.size_flags_horizontal = SIZE_EXPAND_FILL  # the notes share the board's width
@@ -364,61 +360,6 @@ func _crew_photos(job: Dictionary, crew: Array, color: Color) -> Control:
 static func _streams(job: Dictionary) -> bool:
 	var pay: Dictionary = job.get("pay", {})
 	return not job.get("chunk", false) and not pay.has("meal") and not pay.has("note")
-
-
-## A job still to come that shows as a waiting note: only when it's
-## the NEXT goal of a job that's open, so there's never a row of locked notes. { job, level } or {}.
-static func shown_wait(job: Dictionary) -> Dictionary:
-	var wait := level_wait(job)
-	if wait.is_empty() or GameState.is_unlocked(str(job.needs)):
-		return {}
-	if not GameState.open_jobs().any(func(j): return j.id == wait.job.id):
-		return {}
-	var next := Jobs.next_goal(wait.job, GameState.job_level(wait.job.id))
-	return wait if not next.is_empty() and int(next.at) == int(wait.level) else {}
-
-
-## A job that opens at another job's level (the lemonade stand at coin hunt lv 10): what it
-## waits for, as { job, level }, or {} if it waits for something else.
-static func level_wait(job: Dictionary) -> Dictionary:
-	var needs := str(job.get("needs", ""))
-	if needs == "":
-		return {}
-	for entry in Catalog.shared().unlock_list:
-		if needs in entry.opens:
-			var levels: Dictionary = entry.earn.get("job_level", {})
-			for job_id in levels:
-				return { "job": Catalog.shared().job(str(job_id)), "level": int(levels[job_id]) }
-	return {}
-
-
-## A job still to come, and how close its opening is: "opens at coin hunt lv 10", 7 / 10.
-func _waiting_note(job: Dictionary, wait: Dictionary) -> Control:
-	var color := _color(job)
-	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(NOTE_WIDTH, 300)
-	panel.add_theme_stylebox_override("panel", UiTheme.stitched(UiTheme.LINE, Color(UiTheme.DEEP, 0.5), 8, 12))
-	var col := _column(panel, 6)
-	col.alignment = BoxContainer.ALIGNMENT_CENTER
-	var icon := UiTheme.icon_rect(str(job.doodle), 34, color)
-	icon.size_flags_horizontal = SIZE_SHRINK_CENTER
-	col.add_child(icon)
-	var name_label := UiTheme.title(str(job.get("one", "a " + str(job.name))), 15, color)
-	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	col.add_child(name_label)
-	var at := _wrapped("opens at %s lv %d" % [wait.job.name, wait.level], UiTheme.LOCKED)
-	at.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(at)
-	var have := GameState.job_level(wait.job.id)
-	var meter := Meter.new()
-	meter.color = _color(wait.job)
-	meter.fill = clampf(float(have) / wait.level, 0.0, 1.0)
-	col.add_child(meter)
-	var count := _wrapped("%d / %d" % [mini(have, wait.level), wait.level], UiTheme.LOCKED)
-	count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	col.add_child(count)
-	return panel
 
 
 func _rebuild_box() -> void:
@@ -715,13 +656,14 @@ static func _per_minute(job: Dictionary, rate: float) -> String:
 	return "%s parts a minute" % ExpandedView._thousands(roundi(rate * 60.0 * float(p.get("part", 1))))
 
 
-## "lv 7. at lv 10: a lemonade stand opens", or "lv 100. every goal reached!"
+## "lv 7. at lv 25: x1.25 coins", or "lv 100. every goal reached!" (what a goal opens stays
+## hidden until it's reached: the new job just turns up).
 static func goal_line(job: Dictionary) -> String:
 	var lv := GameState.job_level(job.id)
-	var next := Jobs.next_goal(job, lv)
+	var next := Jobs.next_shown_goal(job, lv)
 	if next.is_empty():
-		return "lv %d. every goal reached!" % lv
-	return "lv %d. at lv %d: %s" % [lv, int(next.at), Jobs.goal_words(job, next)]
+		return ("lv %d" % lv) if not Jobs.next_goal(job, lv).is_empty() else "lv %d. every goal reached!" % lv
+	return "lv %d. at lv %d: %s" % [lv, int(next.at), Jobs.goal_words(job, next, true)]
 
 
 ## The job's level on a little gold sticker stuck over the note's top right corner (drawn on top,
@@ -928,7 +870,8 @@ class Meter extends Control:
 			draw_style_box(_bar, Rect2(Vector2(2, 2), Vector2(maxf(size.y - 4, (size.x - 4) * fill), size.y - 4)))
 
 
-## A job's goals along a dotted line: a star for each, gold once reached, the next one twinkling,
+## A job's goals along a dotted line: a star for each (one that only opens a job shows once it's
+## reached), gold once reached, the next one twinkling,
 ## the line filled up to the job's level (early goals get more room).
 class GoalTrack extends Control:
 	var _job: Dictionary
@@ -971,9 +914,11 @@ class GoalTrack extends Control:
 			x += 9.0
 		if lv > 0:
 			draw_line(Vector2(9.0, y), Vector2(_x(lv, last), y), _tint, 4.0)
-		var next := Jobs.next_goal(_job, lv)
+		var next := Jobs.next_shown_goal(_job, lv)
 		for g in goals:
 			var got := lv >= int(g.at)
+			if not got and not Jobs.shown_ahead(g):
+				continue  # what's still to open stays hidden: its star shows once it's reached
 			var is_next := not next.is_empty() and int(next.at) == int(g.at)
 			var s := 18.0 * (1.0 + 0.15 * sin(_time * 4.0) if is_next else 1.0)
 			var tex := _stars[0 if got else (1 if is_next else 2)]

@@ -325,12 +325,28 @@ static func next_goal(job: Dictionary, lvl: int) -> Dictionary:
 	return {}
 
 
+## The next goal still ahead that shows before it's reached (one with an "x"): what a goal opens
+## ("text", a new job) stays hidden until it's reached, and a goal that only opens something shows
+## no star or line ahead of time. {} when none is left.
+static func next_shown_goal(job: Dictionary, lvl: int) -> Dictionary:
+	for g in job.get("goals", []):
+		if lvl < int(g.at) and shown_ahead(g):
+			return g
+	return {}
+
+
+## Whether a goal shows before it's reached: only its pay boost ("x") does.
+static func shown_ahead(goal: Dictionary) -> bool:
+	return goal.has("x")
+
+
 ## What a goal gives, in words: "x2 coins", its text, or both ("x2 tips and a savings jar opens").
-static func goal_words(job: Dictionary, goal: Dictionary) -> String:
+## `ahead`: a goal not reached yet, so what it opens stays out ("x1.25 coins").
+static func goal_words(job: Dictionary, goal: Dictionary, ahead := false) -> String:
 	var words: Array[String] = []
 	if goal.has("x"):
 		words.append("x%s %s" % [str(goal.x).trim_suffix(".0"), str(job.brings)])
-	if str(goal.get("text", "")) != "":
+	if str(goal.get("text", "")) != "" and not ahead:
 		words.append(str(goal.text))
 	return " and ".join(words)
 

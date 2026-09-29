@@ -829,6 +829,13 @@ func _test_more_jobs(catalog: Catalog) -> void:
 				"errand %s opens at a goal of the %s that says so (lv %d)" % [job.id, other_id, int(levels[other_id])])
 	_check(Jobs.goal_words(lemon, lemon.goals[0]) == "x1.25 tips and a savings jar opens", "a goal with both reads: %s" % Jobs.goal_words(lemon, lemon.goals[0]))
 	_check(Jobs.goal_words(coin, coin.goals[1]) == "x1.25 coins and a kitchen opens", "the coin hunt's lv 25: %s" % Jobs.goal_words(coin, coin.goals[1]))
+	# hidden until earned: what a goal opens never shows ahead, and a goal that only opens a job shows nothing
+	_check(Jobs.goal_words(coin, coin.goals[1], true) == "x1.25 coins", "ahead, the coin hunt's lv 25 reads: %s" % Jobs.goal_words(coin, coin.goals[1], true))
+	_check(int(Jobs.next_shown_goal(coin, 0).get("at", 0)) == 25, "the lemonade stand's goal doesn't show ahead: the next shown is lv 25")
+	var scout_at := int(jar.goals[0].at)
+	_check(not Jobs.shown_ahead(jar.goals[0]) and int(Jobs.next_shown_goal(jar, 0).get("at", 0)) > scout_at, "scouting's goal on the savings jar stays hidden")
+	var ui := FileAccess.get_file_as_string("res://scripts/ui/errands_tab.gd")
+	_check(not ui.contains("opens at %s lv"), "no waiting notes for jobs still to come")
 	# the jar: extra pets barely help; one pet in it beats one on the coin hunt, a crew doesn't
 	var jar_hour := func(n): return Jobs.rate(jar, n, 1.0, power) * 3600.0 * float(jar.pay.capsules)
 	var coin_hour := func(n): return Jobs.rate(coin, n, 1.0, power) * 3600.0 * float(coin.pay.capsules)
