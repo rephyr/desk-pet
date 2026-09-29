@@ -1,6 +1,6 @@
 # WISH done: the wishing jar (F3 wish list, Look A)
 
-Built on `lanes/wish` as planned in WISH.md.
+Built on `lanes/wish` as planned in WISH.md. Status: **verified** (test_core, balance, flows wish / fits / book pass).
 
 ## What was built
 
