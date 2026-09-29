@@ -4,6 +4,7 @@
 from pile_full
 paws everything              # the profile keeps its settings between runs
 view full
+stickers off                  # new pets here can fill a book page: no sticker popups over the shots
 tab settings
 wait 1
 expect text "out on your windows"

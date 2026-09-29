@@ -6,6 +6,7 @@
 # the treat banner tosses treats on the trail, the letterbox keeps postcards till you tap it.
 from rich
 view full
+stickers off                  # new pets here can fill a book page: no sticker popups over the shots
 pets 20
 herd common normal 3000
 herd uncommon normal 400

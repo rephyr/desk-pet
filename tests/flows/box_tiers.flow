@@ -3,6 +3,7 @@
 # the rest are "also inside"), your pet's job card gets a switch per tier, and all three tiers fit.
 from rich
 view full
+stickers off                  # new pets here can fill a book page: no sticker popups over the shots
 tab boxes
 expect fits
 expect no-text "sunset box"

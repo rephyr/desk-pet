@@ -4,6 +4,7 @@
 # line, the errands pill, the trip postcard's coins, each opening a small slip.
 from after_tutorial
 view full
+stickers off                  # new pets here can fill a book page: no sticker popups over the shots
 tab home
 care 50 50                          # the test save's pet is fed and happy: under the buff lines, no boost yet
 wait 1

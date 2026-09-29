@@ -6,6 +6,7 @@
 # boxes. The upgrades page frames the sunset branch; the sunny sign pans back.
 from rich
 view full
+stickers off                  # new pets here can fill a book page: no sticker popups over the shots
 pets 12
 coins 900000000000
 fix tape

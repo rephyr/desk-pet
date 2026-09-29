@@ -1,6 +1,7 @@
 # Encounter art: at each event the thing the pets found stands on the path ahead of them.
 from pile_full
 view full
+stickers off                  # new pets here can fill a book page: no sticker popups over the shots
 pets 3
 send woods 1
 click "dev: skip the walking"

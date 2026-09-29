@@ -3,6 +3,7 @@
 # boxes; it only does one job at a time, and moving it stops the job it left.
 from rich
 view full
+stickers off                  # new pets here can fill a book page: no sticker popups over the shots
 pets 6
 fix drops
 coins 900000000000

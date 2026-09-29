@@ -2,6 +2,7 @@
 # right there (the boxes tab is still locked), then it's back to the lever.
 from after_tutorial
 view full
+stickers off                  # new pets here can fill a book page: no sticker popups over the shots
 tab machine
 next-prize pet_box
 pull 1 0.5

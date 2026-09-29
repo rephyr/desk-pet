@@ -3,6 +3,7 @@
 # wisp squeeze-in steps (hidden until wisps show up) that keep going. Pets on jobs count too.
 from rich
 view full
+stickers off                  # new pets here can fill a book page: no sticker popups over the shots
 herd common normal 380
 herd uncommon normal 70
 herd rare normal 12

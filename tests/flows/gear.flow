@@ -3,6 +3,7 @@
 # the wheelbarrow; everything stays inside the window, on both pages.
 from after_tutorial
 view full
+stickers off                  # new pets here can fill a book page: no sticker popups over the shots
 tab adventures
 wait 1
 expect no-text "upgrades"          # 0 xp: no switch yet

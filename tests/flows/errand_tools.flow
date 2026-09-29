@@ -2,6 +2,7 @@
 # tools on the pegboard, the coin hunt levels up and its first goal opens the lemonade stand.
 from rich
 view full
+stickers off                  # new pets here can fill a book page: no sticker popups over the shots
 fix tape
 fix oil
 fix flap

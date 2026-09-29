@@ -1,6 +1,7 @@
 # The basket opens the errands tab. Nobody goes to work by themselves: you tap + to send pets.
 from rich
 view full
+stickers off                  # new pets here can fill a book page: no sticker popups over the shots
 pets 4
 find basket
 wait popup
