@@ -54,7 +54,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   scripts/machine has its rules, `GameState.pull_lever()` pays out; a pet box out of a capsule is opened right there with a
   `PackOpening`), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
   `CollectionTab` (pets: the `Bookcase` with its cushion of `MiniCard`s and a `ShelfPlank` per
-  rarity with a `Mound`; a plank opens the `ShelfView` with `PetDetails`; the `RoomPill`; and the
+  rarity with a `Mound`; a plank opens the `ShelfView` with `PetDetails`; the `RoomPill`, which opens the `HouseCard` (the
+  room steps: `HouseDrawing` draws the cut-away house as an SVG made in code, pets pasted in, split
+  only where a later shape covers a pet; the card redraws it only when the steps or looks change); and the
   `BookView`), `AdventuresTab` (adventures:
   `MapView`, the place card, trip cards, and `TrailView` for watching a trip; upgrades: `GearView`,
   gear bought with xp, rules in `Gear`, levels in `GameState.gear`, packed onto each trip as
@@ -62,7 +64,8 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `ErrandToolsView`, the pegboard of tools bought with coins; rules in `Jobs`, levels in
   `GameState.errand_tools`; tool, box and room prices are in capsules x `GameState.capsule_value()`
   (`Jobs.tool_cost(tool, have, n, value)`, `GameState.box_price` / static `box_cost`,
-  `Herd.room_cost(catalog, level, value)` via `GameState.room_price()`); errand crews are cards +
+  `Herd.room_cost(catalog, level, value)` via `GameState.room_price()`; a squeeze-in room step costs
+  wisps instead, `Herd.room_currency`); errand crews are cards +
   herd counts everywhere (`job_size`, `_crew_speed`), the kitchen's cooks too; the kitchen speeds every other job via `GameState.kitchen_bonus()`,
   scouting fills `GameState.scout_notes` and `send_on_adventure` packs one onto `RunState.scout`,
   read by `Intel.roll` and `AdventureRunner`), `AutomationTab` (a card per job your pet can do, `JobScene` draws each one; rules in
@@ -136,6 +139,11 @@ openings only: `open_boxes`, the machine's pet box), `_place_new(uids)` (busy pa
 `room: "full"` / `homes_by_hand`. UI: `NewHomesStall`, `SortingCard`, the pets page's side column in
 `CollectionTab`, `Bookcase.stall_on` / `picked` (tap picks, tap again opens), `ShelfPlank` picked
 border and "sorted today" tag.
+Save v27 (HOUSE, renumbered at the merge) makes `room` the number of room steps built (data/herd.json
+"room" steps + the endless "more"; `Herd.room_step / room_cap / room_cost / room_currency`,
+`GameState.room_next / room_price / room_currency / buy_room / room_split`) and adds `wisps` and
+`wisps_seen` (`GameState.grant_wisps`, grant() key "wisps", `wisps_shown()`). A v23-v26 save's old
+level (500 x 1.5^L) becomes the fewest steps that hold at least as much.
 Save v25 adds `scout_notes` (older saves start with 0); runs save the scout note they took
 (`RunState.scout`). The new jobs' crews and tool levels ride in the existing `jobs` / `errand_tools`.
 Save v26 keeps your pet's box reserve in capsules (`reserve_capsules`, replacing `coin_reserve`; only a save that still has `coin_reserve` converts):

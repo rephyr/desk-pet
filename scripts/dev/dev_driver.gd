@@ -43,7 +43,8 @@ extends Node
 ##   xp <n>                you have exactly n xp
 ##   gear <id> [levels]    levels of a gear upgrade (data/gear.json), for free
 ##   herd <rarity> <finish> <n>  n plain pets straight into the herd (fast: for thousands or millions)
-##   room <level>          the room is at that upgrade level (data/herd.json "room")
+##   room <level>          the room has that many steps built (data/herd.json "room" steps; the house card)
+##   wisps <n>             you have exactly n wisps (and wisps have shown up)
 ##   fill-room             plain commons into the herd until the room is exactly full
 ##   fav <n>               the newest n cards become favourites
 ##   shelf <rarity>        opens that shelf on the pets tab (collectibles)
@@ -270,8 +271,12 @@ func _step(w: PackedStringArray) -> String:
 				return "no plain count %s" % key
 			GameState.collection.add_plain(key, int(w[3]))
 			GameState.changed.emit()
-		"room":  # room <level>: the room's upgrade level
+		"room":  # room <level>: that many room steps built
 			GameState.room = maxi(0, int(w[1]))
+			GameState.changed.emit()
+		"wisps":  # wisps <n>: you have exactly n wisps
+			GameState.grant_wisps(int(w[1]) - GameState.wisps)
+			GameState.wisps_seen = true
 			GameState.changed.emit()
 		"fill-room":  # plain commons into the herd until the room is exactly full
 			GameState.collection.add_plain(Herd.key(GameState.catalog.tiers[0].id, "normal"), GameState.room_left())

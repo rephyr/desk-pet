@@ -209,12 +209,7 @@ func _refresh() -> void:
 
 
 static func _thousands(n: int) -> String:
-	var s := str(absi(n))
-	var out := ""
-	while s.length() > 3:
-		out = "," + s.right(3) + out
-		s = s.left(s.length() - 3)
-	return ("-" if n < 0 else "") + s + out
+	return UiTheme.full_num(n)
 
 
 ## The page: the dotted backing paper of a sticker book.

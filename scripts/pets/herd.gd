@@ -139,17 +139,38 @@ static func stand_in(catalog: Catalog, stand_in_uid: String) -> Pet:
 	return p
 
 
-# ---- the room: one cap for every plain pet together, grown with coins ----------------------
+# ---- the room: one cap for every plain pet together, grown a step at a time ----------------
 
-## How many plain pets fit in the room at `level`.
-static func room_cap(catalog: Catalog, level: int) -> int:
+const ROOM_TOP := 1.0e15  # the most a room ever holds (the endless steps stop growing there)
+
+
+## Room step `i` (0 = the first one you build): a listed step from data/herd.json room "steps", or
+## past them an endless "more" step (each holds room "more" grow x the last and costs wisps_grow x
+## the last in wisps). { id, name, cap, and "capsules" (priced in coins) or "wisps" }.
+static func room_step(catalog: Catalog, i: int) -> Dictionary:
 	var r: Dictionary = catalog.herd.get("room", {})
-	var step := maxi(1, int(r.get("round", 50)))
-	var raw := float(r.get("start", 500)) * pow(float(r.get("grow", 1.5)), maxi(0, level))
-	return maxi(step, roundi(minf(raw, 1.0e15) / step) * step)
+	var steps: Array = r.get("steps", [])
+	if i < 0:
+		return {}
+	if i < steps.size():
+		return steps[i]
+	var more: Dictionary = r.get("more", {})
+	var last: Dictionary = steps[-1] if not steps.is_empty() else { "cap": r.get("start", 500), "wisps": 1 }
+	var n := i - steps.size() + 1
+	var cap := minf(float(last.get("cap", 500)) * pow(float(more.get("grow", 2.0)), n), ROOM_TOP)
+	var price := minf(float(last.get("wisps", 1)) * pow(float(more.get("wisps_grow", 4.0)), n), Jobs.MAX_PRICE)
+	return { "id": str(more.get("id", "more")), "name": str(more.get("name", "one more squeeze")), "cap": int(cap),
+		"wisps": maxi(1, int(price)), "more": n }
 
 
-## The smallest room level that holds `n` plain pets.
+## How many plain pets fit in the room with `level` steps built.
+static func room_cap(catalog: Catalog, level: int) -> int:
+	if level <= 0:
+		return int(catalog.herd.get("room", {}).get("start", 500))
+	return int(room_step(catalog, level - 1).get("cap", 0))
+
+
+## The fewest steps built that hold `n` plain pets.
 static func room_level_for(catalog: Catalog, n: int) -> int:
 	var level := 0
 	while room_cap(catalog, level) < n and level < 200:
@@ -157,12 +178,18 @@ static func room_level_for(catalog: Catalog, n: int) -> int:
 	return level
 
 
-## What the next room upgrade costs, with `level` bought already and a capsule worth `value` coins
-## (the room is priced in capsules; data without "capsules" falls back to "coins").
+## What the next step costs, with `level` built already: coins for a capsule step (a capsule worth
+## `value` coins), wisps for a squeeze-in step (see room_currency).
 static func room_cost(catalog: Catalog, level: int, value := 1.0) -> int:
-	var r: Dictionary = catalog.herd.get("room", {})
-	var base := float(r.capsules) * value if r.has("capsules") else float(r.get("coins", 500))
-	return maxi(1, roundi(minf(base * pow(float(r.get("cost_grow", 1.8)), maxi(0, level)), Jobs.MAX_PRICE)))
+	var s := room_step(catalog, maxi(0, level))
+	if s.has("wisps"):
+		return maxi(1, int(s.wisps))
+	return maxi(1, roundi(minf(float(s.get("capsules", 500)) * value, Jobs.MAX_PRICE)))
+
+
+## What the next step (with `level` built) is paid in: "coins" or "wisps". Each step is ONE currency.
+static func room_currency(catalog: Catalog, level: int) -> String:
+	return "wisps" if room_step(catalog, maxi(0, level)).has("wisps") else "coins"
 
 
 ## How many tiny pets a mound shows for `count` pets: grows slowly (about log10), at most mound_max.

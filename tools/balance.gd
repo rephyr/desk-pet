@@ -107,11 +107,16 @@ func _errands(catalog: Catalog, rng: RandomNumberGenerator) -> void:
 	for n in catalog.machine_tree.nodes:
 		maxed.bought[n.id] = maxi(1, int(n.get("max", 1)))
 	var values := [1.0, Machine.coin_value({ "bought": { "tape": 1, "oil": 1, "flap": 1 } }, catalog), 75.0, Machine.coin_value(maxed, catalog)]
-	print("\nmore room: coins for the next level (in starter boxes: capsules / %d)" % int(catalog.box("starter").capsules))
-	print("%-6s %8s %10s %10s %12s   %s" % ["level", "holds", "fresh", "flap", "errands", "maxed machine (a capsule = %s)" % _short(values[3])])
-	for level in [0, 1, 2, 5, 10, 20]:
-		print("%-6d %8s %10s %10s %12s   %s" % [level, _short(Herd.room_cap(catalog, level + 1)), _short(Herd.room_cost(catalog, level, values[0])),
-			_short(Herd.room_cost(catalog, level, values[1])), _short(Herd.room_cost(catalog, level, values[2])), _short(Herd.room_cost(catalog, level, values[3]))])
+	print("\nroom steps (the house card): coin steps priced in capsules (in starter boxes: capsules / %d), squeeze-in steps in wisps" % int(catalog.box("starter").capsules))
+	print("%-4s %-20s %8s %10s %10s %12s   %s" % ["step", "", "holds", "fresh", "flap", "errands", "maxed machine (a capsule = %s)" % _short(values[3])])
+	var listed: int = catalog.herd.get("room", {}).get("steps", []).size()
+	for level in range(0, listed + 3) + [20, 30]:
+		var st := Herd.room_step(catalog, level)
+		if Herd.room_currency(catalog, level) == "wisps":
+			print("%-4d %-20s %8s %10s wisps" % [level + 1, st.name, _short(st.cap), _short(Herd.room_cost(catalog, level))])
+		else:
+			print("%-4d %-20s %8s %10s %10s %12s   %s" % [level + 1, st.name, _short(st.cap), _short(Herd.room_cost(catalog, level, values[0])),
+				_short(Herd.room_cost(catalog, level, values[1])), _short(Herd.room_cost(catalog, level, values[2])), _short(Herd.room_cost(catalog, level, values[3]))])
 
 
 ## 1234567 -> "1.2M": short numbers for the tables.

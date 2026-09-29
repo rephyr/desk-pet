@@ -22,7 +22,7 @@ signal room_full  # you tried to open a box but the room is full (it waits on th
 signal homes_paid(boxes: int)  # pets left for new homes and their points filled this many boxes
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
-const SAVE_VERSION := 26
+const SAVE_VERSION := 27
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
 const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
@@ -84,7 +84,11 @@ var _was_active := ""  # the active pet before it changed (it goes back to work)
 var last_moved := ""  # the uid of the last pet put on or taken off an errand (for your pet to name it)
 ## Who's resting, worked out once until crews, workers, trips or the herd change (see _rest_changed)
 var _rest := {}
-var room := 0  # room upgrades bought: the room holds this many plain pets, see Herd.room_cap
+var room := 0  # room steps built (the house card): the room holds this many plain pets, see Herd.room_cap
+# ---- wisps: the darker currency (candy floss coral). Kept in one small place: the dungeon lane
+# brings them for real; when both merge, theirs stays and this goes. ----
+var wisps := 0  # wisps you hold (the room's squeeze-in steps cost them)
+var wisps_seen := false  # wisps have shown up once: things priced in wisps show from then (see grant_wisps)
 ## New homes: the stall's jar, the sorting rule and its count, see NewHomes and data/new_homes.json
 var homes := NewHomes.fresh(Catalog.shared())
 var _to_work := {}  # uid -> true: new pets the sorting rule sends to work (placed as they're added)
@@ -347,9 +351,50 @@ func room_is_cozy() -> bool:
 	return collection.plain_count() >= room_cap() * float(catalog.herd.get("room", {}).get("cozy_at", 0.9))
 
 
-## What the next room upgrade costs.
+## What the next room step costs, in its one currency (room_currency).
 func room_price() -> int:
 	return Herd.room_cost(catalog, room, capsule_value())
+
+
+## What the next room step is paid in: "coins" or "wisps".
+func room_currency() -> String:
+	return Herd.room_currency(catalog, room)
+
+
+## The next room step to show on the house card: { id, name, cap, capsules | wisps }, or {} when
+## it's a squeeze-in step and wisps haven't shown up yet (hidden until earned).
+func room_next() -> Dictionary:
+	var s := Herd.room_step(catalog, room)
+	if s.has("wisps") and not wisps_shown():
+		return {}
+	return s
+
+
+## Every plain pet in the room, split: [at home on the shelves, out working]. Out working: herd
+## pets on errands, at worker spots or away (stand-ins), and plain cards on errands, working or away.
+## The two add up to plain_count() (pets on jobs count toward the room too).
+func room_split() -> Array:
+	var total := collection.plain_count()
+	var gone := away()
+	var out := 0
+	var used := _herd_used(gone)
+	for k in used:
+		out += int(used[k])
+	var cards := {}
+	for uid in _job_of:
+		cards[str(uid)] = true
+	for uid in _worker_of:
+		cards[str(uid)] = true
+	for uid in gone:
+		cards[str(uid)] = true
+	for uid: String in cards:
+		if Herd.is_stand_in(uid):
+			continue  # counted with the herd
+		var pet := collection.get_pet(uid)
+		if pet and Herd.plain(catalog, pet.finish):
+			out += 1
+	out = clampi(out, 0, total)
+	return [total - out, out]
 
 
 ## The room shows (the pill on the pets tab) once a pet has folded into the herd.
@@ -357,16 +402,36 @@ func room_shown() -> bool:
 	return collection.herd_ever or room > 0
 
 
-## Buys the next room upgrade with coins. Returns whether you could.
+## Builds the next room step, paid in its one currency (coins or wisps). Returns whether you could.
 func buy_room() -> bool:
 	var price := room_price()
-	if coins < price:
-		return false
-	coins -= price
+	if room_currency() == "wisps":
+		if not wisps_shown() or wisps < price:
+			return false
+		wisps -= price
+	else:
+		if coins < price:
+			return false
+		coins -= price
 	room += 1
 	changed.emit()
 	save_game()
 	return true
+
+
+# ---- wisps (this lane's stand-in: when the dungeon lane's wisps merge, theirs stay and these go)
+
+## Hands you wisps (grant() takes "wisps" too).
+func grant_wisps(n: int) -> void:
+	wisps = maxi(0, wisps + n)
+	if n > 0:
+		wisps_seen = true
+	changed.emit()
+
+
+## Whether wisps have shown up yet (hidden until earned: nothing priced in wisps shows before).
+func wisps_shown() -> bool:
+	return wisps_seen or wisps > 0
 
 
 # ---- new homes: the stall on the pets tab and the sorting rule (see NewHomes) ---------------
@@ -816,6 +881,8 @@ func debug_new_game() -> void:
 	scout_notes = 0
 	gear = {}
 	room = 0
+	wisps = 0
+	wisps_seen = false
 	_crews_changed()
 	pinned.clear()
 	rummaged.clear()
@@ -2776,6 +2843,9 @@ func grant(loot: Dictionary, boosted := true) -> void:
 				finds[rest] = true
 			"bit":
 				bits[rest] = int(bits.get(rest, 0)) + amount
+			"wisps":
+				wisps = maxi(0, wisps + amount)
+				wisps_seen = wisps_seen or amount > 0
 			"rumour":
 				_hear_rumours(amount)
 			_:
@@ -3237,6 +3307,8 @@ func save_game() -> void:
 		"scout_notes": scout_notes,
 		"gear": gear,
 		"room": room,
+		"wisps": wisps,
+		"wisps_seen": wisps_seen,
 		"automation": automation,
 		"reserve_capsules": reserve_capsules,
 		"saved_boxes": saved_boxes.keys(),
@@ -3352,7 +3424,9 @@ func load_game() -> bool:
 	scout_notes = clampi(int(data.get("scout_notes", 0)), 0, scout_hold())  # v25
 	_crews_changed()
 	gear = Gear.clean(catalog, data.get("gear", {}))  # v22 added gear: older saves start with none
-	room = maxi(0, int(data.get("room", 0)))  # v23 added the room
+	room = maxi(0, int(data.get("room", 0)))  # v23 added the room (v27: steps built on the house card)
+	wisps = maxi(0, int(data.get("wisps", 0)))  # v27
+	wisps_seen = bool(data.get("wisps_seen", false)) or wisps > 0
 	_load_automation(data.get("automation", {}))
 	_hold_saves = true  # no saving halfway through loading
 	_clamp_herd_places()
@@ -3571,6 +3645,13 @@ func _migrate(data: Dictionary) -> Dictionary:
 			a.taught["boxes"] = true
 			a.task = "boxes" if bool(data.get("packs_on", true)) else ""
 			data.automation = a
+	if version >= 23 and version < 27 and data.has("room"):
+		# v27: the room grows in named steps (the house card) instead of levels of 500 x 1.5^L: an
+		# old level becomes the fewest steps that hold at least as much, so nobody loses room (a big
+		# old room can land on a squeeze-in step: kept, for free)
+		var level := maxi(0, int(data.get("room", 0)))
+		var old_cap := maxi(50, roundi(minf(500.0 * pow(1.5, level), 1.0e15) / 50.0) * 50)
+		data.room = Herd.room_level_for(catalog, old_cap)
 	if version < 26 and data.has("coin_reserve"):
 		# v26: your pet's reserve is kept in capsules, like box prices: the coins it kept become
 		# capsules at what one is worth on that save's machine (at least 1 if it kept any). Only a

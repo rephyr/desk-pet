@@ -1,5 +1,5 @@
 {
-	"_note": "The herd: plain pets fold into a count per rarity x finish (Collection, Herd). Every number here is a placeholder. keep_cards: each shelf keeps its newest this many plain pets as full cards. card_from: this finish and better is always a card. cushion: pets on the pink cushion on top of the bookcase. standing: the newest this many stand on a plank. mound_max: the most tiny pets drawn in a plank's mound. shelf_page: always-cards shown at once on an opened shelf. stand_ins: pets from one count offered for an adventure at a time. fallen_keep: stars remembered one by one (the rest are only counted). room: one cap for every plain pet together; level L holds start x grow^L (rounded to round), the next level costs capsules x cost_grow^L (priced in capsules like errand tools and boxes: capsules x what a plain capsule is worth on the machine now); cozy_at: how full the room is when its pill turns cozy; old_save_margin: a save from before the room gets room for its pets plus this much.",
+	"_note": "The herd: plain pets fold into a count per rarity x finish (Collection, Herd). Every number here is a placeholder. keep_cards: each shelf keeps its newest this many plain pets as full cards. card_from: this finish and better is always a card. cushion: pets on the pink cushion on top of the bookcase. standing: the newest this many stand on a plank. mound_max: the most tiny pets drawn in a plank's mound. shelf_page: always-cards shown at once on an opened shelf. stand_ins: pets from one count offered for an adventure at a time. fallen_keep: stars remembered one by one (the rest are only counted). room: one cap for every plain pet together (pets on jobs too), grown a step at a time on the house card (HouseCard): start is the room before any step; each step says how many it holds (cap) and costs ONE currency: capsules (coins: capsules x what a plain capsule is worth on the machine now, like errand tools and boxes) or wisps (the squeeze-in steps, hidden until wisps exist); after the listed steps, more keeps going forever: each one holds grow x the last and costs wisps_grow x the last; cozy_at: how full the room is when its pill turns cozy; old_save_margin: a save from before the room gets room for its pets plus this much.",
 	"keep_cards": 20,
 	"card_from": "holo",
 	"cushion": 9,
@@ -8,5 +8,19 @@
 	"shelf_page": 30,
 	"stand_ins": 10,
 	"fallen_keep": 16384,
-	"room": { "start": 500, "grow": 1.5, "round": 50, "capsules": 500, "cost_grow": 1.8, "cozy_at": 0.9, "old_save_margin": 0.1 }
+	"room": {
+		"start": 500, "cozy_at": 0.9, "old_save_margin": 0.1,
+		"steps": [
+			{ "id": "plank", "name": "a second plank", "cap": 750, "capsules": 500 },
+			{ "id": "bunks", "name": "bunk beds", "cap": 1100, "capsules": 900 },
+			{ "id": "loft", "name": "a loft", "cap": 1700, "capsules": 1620 },
+			{ "id": "attic", "name": "the attic", "cap": 2500, "capsules": 2920 },
+			{ "id": "three", "name": "beds three high", "cap": 5000, "wisps": 60 },
+			{ "id": "hammocks", "name": "hammocks", "cap": 10000, "wisps": 240 },
+			{ "id": "drawers", "name": "pets in the drawers", "cap": 20000, "wisps": 960 },
+			{ "id": "teapot", "name": "pets in the teapot", "cap": 40000, "wisps": 3840 },
+			{ "id": "rug", "name": "under the rug", "cap": 80000, "wisps": 15360 }
+		],
+		"more": { "id": "more", "name": "one more squeeze", "grow": 2.0, "wisps_grow": 4.0 }
+	}
 }

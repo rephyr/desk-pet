@@ -97,7 +97,7 @@ its parts and finish together.
 - Bought with coins, found on adventures, given as check-in rewards. Never sold for money.
   **Decided**
 - **Priced in capsules** (built): a box's price is a number of the machine's plain capsules
-  (boxes.json "capsules", starter 50; the room's "more room" too) times what a capsule is worth now (Machine.coin_value), shown
+  (boxes.json "capsules", starter 50; the room's coin steps too) times what a capsule is worth now (Machine.coin_value), shown
   in coins. So 50 coins on a fresh machine, and the shop keeps up with the machine all game instead
   of getting 2500x cheaper (GameState.box_price / box_cost). One box's price is rounded first, so
   10 boxes always cost 10x the chip. What your pet keeps when it buys boxes itself ("keep at
@@ -148,11 +148,21 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   each shelf also keeps its newest 20 plain pets as cards. Errands, workers and parties draw from
   the counts; an adventure takes **stand-ins** (a pet from a count, its rarity's average stats, no
   traits, a look from a seed) that come home into the count or leave it (a star).
-- **The room** (built, simple first version): one cap for every plain pet together (500 at first,
-  x1.5 per upgrade, bought with coins; placeholders in data/herd.json). "More room" is priced in
-  capsules like boxes and errand tools (herd.json room "capsules" 500 x1.8 per level, x what a
-  capsule is worth now): 10 starter boxes a level, all game, and the open card follows the machine. A pill on the pets tab
-  shows it once the first pet folds; full, it turns pink and wiggles, box openings wait on the pile
+- **The room** (built): one cap for every plain pet together, **pets on jobs too** (500 at first).
+  It grows a step at a time on **the house card** (look A, the dollhouse; tap the room pill): one
+  cut-away house, the built steps solid with tiny pets (your real looks), the next step in pencil
+  inside it, chips for pets on the shelves and pets out on jobs, and a "next up" row (the step's
+  name, the room growing "750 › 1,100", "build it" + coins). 4 coin steps (a second plank, bunk
+  beds, a loft, the attic: 750 / 1,100 / 1,700 / 2,500), priced in capsules like boxes and errand
+  tools (500 / 900 / 1,620 / 2,920 capsules x what a capsule is worth now: 10 starter boxes for the
+  first, all game). Then wisp **squeeze-in** steps (beds three high, hammocks, pets in the drawers,
+  pets in the teapot, under the rug: x2 room each, 60 wisps x4 each), hidden until wisps have shown
+  up (until then the card says "everyone's moved in ♡"); after the list "one more squeeze" keeps
+  going forever (x2 room, x4 wisps), each tucking one more tiny pet into the house. Each step is ONE
+  currency. Short on it: the button stays tappable and your pet says so. The card stays open after
+  a build (the pencil part turns solid, sparkles, its pets hop in, your pet says the step's line).
+  All numbers are placeholders in data/herd.json "room" (the pace sim tunes them). The pill shows
+  once the first pet folds; full, it turns pink and wiggles, box openings wait on the pile
   (by hand, your pet, box workers, the machine's pet box: nothing is lost) and your pet squishes.
   Gifts (the tutorial's pets, the basket's pet) always come in.
 - **New homes** (C3 look A, built): the first time the room is full a striped stall turns up in a

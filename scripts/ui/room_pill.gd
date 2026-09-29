@@ -1,9 +1,9 @@
 class_name RoomPill
 extends PanelContainer
 ## The room on the pets tab: a little house, a meter and "412 / 500" (every plain pet together, see
-## GameState.room_cap). Full: it turns pink and wiggles now and then. Tap it for the room card:
-## more room for coins.
-## Design: design/mockups/screens/pets-shelves.html (look A, the house meter pill).
+## GameState.room_cap). Full: it turns pink and wiggles now and then. Tap it for the house card
+## (HouseCard): the room grows a step at a time.
+## Design: design/mockups/screens/pets-shelves.html (look A, the house meter pill), room-house.html.
 
 const WIGGLE_EVERY := 2.6
 
@@ -11,9 +11,8 @@ var _icon := UiTheme.icon_rect("home", 18, UiTheme.LILAC)
 var _meter := Control.new()
 var _have := UiTheme.title("0", 14, UiTheme.TEXT)
 var _cap := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
-var _card: PanelContainer
-var _card_price: Button
-var _card_sizes: Label
+var _card: HouseCard
+var _dim: ColorRect
 var _full := false
 var _fill := 0.0
 var _wiggle := 0.0
@@ -51,7 +50,8 @@ func _init() -> void:
 	refresh()
 
 
-## Numbers, colours and whether it shows at all (once a pet has folded into the herd).
+## Numbers, colours and whether it shows at all (once a pet has folded into the herd). While the
+## house card is open it's lit pink.
 func refresh() -> void:
 	var cap := GameState.room_cap()
 	var have := GameState.collection.plain_count()
@@ -59,8 +59,9 @@ func refresh() -> void:
 	_fill = clampf(float(have) / maxf(1.0, cap), 0.0, 1.0)
 	_have.text = UiTheme.num(have)
 	_cap.text = "/ " + UiTheme.num(cap)
-	var color := UiTheme.PINK if _full else UiTheme.LILAC
-	var sb := UiTheme.box(UiTheme.DEEP, UiTheme.PINK if _full else UiTheme.LILAC.lerp(UiTheme.LINE, 0.65), 999, 2, 0)
+	var open := _card != null and _card.visible
+	var color := UiTheme.PINK if _full or open else UiTheme.LILAC
+	var sb := UiTheme.box(UiTheme.PINK_PRESSED if open else UiTheme.DEEP, UiTheme.PINK if _full or open else UiTheme.LILAC.lerp(UiTheme.LINE, 0.65), 999, 2, 0)
 	sb.content_margin_left = 8
 	sb.content_margin_right = 12
 	sb.content_margin_top = 3
@@ -68,8 +69,6 @@ func refresh() -> void:
 	add_theme_stylebox_override("panel", sb)
 	_icon.texture = UiTheme.icon("home", 18, color)
 	_meter.queue_redraw()
-	if _card and _card.visible:
-		_fill_card()
 
 
 func _process(delta: float) -> void:
@@ -100,55 +99,46 @@ func _gui_input(event: InputEvent) -> void:
 		toggle_card()
 
 
-## The room card, under the pill: "more room", 500 → 750, and the price.
+## The house card (HouseCard), under the pill, with a dim layer over the pets page behind it: tap
+## outside it (or its x, or the pill again) and it closes.
 func toggle_card() -> void:
 	if _card == null:
-		_card = PanelContainer.new()
-		_card.top_level = true
-		_card.z_index = 5
-		_card.add_theme_stylebox_override("panel", UiTheme.sticker(UiTheme.LILAC_SEAM, 12, UiTheme.RAISED, 12))
-		var col := VBoxContainer.new()
-		col.add_theme_constant_override("separation", 6)
-		_card.add_child(col)
-		col.add_child(UiTheme.title("more room", 16, UiTheme.LILAC))
-		_card_sizes = UiTheme.title("", 14, UiTheme.TEXT)
-		col.add_child(_card_sizes)
-		_card_price = UiTheme.button("", func(): _buy())
-		_card_price.icon = UiTheme.icon("coin", 14, UiTheme.CYAN)
-		_card_price.add_theme_stylebox_override("normal", UiTheme.box(UiTheme.DEEP, UiTheme.PINK_SEAM, 8, 2, 6))
-		col.add_child(_card_price)
+		_dim = ColorRect.new()
+		_dim.top_level = true
+		_dim.z_as_relative = false
+		_dim.z_index = 5
+		_dim.color = Color(UiTheme.SKY, 0.58)
+		_dim.mouse_filter = MOUSE_FILTER_STOP
+		_dim.gui_input.connect(func(e: InputEvent):
+			if e is InputEventMouseButton and e.pressed:
+				_dim.accept_event()
+				hide_card())
+		add_child(_dim)
+		_card = HouseCard.new()
+		_card.closed.connect(hide_card)
 		add_child(_card)
+		_dim.visible = false
 		_card.visible = false
-	_card.visible = not _card.visible
 	if _card.visible:
-		_fill_card()
+		hide_card()
+		return
+	var cover := get_parent()
+	while cover != null and not cover is CollectionTab:
+		cover = cover.get_parent()
+	var r: Rect2 = (cover as Control).get_global_rect() if cover is Control else get_viewport_rect()
+	_dim.global_position = r.position
+	_dim.size = r.size
+	_dim.visible = true
+	z_index = 6  # the pill stays lit above the dim layer
+	_card.open(self)
+	refresh()
 
 
 func hide_card() -> void:
 	if _card:
+		_card.close()
 		_card.visible = false
-
-
-func _fill_card() -> void:
-	_card_sizes.text = "%s → %s" % [UiTheme.num(GameState.room_cap()), UiTheme.num(Herd.room_cap(GameState.catalog, GameState.room + 1))]
-	_card_price.text = UiTheme.num(GameState.room_price())
-	# stays tappable when you're short: your pet says so (room_poor) instead of a dead button
-	var poor := GameState.coins < GameState.room_price()
-	_card_price.icon = UiTheme.icon("coin", 14, UiTheme.LOCKED if poor else UiTheme.CYAN)
-	for state in ["font_color", "font_hover_color", "font_pressed_color"]:
-		if poor:
-			_card_price.add_theme_color_override(state, UiTheme.LOCKED)
-		else:
-			_card_price.remove_theme_color_override(state)
-	# right under the pill, its right edge lined up with the pill's (again on every refresh: a machine
-	# fix can make the price wider while the card is open)
-	_card.reset_size()
-	_card.global_position = global_position + Vector2(size.x - _card.get_combined_minimum_size().x, size.y + 8.0)
-
-
-func _buy() -> void:
-	if not GameState.buy_room():
-		PetBubble.say_line(self, "room_poor")
-		return
-	hide_card()
-	PetBubble.say_line(self, "room_more")
+		_dim.visible = false
+	if z_index != 0:
+		z_index = 0
+		refresh()
