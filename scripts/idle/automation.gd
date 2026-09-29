@@ -281,12 +281,13 @@ static func checks(catalog: Catalog, state: Dictionary, seconds: float) -> int:
 	return n
 
 
+## How many pets work at a job: cards and herd counts (like GameState.workers_count).
 static func _working(state: Dictionary, id: String) -> int:
 	var n := 0
 	for uid in state.get("workers", {}).get(id, []):
 		if str(uid) != "":
 			n += 1
-	return n
+	return n + Herd.total(state.get("wherd", {}).get(id, {}))
 
 
 ## What `checks` checks do, worked out without changing anything: { buys: { job id: spots },

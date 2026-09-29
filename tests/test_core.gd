@@ -1150,6 +1150,14 @@ func _test_whistle(catalog: Catalog) -> void:
 	_check(fill.fill.keys()[0] == "adventures", "parties are filled first")
 	var out := Automation.whistle_plan(catalog, p.merged({ "workers": { "machine": [], "adventures": ["a", "b"] } }, true), pjobs, 0, { "machine": 0, "adventures": 0 }, 40, 1, 2)
 	_check(int(out.fill.get("machine", 0)) == 40, "parties that are out took their pets already (%s)" % [out.fill])
+	# workers from the herd fill spots too
+	var hp := p.merged({ "spots": { "machine": 30, "adventures": 0 }, "workers": { "machine": ["a", "b"] }, "wherd": { "machine": { "common:normal": 28 } } }, true)
+	_check(Automation._working(hp, "machine") == 30, "herd workers count as working (%d)" % Automation._working(hp, "machine"))
+	var full := Automation.whistle_plan(catalog, hp, ["machine"], 0, { "machine": 0 }, 40, 1)
+	_check(int(full.fill.get("machine", 0)) == 0, "spots filled by the herd aren't filled again (%s)" % [full.fill])
+	hp.wherd = { "machine": { "common:normal": 20 } }
+	var some_left := Automation.whistle_plan(catalog, hp, ["machine"], 0, { "machine": 0 }, 40, 1)
+	_check(int(some_left.fill.get("machine", 0)) == 8, "only the spots the herd left empty get pets (%s)" % [some_left.fill])
 	p.spots = { "machine": 0, "adventures": 0 }
 	p.workers = { "adventures": [] }
 	var few := Automation.whistle_plan(catalog, p.merged({ "tools": { "wagon": 0 } }, true), ["adventures"], rich, { "adventures": 5 }, size, 1)
