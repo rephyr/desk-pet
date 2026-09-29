@@ -9,6 +9,14 @@ extends RefCounted
 const THEMES_PATH := "res://data/themes.json"
 const FONTS_DIR := "res://fonts/"
 
+# what floats over the page, bottom to top (z_index; z order is shared by the whole window)
+const Z_TAPE := 2  # a "why so much?" tape, over the stickers next to what it's stuck on
+const Z_SLIP := 3  # its slip, over the stickers after it
+const Z_PAPER := 4  # the boost receipt
+const Z_PRIZE := 4  # a prize's picture over the machine (over its slip)
+const Z_BUBBLE := 5  # your pet's speech bubble
+const Z_POPUP := 10  # the unlock popup and the tutorial guide: over everything
+
 # colour roles (set by apply() from the chosen theme)
 static var PAGE := Color("1a1024")  # the window background
 static var DEEP := Color("120a19")  # wells and buttons, sunk below the page

@@ -7,6 +7,7 @@ extends Control
 ## sticker (GameState.sticker_opened) comes the same way.
 
 signal go(tab_id: String, unlock_id: String)
+signal shown  # a card popped up
 
 var can_show: Callable  # () -> bool: whether the full game is on screen
 
@@ -27,6 +28,7 @@ func _init() -> void:
 	set_anchors_preset(PRESET_FULL_RECT)
 	mouse_filter = MOUSE_FILTER_IGNORE
 	visible = false
+	z_index = UiTheme.Z_POPUP  # its dim covers the receipt and the tapes too
 	_dim.set_anchors_preset(PRESET_FULL_RECT)
 	_dim.color = Color(UiTheme.SKY, 0.7)
 	_dim.mouse_filter = MOUSE_FILTER_STOP  # the game waits under it
@@ -104,6 +106,7 @@ func _show(entry: Dictionary) -> void:
 	_sticker_showing = entry.has("sticker")
 	up = true
 	visible = true
+	shown.emit()
 	# centre the card, then pop it in
 	var holder := _card.get_parent() as Control
 	holder.size = holder.get_combined_minimum_size()

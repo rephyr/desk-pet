@@ -59,7 +59,7 @@ func _init() -> void:
 	_buy_row.visible = false
 	bar.add_child(_buy_row)
 	bar.add_child(UiTheme.spacer())
-	bar.add_child(_income_pill())
+	bar.add_child(WhyTape.wrap(_income_pill(), GameState.errands_why, true))
 	add_child(bar)
 	_jobs_page.add_theme_constant_override("separation", 14)
 	_jobs_page.size_flags_vertical = SIZE_EXPAND_FILL

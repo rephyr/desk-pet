@@ -207,6 +207,12 @@ func _step(w: PackedStringArray) -> String:
 			for i in int(w[3]) if w.size() > 3 else 1:
 				Toys.add(GameState.toys, w[1], w[2] if w.size() > 2 else "normal")
 			GameState.toys_changed.emit()
+		"favourite":  # favourite <toy> [finish]: you have it at the top level (a favourite: always on)
+			var edition := Toys.key(w[1], w[2] if w.size() > 2 else "normal")
+			if not GameState.toys.owned.has(edition):
+				Toys.add(GameState.toys, w[1], w[2] if w.size() > 2 else "normal")
+			GameState.toys.owned[edition].level = int(Toys.data(GameState.catalog).max_level)
+			GameState.toys_changed.emit()
 		"fix":  # fix <node> [levels]: that machine tree node, for free (skips the building-up)
 			GameState.machine.bought[w[1]] = Machine.owned(GameState.machine, w[1]) + (int(w[2]) if w.size() > 2 else 1)
 			GameState._knack_gates_changed()  # like a real fix
@@ -304,6 +310,26 @@ func _step(w: PackedStringArray) -> String:
 				for p in parts:
 					bits.append("%s %s x%.3f" % [p.source, p.id, float(p.x)])
 				_write(("boost %s x%.3f %s" % [k, Boosts.total(parts), ", ".join(bits)]).strip_edges())
+		"play":  # play <toy> [finish]: your pet plays with that toy (a quick play; you must have it)
+			var edition := Toys.key(w[1], w[2] if w.size() > 2 else "normal")
+			if not GameState.play_toy(edition, "quick"):
+				return "couldn't play with %s" % edition
+		"why":  # why <trip | errands | machine>: that "why so much?" slip's lines, in the log
+			var why := {}
+			match w[1]:
+				"errands": why = GameState.errands_why()
+				"machine": why = GameState.capsule_why()
+				"trip":
+					for card in _all(Postcard):
+						if card.is_visible_in_tree():
+							why = card.coins_why
+				_: return "no why for %s" % w[1]
+			if why.is_empty():
+				return "no why for %s" % w[1]
+			var bits: Array[String] = ["%s %s" % [why.start.name, UiTheme.num(float(why.start.value))]]
+			for l in why.lines:
+				bits.append("%s %s" % [l.name, Boosts.times(float(l.x))])
+			_write("why %s: %s = %s" % [w[1], ", ".join(bits), UiTheme.num(float(why.total))])
 		"dress":  # dress body=bunny eyes=cyclops finish=holo: your active pet's parts and finish
 			var pet := GameState.collection.active()
 			if pet == null:
@@ -431,7 +457,16 @@ func _expect(w: PackedStringArray) -> String:
 			var game: Control = get_parent().full_game()
 			var room := game.get_viewport_rect().size
 			var need := game.get_combined_minimum_size()
-			return "" if need.x <= room.x + 0.5 and need.y <= room.y + 0.5 else "needs %s, the window is %s" % [need, room]
+			if need.x > room.x + 0.5 or need.y > room.y + 0.5:
+				return "needs %s, the window is %s" % [need, room]
+			# papers floating over the page (the boost receipt, "why so much?" slips) stay inside too
+			var window := Rect2(Vector2.ZERO, room).grow(0.5)
+			for paper in _all(BoostReceipt) + _all(WhySlip):
+				if paper.is_visible_in_tree():
+					var r: Rect2 = paper.get_global_rect()
+					if not window.encloses(r):
+						return "%s spills out: %s, the window is %s" % [paper.get_script().get_global_name(), r, room]
+			return ""
 	return "unknown expect %s" % w[1]
 
 

@@ -44,3 +44,53 @@ static func total(list: Array) -> float:
 static func part(source: String, id: String, x: float) -> Dictionary:
 	return { "source": source, "id": id, "x": x }
 
+
+
+## A multiplier as the receipt writes it: "x1.25", "x12.5" from 10, "x123" from 100, then "x1.2k",
+## "x34M" and so on (boosts can go big late in the game).
+static func times(x: float) -> String:
+	if x < 10.0:
+		return "x%.2f" % x
+	if x < 100.0:
+		return "x%.1f" % x
+	if x < 1000.0:
+		return "x%d" % roundi(x)
+	var v := x
+	for u in ["k", "M", "B", "T"]:
+		v /= 1000.0
+		if v < 1000.0:
+			return "x" + (("%.1f" % v).trim_suffix(".0") if v < 100.0 else str(roundi(v))) + u
+	return "x%.1e" % x
+
+
+## The boost receipt's rows: every kind with parts, in data/boosts.json order, each with its total
+## and one line per part, the lines in the "sources" order (toys, book, knacks, kitchen; a source
+## not listed goes last). `parts_by_kind` is kind -> its parts (GameState.boost_parts); `namer` is a
+## Callable(part) -> String giving a line its name (this knows no game system). Kinds with no parts
+## are left out:
+##   [ { kind, name, total, lines: [ { source, name, x } ] } ]
+static func receipt(catalog: Catalog, parts_by_kind: Dictionary, namer: Callable) -> Array:
+	var out := []
+	var order: Array = catalog.boosts.get("sources", [])
+	for k in catalog.boosts.kinds:
+		var parts: Array = parts_by_kind.get(str(k.id), [])
+		if parts.is_empty():
+			continue
+		var lines := []
+		for i in order.size() + 1:  # the last round: every source not in the list
+			for p in parts:
+				if (str(p.source) == str(order[i])) if i < order.size() else not str(p.source) in order:
+					lines.append({ "source": str(p.source), "name": str(namer.call(p)), "x": float(p.x) })
+		out.append({ "kind": str(k.id), "name": str(k.get("name", k.id)), "total": total(parts), "lines": lines })
+	return out
+
+
+## A "why so much?" slip: where the number starts, what multiplied it (lines at x1 are left out,
+## they did nothing), and what it came to:
+##   { start: { name, value }, lines: [ { name, x } ], total }
+static func why(start_name: String, start_value: float, lines: Array, all_together: float) -> Dictionary:
+	var kept := []
+	for l in lines:
+		if absf(float(l.x) - 1.0) >= 0.005:
+			kept.append({ "name": str(l.name), "x": float(l.x) })
+	return { "start": { "name": start_name, "value": start_value }, "lines": kept, "total": all_together }

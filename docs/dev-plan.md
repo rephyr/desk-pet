@@ -52,7 +52,7 @@ Built (see CLAUDE.md "Where we left off"):
 **Lanes (2026-09-29):** steps are built in parallel in git worktrees under
 ~/projects/desk-pets-lanes/ (branches `lanes/<name>`), each writes docs/plans/<STEP>-done.md,
 and `lanes/merge` merges them one by one (save versions renumbered in merge order). Built in a
-lane and verified there, **not merged yet**: B2 receipt (`lanes/receipt`), A5 sunset globe
+lane and verified there, **not merged yet**: A5 sunset globe
 (`lanes/globes`), E2 next door (`lanes/nextdoor`), C2 past the edge + the school (`lanes/edge`),
 E1 the dungeon (`lanes/dungeon`), F1 the plushie machine (`lanes/plushie`), care A/E/C
 (`lanes/care`), room upgrades / the dollhouse (`lanes/house`), E3 the sewing room + the perk
@@ -242,7 +242,7 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   workers count boxes. Midnight waits for the next-door page (E2). Flow box_tiers. Questions for
   Emilia in docs/plans/B1-done.md.
 
-### B2. Multipliers  (plumbing BUILT, merged; receipt BUILDING in lane receipt, not merged)
+### B2. Multipliers  (plumbing BUILT, merged; receipt BUILT, merged)
 - Book page boosts (A4, decided), knacks from the active pet's parts (D1, decided: knacks),
   toys (built), finds. Income must keep growing. **Prep:** where the player sees them all.
 - **Emilia picked (2026-09-28): the receipt by the coin pill**, look A, the dark till roll: a
@@ -257,8 +257,12 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   `boost_parts(kind)`, `Boosts` + data/boosts.json kind table, `toy_boost` removed. Sources: toys,
   the book's stickers, your active pet's knacks, the kitchen (errand speed; it multiplies now
   instead of adding to the tools' speed, so it's worth more with lots of tools). Kind `automation`
-  = automation speed (crank, box opening, workers; not adventures). Receipt UI by the coin pill
-  still waits for its look.
+  = automation speed (crank, box opening, workers; not adventures).
+- **Built (B2UI, lane receipt, merged):** the receipt, look A (the dashed "x1.51" tag by the coin
+  pill, the dark torn receipt "our boosts" by kind, shared boosts only) and the "why so much?"
+  tapes on the postcard's coins, the errands pill and the machine's capsule line. Book stickers
+  ("a paint set") and the kitchen are named on it through `GameState._boost_line_name`. No save
+  change. Open questions for Emilia in docs/plans/B2UI-done.md.
 
 ### B3. Automation layer 2: pets restock and buy spots  (BUILT + VERIFIED, merged, save v27)
 - **Emilia:** workers can open boxes but not buy them, machines must be bought and filled by hand
@@ -648,7 +652,7 @@ are collected at the end of docs/picks.md. The bigger ones:
 
 ## Suggested order
 
-Merge the waiting lanes (B2 receipt, A5 sunset globe, C2 edge + school, E2 next door, E1 the
+Merge the waiting lanes (A5 sunset globe, C2 edge + school, E2 next door, E1 the
 well, care, room house, E3 sewing room + perk wall, F1 plushie machine, F3 wish jar + shed
 workshop) → the balance picks + a new pace run → the rule-break cleanup → A5's midnight globe
 (needs E2) → F2's handoff rules → X2 (split GameState).

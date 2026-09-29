@@ -389,10 +389,7 @@ func _editions(toy_id: String) -> Array:
 
 
 static func _edition_name(edition: String) -> String:
-	var catalog := Catalog.shared()
-	var bits := Toys.split(edition)
-	var name := str(Toys.toy(catalog, bits[0]).get("name", bits[0]))
-	return name if bits[1] == "normal" else "%s %s" % [Toys.finish(catalog, bits[1]).name, name]
+	return Toys.edition_name(Catalog.shared(), edition)
 
 
 static func _wear_word(wear: float) -> String:

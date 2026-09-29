@@ -340,6 +340,11 @@ class MachineStage extends Control:
 	var lever_target := Control.new()
 	## The prize card in the corner (hidden in the tutorial: capsules only hold coins then).
 	var odds := OddsCard.new()
+	## "why so much?" at the end of the "N coins a capsule" line, once upgrades multiply it.
+	var why_tape := WhyTape.new(GameState.capsule_why)
+	var _line := ""  # the "N coins a capsule" line under the counter (see _counter_line)
+	var _line_check := 0.0
+	var _placed_for := ""  # the line the tape was last put at the end of
 
 	func _init() -> void:
 		mouse_filter = MOUSE_FILTER_STOP
@@ -360,7 +365,12 @@ class MachineStage extends Control:
 		lever_target.mouse_filter = MOUSE_FILTER_IGNORE
 		add_child(lever_target)
 		add_child(odds)
+		_popup.z_index = UiTheme.Z_PRIZE  # a prize lands over an open "why so much?" slip
 		add_child(_popup)
+		why_tape.also = func(): return not GameState.tutorial_active() and GameState.fever_left() <= 0.0
+		add_child(why_tape)
+		add_child(why_tape.slip)
+		why_tape.visibility_changed.connect(_place_tape)
 		resized.connect(func(): odds.place(size))
 
 	static func _colors() -> Array:
@@ -461,6 +471,11 @@ class MachineStage extends Control:
 			return
 		_time += delta
 		_idle += delta
+		_line_check -= delta
+		if _line_check <= 0.0 or _line == "":
+			_line_check = 0.2
+			_line = _counter_line()
+		_place_tape()
 		_shake = move_toward(_shake, 0.0, delta * 4.0)
 		_refused = move_toward(_refused, 0.0, delta * 3.0)
 		_jolt = move_toward(_jolt, 0.0, delta * 5.0)
@@ -1077,13 +1092,32 @@ class MachineStage extends Control:
 		var sz := int(26.0 * (1.0 + pop * 0.12))
 		draw_texture_rect(UiTheme.icon("coin", 22, UiTheme.CYAN), Rect2(at + Vector2(-16, -12 - pop * 2.0), Vector2(22, 22)), false)
 		draw_string(font, at + Vector2(12, 8), UiTheme.num(_shown_coins), HORIZONTAL_ALIGNMENT_LEFT, -1, sz, UiTheme.TEXT.lerp(UiTheme.CYAN, pop * 0.6))
-		var per := Machine.coin_value(GameState.machine, Catalog.shared()) * GameState.boost("coins")
-		var chutes := Machine.chutes(GameState.machine, Catalog.shared())
-		var line := "%s coin%s a capsule%s" % [UiTheme.num(per), "" if per < 1.5 else "s", ", %d chutes" % chutes if chutes > 1 else ""]
+		var left := GameState.fever_left()
+		draw_string(UiTheme.BODY_FONT, at + Vector2(-16, 30), _line, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UiTheme.GOLD if left > 0.0 else UiTheme.MUTED)
+
+	## The tape sits at the end of the capsule line, its slip under the line (moved only when the
+	## line changes).
+	func _place_tape() -> void:
+		if not why_tape.visible:
+			_placed_for = ""
+			return
+		if _line == _placed_for:
+			return
+		_placed_for = _line
+		var at := _counter_at()
+		var line_w := UiTheme.BODY_FONT.get_string_size(_line, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+		why_tape.size = why_tape.get_combined_minimum_size()
+		why_tape.position = Vector2(at.x - 16.0 + line_w + 10.0, at.y + 30.0 - why_tape.size.y + 4.0)
+		why_tape.slip.position = Vector2(at.x - 16.0, at.y + 42.0)
+
+	## "12 coins a capsule, 2 chutes" under the counter (or the fever's countdown).
+	func _counter_line() -> String:
 		var left := GameState.fever_left()
 		if left > 0.0:
-			line = "fever! every capsule x%d for %d more seconds" % [int(Catalog.shared().machine.fever_pay), ceili(left)]
-		draw_string(UiTheme.BODY_FONT, at + Vector2(-16, 30), line, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UiTheme.GOLD if left > 0.0 else UiTheme.MUTED)
+			return "fever! every capsule x%d for %d more seconds" % [int(Catalog.shared().machine.fever_pay), ceili(left)]
+		var per := Machine.coin_value(GameState.machine, Catalog.shared()) * GameState.boost("coins")
+		var chutes := Machine.chutes(GameState.machine, Catalog.shared())
+		return "%s coin%s a capsule%s" % [UiTheme.num(per), "" if per < 1.5 else "s", ", %d chutes" % chutes if chutes > 1 else ""]
 
 	# ---- drawing helpers ------------------------------------------------------------------
 

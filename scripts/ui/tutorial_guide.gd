@@ -14,6 +14,7 @@ var _ring := UiTheme.stitched(UiTheme.PINK, Color(0, 0, 0, 0), 14, 0)
 
 func _init() -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
+	z_index = UiTheme.Z_POPUP  # over the receipt and the tapes
 	_bubble.mouse_filter = MOUSE_FILTER_IGNORE
 	_bubble.add_theme_stylebox_override("panel", UiTheme.sticker(UiTheme.PINK_SEAM, 14, UiTheme.RAISED, 10))
 	_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART

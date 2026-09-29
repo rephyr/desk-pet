@@ -108,6 +108,18 @@ static func coin_value(state: Dictionary, catalog: Catalog) -> float:
 	return float(catalog.machine_tree.get("base_coins", 1)) * mult(state, catalog, "coins_x")
 
 
+## What multiplies a capsule's coins, one line per bought upgrade that does, in tree order:
+## [ { id, name, x } ] (x = its coins_x to the power of its levels). Their product x base_coins is
+## coin_value.
+static func coin_parts(state: Dictionary, catalog: Catalog) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for n in catalog.machine_tree.nodes:
+		var level := owned(state, n.id)
+		if level > 0 and n.each.has("coins_x"):
+			out.append({ "id": str(n.id), "name": str(n.name), "x": pow(float(n.each.coins_x), level) })
+	return out
+
+
 static func chutes(state: Dictionary, catalog: Catalog) -> int:
 	return 1 + int(add(state, catalog, "chutes"))
 

@@ -37,7 +37,7 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `_boosts_changed()` whenever its state changes (`check_book`, `_kitchen_changed`).
 - `boost()` is called every frame (errand meters, the machine), so totals are kept in `_boosts` and
   cleared by `_boosts_changed()`: on `toys_changed`, a new game, a load, and the once-a-second tick
-  (plays run out). `boost_parts()` is never cached (the `boosts` dev step, the receipt later).
+  (plays run out). `boost_parts()` is never cached (the `boosts` dev step, the receipt).
 - Game code only ever calls `boost()`; no source has its own multiplier call.
 - Knacks (D1) are the second source: `Knacks` (scripts/pets/knacks.gd, static, pure: a gate
   Callable goes in) works a pet's knacks out of its parts and finish; nothing is saved. `of` /
@@ -63,6 +63,35 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `AdventureRunner.walk_of` (boots then / trip), hurt and injured counts / tough, lost / safe,
   `Intel.roll(.., x)` lead chance x spots, trail pickups, treat zoom, extra bits and parts in
   `_boost_trip_loot`.
+- The receipt (B2UI): `GameState.boost_receipt()` = `Boosts.receipt(catalog, parts_by_kind, namer)`
+  over every kind's `boost_parts` (kinds in boosts.json order, lines in `sources` order, unknown
+  sources last; `[{ kind, name, total, lines: [{ source, name, x }] }]`). Line names come from
+  `GameState._boost_line_name` (toys: `Toys.edition_name`, book: the sticker's page name, knacks:
+  `Knacks.part_names`, kitchen: "the kitchen"; a new source adds its case there). `Boosts.times(x)` formats "x1.25". UI: `BoostTag` (a Button by the
+  coin pill in ExpandedView, StitchBox dashes, checks `boost_parts("coins")` every 0.5 s) toggles
+  `BoostReceipt` (a Control on ExpandedView's `_paper` overlay, a plain Control child of the page
+  body, z `UiTheme.Z_PAPER`, so it adds no minimum size and draws over the tab, under the bubble). The receipt
+  refreshes every 30 frames while open (rebuilt only when the rows change), sizes itself
+  (`max_height` = the page) and scrolls its lines past that. It also holds the paper drawing both
+  papers use (`draw_paper`, `barcode`, `rule`, `leader`: Labels, so flows can find the text).
+- "Why so much?": `Boosts.why(start_name, start_value, lines, total)` -> `{ start: { name, value },
+  lines: [{ name, x }], total }` (drops lines within 0.005 of x1). `_boost_trip_loot` returns the
+  trip's (same maths, recorded as it goes; `collect_run` puts it on the trip as `coins_why`, never
+  saved), `capsule_why()` (`Machine.coin_parts`: one `{ id, name, x }` per bought coins_x node,
+  their product x base_coins = `coin_value`), `errands_why()` (`_errands_layered(tools, goals,
+  tips)`: the per-minute total with layers switched off, each layer = the ratio; layered tips, then
+  tools, then goals, so the fancy cups count as a tool). `errands_per_minute()` IS
+  `_errands_layered(true, true, true, true)` (each job's errands boost, `_job_errands_x`: the kitchen
+  leaves out its own bonus) x the coins boost, "our boosts" = that over the plain total, and `job_rate` /
+  `job_boost` / `job_tips` take the same switches (`_job_plain_rate`, `_job_tool_numbers`), so the
+  slip always multiplies up to the pill (test_core checks it). `WhyTape` (a
+  Button, TapeBox StyleBox) re-reads its `source` Callable every 0.5 s and shows only with a line;
+  `WhyTape.wrap(target, source, right)` puts a chip / pill in a plain Control box with the tape on
+  its top edge and the `WhySlip` (z 3, ignores the mouse) under it. The machine's tape is a child
+  of MachineStage placed at the end of the capsule line when the line changes (the line is worked
+  out every 0.2 s; `also`: not in the tutorial or fever). Z order over the page (UiTheme `Z_*`):
+  tape 2, slip 3, receipt 4, the machine's prize picture 4, bubble 5, the unlock popup and the
+  tutorial guide 10 (z is shared by the whole window); a popup showing folds the receipt. `expect fits` also checks every visible BoostReceipt and WhySlip is inside the window.
 
 ## Pets
 
