@@ -72,7 +72,8 @@
 		{ "id": "cushion", "name": "a comfy cushion" },
 		{ "id": "piggy", "name": "a piggy bank" },
 		{ "id": "tiny_machine", "name": "a tiny capsule machine" },
-		{ "id": "whistle", "name": "a tiny whistle" }
+		{ "id": "whistle", "name": "a tiny whistle" },
+		{ "id": "sunset_globe", "name": "a sunset globe" }
 	],
 	"pages": [
 		{ "id": "backyard", "name": "the backyard", "start": true },

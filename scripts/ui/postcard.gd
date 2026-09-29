@@ -123,7 +123,7 @@ func show_trip(trip: Dictionary) -> void:
 			tags.add_child(UiTheme.tag("a %s" % box_name if n == 1 else "%d %ses" % [n, box_name], UiTheme.LILAC))
 	for key: String in loot:
 		if key.begins_with("bit:"):
-			tags.add_child(UiTheme.chip("bit_" + key.substr(4), "%d %s" % [int(loot[key]), key.substr(4) + ("" if int(loot[key]) == 1 or key.ends_with("glass") else "s")], UiTheme.TEXT))
+			tags.add_child(UiTheme.chip("bit_" + key.substr(4), "%d %s" % [int(loot[key]), MachineTab.bit_name(key.substr(4), int(loot[key]))], UiTheme.TEXT))
 	for find_name in trip.finds:
 		tags.add_child(UiTheme.tag(find_name, UiTheme.GOLD))
 	var heard := Rewards.total(loot, "rumour")

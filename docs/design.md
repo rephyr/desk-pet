@@ -268,11 +268,10 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   only comes in a pull's first capsule, so once a pull can drop more than one capsule (a second
   chute, double / triple drop) the pet box moves under its own "a pull" row with its chance a pull. The upgrade shelf (Cookie Clicker's
   store): fuller capsules, a springier spring, shinier capsules, luckier lights, and locked ones
-  found on adventures later. **Decided (Emilia):** your lever is not automated in the early stages;
-  later your pet cranks its own slow machine and workers crank bought machines (automation tab).
-  It stays relevant all game as a side objective you keep building: **the newest globe turns by
-  hand only** (a globe per map page, A5), while your pet, workers and errands pay at the globe one
-  step behind, so pulling by hand is always best. Its point: coins to get pets.
+  found on adventures later. **Decided (Emilia, updated):** your hand is never replaced: early on
+  nothing works the machine for you; later your pet and workers crank (automation) and errands pay out, but
+  only at the globe one step behind yours (see "Globes" below): the newest globe turns by hand only, so
+  pulling it yourself is always best. Its point: coins to get pets.
   **Capsule toys (built, data/toys.json, Toys):** the machine's own chase. About 1 capsule in 15
   holds a pixel-art toy from a SET (the first: backyard friends, 4 common, 2 uncommon, 1 rare,
   1 secret "???"), in a finish (normal, holo, gold foil, ghost). A good prize pops up as a PICTURE.
@@ -351,7 +350,26 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   The whole early game is paced with tools/pace.gd (a pretend player on the real rules; findings and
   suggested numbers in docs/reports/pace.md).
   Mockup: design/mockups/screens/capsules.html. **Next:** rummaging changes to finding machine bits;
-  pull value grows with the rest of your income; new globes per map page; rewards get tuned.
+  pull value grows with the rest of your income; rewards get tuned.
+  **Globes (A5, built, look A):** a globe per map page (data/machine_tree.json "globes"): sunny,
+  sunset, midnight (data only until next door exists). Once the sunny globe's hatch is open and the
+  tiny machine is home, the next far fields trip brings home the **sunset globe** (event
+  `fields_sunset_globe`), broken: leaves and a nest inside, holes in the glass with a capsule
+  dribbling out, a heavy lever that sags, cloudy glass, a rusted crooked hatch. It stands beside the
+  sunny one on the stage (it slides in, your pet says so once, the machine tab has a news dot until
+  you've seen it). Its five repairs grow off the old rusted hatch on the tree: shoo out the nest >
+  cork the holes > a pulley for the lever > amber glass > the rusted hatch, and a "sunset fixes"
+  list takes "next up"'s place while any are left (the whole chain shows once the globe is home,
+  on the list and on the tree: later repairs dim, never "?"). They need new bits that only drop once
+  the globe is home: corks and amber glass (the orchard), pulleys (the old well), copper wire (the
+  far fields); the bits pills show the newest globe's bits while it's being fixed, then the bits the
+  upgrades you can work on ask for. The nest makes it work: from then on **your
+  hand pulls the newest globe** and the older one is workers only (your pet and workers crank it,
+  one hanging off its lever; errands pay at that globe too). A later globe gets the older globes'
+  coins, extra balls, shiny, fever and drops, times its `step` (sunset x12), but chutes, lights and
+  glass are its own (the sunset globe starts with one chute, no lights, no shiny until amber glass).
+  Its hatch makes box and pet box prizes sunset boxes and adds the sunset toy set (firefly,
+  hedgehog, sleepy owl, paper lantern) to the toy roll. Until then it drops what the sunny one does.
 
 ## Adventures (idle side)
 

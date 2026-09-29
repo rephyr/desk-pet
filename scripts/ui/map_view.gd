@@ -153,7 +153,7 @@ func _collect() -> void:
 	_nodes.assign(at.values())
 	_needed.clear()
 	for n in catalog.machine_tree.nodes:
-		if not Machine.maxed(GameState.machine, catalog, n.id):
+		if not Machine.maxed(GameState.machine, catalog, n.id) and Machine.look(GameState.machine, catalog, n.id) != "away":
 			for b in Machine.bits_cost(catalog, n.id):
 				_needed[b] = true
 	if selected != "" and not at.has(selected):
@@ -285,8 +285,10 @@ func _draw_node(node: Dictionary) -> void:
 	_label(at + Vector2(0, 44) * k, location.name, Color(color, 1.0) if node.kind == "open" else DIM, _title_font, int(17 * k))
 	var bit := bit_of(location)
 	if node.kind == "open":
-		if bit != "":
-			_bit_line(at + Vector2(0, 62) * k, bit, "%s here!" % MachineTab.bit_name(bit, 2), k, 1.0)
+		var line_y := 62.0
+		for b in bits_of(location):
+			_bit_line(at + Vector2(0, line_y) * k, b, "%s here!" % MachineTab.bit_name(b, 2), k, 1.0)
+			line_y += 16.0
 		var note := str(location.map.get("note", ""))
 		if note != "":
 			draw_string(_note_font, at + Vector2(30, -24) * k, note, HORIZONTAL_ALIGNMENT_LEFT, -1, int(14 * k), YELLOW if doodle != "house" else PINK)
@@ -296,7 +298,10 @@ func _draw_node(node: Dictionary) -> void:
 		if bit != "":  # a little icon after the name: what's waiting there
 			var w := _title_font.get_string_size(location.name, HORIZONTAL_ALIGNMENT_LEFT, -1, int(17 * k)).x
 			var s := 16.0 * k
-			draw_texture_rect(UiTheme.icon("bit_" + bit, int(s)), Rect2(at + Vector2(w / 2.0 + 5.0 * k, 44.0 * k - s + 2.0 * k), Vector2(s, s)), false)
+			var x := w / 2.0 + 5.0 * k
+			for b in bits_of(location):
+				draw_texture_rect(UiTheme.icon("bit_" + b, int(s)), Rect2(at + Vector2(x, 44.0 * k - s + 2.0 * k), Vector2(s, s)), false)
+				x += s + 2.0 * k
 		var by := str(GameState.spotted[node.id].get("by", ""))
 		var line := "%s saw this!" % by if by != "" else "someone saw this!"
 		_label(at + Vector2(0, 62) * k, line, DIM, _note_font, int(13 * k))
@@ -361,22 +366,25 @@ func _draw_trips() -> void:
 		i += 1
 
 
-## The machine bit a place's pets bring home when they go all the way (its finish_rewards), or "".
-static func bit_of(location: Dictionary) -> String:
+## The machine bits a place's pets bring home when they go all the way (its finish_rewards): only
+## the ones that can come yet (a treat with "after" waits for that find).
+static func bits_of(location: Dictionary) -> Array[String]:
+	var out: Array[String] = []
 	for r in location.get("finish_rewards", []):
-		if str(r.get("kind", "")) == "bit":
-			return str(r.get("id", ""))
-	return ""
+		if str(r.get("kind", "")) == "bit" and (not r.has("after") or GameState.finds.has(str(r.after))):
+			out.append(str(r.get("id", "")))
+	return out
 
 
-## The colour a bit is drawn in (the same as its icon).
+## The first of those, or "".
+static func bit_of(location: Dictionary) -> String:
+	var all := bits_of(location)
+	return all[0] if not all.is_empty() else ""
+
+
+## The colour a bit is drawn in (the same as its icon, machine_tree.json "bits").
 static func bit_color(bit: String) -> Color:
-	match bit:
-		"gear": return UiTheme.LILAC
-		"spring": return UiTheme.MINT
-		"bolt": return UiTheme.GOLD
-		"glass": return UiTheme.CYAN
-	return UiTheme.TEXT
+	return UiTheme.named_color(str(Machine.bit_info(Catalog.shared(), bit).get("color", "text")), UiTheme.TEXT)
 
 
 ## A bit's icon and a little note, centred on `at` (the text's baseline).

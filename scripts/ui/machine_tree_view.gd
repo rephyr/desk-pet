@@ -6,14 +6,20 @@ extends HBoxContainer
 ## now breathe, the ones coming later are dark, the rest are "?". On the right, the picked node:
 ## a little picture of the machine (what's still broken), what it does, and what it costs in coins
 ## and bits (pets bring bits home from adventures). Design: design/mockups/screens/machine-tree.html.
+## A later globe's repairs grow off the old rusted hatch: the page frames the newest globe's part of
+## the tree (its "view"), older nodes fade behind it, and a sign per globe pans between them
+## (design/mockups/screens/globes.html, the upgrades page).
 
-const MAP := Vector2(600, 460)  # the tree's map, see data/machine_tree.json "at"
+const MAP := Vector2(600, 460)  # the first globe's part of the tree's map, see data/machine_tree.json "at"
 const BRANCH_COLORS := { "repair": "pink", "coins": "cyan", "chutes": "mint", "balls": "gold", "shiny": "lilac", "lights": "gold", "drops": "pink" }
-const BRANCH_NAMES := { "repair": "a repair", "coins": "coins", "chutes": "chutes", "balls": "extra balls", "shiny": "shiny balls", "lights": "lights", "drops": "the big one" }
+const BRANCH_NAMES := { "repair": "a repair", "coins": "coins", "chutes": "chutes", "balls": "extra balls", "shiny": "shiny balls", "lights": "lights", "drops": "the big one", "sunset": "a repair" }
+const REPAIRS := ["repair", "drops", "sunset"]  # branches whose nodes are fixed (not upgraded), drawn big
 
 var tree := TreeMap.new()
 var _detail := VBoxContainer.new()
 var _picked := ""
+var _signs := HBoxContainer.new()
+var _newest := ""
 
 
 func _init() -> void:
@@ -25,6 +31,9 @@ func _init() -> void:
 		_picked = id
 		_build_detail())
 	add_child(tree)
+	_signs.position = Vector2(12, 10)
+	_signs.add_theme_constant_override("separation", 8)
+	tree.add_child(_signs)
 	var side := PanelContainer.new()
 	side.custom_minimum_size = Vector2(250, 0)
 	side.add_theme_stylebox_override("panel", UiTheme.sticker(UiTheme.LILAC_SEAM, 12, UiTheme.RAISED, 14))
@@ -41,22 +50,83 @@ func _init() -> void:
 			_build_detail())
 	visibility_changed.connect(func():
 		if is_visible_in_tree():
-			if _picked == "":
+			var newest := Machine.newest(GameState.machine, Catalog.shared())
+			if newest != _newest:
+				# a new globe came home: frame its part of the tree and look at its first repair
+				_newest = newest
+				tree.frame(newest, false)
+				_picked = ""
+			if _picked == "" or Machine.look(GameState.machine, Catalog.shared(), _picked) == "away":
 				_picked = _suggest()
+				# the suggestion can be on an older globe (the newest one's all fixed): look at it
+				var g := Machine.globe_of(Catalog.shared(), Machine.node(Catalog.shared(), _picked))
+				if g != tree.viewing:
+					tree.frame(g, false)
 			tree.picked_id = _picked
 			tree.queue_redraw()
+			_build_signs()
 			_build_detail())
 
 
-## The node worth looking at first: the cheapest one you can work on.
+## A sign per globe you have (once there are two), top left of the tree: tap one to pan to its part.
+func _build_signs() -> void:
+	UiTheme.clear(_signs)
+	var catalog := Catalog.shared()
+	var home := Machine.home(GameState.machine, catalog)
+	_signs.visible = home.size() > 1
+	if home.size() < 2:
+		return
+	for i in home.size():
+		var g: String = home[i]
+		var color := MachineTab.globe_color(g)
+		var b := Button.new()
+		b.name = "sign_" + g
+		b.focus_mode = FOCUS_NONE
+		b.mouse_default_cursor_shape = CURSOR_POINTING_HAND
+		b.text = str(Machine.globe(catalog, g).get("name", g))
+		b.icon = UiTheme.icon(str(Machine.globe(catalog, g).get("icon", "globe_sunny")), 16, color)
+		b.add_theme_font_override("font", UiTheme.DISPLAY_FONT)
+		b.add_theme_font_size_override("font_size", 14)
+		var on := g == tree.viewing
+		for state in ["normal", "hover", "pressed", "focus"]:
+			var sb := UiTheme.box(UiTheme.RAISED if on or state == "hover" else UiTheme.DEEP, color if on or state == "hover" else UiTheme.LINE, 6, 2, 0)
+			sb.content_margin_left = 8
+			sb.content_margin_right = 10
+			sb.content_margin_top = 4
+			sb.content_margin_bottom = 3
+			b.add_theme_stylebox_override(state, sb)
+		for key in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color"]:
+			b.add_theme_color_override(key, color if on else UiTheme.MUTED)
+		b.rotation_degrees = -2.0 if i % 2 == 0 else 2.0
+		b.pressed.connect(func():
+			tree.frame(g, true)
+			_build_signs())
+		_signs.add_child(b)
+
+
+## The node worth looking at first: the newest globe's next repair while it has any, otherwise the
+## cheapest one you can work on.
 func _suggest() -> String:
 	var catalog := Catalog.shared()
 	var best := ""
+	var newest := Machine.newest(GameState.machine, catalog)
+	if newest != Machine.first_globe(catalog):
+		for n in Machine.repairs(catalog, newest):
+			if not Machine.maxed(GameState.machine, catalog, n.id):
+				return str(n.id)
 	for n in catalog.machine_tree.nodes:
 		if Machine.look(GameState.machine, catalog, n.id) == "next" or (Machine.owned(GameState.machine, n.id) > 0 and not Machine.maxed(GameState.machine, catalog, n.id)):
 			if best == "" or Machine.cost(GameState.machine, catalog, n.id) < Machine.cost(GameState.machine, catalog, best):
 				best = n.id
 	return best if best != "" else str(catalog.machine_tree.nodes[0].id)
+
+
+## A node's colour: a later globe's nodes wear the globe's colour, the first globe's their branch's.
+static func node_color(n: Dictionary) -> Color:
+	var g := Machine.globe_of(Catalog.shared(), n)
+	if g != Machine.first_globe(Catalog.shared()):
+		return MachineTab.globe_color(g)
+	return color_of(str(n.branch))
 
 
 static func color_of(branch: String) -> Color:
@@ -75,15 +145,15 @@ func _build_detail() -> void:
 	var n := Machine.node(catalog, _picked)
 	if n.is_empty():
 		return
-	var mini := MachineMini.new()
+	var mini := MachineMini.new(Machine.globe_of(catalog, n))
 	mini.size_flags_horizontal = SIZE_SHRINK_CENTER
 	_detail.add_child(mini)
 	var look := Machine.look(state, catalog, _picked)
-	if look == "hidden":
+	if look == "hidden" or look == "away":
 		_detail.add_child(_centered(UiTheme.title("???", 19)))
 		_detail.add_child(_wrapped("something else is broken in there… fix what's next to it first.", UiTheme.MUTED))
 		return
-	var color := color_of(n.branch)
+	var color := node_color(n)
 	_detail.add_child(_centered(UiTheme.title(str(n.name), 19)))
 	var level := Machine.owned(state, _picked)
 	var max_level := int(n.get("max", 1))
@@ -110,7 +180,7 @@ func _build_detail() -> void:
 	var need := Machine.bits_cost(catalog, _picked)
 	for b in need:
 		var have := int(GameState.bits.get(b, 0))
-		costs.add_child(_cost_row("bit_" + b, "%d %s" % [int(need[b]), MachineTab.bit_name(b, int(need[b]))], have >= int(need[b]), "you have %d" % have))
+		costs.add_child(_cost_row("bit_" + b, "%d %s" % [int(need[b]), Machine.bit_name(catalog, b, int(need[b]))], have >= int(need[b]), "you have %d" % have))
 		if have < int(need[b]):
 			var hint := UiTheme.label(GameState.bit_hint(b), UiTheme.MUTED, UiTheme.SMALL)
 			hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -118,7 +188,7 @@ func _build_detail() -> void:
 			costs.add_child(hint)
 	_detail.add_child(box)
 	var why := Machine.blocker(state, catalog, _picked, GameState.coins, GameState.bits)
-	var text := "fix it" if n.branch == "repair" or n.branch == "drops" else "upgrade"
+	var text := "fix it" if n.branch in REPAIRS else "upgrade"
 	if why == "coins":
 		text = "not enough coins"
 	elif why != "":
@@ -156,7 +226,25 @@ class TreeMap extends Control:
 	signal picked(id: String)
 
 	var picked_id := ""
+	var viewing := ""  # the globe whose part of the tree is framed (frame() sets it)
+	var _view := Rect2(Vector2.ZERO, MAP)  # the part of the map that's framed (tweened when panning)
 	var _time := 0.0
+	var _alpha := 1.0  # older globes' nodes fade behind the one you're looking at
+	var _tween: Tween
+
+	## Frames globe `g`'s part of the tree (its "view"), sliding over when `animate`.
+	func frame(g: String, animate: bool) -> void:
+		viewing = g
+		var v: Array = Machine.globe(Catalog.shared(), g).get("view", [0, 0, MAP.x, MAP.y])
+		var target := Rect2(float(v[0]), float(v[1]), float(v[2]), float(v[3]))
+		if _tween:
+			_tween.kill()
+		if animate and is_inside_tree():
+			_tween = create_tween()
+			_tween.tween_property(self, "_view", target, 0.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN_OUT)
+		else:
+			_view = target
+		queue_redraw()
 
 	func _init() -> void:
 		mouse_filter = MOUSE_FILTER_STOP
@@ -168,20 +256,27 @@ class TreeMap extends Control:
 			queue_redraw()
 
 	func _scale() -> float:
-		return minf((size.x - 60.0) / MAP.x, (size.y - 50.0) / MAP.y)
+		return minf((size.x - 60.0) / _view.size.x, (size.y - 50.0) / _view.size.y)
 
 	func _at(n: Dictionary) -> Vector2:
 		var s := _scale()
-		var origin := (size - MAP * s) / 2.0 + Vector2(0, -4)
-		return origin + Vector2(float(n.at[0]), float(n.at[1])) * s
+		var origin := (size - _view.size * s) / 2.0 + Vector2(0, -4)
+		return origin + (Vector2(float(n.at[0]), float(n.at[1])) - _view.position) * s
 
 	func _radius(n: Dictionary) -> float:
-		return (26.0 if n.branch in ["repair", "drops"] else 21.0) * clampf(_scale(), 0.75, 1.2)
+		return (26.0 if n.branch in MachineTreeView.REPAIRS else 21.0) * clampf(_scale(), 0.75, 1.2)
+
+	func _shown(n: Dictionary) -> bool:
+		return Machine.look(GameState.machine, Catalog.shared(), n.id) != "away"
+
+	## A colour faded like the node being drawn.
+	func _k(c: Color) -> Color:
+		return Color(c.r, c.g, c.b, c.a * _alpha)
 
 	func _gui_input(event: InputEvent) -> void:
 		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
 			for n in Catalog.shared().machine_tree.nodes:
-				if event.position.distance_to(_at(n)) < _radius(n) + 6.0:
+				if _shown(n) and event.position.distance_to(_at(n)) < _radius(n) + 6.0:
 					picked_id = n.id
 					picked.emit(n.id)
 					queue_redraw()
@@ -189,7 +284,7 @@ class TreeMap extends Control:
 		elif event is InputEventMouseMotion:
 			var over := false
 			for n in Catalog.shared().machine_tree.nodes:
-				over = over or event.position.distance_to(_at(n)) < _radius(n) + 6.0
+				over = over or (_shown(n) and event.position.distance_to(_at(n)) < _radius(n) + 6.0)
 			mouse_default_cursor_shape = CURSOR_POINTING_HAND if over else CURSOR_ARROW
 
 	func _draw() -> void:
@@ -197,110 +292,154 @@ class TreeMap extends Control:
 		var catalog := Catalog.shared()
 		var state: Dictionary = GameState.machine
 		var nodes: Array = catalog.machine_tree.nodes
+		var many := Machine.home(state, catalog).size() > 1
 		# links first
 		for n in nodes:
-			if not n.has("from"):
+			if not n.has("from") or not _shown(n):
 				continue
-			var a := _at(Machine.node(catalog, n.from))
+			var from := Machine.node(catalog, n.from)
+			var a := _at(from)
 			var b := _at(n)
 			var on := Machine.owned(state, n.id) > 0
+			_alpha = 1.0 if not many or Machine.globe_of(catalog, n) == viewing else 0.45
 			if on:
-				draw_line(a, b, UiTheme.LILAC_SEAM, 3.0, true)
+				draw_line(a, b, _k(MachineTreeView.node_color(n).lerp(UiTheme.LINE, 0.4) if Machine.globe_of(catalog, n) != Machine.first_globe(catalog) else UiTheme.LILAC_SEAM), 3.0, true)
 			else:
-				draw_dashed_line(a, b, UiTheme.LINE, 3.0, 7.0, true)
+				draw_dashed_line(a, b, _k(UiTheme.LINE), 3.0, 7.0, true)
 		var font := UiTheme.BODY_FONT
 		for n in nodes:
 			var look := Machine.look(state, catalog, n.id)
+			if look == "away":
+				continue
+			_alpha = 1.0 if not many or Machine.globe_of(catalog, n) == viewing else 0.45
 			var c := _at(n)
 			var r := _radius(n)
-			var color := MachineTreeView.color_of(n.branch)
+			var color := MachineTreeView.node_color(n)
 			match look:
 				"owned":
-					draw_circle(c, r, UiTheme.PAGE.lerp(color, 0.3))
-					draw_arc(c, r, 0, TAU, 40, color, 3.0, true)
+					draw_circle(c, r, _k(UiTheme.PAGE.lerp(color, 0.3)))
+					draw_arc(c, r, 0, TAU, 40, _k(color), 3.0, true)
 				"next":
 					var breathe := 0.5 + 0.5 * sin(_time * 3.0)
-					draw_arc(c, r + 4.0 + breathe * 4.0, 0, TAU, 40, Color(color, 0.5 - breathe * 0.35), 2.0, true)
-					draw_circle(c, r, UiTheme.RAISED)
+					draw_arc(c, r + 4.0 + breathe * 4.0, 0, TAU, 40, _k(Color(color, 0.5 - breathe * 0.35)), 2.0, true)
+					draw_circle(c, r, _k(UiTheme.RAISED))
 					_dashed_ring(c, r, color)
 				_:
-					draw_circle(c, r, UiTheme.DEEP)
+					draw_circle(c, r, _k(UiTheme.DEEP))
 					if look == "hidden":
 						_dashed_ring(c, r, UiTheme.LINE)
 					else:
-						draw_arc(c, r, 0, TAU, 40, UiTheme.LINE, 3.0, true)
+						draw_arc(c, r, 0, TAU, 40, _k(UiTheme.LINE), 3.0, true)
 			if n.id == picked_id:
-				draw_arc(c, r + 3.0, 0, TAU, 40, UiTheme.TEXT, 2.0, true)
+				draw_arc(c, r + 3.0, 0, TAU, 40, _k(UiTheme.TEXT), 2.0, true)
 			if look == "hidden":
 				var q := "?"
-				draw_string(UiTheme.DISPLAY_FONT, c + Vector2(-6, 7), q, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, UiTheme.LOCKED)
+				draw_string(UiTheme.DISPLAY_FONT, c + Vector2(-6, 7), q, HORIZONTAL_ALIGNMENT_LEFT, -1, 20, _k(UiTheme.LOCKED))
 				continue
 			var icon := UiTheme.icon("tree_" + str(n.icon), 22, color if look != "dim" else UiTheme.LOCKED)
-			draw_texture_rect(icon, Rect2(c - Vector2(11, 11), Vector2(22, 22)), false)
+			draw_texture_rect(icon, Rect2(c - Vector2(11, 11), Vector2(22, 22)), false, Color(1, 1, 1, _alpha))
 			var level := Machine.owned(state, n.id)
 			var max_level := int(n.get("max", 1))
 			if max_level > 1:
 				var pill := "%d/%d" % [level, max_level]
 				var pr := Rect2(c + Vector2(-16, r - 8), Vector2(32, 15))
-				draw_style_box(UiTheme.box(UiTheme.GOLD, UiTheme.GOLD, 7, 0, 0), pr)
-				draw_string(UiTheme.DISPLAY_FONT, pr.position + Vector2(0, 12), pill, HORIZONTAL_ALIGNMENT_CENTER, pr.size.x, 11, UiTheme.DEEP)
+				draw_style_box(UiTheme.box(_k(UiTheme.GOLD), _k(UiTheme.GOLD), 7, 0, 0), pr)
+				draw_string(UiTheme.DISPLAY_FONT, pr.position + Vector2(0, 12), pill, HORIZONTAL_ALIGNMENT_CENTER, pr.size.x, 11, _k(UiTheme.DEEP))
 			# waiting for a bit you don't have
 			if look == "next" and not Machine.maxed(state, catalog, n.id):
 				var need := Machine.bits_cost(catalog, n.id)
 				for b in need:
 					if int(GameState.bits.get(b, 0)) < int(need[b]):
 						var bc := c + Vector2(r * 0.75, -r * 0.8)
-						draw_circle(bc, 11.0, UiTheme.DEEP)
-						draw_arc(bc, 11.0, 0, TAU, 24, UiTheme.PINK, 2.0, true)
-						draw_texture_rect(UiTheme.icon("bit_" + str(b), 16), Rect2(bc - Vector2(8, 8), Vector2(16, 16)), false)
+						draw_circle(bc, 11.0, _k(UiTheme.DEEP))
+						draw_arc(bc, 11.0, 0, TAU, 24, _k(UiTheme.PINK), 2.0, true)
+						draw_texture_rect(UiTheme.icon("bit_" + str(b), 16), Rect2(bc - Vector2(8, 8), Vector2(16, 16)), false, Color(1, 1, 1, _alpha))
 						break
 			var label_y := r + (22.0 if max_level > 1 else 16.0)
 			var name_color := UiTheme.TEXT if look in ["owned", "next"] else UiTheme.MUTED
-			draw_string(font, c + Vector2(-70, label_y), str(n.name), HORIZONTAL_ALIGNMENT_CENTER, 140, UiTheme.SMALL + 1, name_color)
+			if Machine.globe_of(catalog, n) != Machine.first_globe(catalog):
+				# a later globe's repairs are a chain going up: their names sit beside them
+				draw_string(font, c + Vector2(r + 10.0, 5.0), str(n.name), HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.SMALL + 1, _k(name_color))
+			else:
+				draw_string(font, c + Vector2(-70, label_y), str(n.name), HORIZONTAL_ALIGNMENT_CENTER, 140, UiTheme.SMALL + 1, _k(name_color))
+		_alpha = 1.0
 
 	func _dashed_ring(c: Vector2, r: float, color: Color) -> void:
 		for i in 16:
 			var a := TAU * i / 16.0
-			draw_arc(c, r, a, a + TAU / 32.0, 4, color, 3.0, true)
+			draw_arc(c, r, a, a + TAU / 32.0, 4, _k(color), 3.0, true)
 
 
 ## A little picture of the machine for the upgrade page: what's still broken shows (the crack, the
-## cloudy glass, rust, a stuck flap, dead lights), and what's fixed doesn't.
+## cloudy glass, rust, a stuck flap, dead lights; a later globe's nest, holes, sagging lever and
+## rusted hatch), and what's fixed doesn't. It draws the globe the picked node belongs to.
 class MachineMini extends Control:
-	func _init() -> void:
+	var globe := ""
+
+	func _init(g := "") -> void:
+		globe = g if g != "" else Machine.first_globe(Catalog.shared())
 		custom_minimum_size = Vector2(120, 120)
 		mouse_filter = MOUSE_FILTER_IGNORE
 		GameState.changed.connect(queue_redraw)
 
 	func _draw() -> void:
 		var state: Dictionary = GameState.machine
-		var fixed := func(id: String) -> bool: return Machine.owned(state, id) > 0
+		var catalog := Catalog.shared()
+		var info := Machine.globe(catalog, globe)
+		var broken := func(fix: String) -> bool: return Machine.broken(state, catalog, globe, fix)
+		var mended := func(fix: String) -> bool: return Machine.has_fix(catalog, globe, fix) and not Machine.broken(state, catalog, globe, fix)
+		var glass_c := UiTheme.named_color(str(info.get("glass", "lilac")), UiTheme.LILAC)
+		var body_c := UiTheme.named_color(str(info.get("body", "pink")), UiTheme.PINK)
+		var seam_c := UiTheme.named_color(str(info.get("seam", "pink_seam")), UiTheme.PINK_SEAM)
+		var rust := MachineTab.MachineStage.RUST
 		var g := Vector2(60, 42)
-		draw_circle(g, 32.0, UiTheme.PAGE.lerp(UiTheme.LILAC, 0.09))
-		if not fixed.call("glass"):
+		draw_circle(g, 32.0, UiTheme.PAGE.lerp(glass_c, 0.09))
+		if mended.call("amber"):
+			draw_circle(g, 32.0, Color(glass_c.lerp(UiTheme.GOLD, 0.45), 0.14))
+		if broken.call("glass") or broken.call("amber"):
 			draw_circle(g + Vector2(10, -8), 12.0, Color(UiTheme.TEXT, 0.08))
 			draw_polyline(PackedVector2Array([g + Vector2(-20, -10), g + Vector2(-12, -14), g + Vector2(-8, -6), g + Vector2(0, -12)]), Color(UiTheme.MUTED, 0.7), 1.5, true)
-		if not fixed.call("tape"):
+		if broken.call("crack"):
 			draw_polyline(PackedVector2Array([g + Vector2(14, -26), g + Vector2(20, -14), g + Vector2(16, -6), g + Vector2(24, 4)]), UiTheme.MUTED, 2.0, true)
-		else:
+		elif mended.call("crack"):
 			draw_line(g + Vector2(14, -24), g + Vector2(28, -10), Color(UiTheme.GOLD, 0.8), 5.0)
-		draw_arc(g, 32.0, 0, TAU, 40, UiTheme.LILAC, 2.5, true)
+		if broken.call("nest"):
+			draw_polyline(PackedVector2Array([g + Vector2(-18, 22), g + Vector2(0, 28), g + Vector2(18, 22)]), rust, 3.0, true)
+			for leaf in [Vector2(52, 8), Vector2(66, 6), Vector2(74, 12)]:
+				draw_circle(leaf, 3.5, UiTheme.MINT.darkened(0.3))
+		for h in [g + Vector2(-16, -6), g + Vector2(18, 8), g + Vector2(-4, 18)]:
+			if broken.call("holes"):
+				draw_circle(h, 3.2, UiTheme.DEEP)
+				draw_arc(h, 3.2, 0, TAU, 12, glass_c, 1.2, true)
+			elif mended.call("holes"):
+				draw_circle(h, 3.2, MachineTab.MachineStage.CORK)
+		draw_arc(g, 32.0, 0, TAU, 40, glass_c, 2.5, true)
+		if Machine.has_fix(catalog, globe, "hatch"):
+			var open := Machine.hatch_open(state, catalog, globe)
+			draw_rect(Rect2(g + Vector2(-12, -38), Vector2(24, 7)), UiTheme.PAGE.lerp(body_c if open else rust, 0.5))
 		var body := PackedVector2Array([Vector2(30, 74), Vector2(90, 74), Vector2(94, 110), Vector2(26, 110)])
-		draw_colored_polygon(body, UiTheme.PAGE.lerp(UiTheme.PINK, 0.22))
+		draw_colored_polygon(body, UiTheme.PAGE.lerp(body_c, 0.22))
 		body.append(body[0])
-		draw_polyline(body, UiTheme.PINK, 2.5, true)
-		if not fixed.call("oil"):
-			draw_circle(Vector2(40, 98), 3.0, Color("8a6448"))
-			draw_circle(Vector2(80, 84), 2.5, Color("8a6448"))
-		var chutes := Machine.chutes(state, Catalog.shared())
+		draw_polyline(body, body_c, 2.5, true)
+		if broken.call("rust") or broken.call("nest"):
+			draw_circle(Vector2(40, 98), 3.0, rust)
+			draw_circle(Vector2(80, 84), 2.5, rust)
+		var chutes := Machine.chutes(state, catalog, globe)
 		for i in chutes:
 			var x := 60.0 + (i - (chutes - 1) / 2.0) * 16.0
 			var rect := Rect2(x - 7, 92, 14, 14)
-			var tilt := 0.0 if fixed.call("flap") or i > 0 else 0.25
+			var tilt := 0.25 if broken.call("flap") and i == 0 else 0.0
 			draw_set_transform(rect.get_center(), tilt, Vector2.ONE)
-			draw_style_box(UiTheme.box(UiTheme.DEEP, UiTheme.PINK_SEAM, 3, 2, 0), Rect2(-rect.size / 2.0, rect.size))
+			draw_style_box(UiTheme.box(UiTheme.DEEP, seam_c, 3, 2, 0), Rect2(-rect.size / 2.0, rect.size))
 			draw_set_transform(Vector2.ZERO)
+		var lit := Machine.lights_on(state, catalog, globe)
 		for i in 5:
-			draw_circle(Vector2(44 + i * 8, 82), 2.2, UiTheme.GOLD if fixed.call("wires") else UiTheme.LINE)
-		draw_line(Vector2(94, 88), Vector2(104, 70), UiTheme.GOLD, 4.0, true)
-		draw_circle(Vector2(105, 67), 5.0, UiTheme.PINK)
+			draw_circle(Vector2(44 + i * 8, 82), 2.2, UiTheme.GOLD if lit else UiTheme.LINE)
+		if broken.call("sag"):
+			draw_line(Vector2(94, 88), Vector2(108, 100), UiTheme.GOLD, 4.0, true)
+			draw_circle(Vector2(110, 103), 5.0, UiTheme.PINK)
+		else:
+			draw_line(Vector2(94, 88), Vector2(104, 70), UiTheme.GOLD, 4.0, true)
+			draw_circle(Vector2(105, 67), 5.0, UiTheme.PINK)
+			if mended.call("sag"):
+				draw_arc(Vector2(108, 56), 4.0, 0, TAU, 12, UiTheme.LILAC, 1.6, true)

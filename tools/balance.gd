@@ -48,6 +48,7 @@ func _init() -> void:
 	_box_tiers(catalog, rng)
 	_spots(catalog)
 	_gifts(catalog)
+	_globes(catalog)
 	quit()
 
 
@@ -209,3 +210,65 @@ func _pick(style: String, run: RunState, location: Dictionary, catalog: Catalog)
 		if picked.get("failure", {}).has("hurt") and location.get("go_home", false):
 			return options.size() - 1  # go home with the bag
 	return best
+
+
+## The machine globes (data/machine_tree.json): coins a pull by hand (every chute, extra balls, shiny,
+## fever) and a worker's capsule on the globe behind, with the sunny globe all fixed and then after
+## each sunset fix. Fixing the nest moves your hand to the sunset globe: that must never make your
+## pull worse (tune the sunset globe's "step" if it does).
+func _globes(catalog: Catalog) -> void:
+	var state := { "bought": {}, "globes": ["sunny"] }
+	for n in catalog.machine_tree.nodes:
+		if Machine.globe_of(catalog, n) == Machine.first_globe(catalog):
+			state.bought[n.id] = int(n.get("max", 1))
+	print("\nglobes: coins a pull by hand, and a worker's capsule on the globe behind (sunny all fixed)")
+	print("%-18s %-7s %14s %-7s %14s" % ["after", "hand", "coins/pull", "behind", "coins/capsule"])
+	var rows: Array = [["sunny all fixed", []], ["sunset home", ["@sunset"]]]
+	for n in Machine.repairs(catalog, "sunset"):
+		rows.append([str(n.id), [str(n.id)]])
+	var sunny_pull := 0.0
+	for row in rows:
+		for id in row[1]:
+			if str(id).begins_with("@"):
+				state.globes.append(str(id).substr(1))
+			else:
+				state.bought[id] = 1
+		var hand := Machine.hand(state, catalog)
+		var behind := Machine.behind(state, catalog)
+		var pull := _per_pull(state, catalog, hand)
+		var worker := _per_capsule(state, catalog, behind)
+		if row[0] == "sunny all fixed":
+			sunny_pull = pull
+		print("%-18s %-7s %14s %-7s %14s" % [row[0], hand, _num(pull), behind, _num(worker)])
+		if row[0] == "nest":
+			var ok := pull >= sunny_pull
+			print("  %s: the nest %s (x%.2f)" % ["ok" if ok else "WORSE", "keeps your pull at least as good" if ok else "makes your pull worse: tune the sunset step", pull / maxf(sunny_pull, 0.001)])
+
+
+## Coins in one capsule from a globe on average (coins and golden capsules, shiny ones pay more).
+func _per_capsule(state: Dictionary, catalog: Catalog, g: String) -> float:
+	var odds := Machine.odds(state, catalog, func(_k): return true, false, 1.0, 1.0, false, 1.0, g)
+	var coins := 0.0
+	for p in catalog.machine.prizes:
+		if p.kind in ["coins", "golden"]:
+			coins += float(odds.get(p.id, 0.0)) * (float(p.coins[0]) + float(p.coins[1])) / 2.0
+	var shiny := 1.0 + Machine.shiny_chance(state, catalog, g) * (Machine.shiny_pay(state, catalog, g) - 1.0)
+	return coins * Machine.coin_value(state, catalog, g) * shiny
+
+
+## Coins in one pull by hand: every chute's capsules, and fever once the lights work.
+func _per_pull(state: Dictionary, catalog: Catalog, g: String) -> float:
+	var balls := 1.0 + Machine.add(state, catalog, "double", g) + 2.0 * Machine.add(state, catalog, "triple", g)
+	var fever := 1.0
+	if Machine.lights_on(state, catalog, g):
+		var lights := float(Machine.lights_needed(state, catalog))
+		var fever_pulls := Machine.fever_for(state, catalog, 1.0, 1.0, g) / Machine.reveal_seconds(state, catalog)
+		fever = (lights + fever_pulls * (float(catalog.machine.fever_pay) - 1.0)) / lights
+	return Machine.chutes(state, catalog, g) * balls * _per_capsule(state, catalog, g) * fever
+
+
+static func _num(n: float) -> String:
+	for u in [[1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "k"]]:
+		if n >= u[0]:
+			return "%.1f%s" % [n / u[0], u[1]]
+	return "%.1f" % n

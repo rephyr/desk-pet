@@ -158,6 +158,7 @@ func _refresh_tabs() -> void:
 		match tab_id:
 			"boxes": news = GameState.box_news()
 			"adventures": news = back
+			"machine": news = GameState.globe_news() != ""
 		spine.set_tab_state(tab_id, tab_id in shown and not GameState.tab_hidden(tab_id), not GameState.tab_open(tab_id), news)
 		spine.tab_button(tab_id).tooltip_text = GameState.tab_hint(tab_id)
 	# the very start: the capsule machine
@@ -252,6 +253,7 @@ func _refresh() -> void:
 	bubble.visible = GameState.collection.active() != null
 	# news dots: boxes waiting in the bag, trips waiting for you
 	spine.set_news("boxes", GameState.box_news())
+	spine.set_news("machine", GameState.globe_news() != "")
 	spine.set_news("adventures", GameState.runs.any(func(r: RunState): return r.status != RunState.Status.WALKING))
 
 

@@ -1,0 +1,134 @@
+# A5 the sunset globe (look A): once the sunny globe is fixed up and the tiny machine is home, a pet
+# brings the broken sunset globe home from the far fields. It slides in beside the sunny one, its
+# fixes list takes "next up"'s place, and the bits pills show its bits. Shooing out the nest makes it
+# work: your hand pulls it now (its lever sags until the pulley), and your pet and the workers crank
+# the sunny one. Corks, pulleys, copper wire and amber glass fix the rest; its hatch gives sunset
+# boxes. The upgrades page frames the sunset branch; the sunny sign pans back.
+from rich
+view full
+pets 12
+coins 900000000000
+fix tape
+fix oil
+fix flap
+fix glass
+fix wires
+fix chute2
+fix chute3
+fix chute4
+fix shine 10
+fix heavy 3
+fix double 5
+fix triple 2
+fix shiny 5
+fix fever 3
+fix drops
+toy snail
+find intel_fence
+find tiny_machine
+wait popup
+click "lovely"
+wait popup
+click "lovely"
+wait popup
+click "lovely"
+tab machine
+wait 0.5
+expect no-text "sunset fixes"
+shot before
+find sunset_globe
+wait 2
+expect text "sunset fixes"
+expect text "0 corks"
+expect fits
+shot arrived
+click "upgrades"
+wait 0.8
+expect fits
+shot tree_arrived
+page machine 0
+wait 0.5
+click name:fix_row_cork
+wait 0.3
+shot row_cork
+click name:fix_row_nest
+bits cork 5
+bits pulley 4
+bits wire 5
+bits amber 5
+wait 0.3
+click "fix it"
+wait 1.5
+expect fits
+shot nest_fixed
+pull 1 0.6
+shot sagging_pull
+wait 1.5
+teach machine
+task machine
+auto-tool crank 3
+tab automation
+wait 1
+click "teach the others"
+wait 1
+click "workers"
+wait 1
+spots machine 3
+wait 1
+click "fill up"
+wait 1
+tab machine
+wait 4
+expect fits
+shot workers
+click "fix it"
+wait 1.5
+shot corked
+click "fix it"
+wait 1.5
+shot pulley
+pull 1 0.3
+shot two_chutes
+wait 1.5
+click "fix it"
+wait 1.5
+shot amber
+click "fix it"
+wait 1.5
+expect no-text "sunset fixes"
+expect text "next up"
+expect fits
+shot hatch
+next-prize box
+pull 1 1.8
+expect pile sunset 1+
+expect pile starter 0
+shot sunset_box
+wait 3
+click "upgrades"
+wait 0.8
+expect fits
+shot tree_sunset
+click name:sign_sunny
+wait 1
+expect fits
+shot tree_sunny
+click name:sign_sunset
+wait 1
+expect fits
+shot tree_back
+toy owl normal 1
+tab collection
+click "toys"
+wait 0.5
+click name:set_sunset
+wait 0.3
+expect text "sunset friends"
+expect fits
+shot sunset_toys
+unlock location:orchard
+place orchard
+wait 1
+expect text "brings home corks"
+expect fits
+shot orchard_card

@@ -20,6 +20,8 @@ var _set_bonus: Label
 var _grid := GridContainer.new()
 var _detail := VBoxContainer.new()
 var _picked := ""  # toy id
+var _set_id := ""  # the set shown (a later globe's set shows once its hatch is open or you have one of its toys)
+var _set_tabs := HBoxContainer.new()
 var _edition := ""  # "toy:finish" picked in the detail
 var _dirty := true
 var _tick := 0.0
@@ -51,6 +53,8 @@ func _init() -> void:
 	head.add_theme_constant_override("separation", 10)
 	_set_title = UiTheme.title("", 18)
 	head.add_child(_set_title)
+	_set_tabs.add_theme_constant_override("separation", 6)
+	main.add_child(_set_tabs)
 	_set_count = UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL + 1)
 	_set_count.size_flags_vertical = SIZE_SHRINK_CENTER
 	head.add_child(_set_count)
@@ -121,11 +125,28 @@ func _rebuild() -> void:
 	var catalog := Catalog.shared()
 	var state: Dictionary = GameState.toys
 	var now := Time.get_unix_time_from_system()
-	var set_data: Dictionary = catalog.toys.sets[0]
-	if _picked == "":
+	var sets := shown_sets()
+	if not sets.any(func(x): return x.id == _set_id):
+		_set_id = str(sets[0].id)
+	var set_data: Dictionary = sets.filter(func(x): return x.id == _set_id)[0]
+	if _picked == "" or not set_data.toys.any(func(t): return t.id == _picked):
 		_picked = str(set_data.toys[0].id)
-	var owned: int = set_data.toys.filter(func(t): return Toys.has_toy(state, t.id)).size()
+	# one set: its name; more: a chip per set to pick which one shows
 	_set_title.text = str(set_data.name)
+	_set_tabs.visible = sets.size() > 1
+	UiTheme.clear(_set_tabs)
+	if sets.size() > 1:
+		for x in sets:
+			var id := str(x.id)
+			var chip := UiTheme.filter_chip(str(x.name), UiTheme.PINK, id == _set_id)
+			chip.name = "set_" + id
+			chip.pressed.connect(func():
+				_set_id = id
+				_picked = ""
+				_edition = ""
+				_rebuild())
+			_set_tabs.add_child(chip)
+	var owned: int = set_data.toys.filter(func(t): return Toys.has_toy(state, t.id)).size()
 	_set_count.text = "%d of %d" % [owned, set_data.toys.size()]
 	_set_meter.max_value = set_data.toys.size()
 	_set_meter.value = owned
@@ -235,6 +256,16 @@ func _card(t: Dictionary, tilt: float, now: float) -> Control:
 	var holder := Tilted.new(b, tilt)
 	holder.size_flags_horizontal = SIZE_EXPAND_FILL
 	return holder
+
+
+## The toy sets that show: the first always, a later globe's once its rusted hatch is open or you
+## have one of its toys (hidden until earned).
+static func shown_sets() -> Array:
+	var catalog := Catalog.shared()
+	var first := Machine.first_globe(catalog)
+	return catalog.toys.sets.filter(func(x):
+		var g := str(x.get("globe", first))
+		return g == first or Machine.hatch_open(GameState.machine, catalog, g) or x.toys.any(func(t): return Toys.has_toy(GameState.toys, t.id)))
 
 
 func _badge(text: String, color: Color, at: Vector2, right: bool) -> Control:

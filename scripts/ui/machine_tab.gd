@@ -6,14 +6,32 @@ extends VBoxContainer
 ## fixing up an old broken machine with coins and bits (pets bring bits home from adventures). Your
 ## lever is never automated (later your pet cranks a little machine of its own, much slower, see the
 ## automation tab), so pulling has to feel good forever: the lever is the whole point of this tab.
-## Design: design/mockups/screens/capsules.html, machine-tree.html.
+## Later map pages bring more GLOBES home (Machine): the two newest stand side by side on one stage,
+## you pull the newest one that works, and your pet and workers crank the one behind it. While the
+## newest globe still has repairs left, its fixes list takes the place of "next up".
+## Design: design/mockups/screens/capsules.html, machine-tree.html, globes.html (look A).
 
 const NEXT_UP := 3  # upgrades shown next to the machine
+const MAX_PILLS := 4  # bits pills at the top (more would push past the window)
 
-var stage := MachineStage.new()
+## The two globe stages. A stage keeps its globe while that globe stays on show (so capsules on
+## their way out of it aren't lost when a new globe comes home); the older globe stands on the left.
+var stages: Array[MachineStage] = [MachineStage.new(), MachineStage.new()]
+## The globe you pull by hand (the dev driver, the tutorial and pet boxes use it).
+var stage: MachineStage:
+	get:
+		for s in stages:
+			if s.visible and s.hand:
+				return s
+		return stages[1] if stages[1].visible else stages[0]
 var upgrades := MachineTreeView.new()
+## The prize card in the stage's top right corner (hidden in the tutorial: capsules only hold coins then).
+var odds := OddsCard.new()
+var _holder := StageHolder.new()
 var _machine_page := HBoxContainer.new()
+var _next_side := VBoxContainer.new()
 var _next := VBoxContainer.new()
+var _fixes := FixList.new()
 var _bits_row := HBoxContainer.new()
 var _mode: PanelContainer
 var _last := ""
@@ -36,17 +54,27 @@ func _init() -> void:
 
 	_machine_page.add_theme_constant_override("separation", 14)
 	_machine_page.size_flags_vertical = SIZE_EXPAND_FILL
-	stage.size_flags_horizontal = SIZE_EXPAND_FILL
-	stage.size_flags_vertical = SIZE_EXPAND_FILL
-	_machine_page.add_child(stage)
-	var side := VBoxContainer.new()
-	side.custom_minimum_size = Vector2(236, 0)
-	side.add_theme_constant_override("separation", 8)
-	side.add_child(UiTheme.title("next up", 16, UiTheme.LILAC))
+	_holder.size_flags_horizontal = SIZE_EXPAND_FILL
+	_holder.size_flags_vertical = SIZE_EXPAND_FILL
+	_machine_page.add_child(_holder)
+	for s in stages:
+		s.size_flags_horizontal = SIZE_EXPAND_FILL
+		s.size_flags_vertical = SIZE_EXPAND_FILL
+		_holder.row.add_child(s)
+		s.pet_box.connect(_open_box)
+	stages[0].visible = false
+	stages[0].setup("", false, false)
+	_holder.add_child(odds)
+	_holder.resized.connect(func(): odds.place(_holder.size))
+	_next_side.custom_minimum_size = Vector2(236, 0)
+	_next_side.add_theme_constant_override("separation", 8)
+	_next_side.add_child(UiTheme.title("next up", 16, UiTheme.LILAC))
 	_next.add_theme_constant_override("separation", 8)
-	side.add_child(_next)
-	side.add_child(UiTheme.button("all upgrades →", func(): show_page(1)))
-	_machine_page.add_child(side)
+	_next_side.add_child(_next)
+	_next_side.add_child(UiTheme.button("all upgrades →", func(): show_page(1)))
+	_machine_page.add_child(_next_side)
+	_fixes.visible = false
+	_machine_page.add_child(_fixes)
 	add_child(_machine_page)
 	upgrades.visible = false
 	add_child(upgrades)
@@ -58,16 +86,25 @@ func _init() -> void:
 	_opening.closed.connect(_close_box)
 	_table.add_child(_opening)
 	add_child(_table)
-	stage.pet_box.connect(_open_box)
 
 	GameState.changed.connect(_refresh)
-	GameState.machine_pulled.connect(stage.show_pull)
-	GameState.machine_upgraded.connect(stage.fixed)
+	GameState.machine_pulled.connect(_on_pulled)
+	GameState.machine_upgraded.connect(_on_upgraded)
+	GameState.pet_cranked.connect(_on_cranked)
+	GameState.toys_changed.connect(func():
+		for s in stages:
+			s.refresh_state())
+	GameState.globe_arrived.connect(func(_g):
+		_last = ""
+		_refresh()
+		_greet.call_deferred())
 	visibility_changed.connect(func():
 		if is_visible_in_tree():
 			_last = ""
 			_refresh()
-			speak())
+			speak()
+			_greet())
+	_layout()
 
 
 ## A pet box popped out of a capsule: after a moment the machine steps aside and the box lands
@@ -88,10 +125,11 @@ func _close_box() -> void:
 	_mode.visible = true
 	_show_page(0)
 	PetBubble.say_line(self, "machine_pet_box_done")
+	_greet()
 
 
-## Whether something at the machine is still being shown (capsules opening, a prize's card, a pet
-## box): unlock popups wait for it.
+## Whether something at the machine is still being shown (your capsules opening, a prize's card, a
+## pet box): unlock popups wait for it. The globe behind yours (the workers' capsules) never holds them.
 func busy() -> bool:
 	return is_visible_in_tree() and (stage.showing_prize() or _box_coming or _table.visible)
 
@@ -121,35 +159,149 @@ func pull() -> void:
 	stage.pull_by_itself()
 
 
+## Which globes stand on the stage: the newest two you have (the one you pull always among them),
+## side by side; just the one while it's the only globe.
+func _layout() -> void:
+	var catalog := Catalog.shared()
+	var state: Dictionary = GameState.machine
+	var home := Machine.home(state, catalog)
+	var hand := Machine.hand(state, catalog)
+	var shown: Array[String] = []
+	shown.assign(home.slice(maxi(0, home.size() - 2)))
+	if not shown.has(hand):
+		shown = [hand, home.back()]
+	var two := shown.size() == 2
+	# a stage that already shows one of these globes keeps it; the other stage takes the rest
+	var by_globe := {}
+	var free: Array[MachineStage] = []
+	for s in stages:
+		if s.visible and shown.has(s.globe) and not by_globe.has(s.globe):
+			by_globe[s.globe] = s
+		else:
+			free.append(s)
+	for g in shown:
+		if not by_globe.has(g):
+			by_globe[g] = free.pop_front()
+	for s in free:
+		s.visible = false
+		s.setup("", false, false)
+	for i in shown.size():
+		var s: MachineStage = by_globe[shown[i]]
+		s.visible = true
+		s.setup(shown[i], shown[i] == hand, two)
+		s.size_flags_stretch_ratio = 0.8 if two and i == 0 else 1.0
+		_holder.row.move_child(s, i)
+	_holder.two = two
+	_holder.queue_redraw()
+
+
+## Shows a new globe arriving once (it slides in, your pet says its line): waits for a pet box.
+func _greet() -> void:
+	var g := GameState.globe_news()
+	if g == "" or not is_visible_in_tree() or _table.visible or _box_coming:
+		return
+	_layout()
+	for s in stages:
+		if s.visible and s.globe == g:
+			s.arrive()
+	var line := str(Machine.globe(Catalog.shared(), g).get("arrives", ""))
+	PetBubble.say(self, line)
+	GameState.greet_globe(g)
+
+
+func _on_pulled(result: Dictionary) -> void:
+	var g := str(result.get("globe", ""))
+	for s in stages:
+		if s.visible and s.hand and (g == "" or s.globe == g):
+			s.show_pull(result)
+			return
+
+
+func _on_upgraded(id: String) -> void:
+	var g := Machine.globe_of(Catalog.shared(), Machine.node(Catalog.shared(), id))
+	var hand_was := stage.globe
+	_layout()
+	if Machine.hand(GameState.machine, Catalog.shared()) != hand_was:
+		_last = ""  # the hand moved to the new globe
+	for s in stages:
+		if s.visible and s.globe == g:
+			s.fixed(id)
+
+
+## Your pet's (or a worker's) crank: the globe behind yours shows it, when it's on the stage.
+func _on_cranked(result: Dictionary) -> void:
+	if not is_visible_in_tree():
+		return
+	for s in stages:
+		if s.visible and not s.hand and s.globe == Machine.behind(GameState.machine, Catalog.shared()):
+			s.show_crank(result)
+
+
 func _refresh() -> void:
 	if not is_visible_in_tree():
 		return
-	var key := "%d|%s|%s" % [GameState.coins, str(GameState.bits), str(GameState.machine.bought)]
+	for s in stages:
+		s.refresh_state()  # what the stages draw from (a toy's boost can change what a capsule's worth)
+	var catalog := Catalog.shared()
+	var state: Dictionary = GameState.machine
+	var key := "%d|%s|%s|%s|%s|%s" % [GameState.coins, str(GameState.bits), str(state.bought), str(state.get("globes", [])),
+		str(GameState.automation.workers.get("machine", [])), GameState.automation.task]
 	if key == _last:
 		return
 	_last = key
-	UiTheme.clear(_bits_row)
-	for b in Machine.BITS:
-		var n := int(GameState.bits.get(b, 0))
-		var chip := UiTheme.chip("bit_" + b, "%d %s" % [n, bit_name(b, n)], UiTheme.TEXT if n > 0 else UiTheme.LOCKED)
-		chip.tooltip_text = "machine bits: pets find them on adventures"
-		_bits_row.add_child(chip)
-	# the upgrades you can work on right now, cheapest first
-	UiTheme.clear(_next)
-	var catalog := Catalog.shared()
+	_layout()
+	# a new globe's repairs, while it has any left; otherwise the upgrades you can work on right now
+	var newest := Machine.newest(state, catalog)
+	var fixing := newest != Machine.first_globe(catalog) and Machine.repairs_left(state, catalog, newest)
 	var open: Array = catalog.machine_tree.nodes.filter(func(n):
-		var look := Machine.look(GameState.machine, catalog, n.id)
-		return (look == "next" or look == "owned") and not Machine.maxed(GameState.machine, catalog, n.id))
-	open.sort_custom(func(a, b): return Machine.cost(GameState.machine, catalog, a.id) < Machine.cost(GameState.machine, catalog, b.id))
+		var look := Machine.look(state, catalog, n.id)
+		return (look == "next" or look == "owned") and not Machine.maxed(state, catalog, n.id))
+	_build_bits(_pill_bits(fixing, newest, open))
+	_fixes.visible = fixing
+	_next_side.visible = not fixing
+	if fixing:
+		_fixes.build(newest)
+		return
+	UiTheme.clear(_next)
+	open.sort_custom(func(a, b): return Machine.cost(state, catalog, a.id) < Machine.cost(state, catalog, b.id))
 	for n in open.slice(0, NEXT_UP):
 		_next.add_child(NodeCard.new(n))
 	if open.is_empty():
 		_next.add_child(UiTheme.label("everything's fixed! for now…", UiTheme.MUTED, UiTheme.SMALL + 1))
 
 
+## Which bits the pills at the top show: the newest globe's while you're fixing it; with just the
+## first globe home, its bits (as always); after that, the bits the upgrades you can work on ask for
+## (or, when none of them asks for any, the bits you have). In the data's order.
+func _pill_bits(fixing: bool, newest: String, open: Array) -> Array[String]:
+	var catalog := Catalog.shared()
+	if fixing or newest == Machine.first_globe(catalog):
+		return Machine.bits_of(catalog, newest)
+	var wanted := {}
+	for n in open:
+		for b in Machine.bits_cost(catalog, n.id):
+			wanted[b] = true
+	var out: Array[String] = []
+	for b in Machine.all_bits(catalog):
+		if out.size() < MAX_PILLS and (wanted.has(b) or (wanted.is_empty() and int(GameState.bits.get(b, 0)) > 0)):
+			out.append(b)
+	return out
+
+
+func _build_bits(bits: Array[String]) -> void:
+	var catalog := Catalog.shared()
+	UiTheme.clear(_bits_row)
+	for b in bits:
+		var n := int(GameState.bits.get(b, 0))
+		var chip := UiTheme.chip("bit_" + b, "%d %s" % [n, Machine.bit_name(catalog, b, n)], UiTheme.TEXT if n > 0 else UiTheme.LOCKED)
+		chip.name = "bits_" + b
+		chip.tooltip_text = "machine bits: pets find them on adventures"
+		_bits_row.add_child(chip)
+
+
 ## The prize card's columns: a plain capsule, and a lucky one once the lucky lights work.
 ## `odds` is any capsule's; `pull` the pull's first capsule's, the only one a pet box can be in
-## (the same as `odds` while a pull drops one capsule).
+## (the same as `odds` while a pull drops one capsule). The globe you pull by hand.
 ## [ { name, lucky, odds: { prize id: chance }, pull: { prize id: chance } } ]
 static func odds_columns() -> Array:
 	var many := Machine.many_capsules(GameState.machine, Catalog.shared())
@@ -187,12 +339,13 @@ static func odds_rows(cols: Array) -> Array:
 	return rows
 
 
-## How a prize reads on the prize card: its "name" (data/machine.json), a box its box's name.
+## How a prize reads on the prize card: its "name" (data/machine.json), a box the box tier the
+## globe you pull gives.
 static func prize_name(p: Dictionary) -> String:
 	if p.has("name"):
 		return str(p.name)
 	if str(p.kind) == "box":
-		return str(Catalog.shared().box(str(p.get("box", "starter"))).get("name", p.id))
+		return str(Catalog.shared().box(Machine.box_of(GameState.machine, Catalog.shared())).get("name", p.id))
 	return str(p.id)
 
 
@@ -211,7 +364,12 @@ static func odds_text() -> String:
 
 
 static func bit_name(bit: String, n: int) -> String:
-	return bit if n == 1 or bit == "glass" else bit + "s"
+	return Machine.bit_name(Catalog.shared(), bit, n)
+
+
+## A globe's colour (its "color", for signs and its nodes).
+static func globe_color(g: String) -> Color:
+	return UiTheme.named_color(str(Machine.globe(Catalog.shared(), g).get("color", "gold")), UiTheme.GOLD)
 
 
 ## A little fanfare when something on the machine gets fixed or upgraded.
@@ -242,6 +400,216 @@ static func show_toy(owner: Node, popup: PrizePopup, toy: Dictionary) -> void:
 	PetBubble.say_line(owner, "machine_toy_new" if toy.new else "machine_toy")
 
 
+## Where the globes stand: the paper panel, the floor across it (both globes stand on it) and a
+## row with the globe stages; the odds card goes on top. While there's one globe its stage draws
+## all of that itself, as it always did.
+class StageHolder extends Control:
+	var row := HBoxContainer.new()
+	var two := false
+
+	func _init() -> void:
+		clip_contents = true
+		row.set_anchors_preset(PRESET_FULL_RECT)
+		row.add_theme_constant_override("separation", 0)
+		add_child(row)
+
+	func _draw() -> void:
+		if not two:
+			return
+		draw_style_box(UiTheme.box(UiTheme.PAPER, UiTheme.LINE, 14, 2, 0), Rect2(Vector2.ZERO, size))
+		var floor_y := size.y - MachineStage.BOTTOM
+		var fl := StyleBoxFlat.new()
+		fl.bg_color = UiTheme.PAGE
+		fl.corner_radius_bottom_left = 12
+		fl.corner_radius_bottom_right = 12
+		draw_style_box(fl, Rect2(2, floor_y, size.x - 4, size.y - floor_y - 2))
+		draw_line(Vector2(2, floor_y), Vector2(size.x - 2, floor_y), UiTheme.LILAC_SEAM, 3.0)
+
+	func _process(_delta: float) -> void:
+		var tab := get_parent().get_parent() as MachineTab
+		if tab and is_visible_in_tree():
+			tab.odds.visible = not GameState.tutorial_active()
+
+
+## The newest globe's repairs (look A's "sunset fixes"): a row per repair (its disc, name, and what
+## it needs, or "fixed ✓"); the picked one opens up with what your pet says about it, what it gives,
+## and fix it / not yet.
+class FixList extends PanelContainer:
+	var globe := ""
+	var picked := ""
+	var _col := VBoxContainer.new()
+	var _built := ""  # what the rows were last built from (they're rebuilt only when it changes)
+
+	func _init() -> void:
+		custom_minimum_size = Vector2(236, 0)
+		add_theme_stylebox_override("panel", UiTheme.sticker(UiTheme.LILAC_SEAM, 12, UiTheme.RAISED, 12))
+		_col.add_theme_constant_override("separation", 6)
+		add_child(_col)
+
+	func build(g: String) -> void:
+		var catalog := Catalog.shared()
+		var state: Dictionary = GameState.machine
+		if g != globe:
+			picked = ""
+		globe = g
+		var list := Machine.repairs(catalog, g)
+		if picked == "" or Machine.maxed(state, catalog, picked):
+			for n in list:
+				if not Machine.maxed(state, catalog, n.id):
+					picked = str(n.id)
+					break
+		# rows change with the pick, what's fixed and what you can pay for (not every coin coming in)
+		var key := "%s|%s" % [g, picked]
+		for n in list:
+			var need := Machine.bits_cost(catalog, n.id)
+			key += "|%s:%d:%s:%s" % [n.id, Machine.owned(state, n.id), Machine.look(state, catalog, n.id), GameState.coins >= Machine.cost(state, catalog, n.id)]
+			for b in need:
+				key += ":%s" % (int(GameState.bits.get(b, 0)) >= int(need[b]))
+		if key == _built:
+			return
+		_built = key
+		UiTheme.clear(_col)
+		var color := MachineTab.globe_color(g)
+		var head := HBoxContainer.new()
+		head.add_theme_constant_override("separation", 7)
+		head.add_child(UiTheme.icon_rect(str(Machine.globe(catalog, g).get("icon", "globe_sunny")), 20, color))
+		var name_str := str(Machine.globe(catalog, g).get("name", g)).trim_suffix(" globe")
+		head.add_child(UiTheme.title("%s fixes" % name_str, 17, color))
+		_col.add_child(head)
+		for n in list:
+			_col.add_child(_row(n, color))
+		_col.add_child(UiTheme.spacer())
+		var all := UiTheme.button("all upgrades →", func():
+			var tab := get_parent().get_parent() as MachineTab
+			if tab:
+				tab.show_page(1))
+		_col.add_child(all)
+
+	func _row(n: Dictionary, color: Color) -> Control:
+		var catalog := Catalog.shared()
+		var state: Dictionary = GameState.machine
+		var look := Machine.look(state, catalog, n.id)
+		var done := Machine.maxed(state, catalog, n.id)
+		var open: bool = n.id == picked and not done
+		var row := PanelContainer.new()
+		row.name = "fix_row_" + str(n.id)
+		row.mouse_filter = MOUSE_FILTER_STOP
+		row.mouse_default_cursor_shape = CURSOR_POINTING_HAND
+		var style: StyleBox = UiTheme.stitched(UiTheme.PINK, UiTheme.RAISED, 10, 7) if open else UiTheme.box(UiTheme.DEEP, UiTheme.LINE, 10, 2, 7)
+		row.add_theme_stylebox_override("panel", style)
+		row.gui_input.connect(func(e: InputEvent):
+			if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
+				picked = str(n.id)
+				build(globe))
+		var col := VBoxContainer.new()
+		col.add_theme_constant_override("separation", 5)
+		col.mouse_filter = MOUSE_FILTER_IGNORE
+		row.add_child(col)
+		var top := HBoxContainer.new()
+		top.add_theme_constant_override("separation", 9)
+		top.mouse_filter = MOUSE_FILTER_IGNORE
+		col.add_child(top)
+		top.add_child(Disc.new(str(n.icon), color, "owned" if done else look))
+		var text := VBoxContainer.new()
+		text.add_theme_constant_override("separation", 2)
+		text.size_flags_horizontal = SIZE_EXPAND_FILL
+		text.mouse_filter = MOUSE_FILTER_IGNORE
+		top.add_child(text)
+		var name_label := UiTheme.label(str(n.name), UiTheme.TEXT if look in ["next", "owned"] else UiTheme.MUTED, UiTheme.SMALL + 1)
+		name_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		name_label.custom_minimum_size.x = 150
+		text.add_child(name_label)
+		if done:
+			text.add_child(UiTheme.label("fixed ✓", UiTheme.MINT, UiTheme.SMALL))
+		else:
+			text.add_child(MachineTab.needs_row(n, 12))
+		if open:
+			var says := UiTheme.label(str(n.says), UiTheme.TEXT, UiTheme.SMALL)
+			says.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			says.custom_minimum_size.x = 190
+			col.add_child(says)
+			var gain := UiTheme.label(str(n.gain), UiTheme.MINT, UiTheme.SMALL)
+			gain.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			gain.custom_minimum_size.x = 190
+			col.add_child(gain)
+			var why := Machine.blocker(state, catalog, n.id, GameState.coins, GameState.bits)
+			var go := UiTheme.small_button("fix it" if why == "" else "not yet", func():
+				if GameState.buy_machine_upgrade(str(n.id)):
+					MachineTab.cheer(self, str(n.id)))
+			go.disabled = why != ""
+			col.add_child(go)
+		for c in [top, text] + top.get_children() + text.get_children():
+			if c is Control:
+				c.mouse_filter = MOUSE_FILTER_IGNORE
+		return row
+
+
+## What a node needs, in a row: its price in coins (cyan, or muted when you're short) and each bit
+## (pink when you're short of it).
+static func needs_row(n: Dictionary, size: int) -> HBoxContainer:
+	var catalog := Catalog.shared()
+	var cost := HBoxContainer.new()
+	cost.add_theme_constant_override("separation", 3)
+	cost.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	cost.add_child(UiTheme.icon_rect("coin", size, UiTheme.CYAN))
+	var price := Machine.cost(GameState.machine, catalog, n.id)
+	cost.add_child(UiTheme.label(UiTheme.num(price), UiTheme.CYAN if GameState.coins >= price else UiTheme.MUTED, UiTheme.SMALL))
+	var need := Machine.bits_cost(catalog, n.id)
+	for b in need:
+		var gap := Control.new()
+		gap.custom_minimum_size.x = 3
+		cost.add_child(gap)
+		cost.add_child(UiTheme.icon_rect("bit_" + b, size + 1))
+		var have := int(GameState.bits.get(b, 0)) >= int(need[b])
+		cost.add_child(UiTheme.label("%d" % int(need[b]), UiTheme.TEXT if have else UiTheme.PINK, UiTheme.SMALL))
+	for c in cost.get_children():
+		c.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return cost
+
+
+## A node's disc, as on the tree: filled with a tick once fixed, dashed and breathing when it's next,
+## dark when it's still to come.
+class Disc extends Control:
+	var icon := ""
+	var color := Color.WHITE
+	var look := ""
+
+	func _init(icon_id: String, c: Color, how: String) -> void:
+		icon = icon_id
+		color = c
+		look = how
+		custom_minimum_size = Vector2(34, 34)
+		mouse_filter = MOUSE_FILTER_IGNORE
+
+	func _process(_delta: float) -> void:
+		if look == "next" and is_visible_in_tree():
+			queue_redraw()
+
+	func _draw() -> void:
+		var c := size / 2.0
+		var r := 15.0
+		match look:
+			"owned":
+				draw_circle(c, r, UiTheme.PAGE.lerp(color, 0.3))
+				draw_arc(c, r, 0, TAU, 32, color, 3.0, true)
+			"next":
+				# on the game's clock, so a rebuilt row doesn't start its breath over
+				var breathe := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 1000.0 * 3.0)
+				draw_arc(c, r + 2.0 + breathe * 3.0, 0, TAU, 32, Color(color, 0.5 - breathe * 0.35), 2.0, true)
+				draw_circle(c, r, UiTheme.RAISED)
+				for i in 12:
+					var a := TAU * i / 12.0
+					draw_arc(c, r, a, a + TAU / 24.0, 4, color, 3.0, true)
+			_:
+				draw_circle(c, r, UiTheme.DEEP)
+				draw_arc(c, r, 0, TAU, 32, UiTheme.LINE, 3.0, true)
+		var tint := color if look != "dim" and look != "hidden" else UiTheme.LOCKED
+		draw_texture_rect(UiTheme.icon("tree_" + icon, 20, tint), Rect2(c - Vector2(10, 10), Vector2(20, 20)), false)
+		if look == "owned":
+			draw_circle(c + Vector2(11, 11), 7.0, UiTheme.MINT)
+			draw_polyline(PackedVector2Array([c + Vector2(8, 11), c + Vector2(10.5, 13.5), c + Vector2(14, 8.5)]), UiTheme.DEEP, 1.8, true)
+
+
 ## One upgrade you can work on, next to the machine: its icon, name, what it gives, what it costs
 ## (coins and bits). Tap to buy it when you can.
 class NodeCard extends Button:
@@ -253,7 +621,7 @@ class NodeCard extends Button:
 		var catalog := Catalog.shared()
 		var state: Dictionary = GameState.machine
 		var why := Machine.blocker(state, catalog, n.id, GameState.coins, GameState.bits)
-		var color := MachineTreeView.color_of(n.branch)
+		var color := MachineTreeView.node_color(n)
 		disabled = why != ""
 		mouse_default_cursor_shape = CURSOR_ARROW if disabled else CURSOR_POINTING_HAND
 		var normal := UiTheme.box(UiTheme.RAISED, UiTheme.LINE, 10, 2, 0)
@@ -282,18 +650,9 @@ class NodeCard extends Button:
 		var gain := UiTheme.label(str(n.gain), UiTheme.MUTED, UiTheme.SMALL + 1)
 		gain.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 		col.add_child(gain)
-		var cost := HBoxContainer.new()
-		cost.add_theme_constant_override("separation", 4)
-		cost.add_child(UiTheme.icon_rect("coin", 12, UiTheme.CYAN))
-		var price := Machine.cost(state, catalog, n.id)
-		cost.add_child(UiTheme.label(UiTheme.num(price), UiTheme.CYAN if GameState.coins >= price else UiTheme.MUTED, UiTheme.SMALL + 1))
-		var need := Machine.bits_cost(catalog, n.id)
-		for b in need:
-			cost.add_child(UiTheme.icon_rect("bit_" + b, 13))
-			var have := int(GameState.bits.get(b, 0)) >= int(need[b])
-			cost.add_child(UiTheme.label("%d" % int(need[b]), UiTheme.TEXT if have else UiTheme.PINK, UiTheme.SMALL + 1))
+		var cost := MachineTab.needs_row(n, 12)
 		col.add_child(cost)
-		for c in [row, icon, col, name_label, gain, cost] + cost.get_children():
+		for c in [row, icon, col, name_label, gain, cost]:
 			c.mouse_filter = MOUSE_FILTER_IGNORE
 		row.minimum_size_changed.connect(func(): custom_minimum_size.y = row.get_combined_minimum_size().y + 18.0)
 		pressed.connect(func():
@@ -309,9 +668,18 @@ class NodeCard extends Button:
 ## closer), clicking past each notch; at the bottom it clunks, the machine jolts, the capsules in
 ## the globe jump, and one capsule drops out of the flap, bounces and pops open. Let go and the
 ## lever springs back up with a little wobble.
+##
+## Each stage is one GLOBE (Machine): its colours and what's still broken come from it. Only the
+## globe you pull by hand (`hand`) takes the mouse and shows the counter; the one behind it has
+## your pet or a worker hanging off its lever while they crank it. Side by side (`compact`) the
+## stage frames just the machine, standing on the holder's floor, with a sign above it and a stat
+## line under it.
 class MachineStage extends Control:
 	signal pet_box(pet: Pet, box_id: String)  # a capsule held a box with a pet inside, for the tab to open
 	const DESIGN := Vector2(520, 470)
+	const TOP := 62.0  # side by side: room above the machine for its sign
+	const BOTTOM := 46.0  # side by side: room under the floor for its stat line
+	const SAG := 0.5  # where a sagging lever (before its pulley) droops to when you let go
 	const GLOBE := Vector2(200, 150)
 	const GLOBE_R := 118.0
 	const PIVOT := Vector2(335, 329)
@@ -355,22 +723,41 @@ class MachineStage extends Control:
 	var _halves: Array = []  # the two halves of a capsule that just popped: { pos, vel, rot, spin, color, top, t }
 	## Sits over the lever, for the tutorial to point at (drawing is all in _draw).
 	var lever_target := Control.new()
-	## The prize card in the corner (hidden in the tutorial: capsules only hold coins then).
-	var odds := OddsCard.new()
 	## "why so much?" at the end of the "N coins a capsule" line, once upgrades multiply it.
 	var why_tape := WhyTape.new(GameState.capsule_why)
 	var _line := ""  # the "N coins a capsule" line under the counter (see _counter_line)
 	var _line_check := 0.0
 	var _placed_for := ""  # the line the tape was last put at the end of
+	## The globe this stage shows (Machine), whether you pull it, and whether it stands beside another.
+	var globe := ""
+	var hand := true
+	var compact := false
+	var _arrive := 0.0  # sliding in from the side as it comes home (1 -> 0)
+	var _crank_t := -1.0  # your pet or a worker pulling this lever: 0..1 through one pull, or -1
+	var _crank_result := {}  # what that pull gives (GameState.pet_cranked)
+	var _crew: Array[TextureRect] = []  # who's cranking it: one on the lever, two waiting below
+	var _cranking := false  # someone cranks this globe: its lever keeps going
+	var _crank_wait := 0.0  # seconds since its lever last went down
+	# what it draws from, worked out when something changes (refresh_state), never every frame
+	var _fix_state := {}  # what's on its picture to fix -> still broken?
+	var _works := false
+	var _is_behind := false  # the globe your pet and workers crank
+	var _lights := false
+	var _hatch := false
+	var _chutes := 1
+	var _per := 0.0  # coins a capsule
+	var _crew_n := 0  # workers on the machine
+	var _pet_cranks := false  # your pet's job is the machine
+	var _is_first := false  # the first globe (the sunny one): candy capsules, its own hatch and sign tilt
+	var _glass_c := UiTheme.LILAC  # its colours (machine_tree.json "globes")
+	var _body_c := UiTheme.PINK
+	var _seam_c := UiTheme.PINK_SEAM
 
 	func _init() -> void:
 		mouse_filter = MOUSE_FILTER_STOP
 		clip_contents = true
 		_rng.randomize()
-		var colors := _colors()
-		for i in RESTS.size():
-			_balls.append({ "rest": Vector2(RESTS[i][0], RESTS[i][1]), "off": Vector2.ZERO, "vel": Vector2.ZERO,
-				"rot": _rng.randf() * TAU, "spin": 0.0, "color": colors[i % colors.size()] })
+		_fill_balls()
 		_fever_music = AudioStreamPlayer.new()
 		_fever_music.bus = "Music"
 		var loop := Sfx.stream_of(MachineTab._sound("fever_loop"))
@@ -381,27 +768,142 @@ class MachineStage extends Control:
 		add_child(_fever_music)
 		lever_target.mouse_filter = MOUSE_FILTER_IGNORE
 		add_child(lever_target)
-		add_child(odds)
 		_popup.z_index = UiTheme.Z_PRIZE  # a prize lands over an open "why so much?" slip
 		add_child(_popup)
-		why_tape.also = func(): return not GameState.tutorial_active() and GameState.fever_left() <= 0.0
+		for i in 3:
+			var t := TextureRect.new()
+			t.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			t.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+			t.stretch_mode = TextureRect.STRETCH_SCALE
+			t.mouse_filter = MOUSE_FILTER_IGNORE
+			t.visible = false
+			add_child(t)
+			_crew.append(t)
+		why_tape.also = func(): return hand and not GameState.tutorial_active() and GameState.fever_left() <= 0.0
 		add_child(why_tape)
 		add_child(why_tape.slip)
 		why_tape.visibility_changed.connect(_place_tape)
-		resized.connect(func(): odds.place(size))
 
-	static func _colors() -> Array:
-		return [UiTheme.PINK, UiTheme.CYAN, UiTheme.MINT, UiTheme.GOLD, UiTheme.LILAC]
+	## Shows `g`: `is_hand` you pull it, `side_by_side` it stands beside another globe.
+	func setup(g: String, is_hand: bool, side_by_side: bool) -> void:
+		var changed := g != globe
+		globe = g
+		hand = is_hand
+		compact = side_by_side
+		mouse_filter = MOUSE_FILTER_STOP if hand else MOUSE_FILTER_IGNORE
+		clip_contents = not compact
+		if not hand:
+			_held = false
+			_latched = false
+			_hover = false
+		refresh_state()
+		if changed:
+			_fill_balls()
+			_out.clear()
+			_halves.clear()
+		queue_redraw()
+
+	## Works out what the stage draws from (what's broken, chutes, lights, coins a capsule, who's
+	## cranking it): on setup and whenever the game changes, so drawing only reads these.
+	func refresh_state() -> void:
+		var catalog := Catalog.shared()
+		var state: Dictionary = GameState.machine
+		_fix_state.clear()
+		for t in _crew:
+			t.texture = null
+		_cranking = false
+		_is_first = globe == Machine.first_globe(catalog)
+		var info := _info()
+		_glass_c = UiTheme.named_color(str(info.get("glass", "lilac")), UiTheme.LILAC)
+		_body_c = UiTheme.named_color(str(info.get("body", "pink")), UiTheme.PINK)
+		_seam_c = UiTheme.named_color(str(info.get("seam", "pink_seam")), UiTheme.PINK_SEAM)
+		if globe == "":
+			_works = false
+			return
+		for n in catalog.machine_tree.nodes:
+			var fix := str(n.get("fixes", ""))
+			if fix != "" and Machine.globe_of(catalog, n) == globe:
+				_fix_state[fix] = bool(_fix_state.get(fix, false)) or Machine.owned(state, n.id) <= 0
+		_works = Machine.works(state, catalog, globe)
+		_is_behind = globe == Machine.behind(state, catalog)
+		_lights = Machine.lights_on(state, catalog, globe)
+		_hatch = Machine.hatch_open(state, catalog, globe)
+		_chutes = Machine.chutes(state, catalog, globe)
+		_per = Machine.coin_value(state, catalog, globe) * GameState.boost("coins")
+		_crew_n = GameState.workers_count("machine")
+		_pet_cranks = GameState.automation.task == "machine"
+		# who cranks it (only the one behind your hand, beside it): the first worker (or your pet,
+		# when that's its job) hangs off the lever, two more wait at its feet
+		if not compact or hand or not _works or not _is_behind:
+			return
+		var pets: Array[Pet] = []
+		if _pet_cranks and GameState.collection.active():
+			pets.append(GameState.collection.active())
+		for uid in GameState.worker_faces("machine", _crew.size()):  # cards first, then stand-ins for the herd
+			if pets.size() >= _crew.size():
+				break
+			var p: Pet = GameState.collection.get_pet(str(uid))
+			if p:
+				pets.append(p)
+		for i in pets.size():
+			_crew[i].texture = PetLook.texture_for(pets[i].parts)
+		_cranking = not pets.is_empty()
+
+	## It just came home: it slides in from the side.
+	func arrive() -> void:
+		_arrive = 1.0
+
+	func _fill_balls() -> void:
+		_balls.clear()
+		var colors := _colors()
+		for i in RESTS.size():
+			_balls.append({ "rest": Vector2(RESTS[i][0], RESTS[i][1]), "off": Vector2.ZERO, "vel": Vector2.ZERO,
+				"rot": _rng.randf() * TAU, "spin": 0.0, "color": colors[i % colors.size()] })
+
+	## The capsules' colours: the sunny globe's candy colours, a later globe's own (its glass colour
+	## and warm ones).
+	func _colors() -> Array:
+		if _is_first:
+			return [UiTheme.PINK, UiTheme.CYAN, UiTheme.MINT, UiTheme.GOLD, UiTheme.LILAC]
+		return [_glass_color(), UiTheme.GOLD, UiTheme.PINK, _glass_color().lerp(UiTheme.GOLD, 0.5), UiTheme.TEXT.lerp(_glass_color(), 0.6)]
+
+	func _info() -> Dictionary:
+		return Machine.globe(Catalog.shared(), globe)
+
+	func _glass_color() -> Color:
+		return _glass_c
+
+	func _body_color() -> Color:
+		return _body_c
+
+	func _seam_color() -> Color:
+		return _seam_c
+
+	## Whether something on this globe's picture is still broken (Machine.broken), or was there to fix.
+	func _broken(fix: String) -> bool:
+		return bool(_fix_state.get(fix, false))
+
+	func _mended(fix: String) -> bool:
+		return _fix_state.has(fix) and not _fix_state[fix]
+
+	## Where the lever rests: straight up, or drooping while it sags (before its pulley).
+	func _rest() -> float:
+		return SAG if _broken("sag") else 0.0
 
 	# ---- where things are ----------------------------------------------------------
 
 	func _scale() -> float:
+		if compact:
+			return minf(size.x / 330.0, (size.y - TOP - BOTTOM) / 385.0)
 		return minf(size.x / 560.0, size.y / 540.0)
 
 	func _origin() -> Vector2:
 		var s := _scale()
 		var shake := Vector2(sin(_time * 90.0), cos(_time * 77.0)) * _shake * 3.0
-		return size / 2.0 + Vector2(0, 20) - Vector2(260, 235) * s + shake
+		var slide := Vector2(size.x * 1.1 * _arrive * _arrive, 0)
+		if compact:
+			return Vector2(size.x / 2.0 - 222.0 * s, size.y - BOTTOM - 400.0 * s) + shake + slide
+		return size / 2.0 + Vector2(0, 20) - Vector2(260, 235) * s + shake + slide
 
 	func _to_screen(p: Vector2) -> Vector2:
 		return _origin() + p * _scale()
@@ -416,12 +918,15 @@ class MachineStage extends Control:
 		var near := sin(minf(phi, PI / 2.0)) + maxf(0.0, phi - PI / 2.0) * 0.4  # how close to you it is
 		return [tip, 17.0 * (1.0 + near * 0.75), near]
 
+	## The coin counter, in the stage's top left corner (side by side: the holder's top left corner).
 	func _counter_at() -> Vector2:
-		return Vector2(34, 32)
+		return Vector2(34, 32) - (position if compact else Vector2.ZERO)
 
 	# ---- input -----------------------------------------------------------------------
 
 	func _gui_input(event: InputEvent) -> void:
+		if not hand:
+			return
 		if event is InputEventMouseMotion:
 			var d := _to_design(event.position)
 			var k: Array = _knob(_pull)
@@ -447,11 +952,11 @@ class MachineStage extends Control:
 	func _can_grab() -> bool:
 		# one pull at a time: wait for the capsule to pop open; you can catch the lever on its way
 		# back up once it's most of the way there
-		return not _auto and _out.is_empty() and (_spring_t < 0.0 or _pull < 0.35)
+		return hand and not _auto and _out.is_empty() and (_spring_t < 0.0 or _pull < _rest() + 0.35)
 
 	## Whether the lever can be pulled right now (the dev driver waits for this).
 	func ready_to_pull() -> bool:
-		return _out.is_empty() and not _held and not _auto and (_spring_t < 0.0 or _pull < 0.35)
+		return hand and _out.is_empty() and not _held and not _auto and (_spring_t < 0.0 or _pull < _rest() + 0.35)
 
 	func _let_go() -> void:
 		_held = false
@@ -494,15 +999,19 @@ class MachineStage extends Control:
 			_line = _counter_line()
 		_place_tape()
 		_shake = move_toward(_shake, 0.0, delta * 4.0)
+		_arrive = move_toward(_arrive, 0.0, delta * 1.1)
 		_refused = move_toward(_refused, 0.0, delta * 3.0)
 		_jolt = move_toward(_jolt, 0.0, delta * 5.0)
 		_counter_pop = move_toward(_counter_pop, 0.0, delta * 4.0)
 		_flap = move_toward(_flap, 0.0, delta * 2.2)
 
-		# the lever: follows your hand with a little weight, heavier near the bottom
+		# the lever: follows your hand with a little weight, heavier near the bottom (and much heavier
+		# while it sags)
+		var rest := _rest()
+		var heavy := 0.4 if rest > 0.0 else 1.0
 		if _held:
 			var target := _want if not _latched else 1.0
-			_pull = lerpf(_pull, target, 1.0 - exp(-delta * lerpf(28.0, 16.0, _pull)))
+			_pull = lerpf(_pull, target, 1.0 - exp(-delta * lerpf(28.0, 16.0, _pull) * heavy))
 			var notch := int(floor(_pull * NOTCHES + 0.001))
 			if notch > _notch and not _latched:
 				for n in range(_notch + 1, notch + 1):
@@ -514,21 +1023,37 @@ class MachineStage extends Control:
 				_latched = true
 				_fire()
 		elif _spring_t >= 0.0:
-			# springs back with a wobble past the top
+			# springs back with a wobble past the top (a sagging lever creeps back slowly and droops)
 			_spring_t += delta
-			var dur := Machine.spring_seconds(GameState.machine, Catalog.shared())
+			var dur := Machine.spring_seconds(GameState.machine, Catalog.shared()) / heavy
 			var k := _spring_t / dur
-			_pull = _spring_from * exp(-k * 4.2) * cos(k * 7.5)
+			_pull = rest + (_spring_from - rest) * exp(-k * 4.2) * cos(k * (7.5 if rest <= 0.0 else 2.0))
 			if k >= 1.6:
-				_pull = 0.0
+				_pull = rest
 				_spring_t = -1.0
 			_notch = int(floor(maxf(_pull, 0.0) * NOTCHES))
+		elif _crank_t < 0.0 and _cranking:
+			# someone's on it: the lever keeps going down and up, whether a capsule's due or not
+			_pull = rest
+			_crank_wait += delta
+			if _crank_wait > 1.2 and _out.is_empty():
+				_crank_wait = 0.0
+				_crank_t = 0.0
+		elif _crank_t >= 0.0:
+			# your pet or a worker pulls it: down, a clunk, back up
+			_crank_t += delta / 1.1
+			var was := _pull
+			_pull = sin(minf(_crank_t, 1.0) * PI) if _crank_t < 0.5 else maxf(0.0, sin(_crank_t * PI))
+			if was < FIRE_AT and _pull >= FIRE_AT - 0.02 and not _crank_result.is_empty():
+				_crank_fire()
+			if _crank_t >= 1.0:
+				_crank_t = -1.0
+				_pull = rest
 		else:
-			_pull = 0.0
+			_pull = rest
 
 		_popup.position = _to_screen(GLOBE + Vector2(0, 30)) - _popup.size / 2.0
-		odds.visible = not GameState.tutorial_active()
-		var knob: Array = _knob(0.0)
+		var knob: Array = _knob(rest)
 		lever_target.position = _to_screen(knob[0] - Vector2(24, 24))
 		lever_target.size = Vector2(48, PIVOT.y - knob[0].y + 44) * _scale()
 		_move_balls(delta)
@@ -540,6 +1065,7 @@ class MachineStage extends Control:
 		for i in _pips_pop.size():
 			_pips_pop[i] = move_toward(_pips_pop[i], 0.0, delta * 3.0)
 		_move_flying(delta)
+		_place_crew()
 		if _shown_coins < 0.0:
 			_shown_coins = GameState.coins
 		elif _flying.is_empty() and _out.is_empty():
@@ -549,7 +1075,7 @@ class MachineStage extends Control:
 		queue_redraw()
 
 	func _fever(delta: float) -> void:
-		var on := GameState.fever_left() > 0.0
+		var on := hand and GameState.fever_left() > 0.0
 		if on and not _fever_was:
 			Sfx.play(self, MachineTab._sound("fever"))
 			PetBubble.say_line(self, "machine_fever")
@@ -603,7 +1129,8 @@ class MachineStage extends Control:
 	## Something on the machine got fixed: a puff of sparkles where it is, and a little jolt.
 	func fixed(id: String) -> void:
 		var where := { "tape": Vector2(260, 100), "glass": GLOBE, "oil": Vector2(335, 330), "flap": Vector2(200, 370),
-			"wires": Vector2(200, 309), "drops": Vector2(200, 31), "chute2": Vector2(200, 370), "chute3": Vector2(200, 370), "chute4": Vector2(200, 370) }
+			"wires": Vector2(200, 309), "drops": Vector2(200, 31), "chute2": Vector2(200, 370), "chute3": Vector2(200, 370), "chute4": Vector2(200, 370),
+			"nest": Vector2(200, 60), "cork": GLOBE, "pulley": Vector2(335, 220), "amber": GLOBE, "hatch": Vector2(200, 31) }
 		var at: Vector2 = where.get(id, GLOBE)
 		_shake = 0.6
 		_jolt = 0.6
@@ -618,7 +1145,7 @@ class MachineStage extends Control:
 	func show_pull(result: Dictionary) -> void:
 		var colors := _colors()
 		var capsules: Array = result.capsules
-		var n := Machine.chutes(GameState.machine, Catalog.shared())
+		var n := Machine.chutes(GameState.machine, Catalog.shared(), globe)
 		for i in capsules.size():
 			var cap: Dictionary = capsules[i]
 			var gold: bool = cap.prize.kind == "golden" or result.lucky
@@ -627,7 +1154,7 @@ class MachineStage extends Control:
 				"spin": _rng.randf_range(-10.0, 10.0), "color": UiTheme.GOLD if gold else colors[(int(GameState.machine.pulls) + i) % colors.size()],
 				"t": -0.08 * i, "result": cap, "fever": result.fever, "bounces": 0, "gold": gold, "shiny": cap.shiny,
 				"reveal": GameState.capsule_seconds() * (1.25 if gold else 1.0) })
-		if not Machine.lights_on(GameState.machine, Catalog.shared()):
+		if not Machine.lights_on(GameState.machine, Catalog.shared(), globe):
 			return
 		# the lucky light that just came on (or all of them, flashing, for a lucky pull)
 		var lit := int(GameState.machine.lit)
@@ -639,6 +1166,47 @@ class MachineStage extends Control:
 		elif lit > 0:
 			_pips_pop[lit - 1] = 1.0
 			Sfx.play(self, MachineTab._sound("light"), (lit - 1) * 12.0 / need)
+
+	## Your pet or a worker cranked this globe (GameState.pet_cranked): if it isn't busy, its lever
+	## goes down by itself and one capsule comes out with what they got (just the little "+coins").
+	func show_crank(result: Dictionary) -> void:
+		if hand or not _out.is_empty() or not is_visible_in_tree() or not Machine.works(GameState.machine, Catalog.shared(), globe):
+			return
+		if _crank_result.is_empty():
+			_crank_result = result  # comes out on the lever's next clunk
+		if _crank_t < 0.0:
+			_crank_t = 0.0
+
+	func _crank_fire() -> void:
+		var result := _crank_result
+		_crank_result = {}
+		_shake = 0.5
+		_jolt = 0.6
+		_flap = 1.0
+		Sfx.play(self, MachineTab._sound("clunk"), -6.0)
+		for b in _balls:
+			b.vel += Vector2(_rng.randf_range(-60.0, 60.0), _rng.randf_range(-140.0, -60.0))
+		var colors := _colors()
+		_out.append({ "pos": Vector2(_chute_x(0, 1), FLAP.y - 10.0), "vel": Vector2(_rng.randf_range(-50.0, 50.0), 40.0), "rot": 0.0,
+			"spin": _rng.randf_range(-10.0, 10.0), "color": colors[_rng.randi() % colors.size()], "t": 0.0, "result": result,
+			"fever": false, "bounces": 0, "gold": false, "shiny": bool(result.get("shiny", false)), "reveal": 0.9, "crank": true })
+
+	## Moves the crew (refresh_state picked them): one on the lever, two bobbing at its feet.
+	func _place_crew() -> void:
+		var s := _scale()
+		for i in _crew.size():
+			var t := _crew[i]
+			t.visible = t.texture != null
+			if not t.visible:
+				continue
+			var sz := Vector2(40, 40) * s
+			t.size = sz
+			if i == 0:
+				var k: Array = _knob(_pull)
+				t.position = _to_screen(k[0] + Vector2(-8, 4))
+			else:
+				var bob := sin(_time * 3.0 + i * 1.7) * 3.0
+				t.position = _to_screen(Vector2(260 + i * 42, 360 + bob)) if i == 1 else _to_screen(Vector2(64, 360 + bob))
 
 	## Where chute `i` of `n` is along the front (design space).
 	static func _chute_x(i: int, n: int) -> float:
@@ -659,6 +1227,16 @@ class MachineStage extends Control:
 			_bits.append({ "pos": at, "vel": Vector2(cos(a), sin(a) - 0.8) * sp, "rot": _rng.randf() * TAU,
 				"color": UiTheme.GOLD if c.gold and i % 2 == 0 else colors[i % colors.size()], "t": 0.0, "life": _rng.randf_range(0.5, 0.9), "size": _rng.randf_range(4.0, 7.0) })
 		var coins := int(loot.get("coins", 0))
+		if c.get("crank", false):
+			# a worker's capsule: just what it held, floating up
+			var text := "+%s" % UiTheme.num(coins) if coins > 0 else ""
+			if not result.get("toy", {}).is_empty():
+				text = "a toy!"
+			elif Rewards.total(loot, "box") > 0:
+				text = "a box!"
+			if text != "":
+				_floats.append({ "pos": at + Vector2(0, -26), "text": text, "color": UiTheme.GOLD if c.shiny else UiTheme.CYAN, "t": 0.0, "size": 16, "icon": coins > 0 })
+			return
 		match str(prize.kind):
 			"coins":
 				_floats.append({ "pos": at + Vector2(0, -26), "text": "+%s%s" % [UiTheme.num(coins), "  shiny!" if c.shiny else ""], "color": UiTheme.GOLD if c.shiny else UiTheme.CYAN, "t": 0.0, "size": 22 if c.fever or c.shiny else 18, "icon": true })
@@ -775,8 +1353,9 @@ class MachineStage extends Control:
 			c.vel.y += 1400.0 * delta
 			c.pos += c.vel * delta
 			c.rot += c.spin * delta
-			if c.pos.y > REST_Y:
-				c.pos.y = REST_Y
+			var rest_y := 382.0 if compact else REST_Y  # side by side, capsules stop on the floor, clear of the stat line
+			if c.pos.y > rest_y:
+				c.pos.y = rest_y
 				if c.vel.y > 120.0:
 					c.vel.y *= -0.42
 					c.vel.x *= 0.7
@@ -786,7 +1365,7 @@ class MachineStage extends Control:
 				else:
 					c.vel.y = 0.0
 					c.vel.x *= 0.9
-			c.pos.x = clampf(c.pos.x, 60.0, 460.0)
+			c.pos.x = clampf(c.pos.x, 80.0, 350.0) if compact else clampf(c.pos.x, 60.0, 460.0)
 			if c.t > c.reveal:
 				popped.append(c)
 		for c in popped:
@@ -817,22 +1396,26 @@ class MachineStage extends Control:
 	# ---- drawing -------------------------------------------------------------------------
 
 	func _draw() -> void:
-		var bg := UiTheme.box(UiTheme.PAPER, UiTheme.LINE, 14, 2, 0)
-		draw_style_box(bg, Rect2(Vector2.ZERO, size))
 		var s := _scale()
 		var o := _origin()
-		# the floor, across the whole stage
-		var floor_y := o.y + 400.0 * s
-		var fl := StyleBoxFlat.new()
-		fl.bg_color = UiTheme.PAGE
-		fl.corner_radius_bottom_left = 12
-		fl.corner_radius_bottom_right = 12
-		draw_style_box(fl, Rect2(2, floor_y, size.x - 4, size.y - floor_y - 2))
-		draw_line(Vector2(2, floor_y), Vector2(size.x - 2, floor_y), UiTheme.LILAC_SEAM, 3.0)
+		if not compact:
+			var bg := UiTheme.box(UiTheme.PAPER, UiTheme.LINE, 14, 2, 0)
+			draw_style_box(bg, Rect2(Vector2.ZERO, size))
+			# the floor, across the whole stage (side by side, the holder draws it)
+			var floor_y := o.y + 400.0 * s
+			var fl := StyleBoxFlat.new()
+			fl.bg_color = UiTheme.PAGE
+			fl.corner_radius_bottom_left = 12
+			fl.corner_radius_bottom_right = 12
+			draw_style_box(fl, Rect2(2, floor_y, size.x - 4, size.y - floor_y - 2))
+			draw_line(Vector2(2, floor_y), Vector2(size.x - 2, floor_y), UiTheme.LILAC_SEAM, 3.0)
 
 		draw_set_transform(o, 0.0, Vector2(s, s))
 		_draw_rays()
-		_ellipse(Vector2(210, 428), 190, 30, UiTheme.PAGE.lerp(UiTheme.LILAC, 0.12), UiTheme.LILAC_SEAM, true)
+		if compact:
+			_ellipse(Vector2(206, 406), 150, 9, Color(UiTheme.DEEP, 0.8), UiTheme.DEEP, false)
+		else:
+			_ellipse(Vector2(210, 428), 190, 30, UiTheme.PAGE.lerp(UiTheme.LILAC, 0.12), UiTheme.LILAC_SEAM, true)
 		# the machine squashes down a little on a clunk
 		var squash := sin(_jolt * PI) * _jolt
 		draw_set_transform(o + Vector2(0, 410.0 * s * squash * 0.025), 0.0, Vector2(s * (1.0 + squash * 0.015), s * (1.0 - squash * 0.025)))
@@ -871,7 +1454,7 @@ class MachineStage extends Control:
 			draw_set_transform(o + b.pos * s, b.rot, Vector2(s, s))
 			draw_rect(Rect2(Vector2(-b.size, -b.size) / 2.0, Vector2(b.size, b.size)), Color(b.color, a))
 		draw_set_transform(o, 0.0, Vector2(s, s))
-		if int(GameState.machine.pulls) == 0 and not _held and not GameState.tutorial_active():
+		if hand and not compact and int(GameState.machine.pulls) == 0 and not _held and not GameState.tutorial_active():
 			_draw_hint()
 		for f in _floats:
 			_draw_float(f)
@@ -886,7 +1469,67 @@ class MachineStage extends Control:
 			var mid: Vector2 = (f.from + to) / 2.0 + f.bend
 			var p: Vector2 = f.from.lerp(mid, t).lerp(mid.lerp(to, t), t)
 			draw_texture_rect(UiTheme.icon("coin", 16, UiTheme.CYAN), Rect2(p - Vector2(8, 8), Vector2(16, 16)), false)
-		_draw_counter()
+		if compact:
+			_draw_sign()
+			_draw_stat()
+		if hand:
+			_draw_counter()
+
+	## Side by side: the globe's name on a tilted sign above it.
+	func _draw_sign() -> void:
+		var info := _info()
+		var color := MachineTab.globe_color(globe)
+		var font := UiTheme.DISPLAY_FONT
+		var text := str(info.get("name", globe))
+		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 36.0
+		var at := Vector2(_to_screen(Vector2(200, 0)).x, _to_screen(Vector2(0, 8)).y - 20.0)
+		var tilt := -0.035 if _is_first else 0.035
+		draw_set_transform(at, tilt, Vector2.ONE)
+		var rect := Rect2(Vector2(-w / 2.0, -13), Vector2(w, 26))
+		var sb := UiTheme.box(UiTheme.RAISED, color, 6, 2, 0)
+		sb.shadow_color = UiTheme.SHADOW
+		sb.shadow_size = 3
+		sb.shadow_offset = Vector2(0, 2)
+		draw_style_box(sb, rect)
+		draw_texture_rect(UiTheme.icon(str(info.get("icon", "globe_sunny")), 16, color), Rect2(Vector2(-w / 2.0 + 8, -8), Vector2(16, 16)), false)
+		draw_string(font, Vector2(-w / 2.0 + 28, 6), text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14, color)
+		draw_set_transform(Vector2.ZERO)
+
+	## Side by side: what it's doing, under it (workers and coins a capsule for the one behind yours;
+	## coins a capsule and chutes, or the fever, for yours; nothing for one that doesn't work yet).
+	func _draw_stat() -> void:
+		var catalog := Catalog.shared()
+		if not _works:
+			return
+		var per := _per
+		var coins_line := [[UiTheme.num(per), UiTheme.CYAN], [" coin%s a capsule" % ("" if per < 1.5 else "s"), UiTheme.MUTED]]
+		var lines: Array = []
+		if hand:
+			var left := GameState.fever_left()
+			if left > 0.0:
+				lines.append([["fever! x%d for %d s" % [int(catalog.machine.fever_pay), ceili(left)], UiTheme.GOLD]])
+			else:
+				lines.append(coins_line)
+			lines.append([["%d chute%s" % [_chutes, "" if _chutes == 1 else "s"], UiTheme.MUTED]])
+		else:
+			var crew := _crew_n
+			if _is_behind and crew > 0:
+				lines.append([["%d worker%s" % [crew, "" if crew == 1 else "s"], UiTheme.TEXT]])
+			elif _is_behind and _pet_cranks:
+				lines.append([["your pet's cranking", UiTheme.TEXT]])
+			lines.append(coins_line)
+		var font := UiTheme.BODY_FONT
+		var cx := _to_screen(Vector2(200, 0)).x
+		var y := size.y - BOTTOM + 21.0
+		for parts in lines:
+			var w := 0.0
+			for part in parts:
+				w += font.get_string_size(str(part[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+			var x := cx - w / 2.0
+			for part in parts:
+				draw_string(font, Vector2(x, y), str(part[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, part[1])
+				x += font.get_string_size(str(part[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+			y += 15.0
 
 	func _draw_rays() -> void:
 		if _fever_level <= 0.0:
@@ -898,47 +1541,112 @@ class MachineStage extends Control:
 			draw_colored_polygon(pts, Color(UiTheme.GOLD, 0.07 * _fever_level))
 
 	func _draw_globe() -> void:
-		var glass := UiTheme.PAGE.lerp(UiTheme.LILAC, 0.09)
+		var tint := _glass_color()
+		var glass := UiTheme.PAGE.lerp(tint, 0.09)
 		if _fever_level > 0.0:
 			draw_circle(GLOBE, GLOBE_R + 14.0, Color(UiTheme.GOLD, 0.10 * _fever_level + 0.04 * sin(_time * 8.0) * _fever_level))
 		draw_circle(GLOBE, GLOBE_R, glass)
+		if _mended("amber"):
+			# amber glass: the whole globe glows warm, like the sky just before bedtime
+			draw_circle(GLOBE, GLOBE_R, Color(tint.lerp(UiTheme.GOLD, 0.45), 0.11 + 0.03 * sin(_time * 1.5)))
+			draw_circle(GLOBE + Vector2(0, 50), GLOBE_R * 0.7, Color(UiTheme.PINK, 0.05))
+		if _broken("nest"):
+			_draw_nest_inside()
 		for b in _balls:
 			draw_capsule(self, b.rest + b.off, 20.0, b.color, b.rot)
 		# hides capsules poking out past the glass
 		draw_arc(GLOBE, GLOBE_R + 13.0, 0, TAU, 72, UiTheme.PAPER, 26.0, true)
 		if _fever_level > 0.0:
 			draw_circle(GLOBE, GLOBE_R + 14.0, Color(UiTheme.GOLD, 0.10 * _fever_level))
-		draw_arc(GLOBE, GLOBE_R, 0, TAU, 72, UiTheme.LILAC.lerp(UiTheme.GOLD, _fever_level), 3.5, true)
-		var clear := _fixed("glass")
-		var shine := Color(UiTheme.TEXT, 0.35 if clear else 0.15)
+		draw_arc(GLOBE, GLOBE_R, 0, TAU, 72, tint.lerp(UiTheme.GOLD, _fever_level), 3.5, true)
+		var old_glass := _broken("glass")
+		var cloudy := old_glass or _broken("amber")
+		var shine := Color(UiTheme.TEXT, 0.15 if cloudy else 0.35)
 		draw_polyline(_quad(Vector2(126, 96), Vector2(140, 66), Vector2(172, 52), 12), shine, 4.0, true)
 		draw_polyline(_quad(Vector2(112, 128), Vector2(113, 118), Vector2(116, 110), 6), shine, 4.0, true)
-		if not clear:
-			# old glass: cloudy, scratched, and cracked (taped up once you've fixed that)
+		if cloudy:
+			# old glass: cloudy and scratched
 			for h in [[Vector2(150, 110), 60.0], [Vector2(240, 170), 70.0], [Vector2(190, 210), 50.0]]:
 				draw_circle(h[0], h[1], Color(UiTheme.TEXT, 0.06))
 			for sc in [[Vector2(140, 150), Vector2(170, 138)], [Vector2(230, 90), Vector2(252, 102)], [Vector2(150, 200), Vector2(168, 206)]]:
 				draw_line(sc[0], sc[1], Color(UiTheme.MUTED, 0.45), 1.5, true)
+		if old_glass:
+			# and cracked (taped up once you've fixed that)
 			var crack := PackedVector2Array([Vector2(262, 56), Vector2(252, 84), Vector2(266, 104), Vector2(254, 132), Vector2(270, 158)])
 			draw_polyline(crack, Color(UiTheme.MUTED, 0.9), 2.5, true)
 			draw_line(Vector2(252, 84), Vector2(238, 92), Color(UiTheme.MUTED, 0.7), 1.8, true)
-			if _fixed("tape"):
+			if _mended("crack"):
 				for y in [78.0, 122.0]:
 					_tape(Vector2(260, y), -0.5)
-		# the hatch on top: rusted shut until better drops opens it
-		var hatch := _fixed("drops")
-		_rounded(Rect2(160, 22, 80, 18), 7, UiTheme.PAGE.lerp(UiTheme.PINK, 0.4), UiTheme.PINK if hatch else UiTheme.PINK_SEAM, 3.0)
-		if hatch:
-			draw_circle(Vector2(200, 31), 6.0 + sin(_time * 4.0), Color(UiTheme.GOLD, 0.5))
-		else:
-			for x in [170.0, 230.0]:
-				draw_circle(Vector2(x, 31), 3.0, RUST)
-				draw_circle(Vector2(x, 31), 1.2, UiTheme.DEEP)
+		# little holes all over the glass (a capsule keeps dribbling out of one), corked once fixed
+		if _broken("holes") or _mended("holes"):
+			for h in HOLES:
+				if _broken("holes"):
+					_ellipse(h, 9.0, 7.0, UiTheme.DEEP, tint, false)
+				else:
+					_ellipse(h, 9.0, 7.0, CORK, CORK.darkened(0.35), false)
+					draw_circle(h + Vector2(-3, -1), 1.3, CORK.darkened(0.35))
+			if _broken("holes"):
+				var drip := fmod(_time * 0.7, 1.0)
+				if drip < 0.8:
+					draw_capsule(self, HOLES[1] + Vector2(8.0 + drip * 10.0, 6.0 + drip * 70.0), 9.0, _colors()[1], drip * 3.0)
+		_draw_hatch()
+		if _broken("nest"):
+			_draw_leaves()
 
 	const RUST := Color("8a6448")
+	const CORK := Color("d9a066")
+	const HOLES := [Vector2(128, 116), Vector2(284, 168), Vector2(180, 238)]
 
-	func _fixed(id: String) -> bool:
-		return Machine.owned(GameState.machine, id) > 0
+	## The hatch on top: rusted shut until the globe's hatch repair opens it (the sunny globe's is
+	## pink; a later globe's hangs crooked and rusty until then).
+	func _draw_hatch() -> void:
+		var open := _hatch
+		var body := _body_color()
+		if _is_first or open:
+			_rounded(Rect2(160, 22, 80, 18), 7, UiTheme.PAGE.lerp(body, 0.4), body if open else _seam_color(), 3.0)
+			if open:
+				draw_circle(Vector2(200, 31), 6.0 + sin(_time * 4.0), Color(UiTheme.GOLD, 0.5))
+			else:
+				for x in [170.0, 230.0]:
+					draw_circle(Vector2(x, 31), 3.0, RUST)
+					draw_circle(Vector2(x, 31), 1.2, UiTheme.DEEP)
+			return
+		var pts := _rot_rect(Vector2(200, 30), Vector2(84, 18), -0.08)
+		_poly(pts, UiTheme.PAGE.lerp(RUST, 0.45), RUST, 3.0)
+		for d in [[Vector2(172, 32), 3.0], [Vector2(222, 27), 3.5], [Vector2(198, 33), 2.0], [Vector2(238, 24), 2.0]]:
+			draw_circle(d[0], d[1], RUST.darkened(0.3))
+
+	func _rot_rect(c: Vector2, sz: Vector2, angle: float) -> PackedVector2Array:
+		var pts := PackedVector2Array()
+		for corner in [Vector2(-1, -1), Vector2(1, -1), Vector2(1, 1), Vector2(-1, 1)]:
+			pts.append(c + (corner * sz / 2.0).rotated(angle))
+		return pts
+
+	## A bird's nest of twigs in the bottom of the globe (before it's shooed out).
+	func _draw_nest_inside() -> void:
+		var twig := RUST.lightened(0.1)
+		for i in 7:
+			var y := 246.0 - i * 3.0
+			draw_polyline(_quad(Vector2(120 + i * 4, y), Vector2(200, y + 16 - i), Vector2(280 - i * 4, y), 10), twig, 3.0, true)
+		draw_line(Vector2(170, 228), Vector2(214, 236), Color(UiTheme.TEXT, 0.7), 2.0, true)  # a feather
+		draw_line(Vector2(178, 226), Vector2(182, 234), Color(UiTheme.TEXT, 0.5), 1.5, true)
+		draw_line(Vector2(190, 228), Vector2(194, 236), Color(UiTheme.TEXT, 0.5), 1.5, true)
+
+	## Leaves sticking out of the top and the chute (before the nest is shooed out).
+	func _draw_leaves() -> void:
+		var greens := [UiTheme.MINT.darkened(0.25), UiTheme.GOLD.darkened(0.2), RUST.lightened(0.2), UiTheme.MINT.darkened(0.45)]
+		var leaves := [[Vector2(176, 18), -0.9], [Vector2(214, 14), 0.5], [Vector2(236, 22), 1.1], [Vector2(192, 10), -0.2],
+			[Vector2(96, 150), 2.4], [Vector2(310, 120), 0.8], [Vector2(214, 404), 0.3], [Vector2(180, 408), -0.6]]
+		for i in leaves.size():
+			var at: Vector2 = leaves[i][0]
+			var ang: float = leaves[i][1] + sin(_time * 1.3 + i) * 0.06
+			var pts := PackedVector2Array()
+			for k in 12:
+				var t := TAU * k / 12.0
+				pts.append(at + Vector2(cos(t) * 11.0, sin(t) * 4.5).rotated(ang))
+			draw_colored_polygon(pts, greens[i % greens.size()])
+			draw_line(at - Vector2(10, 0).rotated(ang), at + Vector2(10, 0).rotated(ang), UiTheme.DEEP, 1.2, true)
 
 	## A strip of tape across the crack.
 	func _tape(at: Vector2, angle: float) -> void:
@@ -954,12 +1662,13 @@ class MachineStage extends Control:
 		trim.append_array(_quad(Vector2(82, 262), Vector2(200, 250), Vector2(318, 262), 14))
 		trim.append(Vector2(318, 280))
 		trim.append_array(_quad(Vector2(318, 280), Vector2(200, 270), Vector2(82, 280), 14))
-		_poly(trim, UiTheme.PAGE.lerp(UiTheme.PINK, 0.4), UiTheme.PINK, 3.0)
+		var tone := _body_color()
+		_poly(trim, UiTheme.PAGE.lerp(tone, 0.4), tone, 3.0)
 		var body := PackedVector2Array()
 		body.append_array(_quad(Vector2(92, 278), Vector2(200, 268), Vector2(308, 278), 14))
 		body.append(Vector2(322, 408))
 		body.append_array(_quad(Vector2(322, 408), Vector2(200, 418), Vector2(78, 408), 14))
-		_poly(body, UiTheme.PAGE.lerp(UiTheme.PINK, 0.22), UiTheme.PINK, 3.5)
+		_poly(body, UiTheme.PAGE.lerp(tone, 0.22), tone, 3.5)
 		# the lucky lights
 		_rounded(Rect2(136, 294, 128, 30), 8, UiTheme.RAISED, UiTheme.GOLD, 2.5)
 		var need := Machine.lights_needed(GameState.machine, Catalog.shared())
@@ -968,7 +1677,7 @@ class MachineStage extends Control:
 			_pips_pop.resize(need)
 		var w := 112.0 / need
 		var r := minf(5.0, w / 2.0 - 1.5)
-		var working := Machine.lights_on(GameState.machine, Catalog.shared())
+		var working := _lights
 		for i in need:
 			var at := Vector2(144.0 + w * (i + 0.5), 309)
 			if not working:
@@ -976,7 +1685,7 @@ class MachineStage extends Control:
 				draw_circle(at, r, UiTheme.DEEP)
 				draw_arc(at, r, 0, TAU, 16, UiTheme.LINE, 1.8, true)
 				continue
-			var on := i < lit
+			var on := i < lit and hand
 			if _fever_level > 0.0:
 				on = int(_time * 14.0) % need == i or int(_time * 14.0 + need / 2.0) % need == i
 			var pop: float = _pips_pop[i]
@@ -984,34 +1693,36 @@ class MachineStage extends Control:
 				draw_circle(at, r + 3.0 + pop * 5.0, Color(UiTheme.GOLD, 0.25 * maxf(pop, 0.5)))
 			draw_circle(at, r * (1.0 + pop * 0.5), UiTheme.GOLD if on or pop > 0.0 else UiTheme.DEEP)
 			draw_arc(at, r * (1.0 + pop * 0.5), 0, TAU, 16, UiTheme.GOLD, 1.8, true)
-		if not working:
+		if _broken("lights"):
 			# the chewed wire hanging off the lights
 			draw_polyline(_quad(Vector2(262, 318), Vector2(282, 330), Vector2(272, 346), 8), UiTheme.MUTED, 2.0, true)
 			draw_line(Vector2(272, 346), Vector2(268, 350), UiTheme.GOLD, 2.0, true)
 			draw_line(Vector2(272, 346), Vector2(277, 350), UiTheme.GOLD, 2.0, true)
-		if not _fixed("oil"):
+		var rusty := _broken("rust") or _broken("nest")
+		if rusty:
 			for r_at in [[Vector2(108, 300), 6.0], [Vector2(118, 312), 3.5], [Vector2(292, 388), 5.0], [Vector2(96, 392), 4.0], [Vector2(300, 296), 3.0]]:
 				draw_circle(r_at[0], r_at[1], RUST)
 		# the lever's mount on the side
-		_rounded(Rect2(318, 306, 34, 46), 9, UiTheme.RAISED, UiTheme.GOLD if _fixed("oil") else RUST, 3.0)
+		_rounded(Rect2(318, 306, 34, 46), 9, UiTheme.RAISED, RUST if rusty else UiTheme.GOLD, 3.0)
 
 	## One flap per chute along the front (bent-shut chutes aren't there until they're fixed).
 	func _draw_flap() -> void:
-		var n := Machine.chutes(GameState.machine, Catalog.shared())
+		var n := _chutes
 		var half := minf(32.0, 180.0 / n / 2.0 - 3.0)
 		for i in n:
 			_draw_one_flap(_chute_x(i, n), half)
-		if not _fixed("flap"):
+		if _broken("flap"):
 			var x := _chute_x(0, n)
 			draw_capsule(self, Vector2(x + 6, 388), 12.0, UiTheme.MINT, 0.6)
-			draw_line(Vector2(x - half + 4, 360), Vector2(x + half - 6, 372), UiTheme.PINK_SEAM, 3.0, true)
+			draw_line(Vector2(x - half + 4, 360), Vector2(x + half - 6, 372), _seam_color(), 3.0, true)
 
 	func _draw_one_flap(x: float, half: float) -> void:
 		var slot := PackedVector2Array()
 		slot.append_array(_quad(Vector2(x - half, 348), Vector2(x, 342), Vector2(x + half, 348), 8))
 		slot.append(Vector2(x + half, 392))
 		slot.append_array(_quad(Vector2(x + half, 392), Vector2(x, 396), Vector2(x - half, 392), 8))
-		_poly(slot, UiTheme.DEEP, UiTheme.PINK_SEAM, 2.5)
+		var seam := _seam_color()
+		_poly(slot, UiTheme.DEEP, seam, 2.5)
 		# the flap: hinged at the top, it swings up towards you as a capsule comes through (its
 		# bottom edge rises and it catches the light)
 		var open := sin(minf(_flap, 1.0) * PI * 0.5)
@@ -1021,9 +1732,9 @@ class MachineStage extends Control:
 		lid.append_array(_quad(Vector2(x - in_half, 353), Vector2(x, 347), Vector2(x + in_half, 353), 8))
 		lid.append(Vector2(x + in_half + open * 5.0, bottom))
 		lid.append_array(_quad(Vector2(x + in_half + open * 5.0, bottom), Vector2(x, bottom + 4.0), Vector2(x - in_half - open * 5.0, bottom), 8))
-		draw_colored_polygon(lid, UiTheme.PAGE.lerp(UiTheme.PINK, lerpf(0.14, 0.34, open)))
-		draw_line(Vector2(x - minf(10.0, half / 2.0), bottom - 5.0), Vector2(x + minf(10.0, half / 2.0), bottom - 5.0), UiTheme.PINK_SEAM, 2.5, true)
-		draw_polyline(_quad(Vector2(x - in_half + 1.0, 354), Vector2(x, 348), Vector2(x + in_half - 1.0, 354), 8), UiTheme.PINK_SEAM, 2.0, true)
+		draw_colored_polygon(lid, UiTheme.PAGE.lerp(_body_color(), lerpf(0.14, 0.34, open)))
+		draw_line(Vector2(x - minf(10.0, half / 2.0), bottom - 5.0), Vector2(x + minf(10.0, half / 2.0), bottom - 5.0), seam, 2.5, true)
+		draw_polyline(_quad(Vector2(x - in_half + 1.0, 354), Vector2(x, 348), Vector2(x + in_half - 1.0, 354), 8), seam, 2.0, true)
 
 	func _draw_lever() -> void:
 		var k: Array = _knob(_pull)
@@ -1032,14 +1743,22 @@ class MachineStage extends Control:
 		var near: float = k[2]
 		# begs a little when it's been a while
 		var beg := 0.0
-		if _idle > 6.0 and not _held and _spring_t < 0.0:
+		if hand and _idle > 6.0 and not _held and _spring_t < 0.0:
 			beg = maxf(0.0, sin(_time * 5.0)) * 2.5
 		tip.y += beg
+		if _mended("sag"):
+			# the pulley that holds the heavy lever up
+			var wheel := Vector2(PIVOT.x + 26.0, PIVOT.y - ARM - 44.0)
+			draw_line(wheel + Vector2(-9, 0), tip, Color(UiTheme.PINK, 0.8), 2.0, true)
+			draw_line(wheel + Vector2(9, 0), wheel + Vector2(9, 52), Color(UiTheme.PINK, 0.8), 2.0, true)
+			draw_arc(wheel, 10.0, 0, TAU, 20, UiTheme.LILAC, 3.0, true)
+			draw_circle(wheel, 3.0, UiTheme.LILAC)
+			draw_line(wheel + Vector2(0, -10), wheel + Vector2(0, -22), UiTheme.LILAC, 2.5, true)
 		draw_line(PIVOT, tip, UiTheme.GOLD, 9.0 * (1.0 + near * 0.5), true)
 		draw_circle(PIVOT, 7.0, UiTheme.GOLD)
 		draw_arc(PIVOT, 7.0, 0, TAU, 16, UiTheme.DEEP, 2.0, true)
 		tip.x += sin(_time * 60.0) * 3.0 * _refused
-		var waiting := not _out.is_empty() and not _held
+		var waiting := hand and not _out.is_empty() and not _held
 		var knob := UiTheme.PINK.lerp(UiTheme.TEXT, 0.2 if (_hover or _held) and not waiting else 0.0)
 		if waiting:
 			knob = knob.lerp(UiTheme.PINK_SEAM, 0.55)
@@ -1098,21 +1817,29 @@ class MachineStage extends Control:
 		var sz := int(26.0 * (1.0 + pop * 0.12))
 		draw_texture_rect(UiTheme.icon("coin", 22, UiTheme.CYAN), Rect2(at + Vector2(-16, -12 - pop * 2.0), Vector2(22, 22)), false)
 		draw_string(font, at + Vector2(12, 8), UiTheme.num(_shown_coins), HORIZONTAL_ALIGNMENT_LEFT, -1, sz, UiTheme.TEXT.lerp(UiTheme.CYAN, pop * 0.6))
+		if compact:
+			return  # side by side, each globe says what a capsule's worth under it
 		var left := GameState.fever_left()
 		draw_string(UiTheme.BODY_FONT, at + Vector2(-16, 30), _line, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UiTheme.GOLD if left > 0.0 else UiTheme.MUTED)
 
 	## The tape sits at the end of the capsule line, its slip under the line (moved only when the
-	## line changes).
+	## line changes). Side by side there's no line under the counter: it sits after the counter.
 	func _place_tape() -> void:
 		if not why_tape.visible:
 			_placed_for = ""
 			return
-		if _line == _placed_for:
-			return
-		_placed_for = _line
 		var at := _counter_at()
-		var line_w := UiTheme.BODY_FONT.get_string_size(_line, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
+		var key := ("side %d %s" % [UiTheme.num(_shown_coins).length(), at]) if compact else _line
+		if key == _placed_for:
+			return
+		_placed_for = key
 		why_tape.size = why_tape.get_combined_minimum_size()
+		if compact:
+			var num_w := UiTheme.DISPLAY_FONT.get_string_size(UiTheme.num(_shown_coins), HORIZONTAL_ALIGNMENT_LEFT, -1, 26).x
+			why_tape.position = Vector2(at.x + 12.0 + num_w + 12.0, at.y - why_tape.size.y / 2.0)
+			why_tape.slip.position = Vector2(at.x - 16.0, at.y + 22.0)
+			return
+		var line_w := UiTheme.BODY_FONT.get_string_size(_line, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
 		why_tape.position = Vector2(at.x - 16.0 + line_w + 10.0, at.y + 30.0 - why_tape.size.y + 4.0)
 		why_tape.slip.position = Vector2(at.x - 16.0, at.y + 42.0)
 
@@ -1121,8 +1848,8 @@ class MachineStage extends Control:
 		var left := GameState.fever_left()
 		if left > 0.0:
 			return "fever! every capsule x%d for %d more seconds" % [int(Catalog.shared().machine.fever_pay), ceili(left)]
-		var per := Machine.coin_value(GameState.machine, Catalog.shared()) * GameState.boost("coins")
-		var chutes := Machine.chutes(GameState.machine, Catalog.shared())
+		var per := Machine.coin_value(GameState.machine, Catalog.shared(), globe) * GameState.boost("coins")
+		var chutes := Machine.chutes(GameState.machine, Catalog.shared(), globe)
 		return "%s coin%s a capsule%s" % [UiTheme.num(per), "" if per < 1.5 else "s", ", %d chutes" % chutes if chutes > 1 else ""]
 
 	# ---- drawing helpers ------------------------------------------------------------------

@@ -50,16 +50,31 @@ static func edition_name(catalog: Catalog, edition: String) -> String:
 	return name if bits.size() < 2 or bits[1] == "normal" else "%s %s" % [finish(catalog, bits[1]).get("name", bits[1]), name]
 
 
+## Every toy of these sets (by id; empty = every set).
+static func of_sets(catalog: Catalog, sets: Array) -> Array:
+	if sets.is_empty():
+		return all(catalog)
+	var out: Array = []
+	for s in catalog.toys.sets:
+		if sets.has(str(s.id)):
+			out.append_array(s.toys)
+	return out
+
+
 ## Rolls a toy out of a capsule: its tier (rarer tiers weigh more with luck), which toy of that
-## tier, and its finish (special finishes weigh more with luck). Returns { id, finish }.
-static func roll(catalog: Catalog, rng: RandomNumberGenerator, luck := 1.0) -> Dictionary:
+## tier, and its finish (special finishes weigh more with luck). `sets`: the toy sets it can come
+## from (the globe's, Machine.toy_sets; empty = every set). Returns { id, finish }.
+static func roll(catalog: Catalog, rng: RandomNumberGenerator, luck := 1.0, sets: Array = []) -> Dictionary:
 	var d := data(catalog)
+	var toys := of_sets(catalog, sets)
 	var tiers := {}
 	for tier_id in d.tiers:
+		if not toys.any(func(t): return t.tier == tier_id):
+			continue  # no toy of that tier in these sets
 		var w := float(d.tiers[tier_id].weight)
 		tiers[tier_id] = w if tier_id == "common" else w * luck
 	var tier: String = Weighted.pick(tiers, rng)
-	var pool := all(catalog).filter(func(t): return t.tier == tier)
+	var pool := toys.filter(func(t): return t.tier == tier)
 	var picked: Dictionary = pool[rng.randi_range(0, pool.size() - 1)]
 	var finishes := {}
 	for f in d.finish_odds:

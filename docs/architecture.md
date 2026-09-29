@@ -162,7 +162,14 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   scripts/machine has its rules, `GameState.pull_lever()` pays out; a pet box out of a capsule is opened right there with a
   `PackOpening`; `OddsCard` is the "prizes" tag that flips into the odds card, from
   `Machine.odds` via `GameState.machine_odds`, refilled on machine_upgraded / toys_changed /
-  unlocked / tutorial_changed while open, placed on the stage's resize), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
+  unlocked / tutorial_changed while open, placed on the stage's resize; machine globes: the tab shows
+  the newest two globes side by side in a `StageHolder`, one `MachineStage` each (`globe`, `hand`,
+  `compact`; only the hand one takes input and shows the counter, the one behind shows your pet /
+  workers on its lever and their `pet_cranked` capsules; a stage keeps its globe while it stays on
+  show, so capsules in flight survive a globe arriving; what a stage draws from is worked out in
+  `refresh_state()` on changes, not per frame; only the hand stage holds unlock popups), and a `FixList` of the newest globe's
+  repairs in place of "next up"; `MachineTreeView` frames a globe's `view` of the tree with a sign
+  per globe to pan, `MachineMini` draws a node's own globe), `BoxesTab` (shop, `PackOpening` for one box, `BoxReveal` grid for many),
   `CollectionTab` (pets: the `Bookcase` with its cushion of `MiniCard`s and a `ShelfPlank` per
   rarity with a `Mound`; a plank opens the `ShelfView` with `PetDetails`; the `RoomPill`; and the
   `BookView`), `AdventuresTab` (adventures:
@@ -287,6 +294,10 @@ openings only: `open_boxes`, the machine's pet box), `_place_new(uids)` (busy pa
 border and "sorted today" tag.
 Save v29 adds `gifts` ({ next_at, pocket }; nothing to convert: older saves with the boxes tab
 open start the present clock on load, the first 3 h later; built as v25 in its lane).
+Save v30 adds machine globes (built as v24 in its lane): `machine.globes` (globe ids you have; the first is always there,
+unknown ids dropped) and `machine.greeted` (the machine tab showed it arriving). `load_game` gives a
+save without them just the first globe for both (no `_migrate` step needed). On every load a save with a globe's find but not the globe gets it. The globe
+you pull is derived (`Machine.hand`: the newest globe whose `works` repair is fixed), never saved.
 
 ## Testing
 

@@ -111,8 +111,9 @@ static func duration(location: Dictionary, party: Party, walk := 0.0) -> float:
 
 
 ## Moves a run on to `now`: every event whose time has come is played, until the run is done
-## or the chooser has no answer yet. Returns the new history entries.
-static func resolve(state: RunState, chooser: Chooser, now: float, catalog: Catalog) -> Array[Dictionary]:
+## or the chooser has no answer yet. Returns the new history entries. `found`: the finds home now
+## (a finish treat with "after" waits for that find).
+static func resolve(state: RunState, chooser: Chooser, now: float, catalog: Catalog, found := {}) -> Array[Dictionary]:
 	var added: Array[Dictionary] = []
 	var location := catalog.location(state.location_id)
 	while state.status != RunState.Status.DONE and now >= state.next_at:
@@ -120,7 +121,7 @@ static func resolve(state: RunState, chooser: Chooser, now: float, catalog: Cata
 			if state.party.size() == 0:
 				state.loot.clear()  # nobody came back to carry the bag
 			elif not state.went_home:
-				_finish_treat(state, location, catalog)
+				_finish_treat(state, location, catalog, found)
 			state.status = RunState.Status.DONE
 			break
 		var event: Dictionary = catalog.events.get(state.events[state.step], {})
@@ -155,9 +156,11 @@ static func scouted(reward: Dictionary, state: RunState) -> Dictionary:
 	return out
 
 
-## A trip that went all the way (not home early) gets a little treat bag on the way home.
-static func _finish_treat(state: RunState, location: Dictionary, catalog: Catalog) -> void:
-	var treat: Array = location.get("finish_rewards", [])
+## A trip that went all the way (not home early) gets a little treat bag on the way home. A treat
+## with "after" (a find id) only comes once that find is home; a place with nothing in its bag yet
+## gives no treat at all.
+static func _finish_treat(state: RunState, location: Dictionary, catalog: Catalog, found := {}) -> void:
+	var treat: Array = location.get("finish_rewards", []).filter(func(r): return not r.has("after") or found.has(str(r.after)))
 	if treat.is_empty():
 		return
 	var rng := RandomNumberGenerator.new()
