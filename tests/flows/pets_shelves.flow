@@ -3,6 +3,7 @@
 # pet squishes), and much later with a bigger room and a million commons.
 from rich
 view full
+stickers off                  # pets fill book pages: no sticker popups over the shots
 pets 150                         # real pets: plain ones fold into the herd past 20 a shelf
 herd common normal 190
 herd common shiny 48

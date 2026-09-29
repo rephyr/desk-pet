@@ -4,6 +4,7 @@
 # go to, keeps, sorted today). Busy paws: "new pets join here" on errand notes and workers' jobs.
 from rich
 view full
+stickers off                  # pets fill book pages: no sticker popups over the shots
 pets 150
 herd common normal 190
 herd common shiny 40
