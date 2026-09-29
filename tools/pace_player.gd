@@ -69,7 +69,9 @@ func _init(p_style: String, rng_seed: int) -> void:
 	for id in GATE_NODES:
 		if Machine.node(catalog, id).is_empty():
 			push_error("pace_player: gate node %s is not in data/machine_tree.json" % id)
-	gs = load("res://scripts/game_state.gd").new()
+	var gs_script: GDScript = load("res://scripts/game_state.gd")
+	gs_script.set("testing", true)  # starts empty: never reads the profile's save
+	gs = gs_script.new()
 	gs._can_save = false
 	var scratch := DevProfile.path("pace-scratch.json")
 	var f := FileAccess.open(scratch, FileAccess.WRITE)

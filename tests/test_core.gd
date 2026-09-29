@@ -53,6 +53,7 @@ func _init() -> void:
 	_test_paws(catalog)
 	_test_gifts(catalog)
 	(load("res://scripts/game_state.gd") as GDScript).set("testing", false)  # the care tests make GameStates without a save; the GameState tests load their own
+	(load("res://scripts/game_state.gd") as GDScript).set("tool_saves", true)  # ... from the test profile, even though this is a -s script
 	_test_game_state(catalog)
 	_test_herd(catalog)
 	_test_herd_game(catalog)
@@ -81,6 +82,7 @@ func _init() -> void:
 	_test_workshop(catalog)
 	_test_workshop_game(catalog)
 	_test_room(catalog)
+	(load("res://scripts/game_state.gd") as GDScript).set("tool_saves", false)  # the autoload made after this never touches a save
 	var result := "ALL PASSED" if _failures == 0 else "%d FAILED" % _failures
 	if not _skipped.is_empty():
 		result += ", BUT SKIPPED " + ", ".join(_skipped)

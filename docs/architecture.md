@@ -525,6 +525,10 @@ steps that hold at least as much (`_migrate`); older saves get the margin rule o
 
 ## Testing
 
+- Tool and test scripts (`godot -s ...`) never load or save a save: `GameState.tool_run()` sees the
+  `-s` and the GameState (the autoload, and any a script makes) starts empty with saving off.
+  A script that wants the profile's save sets `GameState.tool_saves = true` (test_core does, around
+  the GameState tests); `GameState.testing = true` starts empty too (tests, the pace players).
 - `godot --headless -s tests/test_core.gd -- --profile=core-test-<lane>` - data sanity, box odds over 100k
   rolls, save round trip, adventures, errands. With a profile it also tests GameState itself
   (`_test_game_state`): `_state_from(save)` writes a save dict into the profile and makes a fresh

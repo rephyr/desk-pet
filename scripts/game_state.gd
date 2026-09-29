@@ -38,6 +38,10 @@ var save_path := DevProfile.path("save.json")  # user://save.json, or a test pro
 ## Headless tests set this before making a GameState: it starts empty and never loads or saves
 ## (a test turns saving on with its own save_path).
 static var testing := false
+## A tool or test script (godot -s ...) runs instead of the game: then no GameState (the autoload or
+## one the script makes) loads or saves the real or profile save, unless the script sets this (the
+## GameState tests do, on their own profile's save). See tool_run().
+static var tool_saves := false
 const SAVE_VERSION := 40
 const WORKER_BOXES_MAX := 2000  # box workers open at most this many boxes in one go (every pet is rolled)
 const OFFLINE_CAP := 12.0 * 3600.0
@@ -202,7 +206,7 @@ func _init() -> void:
 	collection.busy = _busy_uids
 	collection.pets_folded.connect(_on_folded)
 	collection.herd_changed.connect(func(_keys): _rest_changed())
-	if testing:
+	if testing or (tool_run() and not tool_saves):
 		_can_save = false
 	elif not load_game():
 		_start_tutorial()  # a brand new player
@@ -254,6 +258,12 @@ func _init() -> void:
 	collection.pets_added.connect(func(pets: Array[Pet]):
 		_rest_changed()
 		_place_new(pets.map(func(p): return p.uid)))
+
+
+## True when Godot runs a tool or test script (-s / --script) as the main loop, not the game.
+static func tool_run() -> bool:
+	var args := OS.get_cmdline_args()
+	return "-s" in args or "--script" in args
 
 
 func _process(delta: float) -> void:
