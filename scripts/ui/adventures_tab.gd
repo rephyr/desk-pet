@@ -176,8 +176,7 @@ func speak() -> void:
 	# big news first: something found, something new opened up
 	var news := GameState.take_announcement()
 	if news != "":
-		var more := GameState.take_announcement()
-		PetBubble.say(self, news + (" " + more if more != "" else ""))
+		PetBubble.say_all(self, [news, GameState.take_announcement()])
 		return
 	var what := PetVoice.situation(GameState.news, GameState.rumours, GameState.runs, catalog)
 	GameState.news = {}

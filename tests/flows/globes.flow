@@ -133,3 +133,6 @@ wait 1
 expect text "brings home corks"
 expect fits
 shot orchard_card
+wait 5
+expect text "a map of past the fence! there's so much out there. let's go see all of it!"
+shot orchard_news

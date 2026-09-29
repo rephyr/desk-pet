@@ -5,6 +5,8 @@ extends PanelContainer
 
 const GROUP := "pet_bubble"
 const MARGIN_Y := 7
+## Seconds each line of a say_all() stays up before the next one.
+const NEXT_AFTER := 4.0
 
 
 ## How tall the bubble is with one line in it (the top bar keeps this much room for it).
@@ -12,6 +14,8 @@ static func one_line_height() -> float:
 	return UiTheme.BODY_FONT.get_height(UiTheme.FONT_SIZE) + MARGIN_Y * 2
 
 var _text := UiTheme.label("")
+var _queue: Array[String] = []
+var _turn := 0  # bumps on every new say, so an old say_all's timer knows it's been talked over
 
 
 func _init() -> void:
@@ -35,6 +39,17 @@ static func say(from: Node, text: String) -> void:
 		from.get_tree().call_group(GROUP, "show_line", text)
 
 
+## Makes the pet say each of `lines` in turn, one bubble each (the bubble only fits two rows,
+## so news doesn't get joined into one long line and cut off).
+static func say_all(from: Node, lines: Array) -> void:
+	var left: Array[String] = []
+	for l in lines:
+		if str(l) != "":
+			left.append(str(l))
+	if from.is_inside_tree() and not left.is_empty():
+		from.get_tree().call_group(GROUP, "show_lines", left)
+
+
 ## Says one of the pet's lines for `key` (data/voice.json "ui"), with {count} and the like filled in.
 static func say_line(from: Node, key: String, fill := {}) -> void:
 	say(from, line(key, fill))
@@ -52,6 +67,26 @@ static func line(key: String, fill := {}) -> String:
 
 
 func show_line(text: String) -> void:
+	_queue.clear()
+	_turn += 1
+	_show(text)
+
+
+func show_lines(lines: Array[String]) -> void:
+	_queue = lines.duplicate()
+	_turn += 1
+	_next(_turn)
+
+
+func _next(turn: int) -> void:
+	if turn != _turn or _queue.is_empty() or not is_inside_tree():
+		return
+	_show(_queue.pop_front())
+	if not _queue.is_empty():
+		get_tree().create_timer(NEXT_AFTER).timeout.connect(_next.bind(turn))
+
+
+func _show(text: String) -> void:
 	if text == _text.text:
 		return
 	_text.text = text

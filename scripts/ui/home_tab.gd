@@ -827,8 +827,7 @@ func speak() -> void:
 	var catalog := Catalog.shared()
 	var news := GameState.take_announcement()
 	if news != "":
-		var more := GameState.take_announcement()
-		PetBubble.say(self, news + (" " + more if more != "" else ""))
+		PetBubble.say_all(self, [news, GameState.take_announcement()])
 		return
 	var work := PetVoice.work_summary(pet, GameState.take_idle_log(), _rng, catalog)
 	if work != "":
