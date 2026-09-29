@@ -179,6 +179,20 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   its reward sticker multiplies. `GameState.stickers` keeps the opened ones for good,
   `check_book()` opens new ones (`sticker_opened`, shown by `UnlockPopup`) and clears the kept
   boosts; each open sticker is a `book` part of its kind (`Book.parts`, see Boosts).
+- `Wish` (scripts/pets/wish.gd, pure rules, data/wish.json) is the wishing jar: steps, where a
+  jar is (`where`), `add(catalog, state, key, n, palettes)`, `weights` (book key -> x for every
+  look with a full step). `GameState.wish` = `{ on, jars: { book key: { sent, dots } } }`,
+  `set_wish`, `wish_shelves` (rarity -> resting herd pets and the next stand-in's face, from
+  `resting_herd()` like the edge), `send_to_wish` (`_take_resting`: plainest finish first, a star
+  each through `Collection.add_stars`), signal `wish_changed(step)`. `WishJarCard` looks over the
+  shelves at most once a second while pets stream in (box tables) and changes chip counts and faces
+  in place. `PetRoller.wish` takes the weights (set on load, new game and every full step): with it
+  empty the roller runs exactly as before; with it, `_pick_part` and `_signature_slot` pick weighted
+  inside the tier already rolled. Every box goes through `GameState._roller`, so your rips, your
+  pet's opening, box tables and the machine's pet box all follow it. UI: `WishJarCard`
+  (scripts/ui/wish_jar.gd, the jar drawn in code, `JarArt`) beside `BookView` in `narrow` mode
+  (`CollectionTab._show_jar`); earned by the unlock `wish` (earn key `others`: a job taught to the
+  other pets).
 - `Care` (scripts/pets/care.gd, pure rules, data/care.json): food (`GameState.hunger`) and mood
   (`happiness`) as buffs. `Care.drain` lowers a stat for seconds the game is open (never below the
   floor); `GameState._process` drains only when the frame is under `FRAME_GAP` (5 s, a longer gap
@@ -463,6 +477,9 @@ negative-width rect drew them a sprite's width to the right). UI: `HoldSpot` (a 
 `set_hold_picked`, `hold_spot(f)`); `DungeonView.pick_hold(f)` / `_hold_card` (its shelf list keeps its scroll across rebuilds) /
 `hold_pick` / `hold_list` (flows) and
 the orders' start line.
+
+Save v38 (built as v26 in the wish lane) adds `wish` (the wishing jar; older saves start with
+nothing wished for, `Wish.clean` drops unknown looks and clamps jars to 8,800).
 
 ## Testing
 

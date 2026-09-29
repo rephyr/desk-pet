@@ -31,12 +31,13 @@ signal school_changed  # pets sat down in the school, or the bell rang
 signal dungeon_changed  # the army or its orders changed, it set off down the well, or it came home
 signal plushie_changed  # the plushie machine changed: a pet fed in, a keeper picked, a reel held, a nudge or hold bought
 signal plushie_spun(result: Dictionary)  # the plushie machine spun (or banked, nudged, brought the next pet in), see plushie_spin()
+signal wish_changed(step: int)  # the wish moved or pets went into its jar; step = the step that just filled (0: none)
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
 ## Headless tests set this before making a GameState: it starts empty and never loads or saves
 ## (a test turns saving on with its own save_path).
 static var testing := false
-const SAVE_VERSION := 37
+const SAVE_VERSION := 38
 const WORKER_BOXES_MAX := 2000  # box workers open at most this many boxes in one go (every pet is rolled)
 const OFFLINE_CAP := 12.0 * 3600.0
 const FRAME_GAP := 5.0  # a frame this long means the computer slept: counts as closed (no care drain)
@@ -54,6 +55,8 @@ var gear := {}  # gear id -> level, bought with xp (the adventures tab's upgrade
 ## The collection book's reward stickers you've opened (page ids, see Book and data/book.json).
 ## Kept for good: the boost reads this list, not how full the page is now.
 var stickers: Array[String] = []
+## The wishing jar: what you wish for and every look's jar, see Wish and data/wish.json.
+var wish := Wish.fresh()
 var hunger := 70.0  # food, 100 = full; starts on the tick, no buff yet (only drains while open, see Care)
 var happiness := 70.0  # mood
 var pet_out := false
@@ -895,6 +898,8 @@ func _earned(earn: Dictionary) -> bool:
 		return false
 	if int(sewing.cleared) < int(earn.get("sewing", 0)):
 		return false
+	if earn.has("others") and not knows_others(str(earn.others)):
+		return false
 	var levels: Dictionary = earn.get("job_level", {})
 	for job_id in levels:
 		if job_level(str(job_id)) < int(levels[job_id]):
@@ -1140,6 +1145,8 @@ func debug_new_game() -> void:
 	edge = Edge.fresh()
 	school = School.fresh()
 	school_changed_boost()
+	wish = Wish.fresh()
+	_roller.wish = {}
 	_crews_changed()
 	pinned.clear()
 	rummaged.clear()
@@ -2528,6 +2535,7 @@ func teach_others(id: String) -> bool:
 		return false
 	coins -= teach_others_cost(id)
 	automation.others[id] = true
+	check_unlocks()  # the wishing jar waits for the box tables
 	automation_changed.emit()
 	changed.emit()
 	save_game()
@@ -5248,6 +5256,97 @@ func check_book() -> void:
 	save_game()
 
 
+# ---- the wishing jar (see Wish, data/wish.json) ----------------------------------
+
+## Whether the wishing jar is out (beside the collection book).
+func wish_open() -> bool:
+	return feature_on("wish")
+
+
+## Wishes for a sticker you've found (a part's book key). Returns whether it worked.
+func set_wish(key: String) -> bool:
+	if not wish_open() or not Wish.can_wish(catalog, key) or collection.times_seen(key) <= 0 or wish.on == key:
+		return false
+	wish.on = key
+	wish_changed.emit(0)
+	save_game()
+	return true
+
+
+## The jar's shelves: rarity id -> { n: resting herd pets that can go, first: the face of the one
+## that would go first }. Like the edge and the school, the jar takes from the herd's resting counts
+## (plainest finish first): cards (favourites, the active pet, pinned pulls, sewn pets, holo and up,
+## the newest few) never go, nor pets away, on errands or working.
+func wish_shelves() -> Dictionary:
+	var out := {}
+	var h := resting_herd()
+	var first := {}  # rarity -> the plainest key with pets
+	for k in h:
+		if int(h[k]) <= 0:
+			continue
+		var r := Herd.rarity_of(k)
+		var shelf: Dictionary = out.get(r, { "n": 0 })
+		shelf.n = int(shelf.n) + int(h[k])
+		out[r] = shelf
+		if not first.has(r) or catalog.finish_rank(Herd.finish_of(k)) < catalog.finish_rank(Herd.finish_of(first[r])):
+			first[r] = k
+	for r in out:
+		var uids := collection.stand_in_uids(str(first[r]), 1)
+		out[r].first = Herd.stand_in(catalog, uids[0]) if not uids.is_empty() else null
+	return out
+
+
+## Sends `n` resting herd pets of a rarity into the wished look's jar (-1: as many as fit), the
+## plainest finish first. They never come back (a star each). Returns { sent, before, after } (full
+## steps before and after).
+func send_to_wish(rarity: String, n: int) -> Dictionary:
+	var key: String = wish.on
+	var before := int(Wish.where(catalog, Wish.sent(wish, key)).full)
+	var out := { "sent": 0, "before": before, "after": before }
+	if not wish_open() or key == "" or n == 0:
+		return out
+	var room := Wish.room(catalog, wish, key)
+	var take := room if n < 0 else mini(n, room)
+	if take <= 0:
+		return out
+	var got := _take_resting(rarity, take, int(catalog.wish.get("dots", 90)))
+	var sent := Herd.total(got[0])
+	if sent <= 0:
+		return out
+	collection.add_stars(got[1], sent)  # each one is a star in the night sky now
+	Wish.add(catalog, wish, key, sent, got[1])
+	var after := int(Wish.where(catalog, Wish.sent(wish, key)).full)
+	if after > before:
+		_roller.wish = Wish.weights(catalog, wish)
+	out.sent = sent
+	out.after = after
+	wish_changed.emit(after if after > before else 0)
+	changed.emit()
+	save_game()
+	return out
+
+
+## Sets how many pets are in a look's jar and wishes for it (the dev driver's "wish" step).
+func debug_wish(key: String, sent_n := -1) -> bool:
+	if not Wish.can_wish(catalog, key):
+		return false
+	if collection.times_seen(key) <= 0:
+		collection.see(key)
+	wish.on = key
+	if sent_n >= 0:
+		var jar: Dictionary = wish.jars.get(key, { "sent": 0, "dots": [] })
+		jar.sent = clampi(sent_n, 0, Wish.total(catalog))
+		if (jar.dots as Array).is_empty():  # some colour to look at
+			var pals: Array = catalog.slots.palette.map(func(p): return str(p.id))
+			for i in mini(jar.sent, int(catalog.wish.get("dots", 90))):
+				jar.dots.append(pals[(i * 3 + (i >> 2)) % mini(5, pals.size())])
+		wish.jars[key] = jar
+	_roller.wish = Wish.weights(catalog, wish)
+	wish_changed.emit(0)
+	changed.emit()
+	return true
+
+
 ## Gives xp, boosted (the "xp" kind). Returns how much it really was.
 func add_xp(amount: int) -> int:
 	var real := roundi(amount * boost("xp"))
@@ -5496,6 +5595,7 @@ func save_game() -> void:
 		"room": room,
 		"edge": edge,
 		"school": school,
+		"wish": wish,
 		"automation": automation,
 		"dungeon": dungeon,
 		"wisps": wisps,
@@ -5553,6 +5653,8 @@ func _load_save() -> bool:
 	# before the collection: its pets_added would open a page's sticker again otherwise
 	stickers = Book.clean(catalog, data.get("stickers", []))  # v24: older saves open theirs after loading (check_book)
 	_boosts_changed()
+	wish = Wish.clean(catalog, data.get("wish", {}))  # v38: older saves start with an empty jar
+	_roller.wish = Wish.weights(catalog, wish)
 	collection.auto_active = true  # your first pet is always your active pet (you can change it later)
 	collection.load_from(data.get("collection", {}))
 	bag.clear()
@@ -5988,6 +6090,8 @@ func _migrate(data: Dictionary) -> Dictionary:
 		if dg is Dictionary:
 			dg["held"] = {}
 			dg["start"] = 0
+	if version < 38:
+		data.wish = Wish.fresh()  # v38 (built as v26 in the wish lane): the wishing jar; older saves start with nothing wished for
 	data.version = SAVE_VERSION
 	return data
 

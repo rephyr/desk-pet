@@ -131,6 +131,8 @@ extends Node
 ##   card <k>=<v> ... [n]  n new card pets (1 if left out) with these parts, trait, finish and rarity, e.g.
 ##                         card body=bunny rarity=rare finish=shiny trait=zoomy (they aren't in the book)
 ##   keep <line> <pick|none>  the sorting card's keep line (1 = the first) keeps that, e.g. trait:zoomy
+##   wish <slot> <id> [n]  wishes for that part (found if it wasn't), with n pets already in its jar
+##   wish-shelf <rarity>   picks that shelf on the wishing jar (the chip per rarity)
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -767,6 +769,17 @@ func _step(w: PackedStringArray) -> String:
 		"keep":  # keep <line> <pick|none>
 			if not GameState.set_keep_line(int(w[1]) - 1, "" if w[2] == "none" else w[2]):
 				return "can't set keep line %s to %s" % [w[1], w[2]]
+		"wish":  # wish <slot> <id> [n]: wish for that part, n pets already in its jar
+			if w.size() < 3:
+				return "wish needs <slot> <id> [n]"
+			if not GameState.debug_wish(Collection.part_key(w[1], w[2]), int(w[3]) if w.size() > 3 else -1):
+				return "can't wish for %s %s" % [w[1], w[2]]
+		"wish-shelf":  # wish-shelf <rarity>: that shelf on the jar
+			if w.size() < 2:
+				return "wish-shelf needs <rarity>"
+			if not GameState.wish_shelves().has(w[1]):
+				return "no %s pets can go" % w[1]
+			home.full_game().collection.wish_jar.pick_shelf(w[1])
 		"quit":
 			_finish()
 		_:

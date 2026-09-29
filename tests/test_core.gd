@@ -76,6 +76,7 @@ func _init() -> void:
 	_test_held(catalog)
 	_test_held_game(catalog)
 	_test_merged_lanes(catalog)
+	_test_wish(catalog)
 	var result := "ALL PASSED" if _failures == 0 else "%d FAILED" % _failures
 	if not _skipped.is_empty():
 		result += ", BUT SKIPPED " + ", ".join(_skipped)
@@ -922,7 +923,7 @@ func _test_unlocks(catalog: Catalog) -> void:
 		_check(entry.show in ["locked", "hidden"], "unlock %s is shown locked or hidden" % entry.id)
 		for o in entry.opens:
 			var bits := str(o).split(":")
-			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "whistle", "new_homes", "sorting", "edge", "school", "dungeon", "lead_army", "plushie", "sewing", "keep_lines"]) or (bits[0] == "page" and bits[1] in page_ids) \
+			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "whistle", "new_homes", "sorting", "edge", "school", "dungeon", "lead_army", "plushie", "sewing", "keep_lines", "wish"]) or (bits[0] == "page" and bits[1] in page_ids) \
 				or (bits[0] == "job" and catalog.jobs.any(func(j): return str(j.get("needs", "")) == o))
 			_check(ok, "unlock %s opens something real (%s)" % [entry.id, o])
 		if entry.earn.has("find"):
@@ -1884,6 +1885,7 @@ func _test_book(catalog: Catalog) -> void:
 	gs.coins = 0
 	gs.grant({ "coins": 100 })
 	_check(gs.coins == 121, "a coins toy and the paint set multiply (x1.1 x1.1: %d)" % gs.coins)
+	var golden_before: float = gs.machine_odds().get("golden", 0.0)
 	for k in keys:
 		gs.collection.see(k)
 	gs.check_book()
@@ -1921,8 +1923,189 @@ func _test_book(catalog: Catalog) -> void:
 	_check(got3.is_empty(), "loading opens no sticker halfway through (%s)" % [got3])
 	gs3.check_book()
 	_check(got3 == ["eyes"] and gs3.stickers == ["eyes"], "a v23 save with a full page gets its sticker after loading (%s)" % [got3])
+	# a v22 save (before scout notes, stickers and box tiers) with a lucky box and a full page
+	var v22 := { "version": 22, "bag": { "lucky": 2, "starter": 1 }, "collection": { "seen": {} } }
+	for k in keys:
+		v22.collection.seen[k] = 1
+	SaveFile.write(path, v22)
+	var gs4: Node = GS.new()
+	gs4.save_path = path
+	gs4.load_game()
+	gs4.check_book()
+	_check(gs4.bag == { "sunset": 2, "starter": 1 }, "a v22 save's lucky boxes load as sunset boxes (%s)" % [gs4.bag])
+	_check(gs4.stickers == ["eyes"], "a v22 save with a full page gets its sticker (%s)" % [gs4.stickers])
+	_check(gs4.scout_notes == 0, "a v22 save starts with no scout notes")
+	gs4._can_save = true
+	gs4.save_game()
+	_check(int(SaveFile.read(path).get("version", 0)) == GS.SAVE_VERSION, "a v22 save is saved back at v%d" % GS.SAVE_VERSION)
+	# every pet out of a box counts: two pets of one sunset box finish a page together
+	var gs5: Node = GS.new()
+	var got5: Array[String] = []
+	gs5.sticker_opened.connect(func(id): got5.append(id))
+	for k in keys.slice(0, keys.size() - 2):
+		gs5.collection.see(k)
+	var box_pair: Array[Pet] = []
+	for k in keys.slice(keys.size() - 2):
+		var pet := Pet.new()
+		pet.parts = { "body": "blob", "palette": "lilac", "pattern": "plain", "eyes": str(k).get_slice(":", 2), "accessory": "none" }
+		box_pair.append(pet)
+	gs5.collection.add(box_pair)
+	_check(got5 == ["eyes"], "the last two eyes out of one box open the eyes sticker (%s)" % [got5])
 	for f in [path, path + ".bak"]:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	for n in [gs, gs2, gs3, gs4, gs5]:
+		n.free()
+
+
+## The wishing jar (Wish, data/wish.json): steps, what can be wished for, weights inside a tier
+## that never move rarity, which pets go (and never come back), the unlock, the save.
+func _test_wish(catalog: Catalog) -> void:
+	var st: Array = Wish.steps(catalog)
+	_check(st.map(func(x): return int(x)) == [200, 600, 2000, 6000] and Wish.total(catalog) == 8800, "the jar has 4 steps of 200 / 600 / 2k / 6k (%s)" % [st])
+	var w0 := Wish.where(catalog, 0)
+	_check(w0.full == 0 and w0.have == 0 and w0.need == 200 and not w0.done, "an empty jar: step 1, 0 / 200")
+	var w199 := Wish.where(catalog, 199)
+	_check(w199.full == 0 and w199.have == 199, "199 in: still step 1")
+	var w200 := Wish.where(catalog, 200)
+	_check(w200.full == 1 and w200.have == 0 and w200.need == 600, "200 in: one full step, 0 / 600")
+	var w800 := Wish.where(catalog, 800)
+	_check(w800.full == 2 and w800.need == 2000, "800 in: two full steps")
+	var w8800 := Wish.where(catalog, 8800)
+	_check(w8800.full == 4 and w8800.done, "8,800 in: the jar is full")
+	_check(Wish.can_wish(catalog, "part:pattern:spots") and Wish.can_wish(catalog, "part:accessory:none") and Wish.can_wish(catalog, "part:body:bunny"), "parts can be wished for")
+	_check(not Wish.can_wish(catalog, "finish:blob:shiny") and not Wish.can_wish(catalog, "part:pattern:nope") and not Wish.can_wish(catalog, ""), "finishes and unknown looks can't")
+
+	# rarity never moves: the tier shares are the same with heavy wishes on
+	var heavy := { "part:pattern:spots": 4.0, "part:body:bunny": 4.0, "part:eyes:sleepy": 4.0, "part:palette:toxic": 4.0, "part:accessory:crown": 4.0, "part:body:fox": 4.0 }
+	for box_id in ["starter", "sunset"]:
+		var plain := _wish_roll(catalog, box_id, {}, 20000, 11)
+		var wished := _wish_roll(catalog, box_id, heavy, 20000, 11)
+		var worst := 0.0
+		for t in catalog.tiers:
+			worst = maxf(worst, absf(float(plain.tiers.get(t.id, 0)) - float(wished.tiers.get(t.id, 0))) / 20000.0)
+		_check(worst < 0.015, "%s box: wishes don't move rarity (worst tier differs by %.2f%%)" % [box_id, worst * 100.0])
+		for p in wished.bad:
+			_check(false, "a wished pet's parts still fit its rarity: %s" % p)
+	# the weight works inside the tier: spots among the common patterns
+	var none := _wish_roll(catalog, "starter", {}, 20000, 5)
+	var spots := _wish_roll(catalog, "starter", { "part:pattern:spots": 4.0 }, 20000, 5)
+	var share0: float = float(none.looks.get("part:pattern:spots", 0)) / (none.looks.get("part:pattern:spots", 0) + none.looks.get("part:pattern:plain", 0))
+	var share4: float = float(spots.looks.get("part:pattern:spots", 0)) / (spots.looks.get("part:pattern:spots", 0) + spots.looks.get("part:pattern:plain", 0))
+	_check(absf(share0 - 0.5) < 0.03 and absf(share4 - 0.8) < 0.04, "spots x4: its share of the common patterns goes 50%% to 80%% (%.3f to %.3f)" % [share0, share4])
+	# a look alone in its tier (the only rare body) turns up more on rare pets, through the signature slot
+	var bunny := _wish_roll(catalog, "starter", { "part:body:bunny": 4.0 }, 20000, 7)
+	var b0 := float(none.rare_bunny) / maxi(1, none.tiers.get("rare", 0))
+	var b4 := float(bunny.rare_bunny) / maxi(1, bunny.tiers.get("rare", 0))
+	_check(b4 > b0 * 1.5, "bunny x4 turns up more on rare pets (%.3f to %.3f)" % [b0, b4])
+	# no wish: exactly the same rolls as before for the same seed
+	var r1 := RandomNumberGenerator.new()
+	r1.seed = 99
+	var r2 := RandomNumberGenerator.new()
+	r2.seed = 99
+	var a := PetRoller.new(catalog, r1)
+	var b := PetRoller.new(catalog, r2)
+	b.wish = { "part:pattern:spots": 2.0 }
+	b.wish = {}
+	var same := true
+	for i in 300:
+		var pa := a.roll("sunset")
+		var pb := b.roll("sunset")
+		same = same and pa.parts == pb.parts and pa.rarity == pb.rarity and pa.finish == pb.finish
+	_check(same, "no wish rolls exactly as before")
+	# weights: only looks with a full step, by step
+	var ws := Wish.fresh()
+	ws.jars["part:pattern:spots"] = { "sent": 800, "dots": [] }
+	ws.jars["part:eyes:happy"] = { "sent": 150, "dots": [] }
+	var wt := Wish.weights(catalog, ws)
+	_check(wt.size() == 1 and is_equal_approx(float(wt.get("part:pattern:spots", 0.0)), 2.0), "two full steps weigh x2, a jar without a full step nothing (%s)" % [wt])
+	var clean := Wish.clean(catalog, { "on": "finish:blob:shiny", "jars": { "part:pattern:spots": { "sent": 99999, "dots": ["mint", "nope"] }, "bogus": { "sent": 5 } } })
+	_check(clean.on == "" and clean.jars.size() == 1 and clean.jars["part:pattern:spots"].sent == 8800 and clean.jars["part:pattern:spots"].dots == ["mint"], "clean keeps only real looks, within a jar (%s)" % [clean])
+
+	# GameState: hidden until the box tables, resting herd pets only, they never come back
+	var GS: GDScript = load("res://scripts/game_state.gd")
+	GS.testing = true
+	var gs: Node = GS.new()
+	var c: Collection = gs.collection
+	var popped: Array = []
+	gs.unlocked.connect(func(e): popped.append(e.id))
+	gs.debug_give_pets(40)
+	c.add_plain("common:normal", 400)
+	c.add_plain("common:shiny", 20)
+	c.add_plain("rare:normal", 30)
+	gs.coins = 100000000
+	gs.check_unlocks()
+	_check(not gs.wish_open(), "the jar is hidden before the box tables")
+	_check(not gs.set_wish("part:pattern:plain"), "no wishing before the jar")
+	gs.automation.taught["boxes"] = true
+	_check(gs.teach_others("boxes"), "the others learn to open boxes")
+	_check(gs.wish_open() and "wish" in popped, "teaching the others to open boxes brings the jar (%s)" % [popped])
+	var spots_key := "part:pattern:spots"
+	if c.times_seen(spots_key) == 0:
+		c.see(spots_key)
+	_check(not gs.set_wish("part:pattern:nope") and not gs.set_wish("finish:blob:normal"), "only a real part can be wished for")
+	_check(gs.set_wish(spots_key) and gs.wish.on == spots_key, "wishing for spots")
+	# who can go: resting pets from the herd; cards (the active pet, pinned, sewn, holo...) and pets
+	# on errands stay
+	var active: Pet = c.active()
+	gs.unlocks["feature:errands"] = true
+	gs.put_on_job("coin_hunt", 100)
+	var on_job: int = gs.job_size("coin_hunt")
+	var shelves: Dictionary = gs.wish_shelves()
+	var rest_by: Dictionary = gs.resting_shelves()
+	_check(shelves.keys() == rest_by.keys() and shelves.keys().all(func(r): return int(shelves[r].n) == int(rest_by[r])), "a shelf holds its rarity's resting herd pets (%s)" % [rest_by])
+	var face: Pet = shelves.common.first
+	_check(face != null and face.rarity == "common" and face.finish == "normal", "the shelf's face is a plain common (normal finishes go first)")
+	var cards := c.pets.size()
+	var commons_free := int(shelves.common.n)
+	var stars: int = c.fallen_n
+	var shiny_before: int = c.herd_count("common:shiny")
+	var sent: Dictionary = gs.send_to_wish("common", 10)
+	_check(sent.sent == 10 and c.pets.size() == cards, "sending 10 takes 10 from the herd, never a card (%d)" % sent.sent)
+	_check(c.fallen_n == stars + 10, "they never come back: 10 new stars")
+	_check(c.herd_count("common:shiny") == shiny_before, "the plainest finish goes first (the shinies stay)")
+	_check(Wish.sent(gs.wish, spots_key) == 10 and gs.wish.jars[spots_key].dots.size() == 10, "the jar counts them and keeps their colours")
+	_check(gs.job_size("coin_hunt") == on_job and c.active() == active, "pets on errands and the active pet stay")
+	_check(int(gs.wish_shelves().common.n) == commons_free - 10, "the shelf has 10 fewer")
+	# a full step: the roller learns the wish
+	_check(gs._roller.wish.is_empty(), "no full step yet: the boxes roll as always")
+	var steps: Array = []
+	gs.wish_changed.connect(func(step): steps.append(step))
+	var more: Dictionary = gs.send_to_wish("common", 190)
+	_check(more.before == 0 and more.after == 1 and steps == [1], "200 in: the first step fills (%s)" % [steps])
+	_check(is_equal_approx(float(gs._roller.wish.get(spots_key, 0.0)), 1.5), "one full step: spots weighs x1.5 in every box (%s)" % [gs._roller.wish])
+	# switching keeps the old jar's steps (and its weight)
+	var sleepy := "part:eyes:sleepy"
+	if c.times_seen(sleepy) == 0:
+		c.see(sleepy)
+	gs.set_wish(sleepy)
+	_check(Wish.sent(gs.wish, spots_key) == 200 and Wish.sent(gs.wish, sleepy) == 0, "switching keeps spots' 200")
+	_check(gs._roller.wish.has(spots_key), "spots keeps its boost after switching")
+	gs.set_wish(spots_key)
+	_check(int(Wish.where(catalog, Wish.sent(gs.wish, spots_key)).full) == 1, "switching back: one step still full")
+	# the cap: never more than a whole jar
+	gs.debug_wish(spots_key, 8795)
+	var last: Dictionary = gs.send_to_wish("common", -1)
+	_check(last.sent == 5 and Wish.sent(gs.wish, spots_key) == 8800 and last.after == 4, "the last 5 fill the jar and no more (%d)" % last.sent)
+	_check(gs.send_to_wish("common", 10).sent == 0, "a full jar takes nobody")
+	# the save keeps it; an old save starts with an empty jar
+	var path := DevProfile.path("wish_save.json") if DevProfile.active() else "user://wish_test_save.json"
+	gs.save_path = path
+	gs._can_save = true
+	gs.save_game()
+	var gs2: Node = GS.new()
+	gs2.save_path = path
+	gs2.load_game()
+	_check(gs2.wish.on == spots_key and Wish.sent(gs2.wish, spots_key) == 8800 and Wish.sent(gs2.wish, sleepy) == 0, "a save round trip keeps the wish and its jar")
+	_check(is_equal_approx(float(gs2._roller.wish.get(spots_key, 0.0)), 4.0), "a loaded game rolls with the jar's weight (%s)" % [gs2._roller.wish])
+	_check(gs2.wish_open(), "the jar stays open after loading")
+	SaveFile.write(path, { "version": 37, "collection": { "seen": {} }, "unlocks": [] })
+	var gs3: Node = GS.new()
+	gs3.save_path = path
+	gs3.load_game()
+	_check(gs3.wish.on == "" and gs3.wish.jars.is_empty() and gs3._roller.wish.is_empty() and not gs3.wish_open(), "a v37 save starts with no wish and no jar")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 	for n in [gs, gs2, gs3]:
 		n.free()
 	GS.testing = false  # the GameState tests (X4) load their own saves
@@ -4295,7 +4478,8 @@ func _test_merged_lanes(catalog: Catalog) -> void:
 	var gs: Node = load("res://scripts/game_state.gd").new()
 	var c: Collection = gs.collection
 	var newest: int = load("res://scripts/game_state.gd").SAVE_VERSION
-	_check(newest == 37, "the save chain ends at v37 (herd + new homes 28, dungeon 33, plushie 34, the sewing room 35, perks 36, held landings 37)")
+	_check(newest == 38, "the save chain ends at v38 (herd + new homes 28, dungeon 33, plushie 34, the sewing room 35, perks 36, held landings 37, the wishing jar 38)")
+	_check(gs.wish == Wish.fresh() and not gs.wish_open(), "v38: an old save has nothing wished for and no jar yet")
 	_check("cellar" in gs.dungeon.bands, "v33: an old save's open cellar is a dungeon band")
 	_check(not gs.plushie_open() and gs.wisps == 0 and gs.plushie.hopper.is_empty(), "v34: an empty plushie machine and no wisps")
 	_check(gs.job_joins("coin_hunt"), "v28: sharing on -> new pets join the errand")
@@ -4337,6 +4521,29 @@ func _test_merged_lanes(catalog: Catalog) -> void:
 	for f in [path, path + ".bak", path + ".tmp"]:
 		if FileAccess.file_exists(f):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+
+## Rolls `n` pets with a wish: { tiers: { tier: n }, looks: { book key: n }, rare_bunny, bad: [...] }.
+func _wish_roll(catalog: Catalog, box_id: String, wish: Dictionary, n: int, seed_: int) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_
+	var roller := PetRoller.new(catalog, rng)
+	roller.wish = wish
+	var out := { "tiers": {}, "looks": {}, "rare_bunny": 0, "bad": [] }
+	for i in n:
+		var pet := roller.roll(box_id)
+		out.tiers[pet.rarity] = int(out.tiers.get(pet.rarity, 0)) + 1
+		for slot in Catalog.SLOTS:
+			var k := Collection.part_key(slot, pet.parts[slot])
+			out.looks[k] = int(out.looks.get(k, 0)) + 1
+		if pet.rarity == "rare" and pet.parts.body == "bunny":
+			out.rare_bunny += 1
+		var top := 0
+		for slot in Catalog.SLOTS:
+			top = maxi(top, catalog.rank(catalog.part(slot, pet.parts[slot]).rarity))
+		if top != catalog.rank(pet.rarity) and out.bad.size() < 3:
+			out.bad.append("%s %s" % [pet.rarity, pet.parts])
+	return out
 
 
 func _check(ok: bool, what: String) -> void:
@@ -5369,7 +5576,7 @@ func _test_perks_game(catalog: Catalog) -> void:
 	_check(is_equal_approx(gs.boost("power"), 1.25 * Boosts.total(Knacks.parts(catalog, gs.collection.active(), "power", gs.knack_gate))), "the paper star shares the army power boost with knacks")
 	gs.save_game()
 	var saved: Dictionary = SaveFile.read(path)
-	_check(int(saved.version) == 37 and saved.perks.get("thimble", 0) == 1 and not saved.dungeon.has("entrance"), "it saves at v37 with the perks")
+	_check(int(saved.version) == gs_version() and saved.perks.get("thimble", 0) == 1 and not saved.dungeon.has("entrance"), "it saves at v%d with the perks" % gs_version())
 	gs.free()
 	# the music box: your pet kept leading the army while the game was closed
 	var away := saved.duplicate(true)
@@ -5553,7 +5760,7 @@ func _test_held_game(catalog: Catalog) -> void:
 	_check(int(gs.dungeon.last.floor) >= 30, "last time says how far they got (%d)" % int(gs.dungeon.last.floor))
 	gs.save_game()
 	var saved: Dictionary = SaveFile.read(path)
-	_check(int(saved.version) == 37 and saved.dungeon.held.has("30") and int(saved.dungeon.start) == 30, "it saves at v37 with the held landings")
+	_check(int(saved.version) == gs_version() and saved.dungeon.held.has("30") and int(saved.dungeon.start) == 30, "it saves at v%d with the held landings" % gs_version())
 	gs.free()
 	var gs2: Node = load("res://scripts/game_state.gd").new()
 	_check(Dungeon.starts(catalog, gs2.dungeon) == [0, 10, 20, 30] and int(gs2.dungeon.start) == 30, "and they come back from the save")

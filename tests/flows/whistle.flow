@@ -26,6 +26,10 @@ unlock feature:auto_adventures
 unlock feature:packs
 teach adventures others
 teach boxes others
+wait popup                    # box tables bring the wishing jar
+expect text "new: a wishing jar!"
+click "lovely"
+wait 1
 workers machine 30
 workers boxes 8
 workers adventures 3

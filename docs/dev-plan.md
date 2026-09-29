@@ -45,7 +45,7 @@ Built (see CLAUDE.md "Where we left off"):
 - **Merged in lanes/merge (2026-09-29, goes to test once the merge passes):** X4 tests, A1 pace
   sim, PRICES (save v25), B2 boost plumbing + D1 knacks, B1 box tiers + the small picks (save
   v26), B3 the whistle (save v27), C1 the bookcase + the herd + C3 new homes (save v28), the round 2
-  mockups.
+  mockups, later lanes (see each step), F3 the wishing jar (save v38).
 - Tools: tests/test_core.gd, tools/play.py flows, tools/balance.gd, tools/pace.gd (A1),
   tools/machine_pace.gd.
 
@@ -56,7 +56,7 @@ lane and verified there, **not merged yet**: A5 sunset globe
 (`lanes/globes`), E2 next door (`lanes/nextdoor`), C2 past the edge + the school (`lanes/edge`),
 E1 the dungeon (`lanes/dungeon`), F1 the plushie machine (`lanes/plushie`), care A/E/C
 (`lanes/care`), room upgrades / the dollhouse (`lanes/house`), E3 the sewing room + the perk
-wall (`lanes/sewing`), F3 the wish jar (`lanes/wish`) and the shed workshop (`lanes/workshop`),
+wall (`lanes/sewing`), F3 the shed workshop (`lanes/workshop`),
 round 3 mockups (`lanes/mockups2`).
 
 Known small open items: the "new: the bag!" popup can land on the trip postcard; balance note (a
@@ -551,7 +551,7 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
 - **Watch out:** only ONE thing may hand out parts from pets (parts flood, see the scrapyard
   note): the machine gives stuffing, not parts back.
 
-### F3. Pets as currency, spent everywhere  (DECIDED; wish jar + shed workshop BUILDING in lanes wish, workshop)
+### F3. Pets as currency, spent everywhere  (DECIDED; wish jar BUILT, merged as save v38; shed workshop BUILDING in lane workshop)
 - **Emilia:** pets are a stepping stone: spent on automation, dungeons, adventures, scouting,
   tech, science, to earn the real currency that moves you on.
 - **Emilia picked (2026-09-29): the wish list, then the shed workshop, then held landings** (no
@@ -563,6 +563,11 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   no finishes, it ends after 4 steps, switching the wish keeps the old one's filled steps. Each
   full step raises that look's weight inside its already-rolled tier; **it steers every box** (your
   rips, your pet's, the box tables); rarity never moves.
+- **Built (lane wish, merged as save v38, notes in docs/plans/WISH-done.md):** the wishing jar
+  (Look A): jar beside a narrower book, earned with box tables (`others: boxes`), steps
+  200/600/2k/6k, weights x1.5/x2/x3/x4 inside the tier via `PetRoller.wish`, rarity never moves.
+  Merge fix: the jar takes resting pets from the herd like the edge and the school (a chip per
+  rarity, plainest finish first; cards never go), not the lane's per-pet "plainest" sort.
 - **The shed workshop, look A, the card on the map:** once the old shed is ours and the whistle is
   found, tapping the shed sticks a workshop card on the backyard map: 3 drawings pinned on a plank
   with progress bars, the picked one's needs as helpers + rarity bars, 1/10/100/all, "not yet" /

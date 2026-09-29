@@ -1,0 +1,73 @@
+# The wishing jar (F3 wish list, Look A): hidden until the other pets learn to open boxes, then a
+# jar stands beside a narrower book. Tap a found sticker to wish for it (it's the jar's label),
+# send pets by shelf (1 / 10 / 100 / all), 4 steps of 200 / 600 / 2k / 6k, a gold star per full
+# step, the lid glows when it's full. Switching keeps each sticker's steps. Always inside the window.
+from after_tutorial
+view full
+tab collection
+wait 1
+click "book"
+wait 1
+expect no-text "wishing jar"
+expect fits
+shot hidden
+stickers off
+pets 1200
+coins 99999999
+teach boxes others                  # box tables: pets arrive steadily, the jar turns up
+wait popup
+expect text "new: a wishing jar!"
+expect fits
+shot popup
+click "show me"
+wait 1
+expect tab collection
+expect text "wishing jar"
+expect no-text "/ 200"              # nothing wished for yet: an empty jar, no label
+expect fits
+shot empty
+click "patterns"
+wait 1
+click "spots"
+wait 1
+expect text "/ 200"
+expect fits
+shot wished
+wish-shelf common
+click name:wish_take_100
+wait 0.2
+shot hop                            # little pets hop from the shelf into the jar
+wait 1
+expect text "/ 200"
+click name:wish_take_100
+wait 1.2
+expect text "/ 600"                 # the first step is full: a gold star
+expect text "a star!! the jar lit a star!"
+expect fits
+shot first_star
+click "plain"                       # another sticker: its own jar
+wait 1
+expect text "/ 200"
+expect no-text "/ 600"
+shot switched
+click "spots"                       # back: still one star
+wait 1
+expect text "/ 600"
+wish pattern spots 5000
+wait 1
+expect text "2,200"
+expect fits
+shot three_stars
+wish pattern spots 8800
+wait 1
+expect text "8,800"                 # full: every star, the lid glows
+expect fits
+shot full
+click "palettes"                    # the tallest spread (4 rows) still fits beside the jar
+wait 1
+expect fits
+shot palettes
+click "finishes"
+wait 1
+expect fits
+shot finishes

@@ -24,6 +24,8 @@ var _homes_key := ""
 var _bookcase := Bookcase.new()
 var _shelf := ShelfView.new()
 var _book := BookView.new()
+var _book_row := HBoxContainer.new()  # the book, and the wishing jar beside it
+var wish_jar := WishJarCard.new()
 var toys := ToysView.new()
 var _room := RoomPill.new()
 var _mode: PanelContainer  # the pets | toys | book switch
@@ -73,8 +75,15 @@ func _init() -> void:
 	_lock_toys()
 	GameState.changed.connect(_lock_toys)
 	GameState.new_game.connect(_lock_toys)
-	add_child(_book)
-	_book.visible = false
+	_book_row.size_flags_vertical = SIZE_EXPAND_FILL
+	_book_row.add_theme_constant_override("separation", 12)
+	_book_row.add_child(_book)
+	_book_row.add_child(wish_jar)
+	add_child(_book_row)
+	_book_row.visible = false
+	_show_jar()
+	GameState.changed.connect(_show_jar)
+	GameState.new_game.connect(_show_jar)
 
 	var c := GameState.collection
 	c.pets_added.connect(func(pets: Array[Pet]): _mark_dirty(pets.map(func(p): return p.rarity)))
@@ -168,6 +177,12 @@ func close_shelf() -> void:
 	_shelf.rarity = ""
 	_dirty = true
 	_rebuild_if_visible()
+## The wishing jar stands beside the book once it's earned (hidden until then); the book narrows.
+func _show_jar() -> void:
+	var on := GameState.wish_open()
+	if wish_jar.visible != on or _book.narrow != on:
+		wish_jar.visible = on
+		_book.narrow = on
 
 
 func _lock_toys() -> void:
@@ -183,7 +198,7 @@ func _show_mode(mode: int) -> void:
 		PetBubble.say(self, "toys? " + _toys_button.tooltip_text + "!")
 		show_mode(0)
 		return
-	_book.visible = mode == 2
+	_book_row.visible = mode == 2
 	toys.visible = mode == 1
 	_pets_view.visible = mode == 0
 	_room.visible = mode == 0 and GameState.room_shown()
