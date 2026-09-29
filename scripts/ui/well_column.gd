@@ -11,9 +11,13 @@ extends Control
 ## one per landing, the bow on the roof post first, joined by a coral thread (solid down to the last
 ## one bought, dashed chalk after); the 2 endless tips hang at the bottom once the chain is done.
 ## Nails deeper than the army has been stay hidden.
+## Every 10th landing the army has cleared can be held (HoldSpot): a crowd holding the rope, propping
+## the door or sitting on the stairs, with a coral count pill ('N/M' dashed while it fills). A fully held
+## stairs landing has no guard any more.
 
 signal door_pressed  # the sewing room's door was tapped
 signal nail_pressed(id: String)  # a perk's nail was tapped
+signal hold_pressed(f: int)  # a held landing (its crowd or its pill) was tapped
 
 const GROUND := 70.0  # the grass line
 const TAIL := 26.0  # the shaft fades out below the last floor drawn
@@ -35,6 +39,8 @@ var _nails := {}  # perk id -> PerkNail
 var _shown: Array[String] = []  # the perks on the wall, in order (see GameState.perks_shown)
 var _picked := ""  # the perk whose card is open
 var _tips_y := -1.0  # where the tips hang (-1: not yet)
+var _holds := {}  # landing -> HoldSpot
+var _hold_picked := 0  # the landing whose card is open (0: none)
 
 
 func _init() -> void:
@@ -45,6 +51,7 @@ func _init() -> void:
 	add_child(_sew_door)
 	resized.connect(_place_door)
 	resized.connect(_place_nails)
+	resized.connect(_place_holds)
 
 
 ## Works the drawing out again from the game (the army, its orders, what's lit). `a` and `rules`
@@ -90,7 +97,59 @@ func refresh(a: Dictionary = {}, rules: Dictionary = {}) -> void:
 	_pos = GameState.dungeon_floor_now()
 	_place_door()
 	_build_nails()
+	_build_holds()
 	queue_redraw()
+
+
+## The held landing whose card is open (0 for none): its pill lights up.
+func set_hold_picked(f: int) -> void:
+	_hold_picked = f
+	for k in _holds:
+		_holds[k].picked = k == f
+		_holds[k].queue_redraw()
+
+
+## A held landing's spot (null when it isn't there).
+func hold_spot(f: int) -> HoldSpot:
+	return _holds.get(f)
+
+
+## One spot per landing a crowd can hold (made once each, kept while they show).
+func _build_holds() -> void:
+	var spots := GameState.hold_spots()
+	for f in _holds.keys():
+		if not f in spots or f > _to:
+			_holds[f].queue_free()
+			_holds.erase(f)
+	for f in spots:
+		if f > _to or _holds.has(f):
+			continue
+		var h := HoldSpot.new()
+		h.pressed.connect(func(): hold_pressed.emit(h.landing))
+		add_child(h)
+		_holds[f] = h
+	_place_holds()
+
+
+func _place_holds() -> void:
+	var catalog := GameState.catalog
+	var most := Dungeon.hold_int(catalog, "faces", 14)
+	var looks := Dungeon.hold_int(catalog, "looks", 8)
+	for f: int in _holds:
+		var n := Dungeon.held_n(GameState.dungeon, f)
+		var shown := Herd.mound_size(catalog, n, most)
+		var kind := str(Dungeon.band_of(catalog, f).kind)
+		var hw := _half(f)
+		var cx := _cx()
+		var y := _ys[f]
+		var geo := { "y": y, "y0": _ys[f - 1], "l": cx - hw, "r": cx + hw, "cx": cx, "kind": kind,
+			"dip": (y - _ys[f - 1]) * 0.55, "down_right": f % 2 == 1, "door_x": -1.0 }
+		if kind == "doors" and Dungeon.floor_kind(catalog, f) in ["door", "tiny", "knock"]:
+			var dw := 6.0 if Dungeon.floor_kind(catalog, f) == "tiny" else 9.0
+			geo.door_x = cx - hw + 4.0 if f % 2 == 1 else cx + hw - 4.0 - dw
+			geo.door_h = minf(13.0, y - _ys[f - 1] - 4.0)
+		_holds[f].setup(f, n, Dungeon.hold_need(catalog, f), GameState.hold_faces(f, mini(shown, looks)), shown, geo)
+		_holds[f].picked = f == _hold_picked
 
 
 ## The perk whose card is open gets a ring ("" for none).
@@ -324,10 +383,10 @@ func _draw() -> void:
 				else:
 					_dashed(steps, line_color, line_w)
 				lamp_x = l + 6.0 if down_right else r - 6.0
-				if kind == "guard":
+				if kind == "guard" and not Dungeon.is_held(catalog, state, f):  # (a held landing's guard is gone)
 					_guard(Vector2(r - 14.0 if down_right else l + 14.0, y))
 			# (nothing else is drawn on a floor until it's found)
-		if lit and h >= 8.0:
+		if lit and h >= 8.0 and not (_holds.has(f) and Dungeon.held_n(state, f) > 0):  # (a crowd stands there)
 			var ly := y - minf(8.0, h - 3.0)
 			draw_circle(Vector2(lamp_x, ly), minf(7.0, h / 2.0 + 1.0), Color(lamp, 0.17))
 			draw_line(Vector2(lamp_x, ly - 4), Vector2(lamp_x, ly - 2), UiTheme.MUTED, 1.4)

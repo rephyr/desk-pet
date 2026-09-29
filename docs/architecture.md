@@ -280,6 +280,28 @@ things) placed by `WellColumn` (lane x 40, `nail_at`, `_thread`, tips under the 
 `nail_pressed(id)`); `DungeonView.pick_nail(id)` / `_nail_card` in the side column. The well panel
 is 236 wide (the column's middle at 0.55), the page's gaps 10, FrontRow's gap 3, the picker's 5.
 
+Save v29 adds held landings (renumber at the lane merge): `dungeon.held` `{ "10": { count key: n } }`
+and `dungeon.start` (0 or a fully held landing). `Dungeon.hold_every / hold_need / hold_what / held_n /
+is_held / hold_spots / starts / held_landings / kind_at / hold_int` (data/dungeon.json `hold`: need,
+faces, card_faces, looks...); a fully held guard landing has no guard in the rules either
+(`strength(catalog, f, held)`, `simulate` takes `orders.held`, `floor_words` uses them); `Dungeon.clean` drops landings that aren't
+every 10th, clamps each crowd to its need and puts `start` back to 0 unless it's in `starts()`, the
+target at least start + 1. `Dungeon.simulate` takes `orders.start`: the loop begins at start + 1, so
+skipped floors are never in `floors` (no pay, no losses); a run keeps `start`, and `run_seconds` /
+`run_floor` count only walked floors (the army is drawn from the landing). `GameState.hold_spots()`,
+`hold_room(f)` (what it still needs, never below 0), `hold_can_go(f, rarity)` (`homes_pick`, capped at
+`hold_room`; the dungeon page keys its rebuilds on it, so a growing herd doesn't rebuild it), `send_holders(f, rarity, n)` (off
+places like `send_home`, `Collection.leave(counts, uids, false)`: no star, no `pets_left`, their
+stand-in looks go), `hold_faces(f, n)` (stand-in Pets for the crowd), `set_start(f)` (checks `starts()`, clamps the target, saves; `set_order("start", ±1)` uses it);
+`send_army` passes the start (so the music box and your pet leading the army start there too);
+`_finish_dungeon_run` counts a run from a landing as at least that deep and gives firsts only for
+walked floors. `Mound` takes Pets as faces too, and mirrors flipped sprites with a transform (a
+negative-width rect drew them a sprite's width to the right). UI: `HoldSpot` (a Button with a custom
+`_has_point`: the crowd and the pill) placed by `WellColumn._place_holds` (`hold_pressed(f)`,
+`set_hold_picked`, `hold_spot(f)`); `DungeonView.pick_hold(f)` / `_hold_card` (its shelf list keeps its scroll across rebuilds) /
+`hold_pick` / `hold_list` (flows) and
+the orders' start line.
+
 ## Testing
 
 - `godot --headless -s tests/test_core.gd` - data sanity, box odds over 100k rolls, save round

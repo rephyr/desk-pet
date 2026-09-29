@@ -51,6 +51,8 @@ func _init() -> void:
 	_test_sewing_game(catalog)
 	_test_perks(catalog)
 	_test_perks_game(catalog)
+	_test_held(catalog)
+	_test_held_game(catalog)
 	_test_merged_lanes(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
@@ -2012,7 +2014,7 @@ func _test_merged_lanes(catalog: Catalog) -> void:
 	var gs: Node = load("res://scripts/game_state.gd").new()
 	var c: Collection = gs.collection
 	var newest: int = load("res://scripts/game_state.gd").SAVE_VERSION
-	_check(newest == 28, "the save chain ends at v28 (dungeon 24, plushie 25, new homes 26, the sewing room 27, perks 28)")
+	_check(newest == 29, "the save chain ends at v29 (dungeon 24, plushie 25, new homes 26, the sewing room 27, perks 28, held landings 29)")
 	_check("cellar" in gs.dungeon.bands, "v24: an old save's open cellar is a dungeon band")
 	_check(not gs.plushie_open() and gs.wisps == 0 and gs.plushie.hopper.is_empty(), "v25: an empty plushie machine and no wisps")
 	_check(gs.job_joins("coin_hunt"), "v26: sharing on -> new pets join the errand")
@@ -2770,7 +2772,7 @@ func _test_perks_game(catalog: Catalog) -> void:
 	_check(is_equal_approx(gs.boost("power"), 1.25 * Boosts.total(Knacks.parts(catalog, gs.collection.active(), "power", gs.knack_gate))), "the paper star shares the army power boost with knacks")
 	gs.save_game()
 	var saved: Dictionary = SaveFile.read(path)
-	_check(int(saved.version) == 28 and saved.perks.get("thimble", 0) == 1 and not saved.dungeon.has("entrance"), "it saves at v28 with the perks")
+	_check(int(saved.version) == 29 and saved.perks.get("thimble", 0) == 1 and not saved.dungeon.has("entrance"), "it saves at v29 with the perks")
 	gs.free()
 	# the music box: your pet kept leading the army while the game was closed
 	var away := saved.duplicate(true)
@@ -2807,6 +2809,157 @@ func _test_perks_game(catalog: Catalog) -> void:
 	gs2.catalog.perks.away_runs_max = cap_was
 	gs2.dungeon.run = {}
 	_check(gs2._army_while_away(0.0, Time.get_unix_time_from_system()) == 0 and not gs2.dungeon_running(), "no saved_at: no runs dated 1970")
+	gs2.free()
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+
+## Held landings (Dungeon hold_*, data/dungeon.json "hold"): what each landing needs and what its crowd
+## holds, the spots down to the deepest floor, where the orders can start, a run from a held landing
+## (the floors above it: no fights, no losses, no lanterns, no time), a saved state made safe.
+func _test_held(catalog: Catalog) -> void:
+	var needs := [10, 20, 30, 40, 50].map(func(f): return Dungeon.hold_need(catalog, f))
+	_check(needs == [500, 2000, 8000, 24000, 72000], "landings need 500 / 2k / 8k, then x3 (%s)" % [needs])
+	_check(Dungeon.hold_need(catalog, 15) == 0 and Dungeon.hold_need(catalog, 0) == 0, "only every 10th landing can be held")
+	var what := [10, 20, 30, 60].map(func(f): return Dungeon.hold_what(catalog, f))
+	_check(what == ["the rope", "the door", "the stairs", "the stairs"], "they hold the rope, the door, the stairs (%s)" % [what])
+	var st := Dungeon.fresh(catalog)
+	_check(st.held.is_empty() and int(st.start) == 0, "a new dungeon holds nothing and starts at the top")
+	st.deep = 9
+	_check(Dungeon.hold_spots(catalog, st).is_empty(), "no spots before floor 10 is cleared")
+	st.deep = 32
+	_check(Dungeon.hold_spots(catalog, st) == [10, 20, 30], "spots down to the deepest floor (%s)" % [Dungeon.hold_spots(catalog, st)])
+	st.held = { "10": { "common:normal": 500 }, "20": { "common:normal": 1999 }, "30": { "common:normal": 7000, "uncommon:normal": 1000 } }
+	_check(Dungeon.starts(catalog, st) == [0, 10, 30] and Dungeon.is_held(catalog, st, 30) and not Dungeon.is_held(catalog, st, 20),
+		"the orders can start at the top or a fully held landing (%s)" % [Dungeon.starts(catalog, st)])
+	# a run from landing 20 to floor 25
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var army := _army(20, 1.0e4, 280, 1.0e3)
+	var run := Dungeon.simulate(catalog, army, { "target": 25, "start": 20, "home_at": 90 }, rng)
+	var fs: Array = run.floors.map(func(fl): return int(fl.f))
+	_check(fs == [21, 22, 23, 24, 25], "a run from landing 20 walks floors 21 to 25 only (%s)" % [fs])
+	var pay := 0
+	for f in range(21, 26):
+		pay += Dungeon.pay(catalog, f, 300, 0)
+	_check(Dungeon.run_pay(run) == pay, "and pays only for those (%d vs %d)" % [Dungeon.run_pay(run), pay])
+	run.start = 20
+	_check(is_equal_approx(Dungeon.run_seconds(catalog, run), 5.0 * float(catalog.dungeon.seconds_per_floor)), "it takes 5 floors of time")
+	_check(is_equal_approx(Dungeon.run_floor(catalog, run, 0.0), 20.0) and is_equal_approx(Dungeon.run_floor(catalog, run, 1.0e6), 25.0),
+		"the army pops out at landing 20 and walks down to 25")
+	var weak := Dungeon.simulate(catalog, _army(20, 1.0, 0, 0.0), { "target": 25, "start": 20, "home_at": 90 }, rng)
+	_check(weak.why == "stuck" and weak.floors.size() == 1 and int(weak.floors[0].f) == 21, "a weak army from landing 20 gets stuck on 21, not on 1")
+	var odd := Dungeon.simulate(catalog, army, { "target": 5, "start": 20, "home_at": 90 }, rng)
+	_check(not odd.floors.is_empty() and int(odd.floors.back().f) == 5, "a start below the target is ignored (never an empty run)")
+	# a fully held stairs landing has no guard, in the fight too
+	_check(is_equal_approx(Dungeon.strength(catalog, 30, true), Dungeon.strength(catalog, 30) / 2.0), "a held guard landing loses its guard's x2")
+	_check(Dungeon.held_landings(catalog, st) == [10, 30] and Dungeon.kind_at(catalog, 30, [10, 30]) == "stairs"
+		and Dungeon.kind_at(catalog, 30, []) == "guard", "held landings: 10 and 30, and 30 fights as plain stairs")
+	var edge := _army(20, 1.0, 0, 0.0)
+	var lo := 0.0
+	var hi := 1.0e7
+	for i in 60:  # an army just strong enough for floor 30 without its guard, not with it
+		var mid := (lo + hi) / 2.0
+		edge = _army(20, mid, 0, 0.0)
+		var r := Dungeon.simulate(catalog, edge, { "target": 30, "start": 29, "home_at": 100, "held": [30] }, rng)
+		if r.why == "stuck":
+			lo = mid
+		else:
+			hi = mid
+	edge = _army(20, hi * 1.2, 0, 0.0)
+	var with_held := Dungeon.simulate(catalog, edge, { "target": 30, "start": 29, "home_at": 100, "held": [30] }, rng)
+	var no_held := Dungeon.simulate(catalog, edge, { "target": 30, "start": 29, "home_at": 100 }, rng)
+	_check(with_held.why != "stuck" and no_held.why == "stuck", "an army walking past held landing 30 fights no guard (%s / %s)" % [with_held.why, no_held.why])
+	# a saved state made safe
+	var clean := Dungeon.clean(catalog, { "deep": 25, "target": 3, "start": 20,
+		"held": { "10": { "common:normal": 900 }, "20": { "common:normal": 2000 }, "15": { "common:normal": 5 }, "x": 3,
+			"30": { "common:normal": 8000 }, "40": "no" } })
+	_check(clean.held.keys() == ["10", "20", "30"] and Dungeon.held_n(clean, 10) == 500, "bad landings go, too many holders are cut to the need (%s)" % [clean.held])
+	_check(int(clean.start) == 20 and int(clean.target) == 21, "a held start stays and the target is below it")
+	var past := Dungeon.clean(catalog, { "deep": 25, "start": 30, "held": { "30": { "common:normal": 8000 } } })
+	_check(int(past.start) == 0, "a start past the deepest floor goes back to the top")
+	var half := Dungeon.clean(catalog, { "deep": 25, "start": 20, "held": { "20": { "common:normal": 10 } } })
+	_check(int(half.start) == 0, "a start at a landing that isn't fully held goes back to the top")
+
+
+func _test_held_game(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped held landings in the game: it needs a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var pets := []
+	for i in 30:
+		var p := _plain_pet(catalog, "epic", "holo", 700 + i)  # holo: they stay cards, never holders
+		p.uid = str(i + 1)
+		pets.append(p.to_dict())
+	for i in 4:
+		var p := _plain_pet(catalog, "common", "normal", 800 + i)
+		p.uid = str(31 + i)
+		p.fav = i == 0  # a favourite never goes
+		pets.append(p.to_dict())
+	var old := { "version": 28, "coins": 1000, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(),
+		"unlocks": ["page:beyond", "location:well", "feature:dungeon", "feature:parts", "feature:errands", "tab:errands"],
+		"finds": ["deep_rope"], "wisps": 0,
+		"collection": { "pets": pets, "active": "1", "next_id": 35, "seen": {}, "herd": { "common:normal": 12000, "uncommon:normal": 3000 }, "herd_ever": true },
+		"dungeon": { "deep": 32, "bands": ["well", "cellar", "below"], "target": 5, "firsts": { "10": true, "20": true } }, "room": 60 }
+	SaveFile.write(path, old)
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	_check(gs.dungeon.held.is_empty() and int(gs.dungeon.start) == 0, "v28 -> v29: nothing held, the orders start at the top")
+	_check(gs.hold_spots() == [10, 20, 30], "landings 10, 20 and 30 can be held (%s)" % [gs.hold_spots()])
+	# the army's pets never go
+	gs.army_best()
+	gs.set_army_herd("common", 280)
+	var army_n := int(gs.army_herd_keys().get("common:normal", 0))
+	var stars: int = gs.collection.fallen_n
+	var commons: int = gs.collection.herd_count("common:normal")
+	_check(gs.hold_can_go(10, "common") == 500 and gs.hold_can_go(10, "epic") == 0, "at most what the landing needs, never holo cards")
+	gs.put_on_job("coin_hunt", 100)
+	var went: int = gs.send_holders(10, "common", 200)
+	_check(went == 200 and Dungeon.held_n(gs.dungeon, 10) == 200 and gs.collection.herd_count("common:normal") == commons - 200,
+		"200 commons hold landing 10 (%d)" % went)
+	_check(gs.collection.fallen_n == stars, "holders stay on for good: no night-sky star")
+	_check(int(gs.army_herd_keys().get("common:normal", 0)) == army_n, "the army keeps its pets")
+	went = gs.send_holders(10, "common", 100000)
+	_check(went == 300 and Dungeon.is_held(catalog, gs.dungeon, 10) and gs.send_holders(10, "common", 5) == 0, "it stops at the landing's need (%d)" % went)
+	_check(gs.collection.get_pet("31") != null and gs.collection.get_pet("1") != null, "favourites and your pet never go")
+	_check(Dungeon.starts(catalog, gs.dungeon) == [0, 10], "landing 10 is a start now")
+	gs.dungeon.held["10"] = { "common:normal": 600 }  # (never happens: a crowd over its need)
+	var before: int = gs.collection.herd_count("common:normal")
+	_check(gs.send_holders(10, "common", 5) == 0 and gs.collection.herd_count("common:normal") == before and gs.hold_room(10) == 0,
+		"a landing over its need takes nobody (not the whole shelf)")
+	gs.dungeon.held["10"] = { "common:normal": 500 }
+	_check(not gs.set_start(20) and int(gs.dungeon.start) == 0, "set_start: not a landing that isn't held")
+	# the start stepper
+	gs.set_order("start", 1)
+	_check(int(gs.dungeon.start) == 10 and int(gs.dungeon.target) == 11, "start from landing 10: the target moves to 11 (%d)" % int(gs.dungeon.target))
+	gs.set_order("start", 1)
+	_check(int(gs.dungeon.start) == 10, "no further: 20 isn't held")
+	gs.set_order("target", -5)
+	_check(int(gs.dungeon.target) == 11, "the target never goes above the floor under the start")
+	gs.send_holders(20, "common", 2000)
+	gs.send_holders(30, "common", 8000)
+	gs.send_holders(30, "uncommon", 8000)
+	_check(Dungeon.is_held(catalog, gs.dungeon, 20) and Dungeon.is_held(catalog, gs.dungeon, 30), "20 and 30 held with commons and uncommons (%d, %d)" % [Dungeon.held_n(gs.dungeon, 20), Dungeon.held_n(gs.dungeon, 30)])
+	gs.set_order("start", 5)
+	_check(int(gs.dungeon.start) == 30 and int(gs.dungeon.target) == 31, "the stepper goes on to landing 30")
+	# a run from landing 30
+	_check(gs.send_army() and int(gs.dungeon.run.start) == 30, "the army goes from landing 30")
+	_check(not gs.set_start(10) and int(gs.dungeon.start) == 30, "set_start: not while the army is out")
+	_check(gs.dungeon.run.floors.all(func(fl): return int(fl.f) > 30), "no floors above it in the run")
+	_check(gs.dungeon_floor_now() >= 30.0, "it's down at landing 30 straight away (%.1f)" % gs.dungeon_floor_now())
+	gs.dungeon.run.at = 0.0
+	gs._dungeon_tick()
+	_check(int(gs.dungeon.last.floor) >= 30, "last time says how far they got (%d)" % int(gs.dungeon.last.floor))
+	gs.save_game()
+	var saved: Dictionary = SaveFile.read(path)
+	_check(int(saved.version) == 29 and saved.dungeon.held.has("30") and int(saved.dungeon.start) == 30, "it saves at v29 with the held landings")
+	gs.free()
+	var gs2: Node = load("res://scripts/game_state.gd").new()
+	_check(Dungeon.starts(catalog, gs2.dungeon) == [0, 10, 20, 30] and int(gs2.dungeon.start) == 30, "and they come back from the save")
 	gs2.free()
 	for f in [path, path + ".bak", path + ".tmp"]:
 		if FileAccess.file_exists(f):

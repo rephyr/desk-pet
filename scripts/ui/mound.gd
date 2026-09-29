@@ -12,13 +12,14 @@ var _looks: Array[Texture2D] = []
 var _spots: Array = []  # [position, flipped, texture index], back rows first
 
 
-## `faces`: uids to take looks from (cards, or stand-ins for a count), cycled if there are fewer
-## than the mound shows. `shown`: how many tiny pets. `max_w` / `h`: the room it may take.
+## `faces`: uids to take looks from (cards, or stand-ins for a count), or Pets (looks of pets that
+## are gone, like a landing's holders), cycled if there are fewer than the mound shows. `shown`: how
+## many tiny pets. `max_w` / `h`: the room it may take.
 func _init(faces: Array, shown: int, max_w := 300.0, h := 36.0, shrink := 2) -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
 	texture_filter = TEXTURE_FILTER_NEAREST
-	for uid in faces:
-		var pet := GameState.collection.get_pet(str(uid))
+	for face in faces:
+		var pet: Pet = face if face is Pet else GameState.collection.get_pet(str(face))
 		if pet:
 			_looks.append(PetLook.texture_for(pet.parts, false, pet.sewn))
 	if _looks.is_empty() or shown <= 0:
@@ -56,7 +57,9 @@ func _init(faces: Array, shown: int, max_w := 300.0, h := 36.0, shrink := 2) -> 
 func _draw() -> void:
 	for s in _spots:
 		var tex: Texture2D = _looks[s[2]]
-		var r := Rect2(s[0], SPRITE)
-		if s[1]:
-			r = Rect2(s[0] + Vector2(SPRITE.x, 0), Vector2(-SPRITE.x, SPRITE.y))
-		draw_texture_rect(tex, r, false)
+		if s[1]:  # flipped: mirrored in place (a rect with a negative width lands a sprite's width off)
+			draw_set_transform(s[0] + Vector2(SPRITE.x, 0), 0.0, Vector2(-1, 1))
+			draw_texture_rect(tex, Rect2(Vector2.ZERO, SPRITE), false)
+			draw_set_transform(Vector2.ZERO)
+		else:
+			draw_texture_rect(tex, Rect2(s[0], SPRITE), false)

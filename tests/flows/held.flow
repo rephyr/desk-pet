@@ -1,0 +1,115 @@
+# Held landings (look A, on the walls): every 10th landing the army has cleared can be held by a
+# crowd of plain pets sent by shelf. An empty landing only has a dashed '0/500' pill right of the
+# shaft; tapping it puts its card where "last time" sits: "landing 10", how many, "holding the rope",
+# a meter, a ‹ n › per shelf with pets that may go and "hold on tight!". While it fills the pill is a
+# dashed 'N/M'; once it's full, a coral 'N' and a pennant on the card. The crowds: around the rope at
+# 10, propping the door at 20 (the pill under the landing, clear of the sewing room's door), sitting
+# on the stairs at 30 (its guard is gone). Then the orders card gets "start from": the army starts at
+# landing 30 and skips the floors above. Everything stays inside the window.
+from rich
+view full
+herd common normal 30000
+herd uncommon normal 9000
+herd rare normal 400
+herd epic normal 300
+herd legendary normal 200
+herd mythic normal 100
+unlock page:beyond
+unlock location:well
+dungeon
+wait popup
+click "lovely"
+deep 32
+wait popup                           # past floor 10: your pet can lead the army
+click "lovely"
+card body=fox rarity=mythic finish=prismatic 20   # strong enough for floor 31
+tab adventures
+page adventures 2
+wait 1
+army best
+army-herd common 280
+wait 1
+expect text "the old well"
+expect no-text "start from"          # nothing held yet
+expect fits
+shot spots                           # the empty landings: dashed pills only
+click HoldSpot#1
+wait 0.5
+expect text "landing 10"
+expect text "holding the rope"
+expect text "hold on tight!"
+expect text "/ 500"
+expect fits
+shot empty_card
+hold-pick rare 50                    # the rare shelf's stepper at 50
+wait 0.3
+expect text "50"
+expect fits
+shot picked
+hold-scroll 30                       # six shelves: the list scrolls
+hold-pick uncommon 25
+wait 1.2
+hold-scrolled 30                     # a step (and the page's checks) keep it where it was
+expect fits
+shot picked_scrolled
+hold-pick uncommon 0
+click "hold on tight!"
+wait 0.5
+expect text "/ 500"
+holders 10 common 150
+wait 0.5
+expect text "200"
+expect fits
+shot filling                         # a dashed 200/500 pill, a small crowd on the rope
+holders 10 common 1000
+wait 0.5
+expect text "500"
+expect no-text "hold on tight!"
+expect fits
+shot rope_held                       # a coral 500 pill, the card's pennant
+holders 20 common 1200
+holders 30 common 6000
+holders 30 uncommon 3000
+wait 0.5
+click HoldSpot#2
+wait 0.5
+expect text "landing 20"
+expect text "holding the door"
+expect text "/ 2k"
+expect fits
+shot door_filling                    # 1.2k/2k under the landing, the crowd beside the door
+holders 20 common 800
+find little_key                      # the sewing room's door: the pill stays clear of it
+wait 1
+click HoldSpot#2
+wait 0.5
+expect text "holding the door"
+expect fits
+shot door_held                       # the door propped open, the pill under the landing
+click HoldSpot#3
+wait 0.5
+expect text "landing 30"
+expect text "holding the stairs"
+expect fits
+shot stairs_held                     # sitting on the stairs, no guard
+click "✕"
+wait 0.5
+expect text "start from"
+expect text "the top"
+start 30
+wait 0.5
+expect text "landing 30"
+expect text "31"
+expect fits
+shot start_from
+down
+wait 2
+expect text "on the way…"
+expect fits
+shot running                         # the army pops out at landing 30
+down-done
+wait 1
+expect text "last time"
+expect text "floor 3*"
+expect fits
+shot home

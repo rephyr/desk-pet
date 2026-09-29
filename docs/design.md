@@ -502,6 +502,22 @@ All opt-in, with odds shown before confirming:
     link has a level, 2 endless tips hang at the bottom: the lucky coin (coins) and the rattle
     (pets/sec), +4% a level, each level x3 the price. Multipliers go through the boost plumbing
     (source "perks"; coins and power are shared kinds). Voice: a new nail after a run, a buy.
+  - **Held landings (F3, look A: crowds on the walls):** every 10th landing the army has cleared
+    can be held by a crowd of plain pets sent by shelf (the new homes stall's rules: never
+    favourites, your pet, the army's pets, holo and better; pets on errands and machines come off
+    them). It takes 500 / 2k / 8k for landings 10 / 20 / 30, then x3 each (data/dungeon.json
+    "hold"). On the well: around the rope at 10, propping the door at 20 (it swings open once it's
+    held), sitting on the stairs at 30+ (a held landing's guard is gone: not drawn, and a run walking past
+    it doesn't fight it), with a coral count pill
+    right of the shaft ('N' when held, a dashed 'N/M' while it fills, a dashed '0/500' on an empty
+    landing; at 20 under the landing, clear of the sewing room's door). Tapping a crowd or pill puts
+    the hold card where "last time" sits: "landing N" + ✕ (+ a coral pennant once held), the crowd,
+    how many, "holding the door"; while it fills a meter, a ‹ n › per shelf that has pets that may go
+    (steps of need / 20) and "hold on tight!". Once a landing is fully held the orders card gets
+    "start from ‹the top | landing N›": the army pops out there and the floors above are skipped (no
+    fights, no losses, no lanterns, no time; "go down to floor" can't go above it; a skipped floor's
+    first thing waits for a run that walks it). Holders stay on for good: no night-sky star (stars
+    are only for pets that leave or are lost). Voice: hold_send, hold_full, dungeon_go_from.
 
 ## The sewing room (E3, off the well's floor 20)
 

@@ -27,7 +27,7 @@ signal homes_rule_changed  # the sorting rule was switched or stepped (the sorti
 signal homes_paid(boxes: int)  # pets left for new homes and their points filled this many boxes
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
-const SAVE_VERSION := 28
+const SAVE_VERSION := 29
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
 const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
@@ -2571,15 +2571,20 @@ func _army_changed() -> void:
 	save_game()
 
 
-## Steps an order: "target" (go down to floor), "home" (come home when X% are gone), "first" (who
-## goes first, once earned).
+## Steps an order: "start" (start from the top or a fully held landing), "target" (go down to floor,
+## at least the floor under the start), "home" (come home when X% are gone), "first" (who goes first,
+## once earned).
 func set_order(key: String, step: int) -> void:
 	if dungeon_running():
 		return
 	var d: Dictionary = catalog.dungeon
 	match key:
+		"start":
+			var starts := Dungeon.starts(catalog, dungeon)
+			set_start(starts[clampi(starts.find(int(dungeon.start)) + step, 0, starts.size() - 1)])
+			return
 		"target":
-			dungeon.target = clampi(int(dungeon.target) + step, 1, Dungeon.target_max(catalog, dungeon))
+			dungeon.target = clampi(int(dungeon.target) + step, int(dungeon.start) + 1, Dungeon.target_max(catalog, dungeon))
 		"home":
 			var steps: Array = d.home_at.map(func(v): return int(v))
 			var i := clampi(steps.find(int(dungeon.home_at)) + step, 0, steps.size() - 1)
@@ -2592,6 +2597,19 @@ func set_order(key: String, step: int) -> void:
 			dungeon.first = str(lines[i])
 	dungeon_changed.emit()
 	save_game()
+
+
+## The orders start from landing `f` (0: the top, or a fully held landing); the target moves down
+## under it if it has to. Returns whether it could (not while the army is out, not a landing that
+## isn't held).
+func set_start(f: int) -> bool:
+	if dungeon_running() or not f in Dungeon.starts(catalog, dungeon):
+		return false
+	dungeon.start = f
+	dungeon.target = clampi(maxi(int(dungeon.target), f + 1), 1, Dungeon.target_max(catalog, dungeon))
+	dungeon_changed.emit()
+	save_game()
+	return true
 
 
 ## The army lined up now (or the one army() gave) for the rules, for floor_words.
@@ -2630,11 +2648,12 @@ func floor_words(from: int, to: int, rules: Dictionary = {}) -> Dictionary:
 	if rules.is_empty():
 		rules = army_rules()
 	var powers := {}
+	var held := Dungeon.held_landings(catalog, dungeon)  # (a held landing's guard is gone)
 	for f in range(maxi(1, from), to + 1):
-		var kind := Dungeon.floor_kind(catalog, f)
+		var kind := Dungeon.kind_at(catalog, f, held)
 		if not powers.has(kind):
 			powers[kind] = Dungeon.army_power(catalog, rules, kind)
-		out[f] = Dungeon.word(catalog, float(powers[kind]) / Dungeon.strength(catalog, f))
+		out[f] = Dungeon.word(catalog, float(powers[kind]) / Dungeon.strength(catalog, f, f in held))
 	return out
 
 
@@ -2654,11 +2673,12 @@ func send_army(quiet := false) -> bool:
 		return false
 	var rng := RandomNumberGenerator.new()
 	rng.seed = _rng.randi()
-	var orders := { "target": int(dungeon.target), "home_at": int(dungeon.home_at), "entrance": perk_level("entrance"),
+	var start := int(dungeon.start) if int(dungeon.start) in Dungeon.starts(catalog, dungeon) else 0
+	var orders := { "target": int(dungeon.target), "start": start, "held": Dungeon.held_landings(catalog, dungeon), "home_at": int(dungeon.home_at), "entrance": perk_level("entrance"),
 		"pay_x": boost("lanterns"), "first": str(dungeon.first) if Dungeon.first_earned(catalog, dungeon) else "" }
 	var result := Dungeon.simulate(catalog, _army_rules(cards, herd_keys), orders, rng)
 	dungeon.run = { "at": Time.get_unix_time_from_system(), "floors": result.floors, "why": result.why, "turned": result.turned,
-		"cards": cards.map(func(p): return p.uid), "herd": herd_keys.duplicate(), "sent": sent, "target": int(dungeon.target) }
+		"cards": cards.map(func(p): return p.uid), "herd": herd_keys.duplicate(), "sent": sent, "target": int(dungeon.target), "start": start }
 	_rest_changed()  # (only drops the busy-pets cache: the next army_cards() needs it fresh)
 	if quiet:
 		return true
@@ -2704,7 +2724,8 @@ func _finish_dungeon_run(quiet := false) -> void:
 	_rest_changed()
 	var lost_n := _run_losses(run)
 	var got := Dungeon.run_pay(run)
-	var to := Dungeon.cleared_to(run)
+	var start := int(run.get("start", 0))  # from a held landing: they got at least that far
+	var to := maxi(Dungeon.cleared_to(run), start)
 	var deepest := to > int(dungeon.deep)
 	var nails := perks_shown().size()
 	grant_wisps(got)
@@ -2713,7 +2734,7 @@ func _finish_dungeon_run(quiet := false) -> void:
 		if not id in dungeon.bands:
 			dungeon.bands.append(id)
 	dungeon.last = { "floor": to, "got": got, "back": int(run.get("sent", 0)) - lost_n }
-	for f in range(1, to + 1):
+	for f in range(start + 1, to + 1):  # (only floors walked: a skipped floor's thing waits)
 		var first: Dictionary = catalog.dungeon.get("firsts", {}).get(str(f), {})
 		if not first.is_empty() and not dungeon.firsts.has(str(f)):
 			if first.has("part") and not feature_on("parts"):
@@ -2722,6 +2743,8 @@ func _finish_dungeon_run(quiet := false) -> void:
 			_dungeon_first(first)
 	dungeon.cards = dungeon.cards.filter(func(uid): return collection.get_pet(str(uid)) != null)
 	dungeon.target = mini(int(dungeon.target), Dungeon.target_max(catalog, dungeon))
+	if not int(dungeon.start) in Dungeon.starts(catalog, dungeon):
+		dungeon.start = 0
 	dungeon_news = { "got": got, "floor": to, "early": str(run.get("why", "")) != "target", "deepest": deepest,
 		"nail": perks_shown().size() > nails }  # a new nail showed on the wall down there
 	if not quiet:
@@ -2749,6 +2772,85 @@ func _run_losses(run: Dictionary) -> int:
 		lost_n += collection.lose_plain(str(k), int(lost[1][k]))
 	_clamp_herd_places()
 	return lost_n
+
+
+# ---- held landings: crowds holding every 10th landing (see Dungeon.hold_need, data "hold") ----
+
+## The landings a crowd can hold now (every 10th, down to the deepest floor cleared).
+func hold_spots() -> Array[int]:
+	return Dungeon.hold_spots(catalog, dungeon) if dungeon_open() else ([] as Array[int])
+
+
+## How many pets of a rarity could go and hold landing `f`: plain ones the new homes stall may take
+## (never favourites, your pet, the army, holo and better...), at most what the landing still needs.
+func hold_can_go(f: int, rarity: String) -> int:
+	var room := hold_room(f)
+	if room <= 0:
+		return 0
+	return int(homes_pick(rarity, room).n)
+
+
+## How many more pets landing `f` needs to be fully held (0 when it is, or isn't a spot now).
+func hold_room(f: int) -> int:
+	if not f in hold_spots():
+		return 0
+	return maxi(0, Dungeon.hold_need(catalog, f) - Dungeon.held_n(dungeon, f))
+
+
+## Faces for the crowd on landing `f` (stand-in looks of the pets holding it, they're gone from the
+## collection): up to `n` Pets, each count in step with its size.
+func hold_faces(f: int, n: int) -> Array:
+	var counts: Dictionary = dungeon.held.get(str(f), {})
+	var out: Array = []
+	var total := Herd.total(counts)
+	if total <= 0 or n <= 0:
+		return out
+	var keys := counts.keys()
+	keys.sort()
+	for k in keys:
+		var take := maxi(1, roundi(n * float(counts[k]) / total))
+		for i in take:
+			if out.size() >= n:
+				break
+			var face := Herd.stand_in(catalog, Herd.uid(str(k), 700000 + f * 97 + i))
+			if face:
+				out.append(face)
+	return out
+
+
+## Sends `n` pets of a rarity to hold landing `f` (off their errands and machines if they have to,
+## like the new homes stall). They stay on for good: they leave the collection with no star. Returns
+## how many went.
+func send_holders(f: int, rarity: String, n: int) -> int:
+	var room := hold_room(f)
+	if n <= 0 or room <= 0:  # (homes_pick reads a negative n as "all of them")
+		return 0
+	var plan := homes_pick(rarity, mini(n, room))
+	if int(plan.n) <= 0:
+		return 0
+	for k in plan.work:
+		_herd_off_places(k, int(plan.work[k]))
+	var counts: Dictionary = plan.rest.duplicate()
+	for k in plan.work:
+		Herd.put(counts, k, int(plan.work[k]))
+	var took := counts.duplicate()
+	for uid in plan.cards:
+		var pet := collection.get_pet(str(uid))
+		if pet:
+			Herd.put(took, Herd.key(pet.rarity, pet.finish), 1)
+	var gone := collection.leave(counts, plan.cards, false)
+	if gone <= 0:
+		return 0
+	var held: Dictionary = dungeon.held.get(str(f), {})
+	for k in took:  # (the plan never has your pet or a busy card, so everyone in it went)
+		Herd.put(held, str(k), int(took[k]))
+	dungeon.held[str(f)] = held
+	_rest_changed()
+	_clamp_herd_places()
+	dungeon_changed.emit()
+	changed.emit()
+	save_game()
+	return gone
 
 
 # ---- E3 the sewing room, off the well's floor 20 (see Sewing, data/sewing.json) ----------
@@ -4759,6 +4861,12 @@ func _migrate(data: Dictionary) -> Dictionary:
 			for p in parties:
 				if p is Dictionary and str(p.get("place", "")) in band_places:
 					p.place = str(Catalog.shared().dungeon.bands[0].get("place", "well"))
+	if version < 29:
+		# v29: held landings. Older saves hold none and start from the top.
+		var dg = data.get("dungeon", {})
+		if dg is Dictionary:
+			dg["held"] = {}
+			dg["start"] = 0
 	data.version = SAVE_VERSION
 	return data
 

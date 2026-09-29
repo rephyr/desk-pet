@@ -79,6 +79,13 @@ extends Node
 ##   sew-room <n>          the sewing room shows room n (1 = the button tin; only rooms that show)
 ##   sewn <n>              the first n rooms of the sewing room are cleared, with their real firsts
 ##   in                    the army goes into the room shown (fails if it can't)
+##   holders <landing> <rarity> <n>  n pets of that rarity go and hold that landing, like the hold
+##                         card's button (fails if none could go)
+##   hold-pick <rarity> <n>  the open hold card's stepper for that shelf shows n (as far as it may go)
+##   hold-scroll <px>      the open hold card's shelf list scrolls to px (fails if it can't go that far)
+##   hold-scrolled <px>    fails unless the open hold card's shelf list is still scrolled to px
+##   start <landing>       the orders start from that landing (0: the top; fails if it isn't fully held
+##                         or the army is out)
 ##   card <k>=<v> ... [n]  n new card pets (1 if left out) with these parts, trait, finish and rarity, e.g.
 ##                         card body=bunny rarity=rare finish=shiny trait=zoomy (they aren't in the book)
 ##   keep <line> <pick|none>  the sorting card's keep line (1 = the first) keeps that, e.g. trait:zoomy
@@ -489,6 +496,27 @@ func _step(w: PackedStringArray) -> String:
 			view.rooms().room_changed.emit()
 		"sewn":  # sewn <n>: the first n rooms are cleared
 			GameState.debug_sewn(int(w[1]))
+		"holders":  # holders <landing> <rarity> <n>: they go and hold that landing (for good)
+			if not GameState.catalog.tiers.any(func(t): return t.id == w[2]):
+				return "unknown rarity %s" % w[2]
+			if GameState.send_holders(int(w[1]), w[2], int(w[3])) <= 0:
+				return "no %s pets could hold landing %s" % [w[2], w[1]]
+		"hold-pick":  # hold-pick <rarity> <n>: the open hold card's stepper
+			var view: DungeonView = home.full_game().adventures.dungeon_view
+			if not view.hold_pick(w[1], int(w[2])):
+				return "no hold card with a %s stepper open" % w[1]
+		"hold-scroll", "hold-scrolled":  # the open hold card's shelf list: scroll it / check it's still there
+			var view: DungeonView = home.full_game().adventures.dungeon_view
+			var list := view.hold_list()
+			if list == null:
+				return "no hold card with a shelf list open"
+			if w[0] == "hold-scroll":
+				list.scroll_vertical = int(w[1])
+			if list.scroll_vertical != int(w[1]):
+				return "the hold card's list is at %d, not %s" % [list.scroll_vertical, w[1]]
+		"start":  # start <landing>: the orders start from there
+			if not GameState.set_start(int(w[1])):
+				return "landing %s isn't held (or the army is out)" % w[1]
 		"in":  # the army goes into the room shown
 			var view: DungeonView = home.full_game().adventures.dungeon_view
 			if not GameState.send_to_room(view.rooms().room):

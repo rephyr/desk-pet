@@ -12,6 +12,10 @@ extends HBoxContainer
 ## The wisps perks hang on nails down the well's left lane (WellColumn, PerkNail): tapping one puts
 ## its card where "last time" sits (the thing, level pips, what it does as a number, the buy button
 ## with its wisps price); ✕ brings "last time" back.
+## Held landings (HoldSpot on the column, every 10th landing cleared): tapping one puts the hold card
+## there instead ("landing 20" + ✕, a coral pennant once it's held, the crowd, how many, what they
+## hold; while it fills a meter, a ‹ n › per shelf with pets that may go, "hold on tight!"). Once a
+## landing is fully held the orders card gets "start from ‹the top | landing N›".
 
 const PICK_PAGE := 20
 const PICK_COLUMNS := 5
@@ -43,6 +47,11 @@ var _tick := 0.0
 var _follow_floor := -1  # the landing the scroll last followed the army to (you can scroll away in between)
 var _nail := ""  # the perk whose card is open in the side column ("" = the last run's card)
 var _reveal := ""  # a perk's nail to scroll into view after the next rebuild
+var _hold_f := 0  # the held landing whose card is open (0: none)
+var _send := {}  # the hold card's steppers: rarity -> how many to send
+var _reveal_hold := 0  # a held landing to scroll into view after the next rebuild
+var _hold_scroll: ScrollContainer = null  # the open hold card's shelf list (its scroll is kept across rebuilds)
+var _hold_scroll_f := 0  # the landing that list belongs to
 
 
 func _init() -> void:
@@ -90,6 +99,7 @@ func _init() -> void:
 		show_rooms(true)
 		PetBubble.say_line(self, "sewing_door"))
 	_column.nail_pressed.connect(pick_nail)
+	_column.hold_pressed.connect(pick_hold)
 	_mid.size_flags_horizontal = SIZE_EXPAND_FILL
 	_mid.add_theme_constant_override("separation", 12)
 	add_child(_mid)
@@ -246,8 +256,11 @@ func _follow() -> void:
 func _key(a: Dictionary) -> String:
 	var key := "%s|%s|%s|%d|%s|%s|%s" % [str(a.cards.map(func(p): return p.uid)), str(a.keys), str(GameState.dungeon.cards),
 		int(a.sent), GameState.collection.active_uid, str(GameState.dungeon_running()), str(GameState.sewing_open())]
+	var hold_open := _hold_f > 0 and not Dungeon.is_held(GameState.catalog, GameState.dungeon, _hold_f)
 	for tier in GameState.catalog.tiers:
 		key += "|%d" % GameState.army_herd_room(tier.id)
+		if hold_open:  # (capped at what the landing still needs: steady once the herd outgrows it)
+			key += "/%d" % GameState.hold_can_go(_hold_f, tier.id)
 	if _picking:
 		key += "|%d" % GameState.resting_cards().size()
 	return key
@@ -276,6 +289,9 @@ func _rebuild() -> void:
 	if _reveal != "":
 		_show_nail.call_deferred(_reveal)
 		_reveal = ""
+	elif _reveal_hold > 0:
+		_show_hold.call_deferred(_reveal_hold)
+		_reveal_hold = 0
 
 
 # ---- the army ------------------------------------------------------------------------
@@ -460,6 +476,10 @@ func _chip(pet: Pet, picked: bool) -> Control:
 # ---- the orders and the last run --------------------------------------------------------
 
 func _build_side(a: Dictionary, rules: Dictionary) -> void:
+	var keep := 0  # (the open hold card's shelf list stays where it was scrolled to)
+	if is_instance_valid(_hold_scroll) and _hold_scroll_f == _hold_f:
+		keep = _hold_scroll.scroll_vertical
+	_hold_scroll = null
 	UiTheme.clear(_side)
 	var catalog := GameState.catalog
 	var state: Dictionary = GameState.dungeon
@@ -475,11 +495,20 @@ func _build_side(a: Dictionary, rules: Dictionary) -> void:
 	col.add_theme_constant_override("separation", 9)
 	card.add_child(col)
 	col.add_child(UiTheme.title("orders", 16, UiTheme.LILAC))
+	var starts := Dungeon.starts(catalog, state)
+	var start := int(state.start)
+	if starts.size() > 1:  # once a landing is fully held
+		var si := starts.find(start)
+		var line0 := _line()
+		line0.add_child(UiTheme.label("start from", UiTheme.TEXT, UiTheme.SMALL))
+		line0.add_child(_stepper("landing %d" % start if start > 0 else "the top", func(): GameState.set_order("start", -1),
+			func(): GameState.set_order("start", 1), si > 0 and not _running, si < starts.size() - 1 and not _running, 64))
+		col.add_child(line0)
 	var target := int(state.target)
 	var line1 := _line()
 	line1.add_child(UiTheme.label("go down to floor", UiTheme.TEXT, UiTheme.SMALL))
 	line1.add_child(_stepper(str(target), func(): GameState.set_order("target", -1), func(): GameState.set_order("target", 1),
-		target > 1 and not _running, target < Dungeon.target_max(catalog, state) and not _running, 22))
+		target > start + 1 and not _running, target < Dungeon.target_max(catalog, state) and not _running, 22))
 	var words := GameState.floor_words(target, target, rules) if not rules.is_empty() else {}
 	if words.has(target):
 		line1.add_child(_feel(words[target], target <= int(state.deep)))
@@ -501,8 +530,12 @@ func _build_side(a: Dictionary, rules: Dictionary) -> void:
 			fi > 0 and not _running, fi < lines.size() - 1 and not _running, 76))
 		col.add_child(line3)
 	var go := UiTheme.button("on the way…" if _running else "down we go!", func():
+		var from := int(GameState.dungeon.start)
 		if GameState.send_army():
-			PetBubble.say_line(self, "dungeon_go"))
+			if from > 0:
+				PetBubble.say_line(self, "dungeon_go_from", { "f": from })
+			else:
+				PetBubble.say_line(self, "dungeon_go"))
 	go.disabled = _running or int(a.sent) == 0
 	var go_sb := UiTheme.box(UiTheme.DEEP, UiTheme.PINK_SEAM, 8, 2, 7)
 	go_sb.content_margin_left = 14
@@ -517,7 +550,10 @@ func _build_side(a: Dictionary, rules: Dictionary) -> void:
 	if _nail != "" and _nail in GameState.perks_shown():
 		_side.add_child(_nail_card(_nail))
 		return
-	_drop_nail()  # (the nail stopped showing: its ring goes too)
+	if _hold_f > 0 and _hold_f in GameState.hold_spots():
+		_side.add_child(_hold_card(_hold_f, keep))
+		return
+	_drop_nail()  # (the nail or the landing stopped showing: its ring goes too)
 	var last: Dictionary = state.last
 	if last.is_empty():
 		return
@@ -542,27 +578,58 @@ func _build_side(a: Dictionary, rules: Dictionary) -> void:
 
 ## Opens a perk's card in the side column (a tap on its nail), or closes it with "".
 func pick_nail(id: String) -> void:
+	_hold_f = 0
+	_column.set_hold_picked(0)
 	_nail = id
 	_column.set_picked(id)
 	_reveal = id
 	_dirty = true
 
 
-## No perk card open, and no ring on any nail ("last time" is back).
+## Opens a held landing's card in the side column (a tap on its crowd or pill), or closes it with 0.
+func pick_hold(f: int) -> void:
+	_nail = ""
+	_column.set_picked("")
+	if f != _hold_f:
+		_send = {}
+	_hold_f = f
+	_column.set_hold_picked(f)
+	_reveal_hold = f
+	_dirty = true
+
+
+## No perk or landing card open, and no ring on any nail or pill ("last time" is back).
 func _drop_nail() -> void:
 	_nail = ""
 	_column.set_picked("")
+	_hold_f = 0
+	_send = {}
+	_column.set_hold_picked(0)
 
 
 ## Scrolls the well so a perk's nail is in view (a picked one, or the tips when they first hang).
 func _show_nail(id: String) -> void:
 	await get_tree().process_frame  # the column has its new size by then
-	var nail := _column.nail(id)
+	_show_in_well(_column.nail(id))
+
+
+## Scrolls the well so a held landing's crowd and pill are in the middle (its card just opened).
+func _show_hold(f: int) -> void:
+	await get_tree().process_frame
+	var spot := _column.hold_spot(f)
 	var h := _scroll.size.y
-	if nail == null or h <= 0.0:
+	if spot == null or h <= 0.0:
 		return
-	var top := nail.position.y - 16.0
-	var bottom := nail.position.y + nail.size.y + 16.0
+	var want := spot.position.y + spot.size.y / 2.0 - h / 2.0
+	_scroll.scroll_vertical = int(clampf(want, 0.0, maxf(0.0, _column.custom_minimum_size.y - h)))
+
+
+func _show_in_well(thing: Control) -> void:
+	var h := _scroll.size.y
+	if thing == null or h <= 0.0:
+		return
+	var top := thing.position.y - 16.0
+	var bottom := thing.position.y + thing.size.y + 16.0
 	var at := float(_scroll.scroll_vertical)
 	if top < at:
 		at = top
@@ -647,6 +714,174 @@ func _nail_card(id: String) -> Control:
 		buy.pressed.connect(func(): _buy_perk(id))
 		col.add_child(buy)
 	return card
+
+
+# ---- held landings -----------------------------------------------------------------------------
+
+## A held landing's card: "landing N" + ✕ (+ a coral pennant once it's held), the crowd, how many,
+## what they hold; while it fills a meter, a ‹ n › per shelf that has pets that may go, "hold on tight!".
+func _hold_card(f: int, keep := 0) -> Control:
+	var catalog := GameState.catalog
+	var state: Dictionary = GameState.dungeon
+	var n := Dungeon.held_n(state, f)
+	var need := Dungeon.hold_need(catalog, f)
+	var full := n >= need
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", UiTheme.sticker(UiTheme.WISP.lerp(UiTheme.LILAC_SEAM, 0.45), 12, UiTheme.RAISED, 11))
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 8)
+	card.add_child(col)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 6)
+	head.add_child(_h3("landing %d" % f))
+	if full:
+		head.add_child(_Pennant.new())
+	head.add_child(UiTheme.spacer())
+	var x := UiTheme.small_button("✕", func(): pick_hold(0))
+	x.custom_minimum_size = Vector2(20, 20)
+	x.add_theme_color_override("font_color", UiTheme.MUTED)
+	x.add_theme_color_override("font_hover_color", UiTheme.PINK)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		x.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	head.add_child(x)
+	col.add_child(head)
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 10)
+	var shown := Herd.mound_size(catalog, n, Dungeon.hold_int(catalog, "card_faces", 24))
+	var mound := Mound.new(GameState.hold_faces(f, mini(shown, Dungeon.hold_int(catalog, "looks", 8))), shown, 96.0, 32.0)
+	mound.size_flags_vertical = SIZE_SHRINK_END
+	line.add_child(mound)
+	var words := VBoxContainer.new()
+	words.add_theme_constant_override("separation", 1)
+	words.add_child(UiTheme.title(UiTheme.num(n), 22, UiTheme.TEXT))
+	words.add_child(UiTheme.label("holding %s" % Dungeon.hold_what(catalog, f), UiTheme.MUTED, UiTheme.SMALL))
+	line.add_child(words)
+	col.add_child(line)
+	if full:
+		return card
+	card.size_flags_vertical = SIZE_EXPAND_FILL
+	var meter_row := HBoxContainer.new()
+	meter_row.add_theme_constant_override("separation", 6)
+	var meter := UiTheme.bar(UiTheme.WISP)
+	meter.max_value = float(need)
+	meter.value = float(n)
+	meter.size_flags_vertical = SIZE_SHRINK_CENTER
+	meter_row.add_child(meter)
+	var count := HBoxContainer.new()
+	count.add_theme_constant_override("separation", 3)
+	count.add_child(UiTheme.title(HoldSpot.short(n), 15, UiTheme.TEXT))
+	var of := UiTheme.label("/ %s" % HoldSpot.short(need), UiTheme.MUTED, UiTheme.SMALL)
+	of.size_flags_vertical = SIZE_SHRINK_END
+	count.add_child(of)
+	meter_row.add_child(count)
+	col.add_child(meter_row)
+	# a stepper per shelf with pets that may go (each "of N" at most what the landing still needs)
+	var room := GameState.hold_room(f)
+	var step := ceili(need / maxf(1.0, float(catalog.dungeon.get("hold", {}).get("steps_to_fill", 20))))
+	var picked := 0
+	for k in _send:
+		picked += int(_send[k])
+	var rows := VBoxContainer.new()
+	rows.add_theme_constant_override("separation", 5)
+	rows.size_flags_horizontal = SIZE_EXPAND_FILL
+	for tier in catalog.tiers:
+		var have := GameState.hold_can_go(f, tier.id)
+		var want := mini(int(_send.get(tier.id, 0)), have)
+		if have <= 0:
+			_send.erase(tier.id)
+			continue
+		var most := mini(have, room - (picked - want))
+		var r := HBoxContainer.new()
+		r.add_theme_constant_override("separation", 8)
+		var tname := VBoxContainer.new()
+		tname.add_theme_constant_override("separation", -2)
+		tname.add_child(UiTheme.label(str(tier.name), catalog.tier_color(tier.id), UiTheme.SMALL + 1))
+		tname.add_child(UiTheme.label("of %s" % UiTheme.num(have), UiTheme.MUTED, UiTheme.SMALL - 1))
+		tname.size_flags_horizontal = SIZE_EXPAND_FILL
+		r.add_child(tname)
+		var id := str(tier.id)
+		r.add_child(_stepper(UiTheme.num(want), func(): _hold_step(id, want - step, most), func(): _hold_step(id, want + step, most),
+			want > 0, want < most, 44))
+		rows.add_child(r)
+	var scroll := ScrollContainer.new()
+	scroll.size_flags_vertical = SIZE_EXPAND_FILL
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.add_child(rows)
+	col.add_child(scroll)
+	_hold_scroll = scroll
+	_hold_scroll_f = f
+	if keep > 0:  # back where it was once the list has its size
+		var bar := scroll.get_v_scroll_bar()
+		var wait := { "keep": keep }
+		bar.changed.connect(func():
+			if int(wait.keep) > 0 and bar.page > 0.0 and bar.max_value - bar.page >= float(wait.keep):
+				bar.value = float(wait.keep)
+				wait.keep = 0)
+	var go := UiTheme.button("hold on tight!", func(): _send_holders(f))
+	go.disabled = picked <= 0
+	var sb := UiTheme.box(UiTheme.DEEP, UiTheme.PINK_SEAM, 8, 2, 6)
+	go.add_theme_stylebox_override("normal", sb)
+	var dis := sb.duplicate()
+	dis.border_color = UiTheme.LINE
+	go.add_theme_stylebox_override("disabled", dis)
+	col.add_child(go)
+	return card
+
+
+## The open hold card's stepper for a shelf goes to `n` (as far as it may), for flows. Returns
+## whether there was one.
+func hold_pick(rarity: String, n: int) -> bool:
+	var have := GameState.hold_can_go(_hold_f, rarity) if _hold_f > 0 else 0
+	if have <= 0:
+		return false
+	var others := 0
+	for k in _send:
+		if k != rarity:
+			others += int(_send[k])
+	_hold_step(rarity, n, mini(have, GameState.hold_room(_hold_f) - others))
+	return true
+
+
+## The open hold card's shelf list (null when there's none), for flows.
+func hold_list() -> ScrollContainer:
+	return _hold_scroll if is_instance_valid(_hold_scroll) else null
+
+
+func _hold_step(rarity: String, n: int, most: int) -> void:
+	n = clampi(n, 0, maxi(0, most))
+	if n > 0:
+		_send[rarity] = n
+	else:
+		_send.erase(rarity)
+	var a := GameState.army()
+	_build_side(a, GameState.army_rules(a) if int(a.sent) > 0 else {})
+
+
+## "hold on tight!": each shelf's pick goes and holds the landing (for good).
+func _send_holders(f: int) -> void:
+	var went := 0
+	for rarity in _send.keys():
+		went += GameState.send_holders(f, str(rarity), int(_send[rarity]))
+	_send = {}
+	_dirty = true
+	if went <= 0:
+		return
+	if Dungeon.is_held(GameState.catalog, GameState.dungeon, f):
+		PetBubble.say_line(self, "hold_full", { "f": f })
+	else:
+		PetBubble.say_line(self, "hold_send")
+
+
+## A little coral pennant on a pole: this landing is held.
+class _Pennant extends Control:
+	func _init() -> void:
+		custom_minimum_size = Vector2(14, 16)
+		size_flags_vertical = SIZE_SHRINK_CENTER
+		mouse_filter = MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		draw_line(Vector2(3, 1), Vector2(3, 15), UiTheme.MUTED, 1.6, true)
+		draw_colored_polygon(PackedVector2Array([Vector2(3.5, 2), Vector2(13, 5), Vector2(3.5, 8)]), UiTheme.WISP)
 
 
 func _buy_perk(id: String) -> void:
