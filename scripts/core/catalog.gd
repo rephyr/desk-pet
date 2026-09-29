@@ -39,6 +39,8 @@ var gear := {}  # upgrades to adventuring bought with xp, see data/gear.json and
 var book := {}  # the collection book's reward stickers, see data/book.json and Book
 var boosts := {}  # boost kinds and their sources, see data/boosts.json and Boosts
 var knacks := {}  # every part's named knack, see data/knacks.json and Knacks
+var herd := {}  # plain pets folded into counts, the room cap, see data/herd.json and Herd
+var new_homes := {}  # the new homes stall and the sorting rule, see data/new_homes.json and NewHomes
 var encounter_art := {}  # event id -> its pixel art on the trail, see data/encounter_art.json
 var tier_overrides := {}  # tier id -> Color, set by the player's colour theme (see UiTheme.apply)
 
@@ -113,6 +115,8 @@ func _init() -> void:
 	book = _load("book.json")
 	boosts = _load("boosts.json")
 	knacks = _load("knacks.json")
+	herd = _load("herd.json")
+	new_homes = _load("new_homes.json")
 	_rummage_by_id = _index(rummage_spots)
 
 

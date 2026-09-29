@@ -45,8 +45,8 @@ troops off to be killed. The game itself never lets on.
 - **The narrator is innocent:** the active pet comments on results and sincerely never
   understands ("Only 12 came back! They must have found somewhere nicer!"). See Adventures.
 - **The night sky** (**Decided**, inspired by Noita's star per death): every pet that doesn't come
-  back adds one tiny, dim star to the background of the home panel, in a spot and colour taken
-  from that pet. Never explained, never counted, really hard to notice. Early on there are a
+  back adds one tiny, dim star to the background of the home panel, in a spot taken from its
+  number (star i, so pets from the herd count too) and a colour taken from that pet. Never explained, never counted, really hard to notice. Early on there are a
   handful of specks; late game the panel is a dark starry sky, so the mood darkens by itself as
   a direct result of what you've done. Past what a small panel can hold, new stars thicken a
   faint milky band instead of adding specks.
@@ -147,12 +147,47 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
 
 - Tracks every part discovered, and every finish seen for each body.
 - Shows how many of each you've pulled, with undiscovered entries as silhouettes.
-- Owned pets: the list of pets you have, sortable by rarity, finish and stats.
+- Owned pets: the **bookcase** (C1, look A, built): a pink cushion on top with your active pet,
+  favourites and the best ones (holo and better, a part new to the book), then a plank per rarity
+  you have: a tilted tag ("common 48,210"), the newest 4 standing, a mound of tiny pets that grows
+  with the count (about log10, at most 60) and the shiny count. Tap a plank (or a cushion pet) to
+  open the shelf: the herd as chips (plain and shiny counts), the always-cards, a stitched line, the
+  newest ones, and the chosen pet's sticker with the heart (favourite) and make active.
+- **The herd** (C3's base, built): plain pets (below holo) fold into a **count per rarity x
+  finish**, so millions fit in the save and on screen. Always a card: favourites, the active pet,
+  holo or better, a pet that brought a part new to the book, pets with buttons (F2, later), and
+  pets something needs whole (away on an adventure, a good pull you haven't seen, leading a party);
+  each shelf also keeps its newest 20 plain pets as cards. Errands, workers and parties draw from
+  the counts; an adventure takes **stand-ins** (a pet from a count, its rarity's average stats, no
+  traits, a look from a seed) that come home into the count or leave it (a star).
+- **The room** (built, simple first version): one cap for every plain pet together (500 at first,
+  x1.5 per upgrade, bought with coins; placeholders in data/herd.json). A pill on the pets tab
+  shows it once the first pet folds; full, it turns pink and wiggles, box openings wait on the pile
+  (by hand, your pet, box workers, the machine's pet box: nothing is lost) and your pet squishes.
+  Gifts (the tutorial's pets, the basket's pet) always come in.
+- **New homes** (C3 look A, built): the first time the room is full a striped stall turns up in a
+  side column beside the bookcase (no popup; your pet mentions it). Tap a plank to pick that shelf
+  (dashed pink border), tap it again to open it; the stall takes 1 / 10 / 100 / all of the shelf's
+  plain pets (normal before shiny, resting before working, counts before the oldest cards; never
+  favourites, the active pet, new parts, holo and better, pets away). Points per rarity (common 1,
+  uncommon 2, rare 5, epic 12, legendary 20, mythic 40; data/new_homes.json) fill a box jar, 25 = a
+  sunny box (the starter box) on your pile. Every take your pet says "they'll have a
+  big garden!", always those words. An opened shelf takes the whole width (the stall steps aside).
+- **The sorting rule** (built): after 300 pets sent by hand a tilted index card turns up under the
+  stall: off | on, "new pets below ‹rare› go to ‹new homes / work›", keeps "✦ ‹holo› and up" (a
+  finish stepper), new parts and favourites (always). Off by default; only pets out of boxes (yours,
+  your pet's, the box tables', the machine's pet box) that arrive after it's on are sorted: new homes
+  = they leave at once (points, stars; the reveal still shows them), work = they start where "new
+  pets join here" is on, or on every open errand. "sorted today N" on the card and on each plank
+  under the line (local day).
+- **Stars:** every pet that leaves (new homes, lost on an adventure) adds a night-sky star, never
+  explained.
 - **Page rewards** (built, data/book.json): each part page and the first finishes page ends with
   a gift spot; filling the page opens its reward sticker for good, a small permanent boost (coins,
   luck, automation speed or errands speed, +10% each for now). Stickers multiply with each other
   and with toys (toys x1.25 x book x1.10 = x1.375). **Open:** stickers for the other bodies'
   finishes pages.
+- **Open:** more completion rewards (per page, per body, per finish set).
 
 ## Care (active side)
 
@@ -343,8 +378,13 @@ Nobody is ever lost on an errand, and errands never bring rare parts or new plac
 - **Job levels and goals:** a job's level is its tools' levels added up; gold stars along a dotted
   track mark its goals (coin hunt: lv 10 the lemonade stand, lv 25 and 50 x2 coins, lv 100 x3). An
   unlock can wait for a level (`earn.job_level`).
-- **The player assigns pets** (tap a resting pet then a job, or + / −). "Your pet shares out new
-  pets" is an opt-in switch, off by default. Going on an adventure takes a pet off its job.
+- **The player assigns pets** (tap a resting pet then a job, or + / −). **Busy paws** (C3): each
+  errand and each workers' job (machines, box tables; not adventures) has a "new pets join here"
+  switch, off by default (errands: in the shoebox under "new pets join", one per errand; workers:
+  on the job's side card). New pets (boxes, gifts, pets home from adventures, your old active pet)
+  fill switched-on machines with room first (the best workers), the rest spread over switched-on
+  errands (smallest crew first); nothing on: they rest. "Share them out" stays. Going on an
+  adventure takes a pet off its job.
 - **Scales from a couple of pets to thousands:** up to 6 on a job each get a polaroid; past that
   a pile, the count and a little crowd, and + / − move 1, 10, 100 or all.
 - **Offline:** full speed for 8 h, then half, up to the 12 h cap; the tab notes what came in.

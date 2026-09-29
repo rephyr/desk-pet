@@ -137,11 +137,13 @@ func _process(_delta: float) -> void:
 		str(GameState.auto_party()), _picked, afford]
 	var pet := GameState.collection.active()
 	key += "|%d|%s|%s|%s" % [jobs.size(), run.location_id if run else "", str(GameState.can_auto_open()), pet.display_name(GameState.catalog) if pet else ""]
+	if not GameState.can_auto_open():  # the box job then shows the pile count (or the squish)
+		key += "|%d|%s" % [GameState.boxes_on_pile(), str(GameState.room_is_full())]
 	# the workers page: what's taught, bought and who's on it, and what you can afford there
 	var a: Dictionary = GameState.automation
-	key += "|%d|%s|%s|%s|%s" % [_page, str(a.others), str(a.spots), str(a.parties), str(a.workers)]
+	key += "|%d|%s|%s|%s|%s|%s|%s" % [_page, str(a.others), str(a.spots), str(a.parties), str(a.workers), str(a.get("wherd", {})), str(a.get("wjoin", {}))]
 	if _page >= 1:  # changes every time a box worker opens a box: only the workers pages show it
-		key += "|%d" % GameState.resting_pets().size()
+		key += "|%d" % GameState.resting_count()
 	key += "|%s|%s|%d|%d" % [str(a.get("whistle", {}).get("ticks", {})), str(a.get("whistle", {}).get("keep", -1)),
 		GameState.open_locations().size(), GameState.open_pages().size()]
 	if _page == 2:
@@ -318,7 +320,13 @@ static func rate_line(job: Dictionary) -> String:
 			var n: int = run.party.setting_out() if run else int(party.n)
 			return "%d %s to %s" % [n, "pet" if n == 1 else "pets", place.get("name", "somewhere")]
 		"boxes":
-			return "opening your pile" if GameState.can_auto_open() else "the pile is empty"
+			if GameState.can_auto_open():
+				return "opening your pile"
+			var boxes := GameState.boxes_on_pile()
+			if boxes <= 0:
+				return "the pile is empty"
+			var pile := "a box on your pile" if boxes == 1 else "%s boxes on your pile" % UiTheme.num(boxes)
+			return "squish! " + pile if GameState.room_is_full() else pile
 	return ""
 
 
@@ -433,7 +441,7 @@ func _buy_spot(id: String) -> void:
 
 
 func _put_workers(id: String, count: int) -> void:
-	if Automation.spots(GameState.automation, id) <= GameState.workers_of(id).size():
+	if Automation.spots(GameState.automation, id) <= GameState.workers_count(id):
 		PetBubble.say_line(self, "automation_workers_full", { "spots": Automation.job(GameState.catalog, id).get("spot", {}).get("names", "spots") })
 		return
 	if GameState.put_workers(id, count) <= 0:
@@ -494,7 +502,7 @@ func _rebuild_worker_side(job: Dictionary) -> void:
 	counts.add_theme_constant_override("h_separation", 10)
 	ErrandToolsView._add_row(counts, str(job.spot.get("names", "spots")), UiTheme.num(spots), UiTheme.TEXT)
 	ErrandToolsView._add_row(counts, "working", UiTheme.num(working), color if working > 0 else UiTheme.MUTED)
-	ErrandToolsView._add_row(counts, "resting pets", UiTheme.num(GameState.resting_pets().size()), UiTheme.MUTED)
+	ErrandToolsView._add_row(counts, "resting pets", UiTheme.num(GameState.resting_count()), UiTheme.MUTED)
 	col.add_child(counts)
 	var plan := GameState.spot_plan(id, 1)
 	if int(plan[0]) > 0:  # none left out there: the button is simply gone
@@ -518,6 +526,10 @@ func _rebuild_worker_side(job: Dictionary) -> void:
 	fill.size_flags_horizontal = SIZE_EXPAND_FILL
 	row.add_child(fill)
 	col.add_child(row)
+	if id != "adventures" and GameState.spare_count() > ErrandsTab.STEPS_AFTER:  # busy paws: new pets start here
+		col.add_child(ErrandsTab.join_switch(GameState.worker_joins(id), func(on):
+			GameState.set_worker_join(id, on)
+			PetBubble.say_line(self, "join_on" if on else "join_off")))
 	_card.add_child(box)
 
 	if id == "adventures" and spots > 0:
@@ -586,21 +598,21 @@ func _rebuild_whistle(jobs: Array[Dictionary], pet: Pet, who: String) -> void:
 	col.add_child(UiTheme.title("%s's list" % who, 18, UiTheme.PINK))
 	for j in jobs:
 		col.add_child(TodoRow.new(j, self))
-	var resting := GameState.resting_pets()
+	var resting_n := GameState.resting_count()
 	var note := PanelContainer.new()
 	note.size_flags_horizontal = SIZE_SHRINK_BEGIN
 	note.add_theme_stylebox_override("panel", UiTheme.box(UiTheme.RAISED.lerp(UiTheme.MINT, 0.1), UiTheme.LINE.lerp(UiTheme.MINT, 0.4), 6, 2, 6))
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 6)
 	note.add_child(row)
-	var n := UiTheme.label(UiTheme.num(resting.size()), UiTheme.MINT, UiTheme.SMALL)
+	var n := UiTheme.label(UiTheme.num(resting_n), UiTheme.MINT, UiTheme.SMALL)
 	n.size_flags_vertical = SIZE_SHRINK_CENTER
 	row.add_child(n)
 	var words := UiTheme.label("pets resting", UiTheme.TEXT, UiTheme.SMALL)
 	words.size_flags_vertical = SIZE_SHRINK_CENTER
 	row.add_child(words)
-	if not resting.is_empty():
-		row.add_child(TinyCrowd.new(resting.slice(0, 6).map(func(p): return p.uid), 3))
+	if resting_n > 0:
+		row.add_child(TinyCrowd.new(GameState.resting_faces(6), 3))
 	col.add_child(note)
 	_rebuild_whistle_side(pet, who)
 
@@ -767,9 +779,9 @@ class TodoRow extends HBoxContainer:
 		words.add_child(UiTheme.title(str(spot.get("names", "spots")), 16, color))
 		var working := GameState.workers_count(id)
 		words.add_child(UiTheme.label("%s working" % UiTheme.num(working), UiTheme.MUTED, UiTheme.SMALL))
-		var crew := GameState.workers_of(id).filter(func(uid): return str(uid) != "")
+		var crew := GameState.worker_faces(id, 5) if id != "adventures" else GameState.workers_of(id).filter(func(uid): return str(uid) != "").slice(0, 5)
 		if not crew.is_empty():
-			words.add_child(TinyCrowd.new(crew.slice(0, 5), 3))
+			words.add_child(TinyCrowd.new(crew, 3))
 		name_box.add_child(words)
 		add_child(name_box)
 
@@ -927,9 +939,9 @@ class WorkerCard extends PanelContainer:
 		flow.mouse_filter = MOUSE_FILTER_IGNORE
 		well.add_child(flow)
 		var spots := Automation.spots(GameState.automation, _id)
-		var workers := GameState.workers_of(_id)
 		var working := GameState.workers_count(_id)
 		var shown := mini(spots, SHOWN if spots <= SHOWN else SHOWN - 1)
+		var workers := GameState.worker_faces(_id, shown) if _id != "adventures" else GameState.workers_of(_id)
 		for i in shown:
 			flow.add_child(WorkerSpot.new(_id, str(workers[i]) if i < workers.size() else "", i))
 		if spots > shown:

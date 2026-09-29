@@ -1,5 +1,5 @@
 # Knacks: every part's named knack as a sewn badge on the pet details (tap to read) and the best one
-# on the grid cards' corners. Nothing shows before parts open; a knack for something you haven't got
+# on the bookcase cards' corners. Nothing shows before parts open; a knack for something you haven't got
 # yet (fever before the lights, automation before its tab) stays hidden until it opens. Your active
 # pet's knacks feed the boosts (the log). Everything stays inside the window.
 from after_tutorial
@@ -15,6 +15,8 @@ dress body=bunny palette=toxic pattern=stars eyes=cyclops accessory=crown finish
 pets 12
 tab home
 tab collection
+wait 1
+click MiniCard#1                     # your active pet, on the cushion: its shelf opens with its sticker
 wait 1
 expect text "wishing star"           # the best badge is read first (epic stars, holo: +30% luck)
 expect text "+30% luck"
@@ -45,7 +47,7 @@ expect text "automation 60% faster"
 expect fits
 shot all_badges
 boosts
-click PetCard#2
+click MiniCard#2
 wait 1
 expect fits
 shot other_pet

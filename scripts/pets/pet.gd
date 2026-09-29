@@ -13,6 +13,8 @@ var stats := {}  # stat name -> int
 var rarity := "common"  # overall tier, rolled first; the finish is a separate axis
 var box := ""  # which box it came from
 var pulled_at := 0  # unix time
+var fav := false  # a favourite: on the pets tab's cushion, and always a card (never folds into the herd)
+var new_part := false  # it brought a part the book hadn't seen yet: always a card
 
 
 func display_name(catalog: Catalog) -> String:
@@ -26,7 +28,7 @@ func display_name(catalog: Catalog) -> String:
 
 
 func to_dict() -> Dictionary:
-	return {
+	var d := {
 		"uid": uid,
 		"parts": parts,
 		"sewn": sewn,
@@ -37,6 +39,11 @@ func to_dict() -> Dictionary:
 		"box": box,
 		"pulled_at": pulled_at,
 	}
+	if fav:
+		d.fav = true
+	if new_part:
+		d.new_part = true
+	return d
 
 
 ## Loads a saved pet. Slots, parts or finishes that have since been added or removed from
@@ -58,4 +65,6 @@ static func from_dict(d: Dictionary, catalog: Catalog = Catalog.shared()) -> Pet
 	p.rarity = tier if catalog.tiers.any(func(t): return t.id == tier) else catalog.tiers[0].id
 	p.box = d.get("box", "")
 	p.pulled_at = int(d.get("pulled_at", 0))
+	p.fav = bool(d.get("fav", false))
+	p.new_part = bool(d.get("new_part", false))
 	return p

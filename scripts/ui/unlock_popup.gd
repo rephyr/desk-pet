@@ -51,7 +51,9 @@ func _init() -> void:
 	_buttons.alignment = BoxContainer.ALIGNMENT_END
 	col.add_child(_buttons)
 	add_child(Tilted.new(_card, -1.5))
-	GameState.unlocked.connect(func(entry): _queue.append(entry))
+	GameState.unlocked.connect(func(entry):
+		if not entry.get("quiet", false):  # quiet ones open without a card
+			_queue.append(entry))
 	GameState.sticker_opened.connect(_queue_sticker)
 
 

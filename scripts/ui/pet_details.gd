@@ -1,8 +1,8 @@
 class_name PetDetails
 extends PanelContainer
 ## Everything about one pet, as a big sticker with a stitched edge: its portrait, name, rarity and
-## finish, its knacks as sewn badges (tap one to read it), parts, traits and stats, and the button
-## to make it your active pet.
+## finish, its knacks as sewn badges (tap one to read it), parts, traits and stats, the heart (a
+## favourite: on the cushion, never folds into the herd) and the button to make it your active pet.
 
 var _pet: Pet
 var _portrait := PetPortrait.new(6, true)
@@ -16,6 +16,7 @@ var _card_text := UiTheme.label("", UiTheme.MINT, 12)
 var _card_part := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
 var _picked := ""  # the slot of the badge being read
 var _active_button: Button
+var _fav_button: Button
 
 
 func _init() -> void:
@@ -64,10 +65,19 @@ func _init() -> void:
 	_info.add_theme_constant_override("h_separation", 12)
 	_info.add_theme_constant_override("v_separation", 2)
 	about.add_child(_info)
+	var buttons := HBoxContainer.new()
+	buttons.add_theme_constant_override("separation", 6)
+	col.add_child(buttons)
+	_fav_button = UiTheme.button("", func(): _toggle_fav())
+	_fav_button.icon = UiTheme.icon("heart", 14)
+	_fav_button.tooltip_text = "favourite"
+	_fav_button.add_theme_constant_override("icon_max_width", 14)
+	buttons.add_child(_fav_button)
 	_active_button = UiTheme.button("make active", func():
 		if _pet:
 			GameState.collection.set_active(_pet.uid))
-	col.add_child(_active_button)
+	_active_button.size_flags_horizontal = SIZE_EXPAND_FILL
+	buttons.add_child(_active_button)
 	GameState.collection.active_changed.connect(func(_p): _refresh_active())
 	show_pet(null)
 
@@ -147,11 +157,24 @@ func _refresh_active() -> void:
 	var away := GameState.away().has(_pet.uid)
 	_active_button.disabled = is_active or away
 	_active_button.text = "your active pet" if is_active else ("away on an adventure…" if away else "make active")
-	_active_button.icon = UiTheme.icon("heart", 14) if is_active or not away else null
-	_active_button.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_active_button.add_theme_constant_override("icon_max_width", 14)
-	_active_button.add_theme_color_override("icon_normal_color", Color.WHITE)
-	_active_button.add_theme_color_override("icon_disabled_color", Color.WHITE)
+	# the heart: pink-rimmed while it's a favourite; stand-ins (pets from the herd) can't be one
+	_fav_button.visible = not Herd.is_stand_in(_pet.uid)
+	var fav_sb := UiTheme.box(UiTheme.DEEP, UiTheme.PINK if _pet.fav else UiTheme.LINE, 8, 2, 6)
+	fav_sb.content_margin_left = 10
+	fav_sb.content_margin_right = 10
+	for state in ["normal", "hover", "pressed"]:
+		_fav_button.add_theme_stylebox_override(state, fav_sb)
+	_fav_button.modulate.a = 1.0 if _pet.fav else 0.55
+
+
+func _toggle_fav() -> void:
+	if _pet == null:
+		return
+	var on := not _pet.fav
+	var pet_name := _pet.display_name(Catalog.shared())
+	GameState.collection.set_fav(_pet.uid, on)
+	PetBubble.say_line(self, "pets_fav_on" if on else "pets_fav_off", { "name": pet_name })
+	_refresh_active()
 
 
 func _row(key: String, value: String, color: Color) -> void:

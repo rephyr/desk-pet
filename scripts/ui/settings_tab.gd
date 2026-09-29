@@ -44,10 +44,13 @@ func _init() -> void:
 	var boxes_switch := _switch("open boxes in the corner", GameState.packs_on, func(on): GameState.set_job("packs", on))
 	boxes_switch.visible = GameState.knows_job("boxes")
 	work.body.add_child(boxes_switch)
+	# nothing to switch yet: the section stays out of sight
+	work.panel.visible = GameState.knows_job("boxes") or GameState.feature_on("shopping")
 	GameState.automation_changed.connect(func():
 		if is_instance_valid(boxes_switch):
 			boxes_switch.visible = GameState.knows_job("boxes")
-			boxes_switch.set_pressed_no_signal(GameState.packs_on))
+			boxes_switch.set_pressed_no_signal(GameState.packs_on)
+			work.panel.visible = GameState.knows_job("boxes") or GameState.feature_on("shopping"))
 	if GameState.feature_on("shopping"):  # once it has the piggy bank, it buys boxes too
 		work.body.add_child(_switch("buy boxes when the pile runs out", GameState.buying_on, func(on): GameState.set_job("buying", on)))
 		# the reserve is kept in capsules like box prices, shown in coins at what a capsule is worth now
@@ -55,9 +58,6 @@ func _init() -> void:
 		var kept := _slider_row(work.body, "coins %s always keeps" % who, 0, GameState.reserve_max(), GameState.reserve_step(),
 			GameState.reserve_capsules, func(v): return UiTheme.num(roundi(v * value)), func(v): GameState.set_reserve(int(v)))
 		kept.add_theme_color_override("font_color", UiTheme.CYAN)
-	if GameState.feature_on("errands"):
-		work.body.add_child(_stitch_line())
-		work.body.add_child(_switch("%s shares out new pets on errands" % who, GameState.jobs_auto, func(on): GameState.set_jobs_auto(on)))
 
 	var sound := _section("sound")
 	col.add_child(sound.panel)

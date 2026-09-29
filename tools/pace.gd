@@ -43,7 +43,7 @@ func _init() -> void:
 		p.play(minutes)
 		players.append(p)
 		print("  player %d done in %.1f s: %s coins, %d pets, %d trips, %d pets stayed behind on your trips" % [r + 1,
-			(Time.get_ticks_msec() - started) / 1000.0, _num(p.gs.coins), p.gs.collection.pets.size(), p.gs.trips_done, p.lost])
+			(Time.get_ticks_msec() - started) / 1000.0, _num(p.gs.coins), p.gs.collection.count(), p.gs.trips_done, p.lost])
 		started = Time.get_ticks_msec()
 	_print_milestones(players)
 	_print_income(players)

@@ -27,9 +27,10 @@ var _meters := {}  # job id -> Meter
 var _countdowns := {}  # job id -> the "full in 24m 10s" label of a job that pays in one chunk (the jar)
 var _tick := 0.0  # seconds until the countdowns move on
 var _step := 1
-var _picked := ""  # uid of a resting pet waiting to be put on a job
+var _picked := ""  # uid of a resting pet waiting to be put on a job (a stand-in's: one from its count)
 var _dirty := true
-var _resting: Array[Pet] = []  # worked out once per rebuild
+var _resting: Array = []  # uids of the resting pets shown (cards, then stand-ins), worked out once per rebuild
+var _resting_n := 0  # everyone resting, cards and herd
 var _away_count := -1  # pets on adventures at the last rebuild
 var _rng := RandomNumberGenerator.new()
 var _jobs_page := HBoxContainer.new()
@@ -133,6 +134,7 @@ func _init() -> void:
 			_dirty = true)
 	GameState.collection.pets_added.connect(func(_p): _dirty = true)
 	GameState.collection.pets_removed.connect(func(_u): _dirty = true)
+	GameState.collection.herd_changed.connect(func(_keys): _dirty = true)
 	GameState.collection.active_changed.connect(func(_p): _dirty = true)
 	GameState.job_paid.connect(_paid)
 	visibility_changed.connect(func():
@@ -196,8 +198,8 @@ func _update_income() -> void:
 
 
 func speak() -> void:
-	var resting := GameState.resting_pets().size()
-	if GameState.sendable_pets().is_empty():
+	var resting := GameState.resting_count()
+	if GameState.spare_count() == 0:
 		PetBubble.say_line(self, "errands_nobody")
 	elif resting > 0:
 		PetBubble.say_line(self, "errands_resting", { "count": ExpandedView._thousands(resting) })
@@ -232,13 +234,14 @@ func _rebuild() -> void:
 	_dirty = false
 	_meters.clear()
 	_countdowns.clear()
-	_resting = GameState.resting_pets()
+	_resting_n = GameState.resting_count()
+	_resting = GameState.resting_faces(RESTING_POLAROIDS + 1)
 	_away_count = GameState.away().size()
-	var many := GameState.sendable_pets().size() > STEPS_AFTER
+	var many := GameState.spare_count() > STEPS_AFTER
 	_steps_row.visible = many
 	if not many:
 		_step = 1
-	if _picked != "" and not _resting.any(func(p): return p.uid == _picked):
+	if _picked != "" and not _picked in _resting:
 		_picked = ""
 	UiTheme.clear(_notes)
 	var catalog := Catalog.shared()
@@ -261,7 +264,7 @@ func _rebuild() -> void:
 
 func _job_note(job: Dictionary) -> Control:
 	var color := _color(job)
-	var crew := GameState.job_crew(job.id)
+	var size := GameState.job_size(job.id)
 	var rate := GameState.job_rate(job.id)
 	var panel := _note_panel(color)
 	panel.mouse_default_cursor_shape = CURSOR_POINTING_HAND if _picked != "" else CURSOR_ARROW
@@ -295,13 +298,13 @@ func _job_note(job: Dictionary) -> Control:
 	col.add_child(meter)
 	var pay: Dictionary = job.get("pay", {})
 	if job.get("chunk", false):  # the jar: one big lump, and how long until it's full
-		col.add_child(_shrinkable(UiTheme.label(_pay_words(job, crew.size()), color, UiTheme.SMALL)))
+		col.add_child(_shrinkable(UiTheme.label(_pay_words(job, size), color, UiTheme.SMALL)))
 		var countdown := _shrinkable(UiTheme.label(_full_in(job.id), UiTheme.MUTED, UiTheme.SMALL))
 		_countdowns[job.id] = countdown
 		col.add_child(countdown)
 	elif pay.has("meal"):  # the kitchen: how much faster every other job is, and the meals
 		var faster := Jobs.faster_words(GameState.kitchen_bonus())
-		if not crew.is_empty() and faster != "":  # nobody cooking: just "nobody on it"
+		if size > 0 and faster != "":  # nobody cooking: just "nobody on it"
 			col.add_child(_shrinkable(UiTheme.label(faster, color, UiTheme.SMALL)))
 		col.add_child(_shrinkable(UiTheme.label(("a meal " + _every(rate)) if rate > 0.0 else _every(rate), UiTheme.MUTED, UiTheme.SMALL)))
 	elif pay.has("note"):  # scouting: the notes waiting for your next trips
@@ -310,18 +313,18 @@ func _job_note(job: Dictionary) -> Control:
 	elif meter.stream:
 		col.add_child(_shrinkable(UiTheme.label(_per_minute(job, rate), color, UiTheme.SMALL)))
 	else:
-		col.add_child(_shrinkable(UiTheme.label(_pay_words(job, crew.size()), color, UiTheme.SMALL)))
+		col.add_child(_shrinkable(UiTheme.label(_pay_words(job, size), color, UiTheme.SMALL)))
 		col.add_child(_shrinkable(UiTheme.label(_every(rate), UiTheme.MUTED, UiTheme.SMALL)))
 	if not job.get("goals", []).is_empty():
 		col.add_child(GoalTrack.new(job, color))
 		col.add_child(_wrapped(goal_line(job), UiTheme.TEXT))
-	if crew.size() <= POLAROIDS:
-		col.add_child(_row("crew of %d" % crew.size(), "%.1fx" % (rate * float(job.seconds)) if not crew.is_empty() else "stopped", color))
-		col.add_child(_crew_photos(job, crew, color))
+	if size <= POLAROIDS:
+		col.add_child(_row("crew of %d" % size, "%.1fx" % (rate * float(job.seconds)) if size > 0 else "stopped", color))
+		col.add_child(_crew_photos(job, GameState.job_faces(job.id, POLAROIDS), color))
 	else:
-		col.add_child(_pile_and_count(crew, color, ExpandedView._thousands(crew.size()), "pets on it"))
+		col.add_child(_pile_and_count(GameState.job_faces(job.id, 3), color, ExpandedView._thousands(size), "pets on it"))
 		var crowd := Crowd.new()
-		crowd.set_pets(crew)
+		crowd.set_pets(GameState.job_faces(job.id, Crowd.MOST), size)
 		col.add_child(crowd)
 
 	var fill := Control.new()
@@ -333,11 +336,11 @@ func _job_note(job: Dictionary) -> Control:
 	buttons.add_theme_constant_override("separation", 6)
 	var amount := "all" if _step < 0 else str(_step)
 	var minus := UiTheme.button("−" if _step == 1 else "− " + amount, func(): _take_off(job, _step))
-	minus.disabled = crew.is_empty()
+	minus.disabled = size == 0
 	buttons.add_child(minus)
 	var plus := UiTheme.button("+ a pet" if _step == 1 else "+ " + amount, func(): _put_on(job, _step))
 	plus.add_theme_stylebox_override("normal", _primary())
-	plus.disabled = _resting.is_empty()
+	plus.disabled = _resting_n == 0
 	buttons.add_child(plus)
 	col.add_child(buttons)
 	return panel
@@ -354,7 +357,7 @@ func _crew_photos(job: Dictionary, crew: Array, color: Color) -> Control:
 		photo.tooltip_text = _name(uid) + "\ntap to let it rest"
 		photo.pressed.connect(func(): _take_off(job, 1, [uid]))
 		grid.add_child(Tilted.new(photo, PHOTO_TILTS[i % PHOTO_TILTS.size()]))
-	if crew.size() < POLAROIDS and not _resting.is_empty():
+	if crew.size() < POLAROIDS and _resting_n > 0:
 		var empty := Polaroid.new(null, color)
 		empty.tooltip_text = "put a resting pet here"
 		empty.pressed.connect(func(): _put_on(job, 1, [_picked] if _picked != "" else []))
@@ -446,45 +449,43 @@ func _rebuild_box() -> void:
 	var away: Dictionary = GameState.jobs_away
 	if int(away.get("coins", 0)) + int(away.get("parts", 0)) > 0:
 		_box.add_child(_away_note(away))
-	var resting := _resting
-	_box.add_child(_heading("resting", resting.size()))
-	if resting.size() <= RESTING_POLAROIDS:
-		_box.add_child(_wrapped("now tap a job" if _picked != "" else ("tap a pet, then a job" if not resting.is_empty() else "everyone's busy!"), UiTheme.MUTED))
+	_box.add_child(_heading("resting", _resting_n))
+	if _resting_n <= RESTING_POLAROIDS:
+		_box.add_child(_wrapped("now tap a job" if _picked != "" else ("tap a pet, then a job" if _resting_n > 0 else "everyone's busy!"), UiTheme.MUTED))
 		var grid := GridContainer.new()
 		grid.columns = 3
 		grid.add_theme_constant_override("h_separation", 6)
 		grid.add_theme_constant_override("v_separation", 8)
-		for i in resting.size():
-			var pet: Pet = resting[i]
+		for i in _resting.size():
+			var uid: String = _resting[i]
+			var pet := GameState.collection.get_pet(uid)
 			var photo := Polaroid.new(pet, UiTheme.PINK)
-			photo.picked = pet.uid == _picked
-			photo.tooltip_text = pet.display_name(catalog)
+			photo.picked = uid == _picked
+			photo.tooltip_text = pet.display_name(catalog) if pet else ""
 			photo.pressed.connect(func():
-				_picked = "" if _picked == pet.uid else pet.uid
+				_picked = "" if _picked == uid else uid
 				_dirty = true)
 			grid.add_child(Tilted.new(photo, PHOTO_TILTS[(i + 3) % PHOTO_TILTS.size()]))
 		_box.add_child(grid)
 	else:
-		var uids: Array = resting.slice(0, 3).map(func(p): return p.uid)
-		_box.add_child(_pile_and_count(uids, UiTheme.PINK, ExpandedView._thousands(resting.size()), "having a nap"))
+		_box.add_child(_pile_and_count(_resting.slice(0, 3), UiTheme.PINK, ExpandedView._thousands(_resting_n), "having a nap"))
 		var share := UiTheme.button("share them out", func():
 			GameState.share_out()
 			PetBubble.say_line(self, "errands_share"))
 		share.add_theme_stylebox_override("normal", _primary())
 		_box.add_child(share)
 		_box.add_child(_wrapped("or tap a job's + to send %s" % ("them all" if _step < 0 else str(_step)), UiTheme.MUTED))
-	if GameState.sendable_pets().size() > STEPS_AFTER:
-		var auto := CheckButton.new()
-		auto.text = "%s shares out new pets" % _active_name()
-		auto.button_pressed = GameState.jobs_auto
-		auto.focus_mode = FOCUS_NONE
-		auto.add_theme_font_size_override("font_size", UiTheme.SMALL)
-		auto.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-		auto.custom_minimum_size = Vector2(120, 0)
-		auto.toggled.connect(func(on):
-			GameState.set_jobs_auto(on)
-			PetBubble.say_line(self, "errands_auto_on" if on else "errands_auto_off"))
-		_box.add_child(auto)
+	if GameState.spare_count() > STEPS_AFTER:
+		# busy paws: a switch per errand (the notes are full already), new pets start on the ones on
+		_box.add_child(_heading("new pets join", -1))
+		for job in GameState.open_jobs().filter(func(j): return Jobs.shared_out(j)):  # you staff the kitchen and scouting
+			var sw := join_switch(GameState.job_joins(job.id), func(on):
+				GameState.set_job_join(job.id, on)
+				PetBubble.say_line(self, "join_on" if on else "join_off"))
+			sw.text = str(job.name)
+			sw.add_theme_color_override("font_pressed_color", _color(job))
+			sw.add_theme_color_override("font_hover_pressed_color", _color(job))
+			_box.add_child(sw)
 
 	var out: Array = GameState.away().keys()
 	if not out.is_empty():
@@ -513,23 +514,23 @@ func _away_note(away: Dictionary) -> Control:
 func _put_on(job: Dictionary, count: int, uids: Array = []) -> void:
 	_picked = ""
 	_dirty = true
-	if _resting.is_empty():
+	if _resting_n == 0:
 		PetBubble.say_line(self, "errands_busy")
 		return
-	var before := GameState.job_crew(job.id).size()
+	var before := GameState.job_size(job.id)
 	GameState.put_on_job(job.id, count, uids)
-	var added := GameState.job_crew(job.id).size() - before
+	var added := GameState.job_size(job.id) - before
 	if added == 1:
-		PetBubble.say_line(self, "errands_on", { "name": _name(GameState.job_crew(job.id)[-1]), "job": job.name })
+		PetBubble.say_line(self, "errands_on", { "name": _name(GameState.last_moved), "job": job.name })
 	elif added > 1:
 		PetBubble.say_line(self, "errands_many_on", { "count": ExpandedView._thousands(added), "job": job.name })
 
 
 func _take_off(job: Dictionary, count: int, uids: Array = []) -> void:
 	var gone := GameState.take_off_job(job.id, count, uids)
-	if gone.size() == 1:
-		PetBubble.say_line(self, "errands_off", { "name": _name(gone[0]) })
-	elif gone.size() > 1:
+	if gone == 1:
+		PetBubble.say_line(self, "errands_off", { "name": _name(GameState.last_moved) })
+	elif gone > 1:
 		PetBubble.say_line(self, "errands_many_off")
 
 
@@ -674,6 +675,22 @@ func _primary() -> StyleBoxFlat:
 	sb.content_margin_left = 12
 	sb.content_margin_right = 12
 	return sb
+
+
+## "new pets join here": a small switch on a job (errand notes, the workers' side card).
+static func join_switch(on: bool, on_toggle: Callable) -> CheckButton:
+	var b := CheckButton.new()
+	b.text = "new pets join here"
+	b.button_pressed = on
+	b.focus_mode = FOCUS_NONE
+	b.add_theme_font_size_override("font_size", UiTheme.SMALL)
+	b.add_theme_color_override("font_color", UiTheme.MUTED)
+	b.add_theme_color_override("font_pressed_color", UiTheme.TEXT)
+	b.add_theme_color_override("font_hover_pressed_color", UiTheme.TEXT)
+	b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	b.custom_minimum_size = Vector2(60, 0)
+	b.toggled.connect(on_toggle)
+	return b
 
 
 ## "740 coins a find" or "a part": what one full meter brings.
@@ -865,8 +882,10 @@ class Crowd extends Control:
 		if what == NOTIFICATION_VISIBILITY_CHANGED or what == NOTIFICATION_ENTER_TREE:
 			set_process(is_visible_in_tree())
 
-	func set_pets(uids: Array) -> void:
-		var shown := mini(mini(uids.size(), roundi(8.0 + log(float(uids.size())) / log(10.0) * 14.0)), MOST)
+	## `uids`: faces to pick from; `total`: how many pets the crowd stands for (the crowd grows with it).
+	func set_pets(uids: Array, total := -1) -> void:
+		var n := float(maxi(1, total if total >= 0 else uids.size()))
+		var shown := mini(mini(uids.size(), roundi(8.0 + log(n) / log(10.0) * 14.0)), MOST)
 		for i in shown:
 			var view := PetView.new()
 			view.pixel = 1

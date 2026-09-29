@@ -55,6 +55,17 @@ extends Node
 ##   dress <slot>=<id> ... [finish=<id>]   your active pet gets these parts (and finish), e.g.
 ##                         dress body=bunny eyes=cyclops finish=holo (for knacks, data/knacks.json)
 ##   tiers all | off       every box tier in the shop, map pages or not (for the 3-tier fits check)
+##   others <job>          your pet has taught the other pets that job (the workers page), for free
+##   herd <rarity> <finish> <n>  n plain pets straight into the herd (fast: for thousands or millions)
+##   room <level>          the room is at that upgrade level (data/herd.json "room")
+##   fill-room             plain commons into the herd until the room is exactly full
+##   fav <n>               the newest n cards become favourites
+##   shelf <rarity>        opens that shelf on the pets tab (collectibles)
+##   give-box <id> <n>     n boxes of that kind on your pile, for free
+##   homes <rarity> <n|all>  the new homes stall takes n pets of that rarity (like its buttons)
+##   rule on|off [below] [to] [keep]  the sorting rule (below: a rarity, to: homes | work, keep: a finish)
+##   join <job> on|off     "new pets join here" on an errand or a workers' job
+##   homes-points <n>      the new homes jar has exactly n points
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -214,9 +225,9 @@ func _step(w: PackedStringArray) -> String:
 		"job":  # job <id> <n>: the n best resting pets go on that errand
 			if GameState.catalog.job(w[1]).is_empty():
 				return "unknown job %s" % w[1]
-			var before := GameState.job_crew(w[1]).size()
+			var before := GameState.job_size(w[1])
 			GameState.put_on_job(w[1], int(w[2]) if w.size() > 2 else 1)
-			if GameState.job_crew(w[1]).size() == before:
+			if GameState.job_size(w[1]) == before:
 				return "nobody went on %s (is it open? anyone resting?)" % w[1]
 		"scroll":  # scroll <px>: every scroll box on screen scrolls down to there (to see what's below)
 			for c in _all(ScrollContainer):
@@ -260,6 +271,12 @@ func _step(w: PackedStringArray) -> String:
 		"workers":  # workers <job> <n>: n more spots for a job, for free (never past the caps), and resting pets on them
 			GameState._add_spots(w[1], mini(int(w[2]), GameState.spot_room(w[1])))
 			GameState.put_workers(w[1], -1)
+		"others":  # others <job>: the other pets know that job (your pet needs to know it)
+			if not GameState.knows_job(w[1]):
+				return "your pet doesn't know %s" % w[1]
+			GameState.automation.others[w[1]] = true
+			GameState.automation_changed.emit()
+			GameState.changed.emit()
 		"xp":  # xp <n>: you have exactly n xp
 			GameState.xp = int(w[1])
 			GameState.changed.emit()
@@ -308,6 +325,56 @@ func _step(w: PackedStringArray) -> String:
 			GameState.save_game()
 		"tiers":  # tiers all: every box tier is in the shop, map pages or not (tiers off: back to normal)
 			GameState.debug_all_tiers = w.size() > 1 and w[1] == "all"
+			GameState.changed.emit()
+		"herd":  # herd <rarity> <finish> <n>: n plain pets straight into a count
+			var key := Herd.key(w[1], w[2])
+			if not Herd.valid_key(GameState.catalog, key) or not Herd.plain(GameState.catalog, w[2]):
+				return "no plain count %s" % key
+			GameState.collection.add_plain(key, int(w[3]))
+			GameState.changed.emit()
+		"room":  # room <level>: the room's upgrade level
+			GameState.room = maxi(0, int(w[1]))
+			GameState.changed.emit()
+		"fill-room":  # plain commons into the herd until the room is exactly full
+			GameState.collection.add_plain(Herd.key(GameState.catalog.tiers[0].id, "normal"), GameState.room_left())
+			GameState.changed.emit()
+		"fav":  # fav <n>: the newest n cards become favourites
+			var cards := GameState.collection.pets
+			for i in mini(int(w[1]), cards.size()):
+				GameState.collection.set_fav(cards[cards.size() - 1 - i].uid, true)
+		"shelf":  # shelf <rarity>: opens that shelf on the pets tab
+			home.full_game().show_tab("collection")
+			home.full_game().collection.show_mode(0)
+			home.full_game().collection.open_shelf(w[1])
+		"give-box":  # give-box <id> <n>: boxes on your pile
+			if GameState.catalog.box(w[1]).is_empty():
+				return "unknown box %s" % w[1]
+			GameState.bag[w[1]] = GameState.in_bag(w[1]) + int(w[2])
+			GameState.changed.emit()
+		"homes":  # homes <rarity> <n|all>: the stall takes them
+			if not GameState.catalog.tiers.any(func(t): return t.id == w[1]):
+				return "unknown rarity %s" % w[1]
+			var got := GameState.send_home(w[1], -1 if w[2] == "all" else int(w[2]))
+			if int(got.n) <= 0:
+				return "no %s pets could go" % w[1]
+		"rule":  # rule on|off [below] [to] [keep]
+			GameState.set_rule("on", w[1] == "on")
+			for i in range(2, w.size()):
+				var key := "below" if GameState.catalog.tiers.any(func(t): return t.id == w[i]) else ("to" if w[i] in NewHomes.TO else "keep")
+				GameState.set_rule(key, w[i])
+		"join":  # join <job> on|off: new pets join an errand or a workers' job
+			if not GameState.catalog.job(w[1]).is_empty():
+				GameState.set_job_join(w[1], w[2] == "on")
+				if GameState.job_joins(w[1]) != (w[2] == "on"):
+					return "the %s errand isn't open" % w[1]
+			elif not Automation.job(GameState.catalog, w[1]).is_empty():
+				GameState.set_worker_join(w[1], w[2] == "on")
+				if GameState.worker_joins(w[1]) != (w[2] == "on"):
+					return "the others don't know %s" % w[1]
+			else:
+				return "unknown job %s" % w[1]
+		"homes-points":  # homes-points <n>: the jar has exactly n points
+			GameState.homes.points = clampi(int(w[1]), 0, NewHomes.box_at(GameState.catalog) - 1)
 			GameState.changed.emit()
 		"quit":
 			_finish()

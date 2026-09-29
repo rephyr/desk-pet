@@ -10,7 +10,10 @@ extends RefCounted
 ##     tables or parties bought }, workers: { job id: [uids] } (one per spot), parties: [{ place, n }]
 ##     (a party per bought party spot, led by the worker in the same place), wfill: { job id: 0..1 },
 ##     whistle: { ticks: { job id: { haul, fill } } (missing = on), keep: coins set aside (-1: the
-##     data's), wait: 0..1 (the next check) } }
+##     data's), wait: 0..1 (the next check) },
+##     wherd: { job id: { count key: pets from the herd working there } } (not adventures: a party's
+##     leader keeps its slot, as a stand-in's uid), wjoin: { job id: true } (new pets start working
+##     there while it has empty spots: "new pets join here"; never adventures) }
 ## The whistle (layer 2): managing is your pet's one job (task "whistle"). It checks on everyone
 ## every so often: hauls machines, tables and parties home (buys spots, never going under what's
 ## set aside) and keeps them full (puts resting pets on). How many exist grows with the map pages.
@@ -19,7 +22,8 @@ extends RefCounted
 
 static func fresh() -> Dictionary:
 	return { "task": "", "taught": {}, "tools": {}, "party": { "place": "", "n": 0 }, "fill": 0.0,
-		"others": {}, "spots": {}, "workers": {}, "parties": [], "wfill": {}, "whistle": whistle_fresh() }
+		"others": {}, "spots": {}, "workers": {}, "parties": [], "wfill": {}, "whistle": whistle_fresh(),
+		"wherd": {}, "wjoin": {} }
 
 
 static func whistle_fresh() -> Dictionary:

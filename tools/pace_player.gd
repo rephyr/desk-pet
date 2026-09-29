@@ -430,7 +430,7 @@ func _boxes() -> void:
 		if n > 0:
 			gs.open_boxes(box.id, n)
 			_boxes_left -= n
-	var room := mini(int(_boxes_left), MAX_PETS - gs.collection.pets.size())
+	var room := mini(int(_boxes_left), MAX_PETS - gs.collection.count())
 	if room <= 0:
 		return
 	var price: int = gs.box_price("starter")
@@ -448,7 +448,7 @@ func _boxes() -> void:
 func _pet_worth() -> float:
 	var on := 0
 	for job in gs.open_jobs():
-		on += gs.job_crew(job.id).size()
+		on += gs.job_size(job.id)
 	var now: float = gs.errands_per_minute()
 	if on == 0:
 		return now + 1.0
@@ -576,7 +576,7 @@ func _candidates() -> Array[Dictionary]:
 			continue
 		var cost := int(gs.errand_tool_plan(tool.id, 1)[1])
 		var gain: float = gs.errands_per_minute_with(tool.id, 1) - base_errands
-		if gain <= 0.0 and (tool.each.has("hold") or tool.id == "glasses") and not gs.job_crew("scouting").is_empty():
+		if gain <= 0.0 and (tool.each.has("hold") or tool.id == "glasses") and gs.job_size("scouting") > 0:
 			gain = inc * 0.2  # no coins, but more notes: bought when it's cheap next to income
 		out.append({ "kind": "errand_tool", "id": tool.id, "cost": cost, "gain": gain, "name": "errand " + tool.id })
 	# your pet's crank and the workers' grease
@@ -702,10 +702,10 @@ func _new_worker_speed() -> float:
 
 ## A new machine (table, party) gets a worker: a resting pet, or the slowest one off an errand.
 func _fill_spots(id: String) -> void:
-	if gs.resting_pets().is_empty():
+	if gs.resting_count() == 0:
 		var biggest := ""
 		for job in gs.open_jobs():
-			if biggest == "" or gs.job_crew(job.id).size() > gs.job_crew(biggest).size():
+			if biggest == "" or gs.job_size(job.id) > gs.job_size(biggest):
 				biggest = job.id
 		if biggest != "":
 			gs.take_off_job(biggest, 1)
@@ -748,7 +748,7 @@ func _staff() -> void:
 			if not job.has("scout"):
 				gs.take_off_job(job.id, -1)
 	for job in open:  # every job gets a pet to try it (scouting: one, and only that one)
-		if gs.job_crew(job.id).is_empty() and (job.has("scout") or job in earners) and gs.resting_pets().size() >= (2 if job.has("scout") else 1):
+		if gs.job_size(job.id) == 0 and (job.has("scout") or job in earners) and gs.resting_count() >= (2 if job.has("scout") else 1):
 			gs.put_on_job(job.id, 1)
 	var resting: Array = gs.resting_pets().map(func(p): return p.uid)
 	if resting.is_empty() or earners.is_empty():
@@ -801,9 +801,9 @@ func _notice() -> void:
 		if not _seen_finds.has(id):
 			_seen_finds[id] = true
 			_mark("find: " + str(id))
-	if gs.collection.pets.size() >= 1:
+	if gs.collection.count() >= 1:
 		_mark("tutorial: first pet")
-	if gs.tutorial in ["send", "done"] and gs.collection.pets.size() >= 2:
+	if gs.tutorial in ["send", "done"] and gs.collection.count() >= 2:
 		_mark("tutorial: second pet (adventures)")
 	if gs.tutorial == "done":
 		_mark("tutorial: done")
@@ -811,7 +811,7 @@ func _notice() -> void:
 		if gs.trips_done >= n:
 			_mark("trips: %d" % n)
 	for n in [5, 10, 50, 100, 1000]:
-		if gs.collection.pets.size() >= n:
+		if gs.collection.count() >= n:
 			_mark("pets: %d" % n)
 	for job in catalog.jobs:
 		var lv: int = gs.job_level(job.id)
@@ -830,7 +830,7 @@ func _close_window() -> void:
 	var bits := 0
 	for b in gs.bits:
 		bits += int(gs.bits[b])
-	windows.append({ "minute": t / 60.0, "per_min": per, "errands": errands, "coins": gs.coins, "pets": gs.collection.pets.size(),
+	windows.append({ "minute": t / 60.0, "per_min": per, "errands": errands, "coins": gs.coins, "pets": gs.collection.count(),
 		"xp": gs.xp, "bits": bits, "trips": gs.trips_done, "lost": lost, "cv": Machine.coin_value(gs.machine, catalog) })
 	_party_coins += float(_earned.get("auto trips", 0))
 	_earned = {}

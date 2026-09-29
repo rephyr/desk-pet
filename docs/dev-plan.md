@@ -221,6 +221,10 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
 - **Emilia:** sections are **automatic, by rarity** (a shelf per rarity with a count, tap to open
   it), with favourites / the best ones **pinned at the top**. Needed before thousands of pets.
 - **Prep:** mockup 2-3 looks.
+- **Built 2026-09-28 (lane c1-c3, notes in docs/plans/C1-done.md):** look A, the bookcase: cushion
+  (active, favourites, best), a plank per rarity (tag, newest 4, a mound that grows with the count,
+  shiny count, the best knack's badge on each card's corner), a shelf opened (herd chips,
+  always-cards, newest 20, sticker with heart + make active), the room pill.
 
 ### C2. Pets per second  (DECIDED where it shows)
 - **Emilia:** once opening is automated you get pets per second; pets become the midgame
@@ -252,6 +256,18 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   after you switch it on, so every loss is chosen; a "sorted today" number on the shelf).
 - **Night sky:** **every pet that leaves** (new homes, fed) adds a star, never explained.
 - **Prep:** the stand's and the rule card's look (mockups), the exact cap and box payback numbers.
+- **The herd built (with C1, lane c1-c3):** counts per rarity x finish, always-cards, errands /
+  workers / parties / the whistle / the kitchen from counts (stand-ins for adventures), the night
+  sky by index, the room cap (one cap, coins, simple first version; a box counts as its most pets).
+- **Built 2026-09-29 (lane c1-c3, notes in docs/plans/C3-done.md):** busy paws ("new pets join
+  here" per shared-out errand, in the shoebox, and per workers' job on its side card; replaces
+  jobs_auto), the new homes stall (look A: side column, tap a plank to pick, 1/10/100/all, points
+  toward a box 1/2/5/12/20/40 per 25, jar + pile, "they'll have a big garden!"), stars for every pet
+  that leaves, the sorting rule card (after 300 by hand; below / go to new homes or work / keep a
+  finish and up, new parts and favourites always; off by default; box openings only; "sorted
+  today"). Save v28 (herd + new homes in one bump at the merge). Still to do: feed the machine
+  (F1), room upgrades with the darker currency. The pace sim staffs errands from resting cards and
+  up to 10 stand-ins a count (roughly right for the herd).
 
 ---
 
