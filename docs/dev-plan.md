@@ -100,6 +100,11 @@ node labels are fixed: names wrap to their room.)
   reach new glass at ~3.5 h. Suggested (not applied): crew_power 0.8 -> 0.6 or starter box 500
   capsules, lemons / bigger_jar grow 1.3, scouting at jar lv 5, new glass 1 glass, teach the sim
   to buy room steps. Emilia's questions are at the end of the report.
+- **Balance fixes applied (2026-09-29, docs/reports/pace.md, third run):** errands crew_power 0.2,
+  base pay 20 / 12, smaller goals and tips, the jar reworked (scouting ~78 min steady), new glass
+  1 glass, automation prices x5, room steps ~a sunny box per new bed (12500 / 17500 / 30000 /
+  40000 capsules), pat cooldown 300 s. Errands now 0.6-3.2x the lever all game; casual new glass
+  ~98 min. The sim buys room steps, pats on its clock, and its parties no longer know where finds are.
 - Follow-up idea: a GameState clock (now()/tick) so the pace sim stops copying rules.
 
 ### A2. Gear: xp upgrades  (BUILT + VERIFIED 2026-09-28)
