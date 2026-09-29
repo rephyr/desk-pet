@@ -483,6 +483,41 @@ All opt-in, with odds shown before confirming:
     glint on the well only shows once parts are open.
   - Gear never works in the dungeon; the power boost (your active pet's power knacks) does.
 
+## The sewing room (E3, off the well's floor 20)
+
+- **Built (look A: the door on the column, well-additions mockup):** once the tiny key from floor 20
+  is found, a little pink arched door with a coral knob is cut through the right wall of floor 20
+  (nothing shows before). Tapping it slides the column sideways; its header reads "‹ the sewing
+  room" (‹ slides back). data/sewing.json, `Sewing`.
+  - **Rooms:** 9 fixed rooms (the button tin, the pin cushion, the thread maze, the ribbon drawer,
+    the thimble tower, the pattern book, the needle case, the big scissors, the sewing basket), each
+    ONE fight for the dungeon's army (its cards, herd, entrance and "who goes first") against the
+    well's floor maths at the room's floor (21 to 33), shown as a feeling word. Only the rooms cleared
+    and the next one show (a dot each). Cleared rooms can be done again for wisps (a coral pennant
+    instead of the feeling word).
+  - **The chalk lock:** 3-5 chalk drawings on a board: part pictures (bunny ears, a halo, horns, a
+    crown, headphones, sparkly eyes...), trait icons, finish swatches, rarity circles in their tier's
+    colour. A drawing fills in solid when a pet in the front row (the army's best 20 cards; your pet
+    with the flag leads and doesn't count) matches it; matching front-row cards get a chalk tick.
+    Tapping a dashed drawing: your pet says where it comes from. "in we go!" only works when every
+    drawing is filled. No words on the board.
+  - **A run** takes 60 s (the army stands at the door on floor 20); losses as a well floor (stars,
+    never mentioned); a room below 0.4 of its strength isn't cleared and pays nothing; a clear pays
+    wisps like a well floor at the room's floor.
+    While the sewing room is open on screen, your pet leading the army (automation) waits at home
+    instead of taking it down the well again, so there's a turn for a room. The automation card says
+    "in ‹room›" while the army is in one; the room's own button only says "on the way…" for its run.
+  - **Firsts:** the button tin teaches **keep lines** (a popup), the ribbon drawer and the needle
+    case add one more each (3 in all). The sewing basket (the last room) brings the working plushie
+    machine, which sews one free button onto your active pet.
+  - **Rolled rooms** after that, forever: a name and picture in turn, one floor stronger each, a
+    **button lock** first ("a pet with N buttons", N grows) and marks picked by the room's number.
+  - **Keep lines** (on the sorting card, hidden until earned): "keep ‹zoomy ones›", "keep ‹halos›",
+    "keep ‹nothing›". Picks: every trait and the knack parts from the rooms the book has seen. A new
+    plain pet from a box that matches stays a card (never sorted away, never folded into the herd,
+    never taken by the stall); each line keeps its newest 50 ("n/50"), the oldest past that becomes
+    plain again. Lines work with the rule on or off. Changing a line lets its old pets go.
+
 ## Economy (first numbers, to be tuned)
 
 - Coins: passive trickle while running, a bigger share from adventures and active play.

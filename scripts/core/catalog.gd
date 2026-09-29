@@ -41,6 +41,7 @@ var knacks := {}  # every part's named knack, see data/knacks.json and Knacks
 var dungeon := {}  # the old well, all the way down, see data/dungeon.json and Dungeon
 var plushie := {}  # the plushie machine: spins, odds, wisps, the shop, see data/plushie.json and Plushie
 var new_homes := {}  # the new homes stall and the sorting rule, see data/new_homes.json and NewHomes
+var sewing := {}  # E3 the sewing room off the well's floor 20, and keep lines, see data/sewing.json and Sewing
 var encounter_art := {}  # event id -> its pixel art on the trail, see data/encounter_art.json
 var tier_overrides := {}  # tier id -> Color, set by the player's colour theme (see UiTheme.apply)
 
@@ -112,6 +113,7 @@ func _init() -> void:
 	dungeon = _load("dungeon.json")
 	plushie = _load("plushie.json")
 	new_homes = _load("new_homes.json")
+	sewing = _load("sewing.json")
 	_rummage_by_id = _index(rummage_spots)
 
 

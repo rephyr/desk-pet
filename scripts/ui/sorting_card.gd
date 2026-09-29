@@ -3,16 +3,20 @@ extends PanelContainer
 ## The sorting rule, a little index card under the new homes stall: off | on, "new pets below
 ## ‹rare› go to ‹new homes›", and what's always kept (a finish and up, new parts, favourites).
 ## Steppers, never dropdowns. It only touches pets pulled after it's switched on (GameState._sorter).
+## Once the sewing room's button tin is cleared, keep lines go under the keeps: "keep ‹halos›" keeps
+## the newest matching pets from boxes as cards (n/50), whether the rule is on or off (see Sewing).
 ## Hold it in a Tilted.
 ## Design: design/mockups/screens/new-homes.html (look A, the rule as an index card).
 
 const EM_W := 44
 const STEP_W := 78
+const KEEP_W := 84
 
 var _switch: PanelContainer
 var _head: HBoxContainer
 var _lines := VBoxContainer.new()
 var _keeps := HFlowContainer.new()
+var _keep_lines := VBoxContainer.new()
 var _today := PanelContainer.new()
 var _today_n := UiTheme.label("0", UiTheme.LILAC, UiTheme.SMALL - 1)
 var _key := ""
@@ -41,6 +45,8 @@ func _init() -> void:
 	_keeps.add_theme_constant_override("h_separation", 5)
 	_keeps.add_theme_constant_override("v_separation", 5)
 	col.add_child(_keeps)
+	_keep_lines.add_theme_constant_override("separation", 4)
+	col.add_child(_keep_lines)
 
 	var sorted := StitchBox.new()
 	sorted.bg_color = UiTheme.DEEP
@@ -89,7 +95,13 @@ func _refresh() -> void:
 	_today_n.text = UiTheme.num(GameState.sorted_today())
 	var rarities := GameState.rule_rarities()
 	var finishes := GameState.rule_finishes()
-	var key := "%s|%s|%s" % [str(rule), str(rarities), str(finishes)]
+	var keep_on := GameState.keep_lines_on()
+	var picks: Array[String] = []
+	var options: Array[String] = []
+	if keep_on:
+		picks = GameState.keep_lines()
+		options = GameState.keep_line_options()
+	var key := "%s|%s|%s|%s|%s|%s" % [str(rule), str(rarities), str(finishes), str(picks), str(options), str(picks.map(func(p): return GameState.kept_count(p)))]
 	if key == _key:
 		return
 	_key = key
@@ -106,9 +118,15 @@ func _refresh() -> void:
 		(b as Button).add_theme_font_size_override("font_size", UiTheme.SMALL)
 	_head.add_child(_switch)
 	UiTheme.clear(_lines)
-	_lines.add_child(_em("new pets"))
-	_lines.add_child(_row("below", _stepper(catalog.tier_at(catalog.rank(str(rule.below))).name, catalog.tier_color(str(rule.below)),
-		func(d): _step("below", rarities, str(rule.below), d))))
+	var below := _stepper(catalog.tier_at(catalog.rank(str(rule.below))).name, catalog.tier_color(str(rule.below)),
+		func(d): _step("below", rarities, str(rule.below), d))
+	if keep_on:  # keep lines need the room: "new pets below" goes on one line
+		var first := _row("new pets below", below)
+		first.get_child(0).custom_minimum_size = Vector2(0, 0)
+		_lines.add_child(first)
+	else:
+		_lines.add_child(_em("new pets"))
+		_lines.add_child(_row("below", below))
 	var to_names := { "homes": "new homes", "work": "work" }
 	_lines.add_child(_row("go to", _stepper(to_names.get(str(rule.to), str(rule.to)), UiTheme.TEXT,
 		func(d): _step("to", NewHomes.TO, str(rule.to), d))))
@@ -119,8 +137,28 @@ func _refresh() -> void:
 	keep.add_child(_stepper(str(catalog.finish(str(rule.keep)).name), UiTheme.GOLD, func(d): _step("keep", finishes, str(rule.keep), d), 46))
 	keep.add_child(UiTheme.label("and up", UiTheme.TEXT, UiTheme.SMALL))
 	_keeps.add_child(_chip(keep))
-	_keeps.add_child(_chip(_icon_words("new_part", UiTheme.LILAC, "new parts")))
-	_keeps.add_child(_chip(_icon_words("heart", UiTheme.PINK, "favourites")))
+	if keep_on:  # keep lines need the room: the always-kept ones as their icons, on the same line
+		for pair in [["new_part", UiTheme.LILAC, "new parts"], ["heart", UiTheme.PINK, "favourites"]]:
+			var icon_chip := _chip(UiTheme.icon_rect(pair[0], 12, pair[1]))
+			icon_chip.tooltip_text = pair[2]
+			icon_chip.mouse_filter = MOUSE_FILTER_PASS
+			_keeps.add_child(icon_chip)
+	else:
+		_keeps.add_child(_chip(_icon_words("new_part", UiTheme.LILAC, "new parts")))
+		_keeps.add_child(_chip(_icon_words("heart", UiTheme.PINK, "favourites")))
+	UiTheme.clear(_keep_lines)
+	_keep_lines.visible = keep_on
+	var cap := Sewing.keep_cap(catalog)
+	for i in picks.size():
+		var pick: String = picks[i]
+		var line := i
+		var row := _row("keep", _stepper(Sewing.keep_word(catalog, pick), UiTheme.TEXT if pick != "" else UiTheme.MUTED,
+			func(d): _step_keep(line, options, pick, d), KEEP_W))
+		if pick != "":
+			var n := UiTheme.label("%d/%d" % [GameState.kept_count(pick), cap], UiTheme.MUTED, UiTheme.SMALL - 1)
+			n.size_flags_vertical = SIZE_SHRINK_CENTER
+			row.add_child(n)
+		_keep_lines.add_child(row)
 	var dim := 1.0 if rule.on else 0.55
 	_lines.modulate.a = dim
 	_keeps.modulate.a = dim
@@ -132,6 +170,11 @@ func _step(key: String, options: Array, now: String, d: int) -> void:
 		return
 	var i := options.find(now)
 	GameState.set_rule(key, options[clampi(i + d, 0, options.size() - 1)] if i >= 0 else options[0])
+
+
+func _step_keep(line: int, options: Array, now: String, d: int) -> void:
+	var i := options.find(now)
+	GameState.set_keep_line(line, options[clampi(i + d, 0, options.size() - 1)] if i >= 0 else options[0])
 
 
 func _em(text: String) -> Label:

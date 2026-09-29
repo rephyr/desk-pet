@@ -6,6 +6,9 @@ extends HBoxContainer
 ## card and the last run on the right. Floor strength is never a number, only a feeling word; pets
 ## that don't come back are never named. Rules in Dungeon, state in GameState: this only shows them
 ## and passes on clicks.
+## Once the tiny key is found, the well's floor 20 has a little pink door: tapping it slides the column
+## over to the sewing room (SewingRoom, header "‹ the sewing room"; ‹ slides back). The front row's
+## cards that match the room's chalk lock get a chalk tick then.
 
 const PICK_PAGE := 20
 const PICK_COLUMNS := 5
@@ -13,6 +16,13 @@ const HERD_STEP := 10
 
 var _column := WellColumn.new()
 var _scroll := ScrollContainer.new()
+var _pan := Control.new()  # the column: the well, and the sewing room slid in beside it
+var _rooms := SewingRoom.new()
+var _title: Label
+var _back: Button
+var _in_rooms := false  # the column shows the sewing room
+var _slide := 0.0  # 0 = the well, 1 = the sewing room
+var _tween: Tween
 var _mid := VBoxContainer.new()
 var _side := VBoxContainer.new()
 var _picking := false
@@ -22,6 +32,9 @@ var _maybe := false  # pets came or went: rebuild only if something the page sho
 var _last_key := ""
 var _check := 0.0
 var _followed := false  # scrolled to where the army is since the page was shown
+var _door_seen := false  # the sewing room's door was there at the last rebuild
+var _show_door := false  # the door just turned up: the next follow scrolls to it
+var _built := false  # the page has been built once (the door seen then isn't new)
 var _running := false
 var _tick := 0.0
 var _follow_floor := -1  # the landing the scroll last followed the army to (you can scroll away in between)
@@ -40,16 +53,37 @@ func _init() -> void:
 	var head := MarginContainer.new()
 	for side in [["left", 12], ["top", 8], ["right", 12], ["bottom", 4]]:
 		head.add_theme_constant_override("margin_" + side[0], side[1])
-	head.add_child(UiTheme.title("the old well", 18))
+	var hrow := HBoxContainer.new()
+	hrow.add_theme_constant_override("separation", 2)
+	_back = UiTheme.small_button("‹", func(): show_rooms(false))
+	_back.custom_minimum_size = Vector2(14, 0)
+	_back.add_theme_font_size_override("font_size", UiTheme.SMALL + 1)
+	_back.add_theme_color_override("font_color", UiTheme.MUTED)
+	_back.add_theme_color_override("font_hover_color", UiTheme.PINK)
+	for state in ["normal", "hover", "pressed", "focus"]:
+		_back.add_theme_stylebox_override(state, StyleBoxEmpty.new())
+	_back.visible = false
+	hrow.add_child(_back)
+	_title = UiTheme.title("the old well", 18)
+	hrow.add_child(_title)
+	head.add_child(hrow)
 	wcol.add_child(head)
 	wcol.add_child(UiTheme.stitch_line())
-	_scroll.size_flags_vertical = SIZE_EXPAND_FILL
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	_column.size_flags_horizontal = SIZE_EXPAND_FILL
 	_column.size_flags_vertical = SIZE_EXPAND_FILL  # the soil goes all the way down
 	_scroll.add_child(_column)
-	wcol.add_child(_scroll)
+	_pan.size_flags_vertical = SIZE_EXPAND_FILL
+	_pan.clip_contents = true
+	_pan.add_child(_scroll)
+	_pan.add_child(_rooms)
+	_pan.resized.connect(_lay_pan)
+	_rooms.room_changed.connect(func(): _dirty = true)
+	wcol.add_child(_pan)
 	add_child(well)
+	_column.door_pressed.connect(func():
+		show_rooms(true)
+		PetBubble.say_line(self, "sewing_door"))
 	_mid.size_flags_horizontal = SIZE_EXPAND_FILL
 	_mid.add_theme_constant_override("separation", 12)
 	add_child(_mid)
@@ -66,11 +100,66 @@ func _init() -> void:
 	GameState.collection.pets_removed.connect(func(_u): _maybe = true)
 	GameState.jobs_changed.connect(func(): _maybe = true)
 	GameState.adventures_changed.connect(func(): _maybe = true)
+	tree_exiting.connect(func(): GameState.army_held = false)
 	visibility_changed.connect(func():
+		_hold()
 		if is_visible_in_tree():
 			_followed = false
 			_picking = false
+			if not GameState.sewing_open():
+				show_rooms(false, false)
 			_rebuild())
+
+
+## The column slides over to the sewing room (or back to the well).
+func show_rooms(on: bool, animate := true) -> void:
+	on = on and GameState.sewing_open()
+	if on == _in_rooms:
+		return
+	_in_rooms = on
+	_hold()
+	if on:
+		_rooms.to_next()
+	_back.visible = on
+	_title.text = "the sewing room" if on else "the old well"
+	_dirty = true
+	if _tween:
+		_tween.kill()
+	if animate and is_visible_in_tree():
+		_tween = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		_tween.tween_method(func(t: float):
+			_slide = t
+			_lay_pan(), _slide, 1.0 if on else 0.0, 0.45)
+	else:
+		_slide = 1.0 if on else 0.0
+		_lay_pan()
+
+
+## While the sewing room shows, your pet leading the army waits at home instead of taking it down
+## the well again (so there's a turn for the room).
+func _hold() -> void:
+	GameState.army_held = _in_rooms and is_visible_in_tree()
+
+
+## Whether the column shows the sewing room.
+func in_rooms() -> bool:
+	return _in_rooms
+
+
+## The sewing room pane (for flows).
+func rooms() -> SewingRoom:
+	return _rooms
+
+
+## The well and the sewing room side by side in the column, slid `_slide` of the way over.
+func _lay_pan() -> void:
+	var sz := _pan.size
+	_scroll.size = sz
+	_rooms.size = sz
+	_scroll.position = Vector2(-_slide * sz.x, 0)
+	_rooms.position = Vector2((1.0 - _slide) * sz.x, 0)
+	_scroll.visible = _slide < 0.999
+	_rooms.visible = _slide > 0.001
 
 
 ## Your pet says something about the dungeon: news first, then how the army's doing.
@@ -80,6 +169,16 @@ func speak() -> void:
 		PetBubble.say(self, news)
 		return
 	var n := GameState.take_dungeon_news()
+	if n.has("room"):
+		var key := "sewing_stuck" if not n.cleared else ("sewing_again" if n.again else "sewing_home")
+		PetBubble.say_line(self, key, { "got": UiTheme.num(int(n.got)), "room": str(n.room) })
+		return
+	if GameState.dungeon_running() and GameState.dungeon.run.has("room"):
+		PetBubble.say_line(self, "sewing_running", { "room": str(GameState.sew_room(int(GameState.dungeon.run.room)).name) })
+		return
+	if _in_rooms and n.is_empty() and not GameState.dungeon_running():
+		PetBubble.say_line(self, "sewing")
+		return
 	if not n.is_empty():
 		var key := "dungeon_deepest" if n.deepest else ("dungeon_home_early" if n.early else "dungeon_home")
 		PetBubble.say_line(self, key, { "got": UiTheme.num(int(n.got)), "floor": int(n.floor) })
@@ -98,6 +197,9 @@ func _process(delta: float) -> void:
 	_check -= delta
 	if _dirty:
 		_rebuild()
+	if not _followed and _scroll.size.y > 0.0 and _column.size.y >= _column.custom_minimum_size.y - 0.5:
+		_followed = true  # once the column has its size: scroll to where the army is
+		_follow()
 	elif _maybe and _check <= 0.0 and not Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):  # never under a click
 		_maybe = false
 		_check = 0.5
@@ -122,14 +224,17 @@ func _follow() -> void:
 	if h <= 0.0:
 		return
 	var want := _column.party_y() - h / 2.0 if GameState.dungeon_running() else _column.y_at(maxi(int(GameState.dungeon.deep), 1)) - h * 0.6
+	if _show_door and _column.door_y() >= 0.0:
+		want = _column.door_y() - h * 0.5
+	_show_door = false
 	_scroll.scroll_vertical = int(clampf(want, 0.0, maxf(0.0, _column.custom_minimum_size.y - h)))
 
 
 ## What the page shows that pets coming and going can change: the army, what each shelf has room
 ## for, your pet, the cards to pick from.
 func _key(a: Dictionary) -> String:
-	var key := "%s|%s|%s|%d|%s|%s" % [str(a.cards.map(func(p): return p.uid)), str(a.keys), str(GameState.dungeon.cards),
-		int(a.sent), GameState.collection.active_uid, str(GameState.dungeon_running())]
+	var key := "%s|%s|%s|%d|%s|%s|%s" % [str(a.cards.map(func(p): return p.uid)), str(a.keys), str(GameState.dungeon.cards),
+		int(a.sent), GameState.collection.active_uid, str(GameState.dungeon_running()), str(GameState.sewing_open())]
 	for tier in GameState.catalog.tiers:
 		key += "|%d" % GameState.army_herd_room(tier.id)
 	if _picking:
@@ -146,11 +251,17 @@ func _rebuild() -> void:
 	var rules := GameState.army_rules(a) if int(a.sent) > 0 else {}
 	_last_key = _key(a)
 	_column.refresh(a, rules)
+	if not GameState.sewing_open() and _in_rooms:
+		show_rooms(false, false)
+	_rooms.refresh(a, rules)
 	_build_mid(a)
 	_build_side(a, rules)
-	if not _followed:
-		_followed = true
-		_follow.call_deferred()
+	var door := GameState.sewing_open()
+	if door and not _door_seen and (_built or int(GameState.sewing.cleared) == 0):
+		_followed = false  # the door just turned up (or nobody's been in yet this time): show it
+		_show_door = true
+	_door_seen = door
+	_built = true
 
 
 # ---- the army ------------------------------------------------------------------------
@@ -173,7 +284,8 @@ func _build_mid(a: Dictionary) -> void:
 	if cards.size() > front_n:
 		head.add_child(UiTheme.label("+%s" % UiTheme.num(cards.size() - front_n), UiTheme.MUTED, UiTheme.SMALL))
 	fcol.add_child(head)
-	var row := FrontRow.new(GameState.collection.active(), cards, not _running, front_n)
+	var ticks: Array = Sewing.ticks(GameState.sew_room(_rooms.room), cards.slice(0, front_n)) if _in_rooms else []
+	var row := FrontRow.new(GameState.collection.active(), cards, not _running, front_n, ticks)
 	row.pressed.connect(_open_picker)
 	fcol.add_child(row)
 	_mid.add_child(front)
@@ -396,7 +508,9 @@ func _build_side(a: Dictionary, rules: Dictionary) -> void:
 	lcol.add_theme_constant_override("separation", 6)
 	lastc.add_child(lcol)
 	lcol.add_child(_h3("last time"))
-	lcol.add_child(_last_row("got to", UiTheme.title("floor %d" % int(last.floor), 16, UiTheme.TEXT)))
+	var where := str(GameState.sew_room(int(last.room)).name) if last.has("room") else "floor %d" % int(last.floor)
+	var where_label := UiTheme.title(where, 16, UiTheme.TEXT)
+	lcol.add_child(_last_row("went to" if last.has("room") else "got to", where_label))
 	var got := HBoxContainer.new()
 	got.add_theme_constant_override("separation", 5)
 	got.add_child(UiTheme.icon_rect("lantern", 15, UiTheme.WISP))

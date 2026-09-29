@@ -46,6 +46,7 @@ func _init() -> void:
 	_errands(catalog, rng)
 	_rummage(catalog)
 	_dungeon(catalog, rng)
+	_sewing(catalog, rng)
 	quit()
 
 
@@ -145,3 +146,43 @@ func _dungeon(catalog: Catalog, rng: RandomNumberGenerator) -> void:
 			lost += gone[0].size() + Herd.total(gone[1])
 			seconds += Dungeon.run_seconds(catalog, run)
 		print("%-20s %8.1f %8d %8.0f %8.0f %10.0f" % ["%s + %s" % mix, floors / RUNS, deepest, wisps / RUNS, lost / RUNS, wisps / (seconds / 3600.0)])
+
+
+## E3 the sewing room (data/sewing.json): the same armies as the well, into each fixed room and the
+## first rolled ones (chalk locks left out: this is only the fight). How often each clears it, and
+## the wisps an hour of that room back to back (a run is 'seconds' long).
+func _sewing(catalog: Catalog, rng: RandomNumberGenerator) -> void:
+	const RUNS := 200
+	var n := Sewing.fixed_count(catalog) + 3
+	print("\nthe sewing room: the same armies, one fight per room, %d runs each. %% cleared (wisps an hour), rooms by the floor their strength is at." % RUNS)
+	var head := "%-20s" % "army"
+	for i in n:
+		head += " %11s" % ("%s%d" % ["r" if Sewing.room(catalog, i).rolled else "", int(Sewing.room(catalog, i).floor)])
+	print(head)
+	for mix in [["uncommon", "common"], ["rare", "uncommon"], ["epic", "rare"], ["legendary", "epic"], ["mythic", "legendary"]]:
+		var front := Herd.template(catalog, Herd.key(mix[0], "normal"))
+		var cards: Array = []
+		for i in 20:
+			cards.append({ "uid": str(i), "power": Dungeon.pet_power(catalog, front), "rank": catalog.rank(mix[0]) })
+		var k := Herd.key(mix[1], "normal")
+		var army := { "cards": cards, "herd": { k: { "n": 280, "power": Dungeon.pet_power(catalog, Herd.template(catalog, k)), "rank": catalog.rank(mix[1]) } },
+			"luck": 0.5, "boost": 1.0 }
+		var row := "%-20s" % ("%s + %s" % mix)
+		for i in n:
+			var r := Sewing.room(catalog, i)
+			var cleared := 0
+			var wisps := 0.0
+			for t in RUNS:
+				var run := Sewing.simulate(catalog, army, r, { "first": "plain ones" }, rng)
+				cleared += 1 if Dungeon.cleared_to(run) > 0 else 0
+				wisps += Dungeon.run_pay(run)
+			row += " %4d%% %5s" % [roundi(100.0 * cleared / RUNS), _short(wisps / RUNS * 3600.0 / Sewing.seconds(catalog))]
+		print(row)
+
+
+func _short(n: float) -> String:
+	if n >= 1.0e6:
+		return "%.1fM" % (n / 1.0e6)
+	if n >= 1000.0:
+		return "%.1fk" % (n / 1000.0)
+	return "%d" % roundi(n)

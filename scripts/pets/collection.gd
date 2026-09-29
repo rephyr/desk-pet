@@ -4,7 +4,8 @@ extends RefCounted
 ## part and each body+finish combo has been pulled).
 ## Pets come in two kinds (see Herd, data/herd.json):
 ##   CARDS, whole Pet records in `pets`: favourites, the active pet, holo or better, a pet that
-##   brought a part new to the book, a pet with buttons (the plushie machine), pets something needs whole right now (`busy`: away on an
+##   brought a part new to the book, a pet with buttons (the plushie machine), a pet a keep line keeps (the
+##   sorting card, see Sewing), pets something needs whole right now (`busy`: away on an
 ##   adventure, a good pull waiting to be seen, leading a party), and each shelf's newest
 ##   keep_cards plain pets.
 ##   THE HERD, `herd`: every other plain pet, folded into a count per rarity x finish. When a shelf
@@ -35,6 +36,8 @@ var fallen: Array[String] = []
 var fallen_n := 0  # every pet that ever left: a star each
 ## count key -> the first stand-in number not handed out yet (a lost stand-in's look never comes back)
 var stand_next := {}
+## uid -> true: plain cards the sorting card's keep lines keep (GameState, from homes.kept): always cards
+var keep_uids := {}
 
 var _by_uid := {}
 var _next_id := 1
@@ -275,7 +278,7 @@ func finish_seen(finish: String) -> bool:
 
 ## Whether a pet always stays a card, whatever else happens.
 func always_card(pet: Pet) -> bool:
-	return pet.fav or pet.new_part or not pet.buttons.is_empty() or pet.uid == active_uid or not _is_plain(pet.finish)
+	return pet.fav or pet.new_part or not pet.buttons.is_empty() or pet.uid == active_uid or not _is_plain(pet.finish) or keep_uids.has(pet.uid)
 
 
 ## Folds the oldest plain cards of every shelf that has more than keep_cards of them that may fold.

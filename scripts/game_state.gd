@@ -27,7 +27,7 @@ signal homes_rule_changed  # the sorting rule was switched or stepped (the sorti
 signal homes_paid(boxes: int)  # pets left for new homes and their points filled this many boxes
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
-const SAVE_VERSION := 26
+const SAVE_VERSION := 27
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
 const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
@@ -127,7 +127,9 @@ var debug_land := {}  # debug builds: what the plushie machine's next spin lands
 var automation := Automation.fresh()
 var dungeon := Dungeon.fresh(Catalog.shared())  # the old well, all the way down (see Dungeon)
 var wisps := 0  # the darker currency: the dungeon's cleared floors pay them, plushie machine misses puff them, the plushie machine spends them (see grant_wisps)
-var dungeon_news := {}  # the army just came home: { got, floor, early, deepest } for your pet to say (not saved)
+var dungeon_news := {}  # the army just came home: { got, floor, early, deepest } (a sewing room run: { got, room, cleared, again }) for your pet to say (not saved)
+var sewing := Sewing.fresh()  # E3 the sewing room off the well's floor 20 (see Sewing)
+var army_held := false  # the sewing room is open on screen: your pet leading the army waits at home for you (not saved)
 var _auto_at := 0.0  # unix time your pet's jobs have worked up to
 var _hold_saves := false  # automation's tick is running: saves wait for the end of it
 var _save_held := false  # a save was asked for while they were held
@@ -456,17 +458,23 @@ func send_home(rarity: String, n := 1) -> Dictionary:
 	return { "n": gone, "boxes": boxes }
 
 
-## The sorting rule, if it's on (and found): what Collection.add asks about each new pet from a box.
+## The sorting rule, if it's on (and found), or keep lines that pick something: what Collection.add
+## asks about each new pet from a box.
 func _sorter() -> Callable:
-	if tutorial_active() or not feature_on("sorting") or not homes.rule.on:
+	if tutorial_active():
+		return Callable()
+	var rule_on: bool = feature_on("sorting") and homes.rule.on
+	if not rule_on and not keep_lines_on():
 		return Callable()
 	return _sort_pet
 
 
-## The sorting rule on one new pet: "homes" (it leaves, its points go in the jar), "work" (it goes
-## to work as it's added) or "" (it stays).
+## The sorting card on one new pet: keep lines first (a match stays a card), then the sorting rule:
+## "homes" (it leaves, its points go in the jar), "work" (it goes to work as it's added) or "" (it stays).
 func _sort_pet(pet: Pet) -> String:
-	if not NewHomes.sorts(catalog, homes.rule, pet):
+	if _keep_new(pet):
+		return ""
+	if not feature_on("sorting") or not NewHomes.sorts(catalog, homes.rule, pet):
 		return ""
 	NewHomes.count_sorted(homes, NewHomes.today())
 	if str(homes.rule.to) == "work":
@@ -650,6 +658,8 @@ func _earned(earn: Dictionary) -> bool:
 	if earn.has("taught") and not knows_job(str(earn.taught)):
 		return false
 	if int(dungeon.deep) < int(earn.get("floor", 0)):
+		return false
+	if int(sewing.cleared) < int(earn.get("sewing", 0)):
 		return false
 	if earn.get("room", "") == "full" and not homes.room_was_full:
 		return false
@@ -839,6 +849,8 @@ func debug_new_game() -> void:
 	dungeon = Dungeon.fresh(catalog)
 	wisps = 0
 	dungeon_news = {}
+	sewing = Sewing.fresh()
+	collection.keep_uids.clear()
 	_auto_at = 0.0
 	_worker_of.clear()
 	_worker_speed.clear()
@@ -2661,11 +2673,12 @@ func dungeon_left() -> float:
 	return maxf(0.0, float(dungeon.run.at) + Dungeon.run_seconds(catalog, dungeon.run) - Time.get_unix_time_from_system())
 
 
-## Every second: an army that's done comes home; your pet leading the army takes it down again.
+## Every second: an army that's done comes home; your pet leading the army takes it down again
+## (unless the sewing room is open on screen: then it waits, so the army can go in there).
 func _dungeon_tick() -> void:
 	if dungeon_running() and dungeon_left() <= 0.0:
 		_finish_dungeon_run()
-	if automation.task == "army" and knows_job("army") and not dungeon_running():
+	if automation.task == "army" and knows_job("army") and not dungeon_running() and not army_held:
 		send_army()
 
 
@@ -2673,18 +2686,12 @@ func _dungeon_tick() -> void:
 ## cleared floors pay their wisps, the landings stay lit, and a floor's first time gives its thing.
 func _finish_dungeon_run() -> void:
 	var run: Dictionary = dungeon.run
+	if run.has("room"):
+		_finish_room_run()
+		return
 	dungeon.run = {}
 	_rest_changed()
-	var lost := Dungeon.run_lost(run)
-	var lost_cards: Array[String] = []
-	for uid in lost[0]:
-		if str(uid) != collection.active_uid and collection.get_pet(str(uid)) != null:
-			lost_cards.append(str(uid))
-	var lost_n := lost_cards.size()
-	collection.remove(lost_cards)
-	for k in lost[1]:
-		lost_n += collection.lose_plain(str(k), int(lost[1][k]))
-	_clamp_herd_places()
+	var lost_n := _run_losses(run)
 	var got := Dungeon.run_pay(run)
 	var to := Dungeon.cleared_to(run)
 	var deepest := to > int(dungeon.deep)
@@ -2708,6 +2715,266 @@ func _finish_dungeon_run() -> void:
 	check_unlocks()
 	dungeon_changed.emit()
 	adventures_changed.emit()
+
+
+## Pets a run lost leave the collection (a star each, never a word about them). Returns how many.
+func _run_losses(run: Dictionary) -> int:
+	var lost := Dungeon.run_lost(run)
+	var lost_cards: Array[String] = []
+	for uid in lost[0]:
+		if str(uid) != collection.active_uid and collection.get_pet(str(uid)) != null:
+			lost_cards.append(str(uid))
+	var lost_n := lost_cards.size()
+	collection.remove(lost_cards)
+	for k in lost[1]:
+		lost_n += collection.lose_plain(str(k), int(lost[1][k]))
+	_clamp_herd_places()
+	return lost_n
+
+
+# ---- E3 the sewing room, off the well's floor 20 (see Sewing, data/sewing.json) ----------
+
+## Whether the sewing room's door is there (the tiny key from floor 20).
+func sewing_open() -> bool:
+	return feature_on("sewing")
+
+
+## Room `i` of the sewing room (fixed, or rolled past them), see Sewing.room.
+func sew_room(i: int) -> Dictionary:
+	return Sewing.room(catalog, i)
+
+
+## The front row the chalk locks look at: the army's strongest front_row cards (your pet with the
+## flag leads, it doesn't count).
+func sew_front() -> Array[Pet]:
+	return army_cards().slice(0, int(catalog.dungeon.get("front_row", 20)))
+
+
+## Which of room `i`'s marks the front row fills: [bool].
+func sew_marks(i: int) -> Array:
+	return Sewing.marks_on(sew_room(i), sew_front())
+
+
+## Whether the army can go into room `i` now: a room that shows, every mark filled, pets in the army,
+## nobody down there already.
+func sew_can_go(i: int) -> bool:
+	return sewing_open() and i >= 0 and i < Sewing.shown(sewing) and not dungeon_running() and not tutorial_active() \
+		and int(army().sent) > 0 and Sewing.unlocked(sew_room(i), sew_front())
+
+
+## The feeling word for room `i` against the army lined up now: [word, heat] ([] with nobody in it).
+func sew_word(i: int, rules: Dictionary = {}) -> Array:
+	if rules.is_empty():
+		if int(army().sent) <= 0:
+			return []
+		rules = army_rules()
+	return Dungeon.word(catalog, Dungeon.army_power(catalog, rules, "room") / Sewing.strength(catalog, sew_room(i)))
+
+
+## The army goes into room `i`: the fight is worked out now (Sewing.simulate), its pets stay busy
+## (it's the dungeon's run) until it's back. Returns whether it went.
+func send_to_room(i: int) -> bool:
+	if not sew_can_go(i):
+		return false
+	var cards := army_cards()
+	var herd_keys := army_herd_keys()
+	var entrance := Dungeon.entrance(catalog, int(dungeon.entrance))
+	if cards.size() > entrance:
+		cards = cards.slice(0, entrance)
+	var sent := cards.size() + Herd.total(herd_keys)
+	var rng := RandomNumberGenerator.new()
+	rng.seed = _rng.randi()
+	var orders := { "entrance": int(dungeon.entrance), "first": str(dungeon.first) if Dungeon.first_earned(catalog, dungeon) else "" }
+	var result := Sewing.simulate(catalog, _army_rules(cards, herd_keys), sew_room(i), orders, rng)
+	dungeon.run = { "at": Time.get_unix_time_from_system(), "floors": result.floors, "why": result.why, "turned": 0,
+		"cards": cards.map(func(p): return p.uid), "herd": herd_keys.duplicate(), "sent": sent, "target": int(dungeon.target),
+		"room": i, "door": int(catalog.sewing.get("door_floor", 20)), "seconds": Sewing.seconds(catalog) }
+	_rest_changed()
+	dungeon_changed.emit()
+	changed.emit()
+	save_game()
+	return true
+
+
+## The army is back from a room: losses as a well floor, a clear pays its wisps, and the first clear
+## of the next room counts (its firsts: keep lines, the plushie machine).
+func _finish_room_run() -> void:
+	var run: Dictionary = dungeon.run
+	dungeon.run = {}
+	_rest_changed()
+	var i := int(run.get("room", 0))
+	var r := sew_room(i)
+	var lost_n := _run_losses(run)
+	var got := Dungeon.run_pay(run)
+	var cleared: bool = not run.get("floors", []).is_empty() and bool(run.floors[0].get("cleared", false))
+	grant_wisps(got)
+	var first := cleared and i == int(sewing.cleared)
+	if first:
+		sewing.cleared = i + 1
+		var f: Dictionary = r.get("first", {})
+		if int(f.get("keep_lines", 0)) > 0 and Sewing.keep_lines(catalog, i) > 0 and feature_on("keep_lines"):
+			var lines: Array = catalog.voice.get("ui", {}).get("sewing_more_lines", [])  # the first line comes with its popup
+			if not lines.is_empty():
+				announcements.append(str(lines[_rng.randi_range(0, lines.size() - 1)]))
+		if f.has("find"):
+			grant({ "find:" + str(f.find): 1 }, false)
+		_keep_lines_changed()
+	dungeon.last = { "floor": int(run.get("door", catalog.sewing.get("door_floor", 20))), "got": got,
+		"back": int(run.get("sent", 0)) - lost_n, "room": i }
+	dungeon.cards = dungeon.cards.filter(func(uid): return collection.get_pet(str(uid)) != null)
+	dungeon_news = { "got": got, "room": str(r.name), "cleared": cleared, "again": cleared and not first }
+	collection.refold()  # cards home again may fold into the herd
+	check_unlocks()
+	dungeon_changed.emit()
+	adventures_changed.emit()
+
+
+## Where a dashed mark comes from, in your pet's words (like bit_hint): parts from the tier that has
+## them and the box with the most of it, traits and finishes from any box, buttons from the plushie
+## machine. Keep lines, once open, get a word in for parts and traits.
+func sew_hint(mark: String) -> String:
+	var hints: Dictionary = catalog.sewing.get("hints", {})
+	var p := mark.split(":")
+	var many := Sewing.many(catalog, mark)
+	var text := ""
+	match p[0]:
+		"part":
+			var tier := str(catalog.part(p[1], p[2]).get("rarity", "common")) if p.size() > 2 else "common"
+			text = str(hints.get("part", "")).format({ "many": many, "tier": catalog.tier_at(catalog.rank(tier)).name, "box": _best_box("tiers", tier) })
+		"trait":
+			text = str(hints.get("trait", "")).format({ "many": many })
+		"finish":
+			text = str(hints.get("finish", "")).format({ "many": many, "box": _best_box("finishes", p[1] if p.size() > 1 else "") })
+		"tier":
+			text = str(hints.get("tier", "")).format({ "tier": many, "box": _best_box("tiers", p[1] if p.size() > 1 else "") })
+		"buttons":
+			text = str(hints.get("buttons", "")).format({ "n": int(p[1]) if p.size() > 1 else 1 })
+	if keep_lines_on() and (p[0] == "trait" or p[0] == "part") and mark in keep_line_options():
+		text += str(hints.get("keep", "")).format({ "many": Sewing.keep_word(catalog, mark) })
+	return text
+
+
+## The name of the shop box with the best share of a tier (`key` "tiers") or finish ("finishes").
+func _best_box(key: String, id: String) -> String:
+	var best := ""
+	var share := -1.0
+	for box in catalog.boxes:
+		if box.get("hidden", false):
+			continue
+		var weights: Dictionary = box.get(key, {})
+		var total := 0.0
+		for w in weights.values():
+			total += float(w)
+		var s := float(weights.get(id, 0.0)) / total if total > 0.0 else 0.0
+		if s > share:
+			share = s
+			best = str(box.get("name", box.id))
+	return best
+
+
+## Debug and tests: the first `n` rooms are cleared, with their real firsts.
+func debug_sewn(n: int) -> void:
+	while int(sewing.cleared) < n:
+		var r := sew_room(int(sewing.cleared))
+		sewing.cleared = int(sewing.cleared) + 1
+		if r.get("first", {}).has("find"):
+			grant({ "find:" + str(r.first.find): 1 }, false)
+	_keep_lines_changed()
+	check_unlocks()
+	dungeon_changed.emit()
+
+
+# ---- keep lines: the sorting card keeps pets as cards (see Sewing) --------------------
+
+## Whether the sorting card has its keep lines (the button tin teaches them).
+func keep_lines_on() -> bool:
+	return feature_on("keep_lines") and keep_line_count() > 0
+
+
+## How many keep lines the rooms cleared have earned.
+func keep_line_count() -> int:
+	return Sewing.keep_lines(catalog, int(sewing.cleared))
+
+
+## Each keep line's pick ("" for nothing), as many as are earned.
+func keep_lines() -> Array[String]:
+	var out: Array[String] = []
+	var lines: Array = homes.rule.get("lines", [])
+	for i in keep_line_count():
+		out.append(str(lines[i]) if i < lines.size() else "")
+	return out
+
+
+## What keep lines can pick: nothing, every trait, the keep parts the book has seen (and whatever a
+## line has now).
+func keep_line_options() -> Array[String]:
+	var seen := {}
+	for key in collection.seen_keys():
+		seen[str(key)] = true
+	var out := Sewing.keep_options(catalog, seen)
+	for pick in keep_lines():
+		if not pick in out:
+			out.append(pick)
+	return out
+
+
+## Sets keep line `i` to a pick ("" for nothing). A pick it had before lets its pets go (they may
+## fold into the herd now) unless another line keeps the same kind.
+func set_keep_line(i: int, pick: String) -> bool:
+	if i < 0 or i >= keep_line_count() or not Sewing.keep_valid(catalog, pick):
+		return false
+	var lines: Array = homes.rule.lines
+	while lines.size() < keep_line_count():
+		lines.append("")
+	if str(lines[i]) == pick:
+		return true
+	lines[i] = pick
+	_keep_lines_changed()
+	collection.refold()
+	homes_rule_changed.emit()
+	changed.emit()
+	save_game()
+	return true
+
+
+## How many pets a keep line keeps now.
+func kept_count(pick: String) -> int:
+	return homes.kept.get(pick, []).filter(func(uid): return collection.get_pet(str(uid)) != null).size()
+
+
+## A new pet from a box: kept by the first keep line it matches (the oldest past the cap drops off).
+## Only plain ones: the rest are cards anyway. Returns whether it's kept.
+func _keep_new(pet: Pet) -> bool:
+	if not keep_lines_on() or not Herd.plain(catalog, pet.finish):
+		return false
+	for pick in keep_lines():
+		if pick != "" and Sewing.mark_matches(pick, pet):
+			homes.kept[pick] = homes.kept.get(pick, []).filter(func(uid): return collection.get_pet(str(uid)) != null)
+			for uid in Sewing.keep(catalog, homes.kept, pick, pet.uid):
+				if not keep_lines().any(func(other): return other != pick and homes.kept.get(other, []).has(uid)):
+					collection.keep_uids.erase(str(uid))
+			collection.keep_uids[pet.uid] = true
+			return true
+	return false
+
+
+## The kept lists follow the lines: lists no line picks any more go, and Collection.keep_uids is
+## worked out again.
+func _keep_lines_changed() -> void:
+	var picks: Array[String] = []
+	if keep_lines_on():
+		picks = keep_lines()
+	for pick in homes.kept.keys():
+		if not pick in picks:
+			homes.kept.erase(pick)
+		else:  # pets gone since (lost in the dungeon, fed to the plushie machine) drop off
+			homes.kept[pick] = homes.kept[pick].filter(func(uid): return collection.get_pet(str(uid)) != null)
+	collection.keep_uids.clear()
+	for pick in homes.kept:
+		for uid in homes.kept[pick]:
+			collection.keep_uids[str(uid)] = true
+
+
 # ---- the plushie machine (F1/F2, see Plushie) --------------------------------
 
 ## Whether the plushie machine is open (the sewing room's last room brings it, data/unlocks.json).
@@ -3936,6 +4203,7 @@ func save_game() -> void:
 		"automation": automation,
 		"dungeon": dungeon,
 		"wisps": wisps,
+		"sewing": sewing,
 		"coin_reserve": coin_reserve,
 		"saved_boxes": saved_boxes.keys(),
 		"visited": visited.keys(),
@@ -4024,6 +4292,9 @@ func load_game() -> bool:
 	# the dungeon before the jobs: its army's pets aren't on errands
 	wisps = maxi(0, int(data.get("wisps", 0)))  # v24 added the dungeon (it pays them), v25 the plushie machine (it spends them)
 	dungeon = Dungeon.clean(catalog, data.get("dungeon", {}))
+	sewing = Sewing.clean(data.get("sewing", {}))  # v27 added the sewing room
+	if from_version < 27 and int(dungeon.deep) >= int(catalog.sewing.get("door_floor", 20)):
+		finds["little_key"] = true  # been past floor 20 already: the key was found there
 	var trips := away()
 	dungeon.cards = dungeon.cards.filter(func(uid): return collection.get_pet(uid) != null and uid != collection.active_uid \
 		and not Herd.is_stand_in(uid) and not trips.has(uid))
@@ -4047,7 +4318,8 @@ func load_game() -> bool:
 		# v26: "your pet shares out new pets" became "new pets join here" on each job: every open errand
 		for job in open_jobs():
 			_job_state(job.id).join = true
-	homes = NewHomes.clean(catalog, data.get("new_homes", {}))  # v26 added new homes
+	homes = NewHomes.clean(catalog, data.get("new_homes", {}))  # v26 added new homes (v27: its keep lines)
+	_keep_lines_changed()
 	errand_tools = {}
 	_tools_changed()
 	var saved_tools: Dictionary = data.get("errand_tools", {})
@@ -4150,6 +4422,8 @@ func load_game() -> bool:
 		# v26: a room that's full already has been full: the new homes stall is there
 		homes.room_was_full = true
 		check_unlocks()
+	if from_version < 27 and finds.has("little_key") and not is_unlocked("feature:sewing"):
+		check_unlocks()  # v27: the key found before the sewing room was built opens its door
 	return true
 
 
@@ -4284,6 +4558,8 @@ func _migrate(data: Dictionary) -> Dictionary:
 	# have none of it and load an empty machine
 	# v26: new homes and "new pets join here" (load_game: jobs_auto switches every open errand's on,
 	# a room that's full already opens the stall)
+	# v27: the sewing room (its state, keep lines on the sorting rule, room runs in the dungeon's run);
+	# nothing moves: older saves start with none of it (load_game: past floor 20 already = the key)
 	if version < 7:
 		# v7: dungeon places open one rumour at a time; saves that had the dungeons keep them all
 		var had: Array = data.get("unlocks", [])

@@ -9,7 +9,8 @@ extends RefCounted
 ##     target: go down to this floor, home_at: come home when this % are gone, first: who goes first
 ##     (a line of data "first", once earned), cards: [uids in the army], herd: { rarity: pets from the
 ##     herd }, run: {} or the run that's out (see send), last: {} or { floor, got, back } of the last
-##     run, firsts: { floor: true } (what a floor gives the first time is given), entrance: level }
+##     run (a sewing room run has room: its number, door, seconds; see Sewing), firsts: { floor: true }
+##     (what a floor gives the first time is given), entrance: level }
 ## An ARMY for the rules: { cards: [{ uid, power, rank }] best first, herd: { count key: { n, power,
 ## rank } }, luck: the knock doors' chance, boost: the power boost }. Gear never counts here.
 
@@ -57,6 +58,8 @@ static func clean(catalog: Catalog, raw) -> Dictionary:
 	var last = raw.get("last", {})
 	if last is Dictionary and last.has("floor"):
 		out.last = { "floor": int(last.floor), "got": int(last.get("got", 0)), "back": int(last.get("back", 0)) }
+		if last.has("room"):  # a sewing room run (its room's number)
+			out.last.room = maxi(0, int(last.room))
 	var firsts = raw.get("firsts", {})
 	if firsts is Dictionary:
 		for f in firsts:
@@ -235,7 +238,6 @@ static func _tiny_rank(catalog: Catalog) -> int:
 ## floor too strong to pass takes its losses and pays nothing. Pay never looks at losses.
 static func simulate(catalog: Catalog, army: Dictionary, orders: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
 	var d := data(catalog)
-	var l: Dictionary = d.losses
 	var cards: Array = army.get("cards", []).duplicate()
 	var info: Dictionary = army.get("herd", {})
 	var herd := {}
@@ -261,13 +263,8 @@ static func simulate(catalog: Catalog, army: Dictionary, orders: Dictionary, rng
 			turned = f
 			break
 		var ratio := _power(catalog, cards, hurt, herd, herd_hurt, info, kind, boost) / strength(catalog, f)
-		var alive := cards.size() + Herd.total(herd)
-		# some get hurt (they fight at half strength from now on), some don't come back
-		var fresh := alive - hurt.size() - Herd.total(herd_hurt)
-		_injure(_round(fresh * minf(float(l.max_share), float(l.injure) / maxf(ratio, 0.01)), rng), cards, hurt, herd, herd_hurt, rng)
-		var n_lost := mini(alive, _round(alive * minf(float(l.max_share), float(l.lose) / maxf(ratio * ratio, 0.0001)), rng))
-		var gone := _take(n_lost, first, cards, hurt, herd, herd_hurt, int(d.get("front_row", 20)), rng)
-		lost_n += n_lost
+		var gone := _fight(catalog, ratio, first, cards, hurt, herd, herd_hurt, rng)
+		lost_n += gone[0].size() + Herd.total(gone[1])
 		var cleared := ratio >= float(d.get("stuck", 0.4))
 		floors.append({ "f": f, "cleared": cleared, "lost_cards": gone[0], "lost_herd": gone[1],
 			"pay": pay(catalog, f, sent, int(orders.get("entrance", 0))) if cleared else 0 })
@@ -282,6 +279,41 @@ static func simulate(catalog: Catalog, army: Dictionary, orders: Dictionary, rng
 			why = "home"
 			break
 	return { "floors": floors, "why": why, "turned": turned }
+
+
+## One fight at `ratio` (the army's power over what it's up against): some get hurt (they fight at
+## injured_x from now on), some don't come back, by who goes first. The army's pools change in place.
+## Returns [lost card uids, { count key: n }].
+static func _fight(catalog: Catalog, ratio: float, first: String, cards: Array, hurt: Dictionary, herd: Dictionary,
+		herd_hurt: Dictionary, rng: RandomNumberGenerator) -> Array:
+	var d := data(catalog)
+	var l: Dictionary = d.losses
+	var alive := cards.size() + Herd.total(herd)
+	var fresh := alive - hurt.size() - Herd.total(herd_hurt)
+	_injure(_round(fresh * minf(float(l.max_share), float(l.injure) / maxf(ratio, 0.01)), rng), cards, hurt, herd, herd_hurt, rng)
+	var n_lost := mini(alive, _round(alive * minf(float(l.max_share), float(l.lose) / maxf(ratio * ratio, 0.0001)), rng))
+	return _take(n_lost, first, cards, hurt, herd, herd_hurt, int(d.get("front_row", 20)), rng)
+
+
+## A room of the sewing room (see Sewing): one fight against `strength` where everyone fights (no
+## rope, no tiny doors). A clear (at least the stuck ratio) pays `pay`. The run stands at `door`
+## (the well floor the rooms are off) the whole time. Returns the usual run shape, one entry.
+static func simulate_room(catalog: Catalog, army: Dictionary, strength: float, pay: int, door: int, first: String,
+		rng: RandomNumberGenerator) -> Dictionary:
+	var d := data(catalog)
+	var cards: Array = army.get("cards", []).duplicate()
+	var info: Dictionary = army.get("herd", {})
+	var herd := {}
+	for k in info:
+		if int(info[k].n) > 0:
+			herd[k] = int(info[k].n)
+	if cards.size() + Herd.total(herd) <= 0:
+		return { "floors": [], "why": "gone", "turned": 0 }
+	var ratio := _power(catalog, cards, {}, herd, {}, info, "room", float(army.get("boost", 1.0))) / maxf(strength, 0.001)
+	var gone := _fight(catalog, ratio, first, cards, {}, herd, {}, rng)
+	var cleared := ratio >= float(d.get("stuck", 0.4))
+	return { "floors": [{ "f": door, "cleared": cleared, "lost_cards": gone[0], "lost_herd": gone[1], "pay": pay if cleared else 0 }],
+		"why": "target" if cleared else "stuck", "turned": 0 }
 
 
 ## The deepest floor a run cleared (0 if none).
@@ -314,12 +346,16 @@ static func run_lost(run: Dictionary) -> Array:
 
 ## How long a run takes: a floor at a time, and back from a floor they turned at.
 static func run_seconds(catalog: Catalog, run: Dictionary) -> float:
+	if run.has("seconds"):  # a sewing room run takes its own time
+		return float(run.seconds)
 	var floors := maxi(1, run.get("floors", []).size() + (1 if int(run.get("turned", 0)) > 0 and run.get("floors", []).size() < int(run.turned) else 0))
 	return floors * float(data(catalog).get("seconds_per_floor", 20))
 
 
 ## Where the army is now (floors from the top, 0 at the well mouth), `seconds` after it set off.
 static func run_floor(catalog: Catalog, run: Dictionary, seconds: float) -> float:
+	if run.has("room"):  # in the sewing room: the army stands at its door the whole time
+		return float(run.get("door", data(catalog).get("door_floor", 20)))
 	var per := float(data(catalog).get("seconds_per_floor", 20))
 	var deepest := float(maxi(int(run.get("turned", 0)), run.get("floors", []).size()))
 	return clampf(seconds / per, 0.0, deepest)

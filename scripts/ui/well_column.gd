@@ -5,7 +5,10 @@ extends Control
 ## the cellar (tiny doors, knock-back doors with their boings), stairs further down with a guard
 ## every 10th. Lit landings (floors cleared) have a lamp; the next few floors carry a feeling word
 ## (never a number); the target has a pink flag; while the army is down there it walks down.
-## Drawn from GameState.dungeon, see Dungeon for the rules.
+## Once the tiny key is found, a little pink door (SewDoor) is cut through the right wall of floor 20:
+## the sewing room (see Sewing). Drawn from GameState.dungeon, see Dungeon for the rules.
+
+signal door_pressed  # the sewing room's door was tapped
 
 const GROUND := 70.0  # the grass line
 const TAIL := 26.0  # the shaft fades out below the last floor drawn
@@ -19,11 +22,16 @@ var _to := 10  # the last floor drawn
 var _words := {}  # floor -> [word, heat]
 var _party: Array[Texture2D] = []  # the army's first few faces while it's down there
 var _pos := -1.0  # where the army is (floors), -1 when home
+var _sew_door := SewDoor.new()
 
 
 func _init() -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
 	texture_filter = TEXTURE_FILTER_NEAREST
+	_sew_door.visible = false
+	_sew_door.pressed.connect(func(): door_pressed.emit())
+	add_child(_sew_door)
+	resized.connect(_place_door)
 
 
 ## Works the drawing out again from the game (the army, its orders, what's lit). `a` and `rules`
@@ -64,7 +72,24 @@ func refresh(a: Dictionary = {}, rules: Dictionary = {}) -> void:
 			if pet:
 				_party.append(PetLook.texture_for(pet.parts, false, pet.sewn))
 	_pos = GameState.dungeon_floor_now()
+	_place_door()
 	queue_redraw()
+
+
+## The sewing room's door on its floor, through the right wall (only once the key is found).
+func _place_door() -> void:
+	var f := int(GameState.catalog.sewing.get("door_floor", 20))
+	_sew_door.visible = GameState.sewing_open() and f <= _to
+	if not _sew_door.visible:
+		return
+	var wall := _cx() + _half(f)
+	_sew_door.place(Vector2(wall + 3.0, _ys[f]), 3.0)
+
+
+## Where the sewing room's door is in the column (for the scroll to show it), or -1.
+func door_y() -> float:
+	var f := int(GameState.catalog.sewing.get("door_floor", 20))
+	return _ys[f] if GameState.sewing_open() and f <= _to else -1.0
 
 
 ## Moves the walking army along (called often while it's down there).

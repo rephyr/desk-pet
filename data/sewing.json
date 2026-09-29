@@ -1,0 +1,59 @@
+{
+	"_note": "E3 the sewing room (scripts/dungeon/sewing.gd, GameState's sewing part, the dungeon page's rooms pane: design lanes/mockups2 well-additions.html). A little pink door on the well's floor 'door_floor' shows once the tiny key is found (floor 20's first clear, unlock 'sewing'); tapping it slides the column to the rooms. ROOMS: each is ONE fight for the dungeon's army (its cards and herd, the entrance, 'who goes first'); its STRENGTH is the well's floor maths at the room's 'floor' (strength.base x strength.grow ^ floor, no guards) x 'room_x', never shown as a number (feeling words). A room is LOCKED by its chalk 'marks': every mark must match at least one pet in the front row (the army's strongest front_row cards; your pet with the flag leads and doesn't count). Marks: 'part:<slot>:<id>' (a pet with that part), 'trait:<id>', 'finish:<id>' (exactly that finish), 'tier:<id>' (exactly that rarity), 'buttons:<n>' (a pet with at least n buttons, see Plushie). A run takes 'seconds'; losses as a well floor (data/dungeon.json losses), a room below the dungeon's 'stuck' ratio isn't cleared and pays nothing; a clear pays wisps like a well floor at the room's 'floor' (for pets SENT, at most the entrance) x 'pay_x'. Only the rooms cleared + the next one show; cleared rooms can be done again (wisps, no firsts). 'first' happens the first time a room is cleared: 'keep_lines' (that many more keep lines on the sorting card, unlock keep_lines opens them), 'find' (a find, e.g. the plushie machine, whose unlock sews a free button onto your active pet). ROLLED rooms come after the fixed ones, forever: rolled.rooms in turn (a name and a picture), their floor floor_start + floor_step per room, a button lock first (buttons.start + 1 per buttons.every rooms, at most max) and then marks from 'pool' (marks.start + 1 per marks.every rooms, at most max, counting the button lock), picked by the room's number so they never change. KEEP LINES (the sorting card): 'keep ‹halos›' keeps the newest 'keep.cap' plain pets from box openings that match as cards (not sorted away, not folded into the herd, not taken by the stall), the oldest past that becomes plain again; picks are every trait and the 'keep' parts in 'marks' the book has seen. 'marks' holds what a part or finish is called ('many', for keep lines and hints); the chalk drawing is picked in ChalkMark by the mark. 'hints' are what your pet says when you tap a dashed mark: {many} {tier} {box} {n}. Every number is a placeholder.",
+	"door_floor": 20,
+	"seconds": 60,
+	"room_x": 1.0,
+	"pay_x": 1.0,
+	"keep": { "cap": 50 },
+	"rooms": [
+		{ "id": "tin", "name": "the button tin", "pic": "tin", "floor": 21, "marks": ["part:body:bunny", "tier:rare", "finish:shiny"], "first": { "keep_lines": 1 } },
+		{ "id": "cushion", "name": "the pin cushion", "pic": "cushion", "floor": 22, "marks": ["part:body:bunny", "tier:epic", "finish:ghost", "trait:zoomy"] },
+		{ "id": "maze", "name": "the thread maze", "pic": "maze", "floor": 24, "marks": ["part:accessory:halo", "finish:holo", "tier:legendary", "trait:lazy"] },
+		{ "id": "ribbons", "name": "the ribbon drawer", "pic": "ribbons", "floor": 25, "marks": ["part:accessory:headphones", "part:eyes:sparkle", "trait:brave", "finish:shiny"], "first": { "keep_lines": 1 } },
+		{ "id": "thimbles", "name": "the thimble tower", "pic": "thimbles", "floor": 26, "marks": ["part:accessory:crown", "part:body:fox", "trait:lucky", "tier:legendary"] },
+		{ "id": "patterns", "name": "the pattern book", "pic": "patterns", "floor": 28, "marks": ["part:pattern:stars", "part:accessory:halo", "finish:ghost", "trait:curious", "tier:epic"] },
+		{ "id": "needles", "name": "the needle case", "pic": "needles", "floor": 29, "marks": ["part:eyes:cyclops", "part:body:dragon", "finish:glitch", "trait:greedy"], "first": { "keep_lines": 1 } },
+		{ "id": "scissors", "name": "the big scissors", "pic": "scissors", "floor": 31, "marks": ["part:accessory:crown", "part:pattern:circuit", "tier:mythic", "finish:holo", "trait:brave"] },
+		{ "id": "basket", "name": "the sewing basket", "pic": "basket", "floor": 33, "marks": ["part:accessory:horns", "part:body:dragon", "finish:glitch", "tier:mythic", "trait:lucky"], "first": { "find": "plushie_machine" } }
+	],
+	"rolled": {
+		"floor_start": 34,
+		"floor_step": 1,
+		"rooms": [
+			{ "id": "sock_drawer", "name": "the sock drawer", "pic": "ribbons" },
+			{ "id": "yarn_pile", "name": "the yarn pile", "pic": "basket" },
+			{ "id": "button_jar", "name": "the button jar", "pic": "tin" },
+			{ "id": "under_table", "name": "under the table", "pic": "maze" },
+			{ "id": "pincushion_hill", "name": "pincushion hill", "pic": "cushion" },
+			{ "id": "patch_pile", "name": "the patch pile", "pic": "patterns" },
+			{ "id": "thimble_stack", "name": "the thimble stack", "pic": "thimbles" },
+			{ "id": "pin_box", "name": "the pin box", "pic": "needles" }
+		],
+		"marks": { "start": 3, "every": 5, "max": 5 },
+		"buttons": { "start": 1, "every": 3, "max": 25 },
+		"pool": ["part:body:bunny", "part:body:fox", "part:body:dragon", "part:accessory:halo", "part:accessory:crown", "part:accessory:horns", "part:accessory:headphones",
+			"part:eyes:sparkle", "part:eyes:cyclops", "part:pattern:stars", "part:pattern:circuit", "trait:zoomy", "trait:lazy", "trait:brave", "trait:lucky",
+			"trait:curious", "trait:greedy", "trait:cuddly", "finish:shiny", "finish:holo", "finish:ghost", "finish:glitch", "tier:epic", "tier:legendary", "tier:mythic"]
+	},
+	"marks": {
+		"part:body:bunny": { "many": "bunny ears", "keep": true },
+		"part:body:fox": { "many": "foxes", "keep": true },
+		"part:body:dragon": { "many": "dragons", "keep": true },
+		"part:accessory:halo": { "many": "halos", "keep": true },
+		"part:accessory:crown": { "many": "crowns", "keep": true },
+		"part:accessory:horns": { "many": "little horns", "keep": true },
+		"part:accessory:headphones": { "many": "headphones", "keep": true },
+		"part:eyes:sparkle": { "many": "sparkly eyes", "keep": true },
+		"part:eyes:cyclops": { "many": "one big eye", "keep": true },
+		"part:pattern:stars": { "many": "starry ones", "keep": true },
+		"part:pattern:circuit": { "many": "circuit ones", "keep": true }
+	},
+	"hints": {
+		"part": "{many} come on {tier} pets! the {box} has the most.",
+		"finish": "{many} ones sparkle out of any box! the {box} has the most.",
+		"trait": "{many} ones pop out of any box. we just keep opening!",
+		"tier": "a {tier} one! the {box} has the most.",
+		"buttons": "a pet with {n} buttons! the plushie machine sews them on.",
+		"keep": " we could keep ‹{many}› on the sorting card!"
+	}
+}

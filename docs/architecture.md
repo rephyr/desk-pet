@@ -11,7 +11,7 @@ scripts/pets/        pet rules and pet visuals (Pet, PetRoller, Collection, Knac
 scripts/adventure/   adventure rules: runs, events, parties, rewards, rumours, the pet's voice
 scripts/idle/        errands (Jobs) and automation (Automation): pure rules for idle jobs, see data/errands.json, data/automation.json
 scripts/machine/     the capsule machine (Machine) and capsule toys (Toys): pure rules, see data/machine.json, data/toys.json
-scripts/dungeon/     the old well's dungeon (Dungeon): floors, power, a whole run worked out at once, pay; pure rules, see data/dungeon.json
+scripts/dungeon/     the old well's dungeon (Dungeon): floors, power, a whole run worked out at once, pay; the sewing room (Sewing): rooms, chalk locks, keep lines; pure rules, see data/dungeon.json, data/sewing.json
 scripts/dev/         debug-only: launch flags, test profiles, scripted test flows (DevDriver)
 scripts/game_state   the player's progress + saving (autoload "GameState")
 scripts/ui/          screens and widgets; they read GameState and call its functions
@@ -149,7 +149,8 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:
   `WorkerCard` / `WorkerSpot`, `GameState.put_workers` / `buy_spots` / `teach_others`); the adventures tab's
   dungeon page is `DungeonView` (`WellColumn` draws the well's cross-section, `FrontRow` the front
-  row; rules in `Dungeon`, state in `GameState.dungeon` and `GameState.wisps`), `InventoryTab`
+  row; rules in `Dungeon`, state in `GameState.dungeon` and `GameState.wisps`; the sewing room: `SewDoor` on
+  the column, `SewingRoom` slid in beside it with `ChalkMark`s, rules in `Sewing`), `InventoryTab`
   (the bag and sewing) and `SettingsTab` (general and video pages).
   Tabs can be locked or hidden until something opens them (`data/unlocks.json`).
 - The full game is laid out at 920x600 (`home.gd` `EXPANDED_SIZE`) and scaled to the chosen
@@ -242,6 +243,19 @@ out of `sendable_pets`, `army_choices` / `army_best` / `set_army_card`; `plushie
 `homes_pick` skips; its working count also leaves out `army_herd_keys()`, so the stall never takes the
 army's herd pets. Pets with buttons are always cards (`Collection.always_card`); the sorting rule
 only sees new pets from boxes.
+
+Save v27 adds the sewing room (E3): top-level `sewing` `{ cleared }` (`Sewing`, data/sewing.json),
+`new_homes.rule.lines` ([keep line picks, "" = nothing]) and `new_homes.kept` ({ pick: [uids, oldest
+first] }); a room run is the dungeon's `run` with `room`, `door`, `seconds` (so its pets are busy through
+`_out()` like any run) and `dungeon.last.room`. Nothing moves; a v26 save already past floor 20 gets
+the key (`finds.little_key`). `Dungeon._fight` is the one fight (a well floor, or a room through
+`Dungeon.simulate_room`); `run_seconds` / `run_floor` read a room run's own time and door.
+`GameState.send_to_room(i)` / `_finish_room_run` / `sew_can_go` / `sew_marks` / `sew_front` (the army's
+best front_row cards) / `sew_hint(mark)` (like `bit_hint`) / `debug_sewn(n)`; unlock earn key `sewing`
+(rooms cleared). Keep lines: `keep_lines()` / `set_keep_line(i, pick)` / `kept_count`; `_sorter` is valid
+when the rule is on OR a keep line picks something, `_sort_pet` asks `_keep_new` first;
+`Collection.keep_uids` (rebuilt from `homes.kept` by `_keep_lines_changed`) counts in `always_card`, so
+kept pets never fold and the stall never takes them.
 
 ## Testing
 

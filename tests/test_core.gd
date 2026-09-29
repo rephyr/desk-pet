@@ -47,6 +47,8 @@ func _init() -> void:
 	_test_plushie_game(catalog)
 	_test_new_homes(catalog)
 	_test_new_homes_game(catalog)
+	_test_sewing(catalog)
+	_test_sewing_game(catalog)
 	_test_merged_lanes(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
@@ -671,7 +673,7 @@ func _test_unlocks(catalog: Catalog) -> void:
 		_check(entry.show in ["locked", "hidden"], "unlock %s is shown locked or hidden" % entry.id)
 		for o in entry.opens:
 			var bits := str(o).split(":")
-			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "dungeon", "lead_army", "plushie", "new_homes", "sorting"]) or (bits[0] == "page" and bits[1] in page_ids) \
+			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "dungeon", "lead_army", "plushie", "new_homes", "sorting", "sewing", "keep_lines"]) or (bits[0] == "page" and bits[1] in page_ids) \
 				or (bits[0] == "job" and catalog.jobs.any(func(j): return str(j.get("needs", "")) == o))
 			_check(ok, "unlock %s opens something real (%s)" % [entry.id, o])
 		if entry.earn.has("find"):
@@ -2008,7 +2010,7 @@ func _test_merged_lanes(catalog: Catalog) -> void:
 	var gs: Node = load("res://scripts/game_state.gd").new()
 	var c: Collection = gs.collection
 	var newest: int = load("res://scripts/game_state.gd").SAVE_VERSION
-	_check(newest == 26, "the save chain ends at v26 (dungeon 24, plushie 25, new homes 26)")
+	_check(newest == 27, "the save chain ends at v27 (dungeon 24, plushie 25, new homes 26, the sewing room 27)")
 	_check("cellar" in gs.dungeon.bands, "v24: an old save's open cellar is a dungeon band")
 	_check(not gs.plushie_open() and gs.wisps == 0 and gs.plushie.hopper.is_empty(), "v25: an empty plushie machine and no wisps")
 	_check(gs.job_joins("coin_hunt"), "v26: sharing on -> new pets join the errand")
@@ -2369,6 +2371,225 @@ func _test_dungeon_game(catalog: Catalog) -> void:
 		"the dungeon comes back from the save")
 	gs.free()
 	gs2.free()
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+
+## E3 the sewing room (Sewing, data/sewing.json): fixed rooms and rolled ones (the same every time,
+## a button lock first, more marks and buttons deeper), what each mark matches, the lock looks at the
+## front row only, the rooms shown, keep lines (how many, what they pick, the cap), a room run.
+func _test_sewing(catalog: Catalog) -> void:
+	var d: Dictionary = catalog.sewing
+	var fixed := Sewing.fixed_count(catalog)
+	_check(fixed >= 8 and fixed <= 10, "the sewing room has 8-10 fixed rooms (%d)" % fixed)
+	var parts_ok := true
+	for i in fixed + 30:
+		var r := Sewing.room(catalog, i)
+		_check(r.marks.size() >= 3 and r.marks.size() <= 5, "room %d has 3-5 marks (%d)" % [i, r.marks.size()])
+		for mark in r.marks:
+			var p := str(mark).split(":")
+			var real := false
+			match p[0]:
+				"part": real = p.size() == 3 and not catalog.part(p[1], p[2]).is_empty()
+				"trait": real = catalog.traits.any(func(t): return t.id == p[1])
+				"finish": real = catalog.finish(p[1]).id == p[1]
+				"tier": real = catalog.tiers.any(func(t): return t.id == p[1])
+				"buttons": real = int(p[1]) >= 1 and int(p[1]) <= Plushie.max_buttons(catalog) * Catalog.SLOTS.size()
+			parts_ok = parts_ok and real
+			if not real:
+				_check(false, "room %d's mark %s is real" % [i, mark])
+		if i > 0:
+			_check(Sewing.strength(catalog, r) > Sewing.strength(catalog, Sewing.room(catalog, i - 1)) or r.rolled != Sewing.room(catalog, i - 1).rolled,
+				"room %d is stronger than the one before" % i)
+	_check(parts_ok, "every room's marks are real parts, traits, finishes, tiers or buttons")
+	var names := ["the button tin", "the pin cushion", "the thread maze", "the ribbon drawer", "the big scissors"]
+	_check(names.all(func(n): return range(fixed).any(func(i): return Sewing.room(catalog, i).name == n)), "the rooms from the picks are there")
+	_check(str(Sewing.room(catalog, fixed - 1).first.get("find", "")) == "plushie_machine", "the last room gives the plushie machine")
+	var rolled := Sewing.room(catalog, fixed)
+	_check(rolled.rolled and str(rolled.marks[0]).begins_with("buttons:"), "past the fixed rooms they're rolled, a button lock first (%s)" % [rolled.marks])
+	_check(Sewing.room(catalog, fixed + 3) == Sewing.room(catalog, fixed + 3), "a rolled room is the same every time")
+	var deep := Sewing.room(catalog, fixed + 40)
+	_check(int(deep.marks[0].split(":")[1]) > int(rolled.marks[0].split(":")[1]) and deep.marks.size() > rolled.marks.size(),
+		"deeper rolled rooms want more buttons and more marks (%s)" % [deep.marks])
+	_check(Sewing.room(catalog, fixed).floor > Sewing.room(catalog, fixed - 1).floor, "rolled rooms keep getting stronger")
+
+	# marks: parts, traits, exact finishes and tiers, buttons
+	var pet := _plain_pet(catalog, "rare", "shiny", 9)
+	pet.parts.body = "bunny"
+	pet.traits.assign(["zoomy"])
+	_check(Sewing.mark_matches("part:body:bunny", pet) and Sewing.mark_matches("trait:zoomy", pet) and Sewing.mark_matches("finish:shiny", pet)
+		and Sewing.mark_matches("tier:rare", pet), "a shiny rare zoomy bunny matches its marks")
+	_check(not Sewing.mark_matches("finish:holo", pet) and not Sewing.mark_matches("tier:epic", pet) and not Sewing.mark_matches("trait:lazy", pet)
+		and not Sewing.mark_matches("part:accessory:halo", pet), "and nothing else (finishes and tiers are exact)")
+	_check(not Sewing.mark_matches("buttons:1", pet), "no buttons, no button lock")
+	pet.buttons = { "body": 2, "eyes": 1 }
+	_check(Sewing.mark_matches("buttons:3", pet) and not Sewing.mark_matches("buttons:4", pet), "a button lock counts every button on the pet")
+	var other := _plain_pet(catalog, "epic", "normal", 10)
+	other.parts.body = "cat"
+	other.traits.clear()
+	var tin := Sewing.room(catalog, 0)
+	_check(Sewing.marks_on(tin, [other]) == [false, false, false] and not Sewing.unlocked(tin, [other]), "the tin is locked for a plain epic cat")
+	_check(Sewing.unlocked(tin, [other, pet]) and Sewing.ticks(tin, [other, pet]) == [false, true], "a matching front row pet fills every mark and gets a tick")
+	_check(Sewing.shown(Sewing.fresh()) == 1 and Sewing.shown({ "cleared": 3 }) == 4, "only the rooms cleared and the next one show")
+	_check(Sewing.clean({ "cleared": "x" }).cleared == 0 and Sewing.clean(null).cleared == 0 and Sewing.clean({ "cleared": -4 }).cleared == 0, "junk loads as a fresh sewing room")
+
+	# keep lines: one from the tin, one more from rooms 4 and 7, capped
+	_check(Sewing.keep_lines(catalog, 0) == 0 and Sewing.keep_lines(catalog, 1) == 1 and Sewing.keep_lines(catalog, 4) == 2
+		and Sewing.keep_lines(catalog, 7) == 3 and Sewing.keep_lines(catalog, 50) == 3, "keep lines: 1 at the tin, then 2 and 3")
+	var opts := Sewing.keep_options(catalog, { "part:accessory:halo": true, "part:body:blob": true })
+	_check(opts[0] == "" and "trait:zoomy" in opts and "part:accessory:halo" in opts and not "part:accessory:horns" in opts and not "part:body:blob" in opts,
+		"keep lines pick nothing, a trait, or a knack part the book has seen (%s)" % [opts])
+	_check(Sewing.keep_word(catalog, "trait:zoomy") == "zoomy ones" and Sewing.keep_word(catalog, "part:accessory:halo") == "halos"
+		and Sewing.keep_word(catalog, "") == "nothing", "keep lines read keep ‹zoomy ones›, keep ‹halos›")
+	var kept := {}
+	var dropped: Array = []
+	for i in Sewing.keep_cap(catalog) + 3:
+		dropped.append_array(Sewing.keep(catalog, kept, "trait:zoomy", str(i)))
+	_check(kept["trait:zoomy"].size() == Sewing.keep_cap(catalog) and dropped == ["0", "1", "2"] and kept["trait:zoomy"].back() == str(Sewing.keep_cap(catalog) + 2),
+		"a keep line keeps the newest %d, the oldest drop off" % Sewing.keep_cap(catalog))
+
+	# a room run: one fight, a clear pays, a room too strong pays nothing, losses are capped
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	var strong := Sewing.simulate(catalog, _army(20, 1.0e6, 280, 1.0e5), tin, {}, rng)
+	_check(strong.why == "target" and strong.floors.size() == 1 and bool(strong.floors[0].cleared) and Dungeon.run_pay(strong) == Sewing.pay(catalog, tin, 300, 0),
+		"a strong army clears the room and brings its wisps (%d)" % Dungeon.run_pay(strong))
+	_check(int(strong.floors[0].f) == int(d.door_floor), "a room run stands at the door on floor %d" % int(d.door_floor))
+	var weak := Sewing.simulate(catalog, _army(20, 1.0, 280, 1.0), tin, {}, rng)
+	var lost := Dungeon.run_lost(weak)
+	var lost_n: int = lost[0].size() + Herd.total(lost[1])
+	_check(weak.why == "stuck" and Dungeon.run_pay(weak) == 0, "a weak army doesn't clear the room and brings nothing")
+	_check(lost_n > 0 and lost_n <= ceili(300 * float(catalog.dungeon.losses.max_share)) + 1, "it loses some, never more than the cap (%d)" % lost_n)
+	var run := { "floors": strong.floors, "room": 0, "door": 20, "seconds": 60.0 }
+	_check(is_equal_approx(Dungeon.run_seconds(catalog, run), 60.0) and is_equal_approx(Dungeon.run_floor(catalog, run, 30.0), 20.0),
+		"a room run takes its own time, at the door")
+
+
+## The sewing room in the game (GameState): hidden until the key, locked rooms can't be entered, a run
+## keeps the army busy and pays, the firsts (keep lines, the plushie machine) come once, keep lines
+## keep matching pets from boxes as cards (capped, the stall and the rule never take them), rolled
+## rooms after the last, and it all comes back from the save (a v26 save loads with none of it).
+func _test_sewing_game(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped the sewing room in the game: it needs a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var pets := []
+	for i in 12:
+		var p := _plain_pet(catalog, "epic", "holo", 300 + i)  # holo: they stay cards
+		p.uid = str(i + 1)
+		p.parts.body = "cat"
+		p.traits.clear()
+		pets.append(p.to_dict())
+	var old := { "version": 26, "coins": 1000, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(),
+		"unlocks": ["page:beyond", "location:well", "feature:dungeon", "feature:new_homes", "feature:sorting", "feature:parts"],
+		"finds": ["deep_rope"],
+		"collection": { "pets": pets, "active": "1", "next_id": 13, "seen": {}, "herd": { "common:normal": 400 }, "herd_ever": true },
+		"dungeon": { "deep": 12, "bands": ["well", "cellar"] }, "room": 30 }
+	SaveFile.write(path, old)
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	_check(gs.sewing.cleared == 0 and not gs.sewing_open() and not gs.finds.has("little_key"), "a v26 save loads with no sewing room (and no key before floor 20)")
+	_check(gs.homes.rule.lines.is_empty() and gs.homes.kept.is_empty(), "and no keep lines")
+	gs.grant({ "find:little_key": 1 })
+	_check(gs.sewing_open(), "the tiny key opens the sewing room's door")
+	gs.army_best()
+	gs.set_army_herd("common", 100)
+	_check(not gs.sew_can_go(0) and not gs.send_to_room(0), "the button tin's chalk lock keeps a front row of plain epic cats out")
+	_check(not gs.sew_can_go(1), "the next room doesn't even show yet")
+	var front: Array = gs.sew_front()
+	front[0].parts.body = "bunny"
+	front[1].finish = "shiny"
+	front[2].rarity = "rare"
+	_check(gs.sew_marks(0) == [true, true, true] and gs.sew_can_go(0), "a bunny, a shiny one and a rare one fill the tin's marks")
+	var busy_uid: String = front[3].uid
+	_check(gs.send_to_room(0) and gs.dungeon_running() and gs.dungeon.run.room == 0, "in we go: the army's in the button tin")
+	_check(not gs.resting_cards().any(func(p): return p.uid == busy_uid) and not gs.send_army(), "its pets are busy, and nobody else goes down meanwhile")
+	var herd0: int = gs.collection.herd_count("common:normal")
+	gs.dungeon.run.at = 0.0
+	gs.dungeon.run.floors = [{ "f": 20, "cleared": true, "lost_cards": [busy_uid], "lost_herd": { "common:normal": 3 }, "pay": 7 }]
+	var wisps0: int = gs.wisps
+	gs._dungeon_tick()
+	_check(not gs.dungeon_running() and gs.wisps == wisps0 + 7 and gs.sewing.cleared == 1, "back from the tin: its wisps paid, one room cleared")
+	_check(gs.collection.get_pet(busy_uid) == null and gs.collection.herd_count("common:normal") == herd0 - 3, "the ones that didn't come back are gone")
+	_check(gs.dungeon.last.get("room", -1) == 0 and gs.feature_on("keep_lines") and gs.keep_line_count() == 1, "the last time card knows the room; keep lines open")
+	_check(gs.sew_can_go(0) and Sewing.shown(gs.sewing) == 2, "the tin can be done again, and the pin cushion shows")
+	# a replay gives no firsts; a room too strong isn't cleared
+	gs.send_to_room(0)
+	gs.dungeon.run.at = 0.0
+	gs._dungeon_tick()
+	_check(gs.sewing.cleared == 1, "doing the tin again doesn't count as a new room")
+	# your pet leading the army waits at home while the sewing room is open on screen
+	gs.automation.taught["army"] = true
+	gs.automation.task = "army"
+	gs.army_held = true
+	gs._dungeon_tick()
+	_check(not gs.dungeon_running() and gs.sew_can_go(0), "leading the army waits while the sewing room shows")
+	gs.army_held = false
+	gs._dungeon_tick()
+	_check(gs.dungeon_running() and not gs.dungeon.run.has("room"), "and takes it down the well again once it's closed")
+	gs.dungeon.run.at = 0.0
+	gs.automation.task = ""
+	gs._dungeon_tick()
+	gs.debug_sewn(0)
+	# keep lines: matching pets from boxes stay cards past keep_cards, capped, never sorted or taken
+	gs.set_rule("on", true)
+	gs.set_rule("below", "rare")
+	gs.set_rule("keep", "holo")
+	_check(gs.set_keep_line(0, "trait:zoomy") and not gs.set_keep_line(1, "trait:lazy"), "one keep line so far")
+	gs.bag["starter"] = 400
+	var pulled: Array = gs.open_boxes("starter", 400, "common")
+	var zoomy := pulled.filter(func(p): return "zoomy" in p.traits and Herd.plain(catalog, p.finish))
+	var cap := Sewing.keep_cap(catalog)
+	var kept_now := zoomy.slice(maxi(0, zoomy.size() - cap))
+	_check(zoomy.size() > cap, "enough zoomy commons to fill the line (%d)" % zoomy.size())
+	_check(kept_now.all(func(p): return gs.collection.get_pet(p.uid) != null and gs.collection.keep_uids.has(p.uid)), "the newest zoomy ones stay cards")
+	_check(gs.kept_count("trait:zoomy") == cap and not zoomy.slice(0, zoomy.size() - cap).any(func(p): return gs.collection.keep_uids.has(p.uid)),
+		"only the newest %d: the oldest ones became plain again" % cap)
+	_check(pulled.filter(func(p): return gs.collection.get_pet(p.uid) != null and not p.new_part and Herd.plain(catalog, p.finish) and not "zoomy" in p.traits).is_empty(),
+		"the rule still sorts every other common away")
+	var plan: Dictionary = gs.homes_pick("common")
+	_check(not plan.cards.any(func(uid): return gs.collection.keep_uids.has(uid)), "the stall never takes a kept pet")
+	gs.set_rule("on", false)
+	var more: Array = gs.open_boxes("starter", 0, "common")
+	gs.bag["starter"] = 40
+	more = gs.open_boxes("starter", 40, "common")
+	var zoomy2 := more.filter(func(p): return "zoomy" in p.traits and Herd.plain(catalog, p.finish))
+	_check(zoomy2.all(func(p): return gs.collection.keep_uids.has(p.uid)), "keep lines keep with the rule off too")
+	gs.set_keep_line(0, "")
+	_check(gs.collection.keep_uids.is_empty() and gs.homes.kept.is_empty(), "changing a line lets its pets go")
+	gs.set_keep_line(0, "trait:zoomy")
+	# the last room: the plushie machine and a free button; then rolled rooms
+	var active: Pet = gs.collection.active()
+	var buttons0 := Plushie.total(active)
+	gs.debug_sewn(Sewing.fixed_count(catalog))
+	_check(gs.plushie_open() and Plushie.total(active) == buttons0 + 1, "the last room opens the plushie machine and sews a button onto your pet")
+	_check(gs.keep_line_count() == 3, "three keep lines by then")
+	var next: Dictionary = gs.sew_room(int(gs.sewing.cleared))
+	_check(next.rolled and str(next.marks[0]).begins_with("buttons:"), "the room after the last is rolled, with a button lock")
+	# a round trip: the sewing room, keep lines and a room run out
+	gs.set_keep_line(2, "trait:lazy")
+	gs.debug_sewn(0)
+	gs.dungeon.run = { "at": Time.get_unix_time_from_system(), "floors": [{ "f": 20, "cleared": true, "lost_cards": [], "lost_herd": {}, "pay": 1 }],
+		"why": "target", "turned": 0, "cards": [], "herd": {}, "sent": 1, "target": 5, "room": 3, "door": 20, "seconds": 60.0 }
+	gs.save_game()
+	var gs2: Node = load("res://scripts/game_state.gd").new()
+	_check(gs2.sewing.cleared == gs.sewing.cleared and gs2.sewing_open(), "the sewing room comes back from the save")
+	_check(gs2.keep_lines() == gs.keep_lines() and gs2.kept_count("trait:zoomy") == gs.kept_count("trait:zoomy")
+		and gs2.collection.keep_uids.size() == gs.collection.keep_uids.size(), "keep lines and their pets come back (%s)" % [gs2.keep_lines()])
+	_check(gs2.dungeon_running() and int(gs2.dungeon.run.room) == 3 and gs2.dungeon_left() > 50.0, "a room run out comes back too")
+	gs2.free()
+	# a save from before that had been past floor 20 has the key (the door shows)
+	var older := old.duplicate(true)
+	older.dungeon = { "deep": 21, "bands": ["well", "cellar", "below"] }
+	SaveFile.write(path, older)
+	var gs3: Node = load("res://scripts/game_state.gd").new()
+	_check(gs3.finds.has("little_key") and gs3.sewing_open(), "a v26 save past floor 20 gets the key and its door")
+	gs3.free()
+	gs.free()
 	for f in [path, path + ".bak", path + ".tmp"]:
 		if FileAccess.file_exists(f):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))

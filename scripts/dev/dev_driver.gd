@@ -73,6 +73,13 @@ extends Node
 ##   rule on|off [below] [to] [keep]  the sorting rule (below: a rarity, to: homes | work, keep: a finish)
 ##   join <job> on|off     "new pets join here" on an errand or a workers' job
 ##   homes-points <n>      the new homes jar has exactly n points
+##   door                  the dungeon page's column slides over to the sewing room (like tapping its door)
+##   sew-room <n>          the sewing room shows room n (1 = the button tin; only rooms that show)
+##   sewn <n>              the first n rooms of the sewing room are cleared, with their real firsts
+##   in                    the army goes into the room shown (fails if it can't)
+##   card <k>=<v> ... [n]  n new card pets (1 if left out) with these parts, trait, finish and rarity, e.g.
+##                         card body=bunny rarity=rare finish=shiny trait=zoomy (they aren't in the book)
+##   keep <line> <pick|none>  the sorting card's keep line (1 = the first) keeps that, e.g. trait:zoomy
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -457,6 +464,65 @@ func _step(w: PackedStringArray) -> String:
 		"homes-points":  # homes-points <n>: the jar has exactly n points
 			GameState.homes.points = clampi(int(w[1]), 0, NewHomes.box_at(GameState.catalog) - 1)
 			GameState.changed.emit()
+		"door":  # the column slides over to the sewing room
+			home.full_game().show_tab("adventures")
+			home.full_game().adventures.show_page(2)
+			var view: DungeonView = home.full_game().adventures.dungeon_view
+			view.show_rooms(true)
+			if not view.in_rooms():
+				return "the sewing room isn't open"
+		"sew-room":  # sew-room <n>: the room shown
+			var view: DungeonView = home.full_game().adventures.dungeon_view
+			var i := int(w[1]) - 1
+			if i < 0 or i >= Sewing.shown(GameState.sewing):
+				return "room %s doesn't show" % w[1]
+			view.rooms().room = i
+			view.rooms().room_changed.emit()
+		"sewn":  # sewn <n>: the first n rooms are cleared
+			GameState.debug_sewn(int(w[1]))
+		"in":  # the army goes into the room shown
+			var view: DungeonView = home.full_game().adventures.dungeon_view
+			if not GameState.send_to_room(view.rooms().room):
+				return "the army couldn't go into room %d" % (view.rooms().room + 1)
+		"card":  # card body=bunny rarity=rare finish=shiny trait=zoomy [n]
+			var n := 1
+			var fields := {}
+			for pair in w.slice(1):
+				if pair.is_valid_int():
+					n = int(pair)
+					continue
+				var kv := pair.split("=")
+				if kv.size() != 2:
+					return "card wants key=value, not %s" % pair
+				fields[kv[0]] = kv[1]
+			var made: Array[Pet] = []
+			for i in n:
+				var pet := GameState._roller.roll("starter", str(fields.get("rarity", "")))
+				for k in fields:
+					match k:
+						"rarity":
+							pass
+						"finish":
+							if GameState.catalog.finish(fields[k]).id != fields[k]:
+								return "unknown finish %s" % fields[k]
+							pet.finish = fields[k]
+						"trait":
+							if not GameState.catalog.traits.any(func(t): return t.id == fields[k]):
+								return "unknown trait %s" % fields[k]
+							if not fields[k] in pet.traits:
+								pet.traits.append(fields[k])
+						_:
+							if not k in Catalog.SLOTS or GameState.catalog.part(k, fields[k]).is_empty():
+								return "unknown part %s=%s" % [k, fields[k]]
+							pet.parts[k] = fields[k]
+				made.append(pet)
+			GameState.collection.add(made)
+			for pet in made:
+				pet.new_part = false  # like any other card (it may fold if plain)
+			GameState.changed.emit()
+		"keep":  # keep <line> <pick|none>
+			if not GameState.set_keep_line(int(w[1]) - 1, "" if w[2] == "none" else w[2]):
+				return "can't set keep line %s to %s" % [w[1], w[2]]
 		"quit":
 			_finish()
 		_:
