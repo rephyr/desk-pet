@@ -44,12 +44,13 @@ Built (see CLAUDE.md "Where we left off"):
 - **On test (2026-09-29, wave A):** A2 gear, A3 more errand jobs, A4 book rewards, X4 tests, A1
   pace sim, PRICES, B2 boost plumbing + D1 knacks, B1 box tiers + the small picks, B3 the whistle,
   C1 the bookcase + the herd, C3 new homes (save v28).
-- **Merged in lanes/merge (2026-09-29, wave B, goes to test once the merge verify passes):** B2
+- **On test too (2026-09-29, wave B, merge verify passed, pushed from lanes/merge):** B2
   the receipt, care A/E/C (presents save v29), A5 the sunset globe (v30), E2 next door (v31), C2
   past the edge + the little school (v32), E1 the old well (v33), F1/F2 the plushie machine (v34),
   E3 the sewing room (v35), the wisps perk wall (v36), held landings (v37), the wishing jar (v38),
   the shed workshop (v39), the room house card (v40), the round 3 mockups; then the A1 balance
-  picks, a pace re-run and the rule-break cleanup (see "Still to do around the merge").
+  picks, a pace re-run, the rule-break cleanup, Emilia's answers after the merge and the balance
+  fixes from the third pace run (see "Still to do around the merge").
 - Tools: tests/test_core.gd, tools/play.py flows, tools/balance.gd, tools/pace.gd (A1),
   tools/machine_pace.gd.
 
@@ -328,7 +329,8 @@ node labels are fixed: names wrap to their room.)
   pet counts toward the room, pets on jobs too.** BUILT (lane house, notes in
   docs/plans/HOUSE-done.md), merged as save v40: 4 coin steps (capsules x coin value), then wisp
   squeeze-in steps (hidden until wisps: the dungeon or the plushie machine open), then endless "one
-  more squeeze". Placeholders: sizes and prices wait for the pace sim. Flow: house.
+  more squeeze". Coin steps set by the pace sim (2026-09-29): 12500 / 17500 / 30000 / 40000
+  capsules, about a sunny box per new bed; the wisp steps are still placeholders. Flow: house.
 - **Built 2026-09-28 (lane c1-c3, notes in docs/plans/C1-done.md):** look A, the bookcase: cushion
   (active, favourites, best), a plank per rarity (tag, newest 4, a mound that grows with the count,
   shiny count, the best knack's badge on each card's corner), a shelf opened (herd chips,
@@ -675,7 +677,8 @@ node labels are fixed: names wrap to their room.)
   until you tap it.
 - **Care A built:** food/mood only drain while the game is open, full tummy (coins x1.2) / happy
   (luck x1.1) above 70 as `care` boost parts (only while open: none on offline catch-up), kitchen
-  keeps 70, snacks 3 capsules x coin_value, pats +8 mood once per 30 s, coin trickle removed, new
+  keeps 70, snacks 3 capsules x coin_value, pats +8 mood once per 300 s (was 30 s; picked from the
+  pace sim 2026-09-29, no daily cap), coin trickle removed, new
   games start at 70/70. data/care.json, `Care`, flow care. No save bump.
 - **Quiet paws (care E) built:** out on your windows your pet acts out its job with poses only
   (boxes routine on a window edge, tiny crank machine, a good pull held up 4 s, foot tap facing the
@@ -731,26 +734,35 @@ notes stay on the page and keep clear of the walking tag; the pet says two bits 
 bubble after the other; machine tree names wrap; the prizes card sits over the tape; the chest
 finds no parts before parts are in the game.
 
-Left:
-- **Re-run the merge verify** on the cleanup commits (the last verify ran before the workbench /
-  bag / map note / bubble fixes), then push lanes/merge to `test`.
-- The backyard map by the garden path was crowded (walking tag on "home ♡", the workshop's bell on
-  the shed's "dusty" note, the basket by the path's label): the last fix moves the tag and the
-  basket; look at the bits_map / gear / next_door / workshop map shots again in the re-verify.
-- **Emilia's call:** locked errands things still show their requirement ("a lemonade stand /
-  opens at coin hunt lv 10 / 0 / 10", "scouting opens at savings jar lv 10", pegboard tools "at lv
-  10" / "needs shiny balls"). That's the deliberate "next goal" note (errands_tab.gd
-  `shown_wait`), but it goes against "hidden until earned". Keep or hide?
-- The pace findings (errands flood after better drops, automation bought at once, scouting never
-  opens in 4 h): pick from the report's suggestions.
-- Old saves: v29-v40 only ever lived in test profiles; real saves on test are at v28.
+Then (2026-09-29 afternoon/evening, all on lanes/merge, merge verify PASSED, pushed to `test`):
+- **Emilia's answers** (docs/picks.md "Answers after the merge"): the rope into the dungeon counts
+  every pet ever sent to the well (save field `sent`, `after_sent` ~100); errands are hidden until
+  earned (no "opens at coin hunt lv 10" waiting notes or "opens" goal lines, the job just turns
+  up); the music box's away runs only take floors cleared safely (`away_safe` 2, nobody lost while
+  closed); the edge and wishing jar popups lose their "don't come back" lines; the sunset globe's
+  later fixes stay dim by name and cost; the plushie keeper stays one place at a time.
+- **Balance fixes from the third pace run** (docs/reports/pace.md, A1 above): errands crew_power
+  0.8 -> 0.2 (teamwork +0.01), coin hunt pay 5 -> 20 and lemonade 3 -> 12 capsules, goals x1.1 /
+  1.1 / 1.2, lemonade tips 1.15-3, fancy cups x1.5, sweeter lemons grow 1.3, kitchen most 0.3, the
+  savings jar 350 capsules + crew power 0.05 (bigger jar 105 / 1.3 / +90, wider slot 160), new
+  glass 1 glass, automation prices x5, room steps 12500 / 17500 / 30000 / 40000 capsules, pat
+  cooldown 300 s. The sim buys room steps, pats on its own clock and no longer knows where finds
+  are. Tests and flows follow the new numbers (errand_tools, errand_jobs, house, pets_shelves,
+  globes).
+- The crowded backyard map: walking tags keep off the edge, each other and the place drawings.
+- Old saves: v29-v40 only ever lived in test profiles; Emilia's real save was at v28 before this push.
 
 ## Open questions from the lanes (ask Emilia)
 
 Every lane's full list is in docs/plans/<STEP>-done.md ("Questions for Emilia"); the short ones
 are collected at the end of docs/picks.md. The bigger ones:
-- A1: should errands out-earn the lever (picked: 1-3x), how much your pet's crank matters, is 4 h
-  the early game (toys left out of the sim)?
+- A1 (third pace run, docs/reports/pace.md "What's still off"): errands dip to ~0.6x the lever
+  right after the lights (fever pays the lever only) and sit under 1x for the first 20 minutes
+  after the basket; errands creep up with the herd (3.2x at 4 h, a wisp-sized room will pass 3x);
+  workers reach ~40% of the lever by 4 h (fine, or dearer spots?); scouting lands anywhere from 43
+  to 133 min (78 median); casual trips take 20-25 min, so casual players make ~12 trips in 4 h and
+  rarely find the cart (the biggest thing between them and the lights); bits stay the only tree
+  gate. Is 4 h the early game (toys, trail pickups and time away aren't in the sim)?
 - A2: the leaf only saves from "hurt", not "lost"; the harness shows at the wheelbarrow.
 - A3: a floor on the kitchen's bonus at huge crews? A4: several full pages at once queue their
   popups one by one (or one popup?).
@@ -762,7 +774,7 @@ are collected at the end of docs/picks.md. The bigger ones:
 - B3: the whistle at 30 workers, caps (backyard 60 / 20, beyond 600 / 200) also stop buying by
   hand, set aside starts at 250k, hauls go to the cheapest next spot.
 - C1: holo+ are always cards (~150k cards after a million pulls: only holo+ with something extra?);
-  room sizes and prices (now the house card's steps) wait for the pace sim; herd pets work at average stats with no traits.
+  herd pets work at average stats with no traits. (Room steps set by the pace sim, answered 2026-09-29.)
 - C3: errand join switches live in the shoebox; the rule's "below" tops out at mythic (add "any
   rarity"?); a million commons pay 40,000 boxes at once (shrink points as the herd grows?).
 - D1: knacks open with parts (40 trips; earlier?); the crown says "automation" (keep "workers"?);
@@ -777,7 +789,7 @@ are collected at the end of docs/picks.md. The bigger ones:
 - B2 receipt: it folds on a tab switch; a prize draws over the open machine slip and the slip
   stays open after the pull; the tag shows only once coins have a source; should it shrink to fit
   a short list?
-- Care: pats +8 mood once per 30 s (longer or a daily cap?); buffs never count for closed time;
+- Care: pats +8 mood once per 300 s, no daily cap (answered 2026-09-29); buffs never count for closed time;
   snack = 3 capsules; new games start at 70/70. Quiet paws: default "everything" or "big things";
   it needs ~92 px beside the pet. Presents: first one 3 h after the boxes tab opens; a toy comes
   with a box, not instead.
@@ -805,16 +817,17 @@ are collected at the end of docs/picks.md. The bigger ones:
 - Shed workshop: the "adventure ›" / "workshop ›" pills; the chore chart = every errand joins;
   the treat banner tosses full treats; letterbox postcards aren't saved; needs (40..5000) may be
   small at whistle time.
-- House: after the attic the room waits for wisps (late); endless steps x4 wisps grow very fast;
+- House: coin steps 12500-40000 capsules (answered 2026-09-29); after the attic the room waits
+  for wisps (late); endless steps x4 wisps grow very fast;
   "more room" costs 500 capsules x1.8 a level (97M coins on a maxed machine: too steep?).
 - Merges: herd counts count no knacks (x1); a sunset box opens with 1 space left (the room can go
   over by a pet or two); parties the game places skip dungeons and risky places that aren't ours.
 
 ## Suggested order
 
-Re-verify lanes/merge and push it to `test` → Emilia's answers (the errands "next goal" note, the
-lane questions above, the pace suggestions) → apply the pace picks + a new pace run → A5's midnight
-globe (next door is in) → F2's handoff rules → X2
+(Done 2026-09-29: merge verified and pushed, the errands note hidden, the pace fixes + third run.)
+Emilia plays the new pace by hand and answers the open questions above (the A1 "still off" list
+first) → A5's midnight globe (next door is in) → F2's handoff rules → X2
 (split GameState, ~6000+ lines now) → Phase G (sound, art, Windows build).
 
 Each step's **Prep** can be done ahead: answering its questions or picking its mockup look makes
