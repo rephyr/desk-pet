@@ -498,8 +498,8 @@ node labels are fixed: names wrap to their room.)
   sent by shelf (500 / 2k / 8k, then x3; data/dungeon.json hold); the orders start from the
   deepest held one ("start from ‹the top | landing N›"); skipped floors pay no lanterns and take
   no time; a held guard landing has no guard; holders stay on for good with no star. Flow held.
-- Still open from E1: nothing sends 100 pets at once in normal play, so the rope find (min_party
-  100, after the whistle) needs a way there (big parties from the whistle, or fewer pets); the
+- The rope find (after the whistle) counts every pet ever sent to the well: once ~100 have gone
+  down (`after_sent`, data), the next party finds it (answered 2026-09-29). Still open from E1: the
   wall under 0.4 of a floor's strength; the knock-back miss pays nothing.
 
 ### E2. The next map page (zone 3) and the invasion lore  (BUILT 2026-09-29, lane nextdoor, merged as save v31)
@@ -782,7 +782,7 @@ are collected at the end of docs/picks.md. The bigger ones:
 - C2: a page's need lowered below what a save already sent carries the extra on (or drop it?);
   the school speeds machine, box and errand workers (not worker parties); it opens after 100 pets
   past the edge; the edge popup says pets "don't come back" (keep or cut?).
-- E1: nothing sends 100 pets at once, so the rope can't be found in normal play; floor 10's epic
+- E1: floor 10's epic
   part waits until parts open (or give it straight away?); a floor below 0.4 of its strength is a
   wall; army picks stay reserved while home.
 - F1: buttoned parts can still slip when sewn (buttons lost); the hopper has no take-back; the
@@ -807,7 +807,7 @@ are collected at the end of docs/picks.md. The bigger ones:
 
 Re-verify lanes/merge and push it to `test` → Emilia's answers (the errands "next goal" note, the
 lane questions above, the pace suggestions) → apply the pace picks + a new pace run → A5's midnight
-globe (next door is in) → something that sends 100 pets (the rope) → F2's handoff rules → X2
+globe (next door is in) → F2's handoff rules → X2
 (split GameState, ~6000+ lines now) → Phase G (sound, art, Windows build).
 
 Each step's **Prep** can be done ahead: answering its questions or picking its mockup look makes

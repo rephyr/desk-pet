@@ -382,7 +382,9 @@ unknown ids dropped) and `machine.greeted` (the machine tab showed it arriving).
 save without them just the first globe for both (no `_migrate` step needed). On every load a save with a globe's find but not the globe gets it. The globe
 you pull is derived (`Machine.hand`: the newest globe whose `works` repair is fixed), never saved.
 Save v31 (built as v24 in its lane) counts visits per place (`visits`: trips welcomed back with somebody home; old saves get
-one per place in `visited`) and runs save `ours`. Whether a place is ours is never saved: `Ours`
+one per place in `visited`) and runs save `ours`. The save also counts pets sent per place (`sent`, every party added
+up, no version bump: a save without it starts from its visits plus the parties still out); an
+event with `after_sent` waits for that many (the rope at the well). Whether a place is ours is never saved: `Ours`
 (scripts/adventure/ours.gd) works it out from the visits against its `lights` (next door) or its
 page's `ours_after` (the backyard), or `ours_at_start`, and only while next door is open. An ours
 run meets the place through `AdventureRunner.place` (danger and loot scaled, worked out once per

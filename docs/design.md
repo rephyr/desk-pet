@@ -708,8 +708,9 @@ All opt-in, with odds shown before confirming:
 ## The old well (dungeon)
 
 - **Built (E1, look A: the cross-section):** the well line is one dungeon. The top of the well
-  stays a trip (parties of up to 100, no swarms); a party of 100 there finds "the rope goes further
-  down" (`deep_rope`), which opens the dungeon as a third page in adventures (adventures | upgrades
+  stays a trip (parties of up to 100, no swarms); every pet ever sent there counts
+  (`GameState.sent`, saved), and once ~100 have gone down (event `after_sent`), the next party finds
+  "the rope goes further down" (`deep_rope`), which opens the dungeon as a third page in adventures (adventures | upgrades
   | dungeon, a coral lantern chip with the wisps by the switch). The cellar and further down stop
   being trips: they're bands of the well (old saves that had them keep them as bands already
   reached; their rumours are never heard again). data/dungeon.json, `Dungeon`.

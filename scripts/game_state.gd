@@ -77,6 +77,7 @@ var visited := {}
 ## Places a pet spotted on a trip, waiting for you: location id -> { by, from }
 var spotted := {}
 var visits := {}  # location id -> trips welcomed back from there (next door's lights go out one a visit, see Ours)
+var sent := {}  # location id -> pets ever sent there, every party added up (the rope at the well waits for enough, see after_sent)
 var unshown_ours := {}  # location id -> true: it became ours and the map hasn't coloured it in yet (MapView, then ours_shown; not saved)
 var spot_tries := {}  # location id -> trips that could have spotted it but didn't (the safety net)
 var finds := {}  # special items pets have brought home, see data/unlocks.json
@@ -1233,6 +1234,11 @@ func next_door_open() -> bool:
 
 
 ## Trips welcomed back from a place.
+## Pets ever sent to a place, every party added up.
+func sent_to(location_id: String) -> int:
+	return int(sent.get(location_id, 0))
+
+
 func visits_at(location_id: String) -> int:
 	return int(visits.get(location_id, 0))
 
@@ -1397,6 +1403,7 @@ func debug_new_game() -> void:
 	_worker_speed.clear()
 	visited.clear()
 	visits.clear()
+	sent.clear()
 	unshown_ours.clear()
 	saved_boxes.clear()
 	reserve_capsules = default_reserve()
@@ -4427,6 +4434,7 @@ func debug_lock_all() -> void:
 	spotted.clear()
 	spot_tries.clear()
 	visits.clear()
+	sent.clear()
 	unshown_ours.clear()
 	adventures_changed.emit()
 	changed.emit()
@@ -4689,7 +4697,8 @@ func send_on_adventure(location_id: String, pets: Array[Pet], by_you := true) ->
 	# every trip packs the gear you have when it sets off (yours, your pet's and the workers' parties;
 	# never dungeons, see Gear.for_trip)
 	var run := AdventureRunner.start(location_id, going, Time.get_unix_time_from_system(), _rng.randi(), catalog, finds, machine.bought,
-		Gear.for_trip(catalog, gear, location), trip_knacks(going), workers_total(), is_ours(location_id))
+		Gear.for_trip(catalog, gear, location), trip_knacks(going), workers_total(), is_ours(location_id), sent_to(location_id))
+	sent[location_id] = sent_to(location_id) + going.size()
 	run.parts = feature_on("parts")
 	# auto parties (your pet's, the workers') never take a note: skip the looking around for them
 	if by_you and scout_notes > 0 and Jobs.takes_note(catalog, location, by_you, scout_notes,
@@ -5858,6 +5867,7 @@ func save_game() -> void:
 		"boxes_greeted": boxes_greeted.keys(),
 		"visited": visited.keys(),
 		"visits": visits,
+		"sent": sent,
 		"buying_on": buying_on,
 		"pinned": pinned,
 		"rummaged": rummaged,
@@ -6032,6 +6042,19 @@ func _load_save() -> bool:
 	for id in saved_visits:
 		if not catalog.location(str(id)).is_empty():
 			visits[str(id)] = maxi(0, int(saved_visits[id]))
+	sent.clear()
+	if data.has("sent"):
+		var saved_sent: Dictionary = data.sent
+		for id in saved_sent:
+			if not catalog.location(str(id)).is_empty():
+				sent[str(id)] = maxi(0, int(saved_sent[id]))
+	else:
+		# from before pets sent were counted: every trip welcomed back had at least one pet, and the
+		# parties still out count in full
+		for id in visits:
+			sent[id] = int(visits[id])
+		for run in runs:
+			sent[run.location_id] = sent_to(run.location_id) + run.party.setting_out()
 	saved_boxes.clear()
 	for id in data.get("saved_boxes", []):
 		saved_boxes[str(id)] = true

@@ -1172,6 +1172,12 @@ func _test_whistle(catalog: Catalog) -> void:
 	_check(not "well_whistle" in AdventureRunner.pick_events(well, 1, {}, catalog, {}, need - 1), "no whistle with %d workers" % (need - 1))
 	_check("well_whistle" in AdventureRunner.pick_events(well, 1, {}, catalog, {}, need), "the whistle with %d workers" % need)
 	_check(not "well_whistle" in AdventureRunner.pick_events(well, 1, { "whistle": true }, catalog, {}, need), "found once, gone")
+	var rope_at := int(catalog.events.well_rope.get("after_sent", 0))
+	_check(not "well_rope" in AdventureRunner.pick_events(well, 1, { "whistle": true }, catalog, {}, need, false, rope_at - 1), "no rope with %d pets sent to the well" % (rope_at - 1))
+	_check("well_rope" in AdventureRunner.pick_events(well, 1, { "whistle": true }, catalog, {}, need, false, rope_at), "the rope once %d have gone down" % rope_at)
+	var alone: Array[Pet] = [_plain_pet(catalog, "common", "normal", 1)]
+	var lone := AdventureRunner.start("well", alone, 0.0, 1, catalog, { "whistle": true }, {}, {}, {}, need, false, rope_at)
+	_check("well_rope" in lone.events and AdventureRunner.applies(catalog.events.well_rope, lone.party), "a lone pet meets the rope once enough have gone down")
 	_check(Automation.job(catalog, "whistle").get("id", "") == "whistle" and Automation.tool(catalog, "wagon").get("job", "") == "whistle",
 		"the whistle is a job with its own tools")
 	_check(Automation.tool_block(Automation.fresh(), Automation.tool(catalog, "pencil")) == "closed", "its tools wait for the whistle")
@@ -5167,6 +5173,27 @@ func _test_dungeon_game(catalog: Catalog) -> void:
 	_check(gs.send_on_adventure("cellar", some) == null, "nobody can be sent to a band")
 	_check(gs.location_open(catalog.location("well")), "the top of the well is still a trip")
 	_check(not gs.dungeon_open(), "the dungeon waits for the rope find")
+	# the rope: every pet ever sent to the well counts, and the next party once enough have gone finds it
+	var rope_at := int(catalog.events.well_rope.get("after_sent", 0))
+	_check(rope_at > 0 and not catalog.events.well_rope.has("min_party"), "the rope waits for pets sent to the well, not one big party (%d)" % rope_at)
+	_check(gs.sent_to("well") == 0, "an old save with no visits starts the count at 0 (%d)" % gs.sent_to("well"))
+	gs.finds["whistle"] = true
+	var two: Array[Pet] = [gs.collection.get_pet("2")]
+	var first_run: RunState = gs.send_on_adventure("well", two)
+	_check(first_run != null and gs.sent_to("well") == 1, "a lone pet counts one (%d)" % gs.sent_to("well"))
+	_check(not "well_rope" in first_run.events, "no rope while few have gone down")
+	gs.sent["well"] = rope_at - 1
+	var one: Array[Pet] = [gs.collection.get_pet("3")]
+	var short_run: RunState = gs.send_on_adventure("well", one)
+	_check(short_run != null and not "well_rope" in short_run.events and gs.sent_to("well") == rope_at, "the party that makes %d doesn't find it yet" % rope_at)
+	var next: Array[Pet] = [gs.collection.get_pet("4")]
+	var rope_run: RunState = gs.send_on_adventure("well", next)
+	_check(rope_run != null and "well_rope" in rope_run.events, "the next party at the well, even alone, finds the rope")
+	var counted: Dictionary = SaveFile.read(path).get("sent", {})
+	_check(int(counted.get("well", 0)) == rope_at + 1, "the count is saved (%s)" % [counted])
+	for r in [first_run, short_run, rope_run]:
+		gs.runs.erase(r)  # home again, for the army below
+	gs.finds.erase("whistle")
 	gs.grant({ "find:deep_rope": 1 })
 	_check(gs.dungeon_open(), "the rope find opens the dungeon")
 
