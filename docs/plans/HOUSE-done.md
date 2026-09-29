@@ -1,6 +1,7 @@
 # HOUSE: room upgrades, the dollhouse card: done notes (lane house)
 
-**Status: built, tests + balance + flows pass, not committed yet.** Save **v27** (one bump from this
+**Status: VERIFIED. Built, tests + balance + flows (house, pets_shelves, fits) pass; committed on
+lanes/house (07546a3), not pushed.** Save **v27** (one bump from this
 branch's 26; renumber at the merge).
 
 Built from docs/plans/HOUSE.md, picks.md ("Brainstorm 3 picks": room upgrades, the house card;
