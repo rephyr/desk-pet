@@ -1920,6 +1920,7 @@ class OddsCard extends Control:
 
 	func _init() -> void:
 		mouse_filter = MOUSE_FILTER_IGNORE
+		z_index = UiTheme.Z_CARD  # over the "why so much?" tape at the end of the capsule line
 		tag.name = "odds_tag"
 		tag.text = "prizes"
 		tag.focus_mode = FOCUS_NONE

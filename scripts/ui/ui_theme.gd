@@ -12,6 +12,7 @@ const FONTS_DIR := "res://fonts/"
 # what floats over the page, bottom to top (z_index; z order is shared by the whole window)
 const Z_TAPE := 2  # a "why so much?" tape, over the stickers next to what it's stuck on
 const Z_SLIP := 3  # its slip, over the stickers after it
+const Z_CARD := 3  # a card opened over a page (the machine's prizes), over the tapes on it
 const Z_PAPER := 4  # the boost receipt
 const Z_PRIZE := 4  # a prize's picture over the machine (over its slip)
 const Z_BUBBLE := 5  # your pet's speech bubble
