@@ -2,7 +2,7 @@
 
 Built from docs/picks.md (Brainstorm 3 "E3", Look picks round 3 "well additions") and the mockup
 lanes/mockups2 `design/mockups/screens/well-additions.html` (the sewing room part; the column is
-look A). Plan: docs/plans/E3.md. Not committed yet at the time of writing.
+look A). Plan: docs/plans/E3.md.
 
 ## What was built
 
@@ -145,3 +145,11 @@ paragraph before "## Testing".
    `GameState.army_held`, not saved), your pet waits at home, so you get a turn for a room once the
    army's back. Is that how it should work, or should "in we go!" queue the room as the army's next
    run (or leading the army do rooms itself)?
+
+## Verified
+
+- Step verified: test_core ALL PASSED (4041 checks), balance runs clean, flows sewing, fits,
+  dungeon, new_homes and plushie pass (`expect fits` on every sewing screen).
+- Commits on lanes/sewing: "the sewing room off the well's floor 20, keep lines" (the step), plus
+  this note. Not pushed. Save bump v26 -> v27 needs renumbering at the merge (and the "save chain
+  ends at v27" test with it).
