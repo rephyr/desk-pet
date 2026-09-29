@@ -1,0 +1,1022 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What Hangs In The Well</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* Everything that goes onto E1's old-well cross-section (dungeon.html Look A, picked):
+     1. the perk tree on the well wall: coral things on nails at the landings, the widened entrance is
+        the top nail, tap a nail and its card goes into the side column (bought with wisps), deeper nails
+        show once the army has been that deep, 2 endless tips at the bottom;
+     2. the sewing room: a little side door on floor 20, tap it and the column pans sideways to the
+        rooms, each with a chalk-drawn lock that fills in as front-row pets match;
+     3. held landings: crowds holding the rope / doors / stairs at landings 10 / 20 / 30, and
+        "start from" on the orders card.
+     Three ways to fit all of it on the one column. Wisps are the darker currency (candy floss coral). */
+  body { display: block; padding: 28px 16px 60px; }
+  .looks { display: flex; flex-direction: column; align-items: center; gap: 44px; }
+  .intro { width: 920px; max-width: 100%; }
+  .intro h1 { margin: 0 0 4px; font: var(--display-weight) 26px/1.1 var(--display); color: var(--pink); }
+  .intro p { margin: 0; color: var(--muted); font-size: 12px; }
+  .look { display: flex; flex-direction: column; gap: 10px; }
+  .look > header { display: flex; align-items: baseline; gap: 12px; width: 920px; max-width: 100%; }
+  .look > header b { font: var(--display-weight) 20px/1 var(--display); color: var(--pink); white-space: nowrap; }
+  .look > header span { color: var(--muted); font-size: 12px; }
+  .content { flex: 1; min-height: 0; }
+
+  /* the full tab row of this stage: squeeze the spine a little so settings still fits */
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+  .sky .fresh { animation: twinkle-in 1.4s ease-out; }
+  @keyframes twinkle-in { 0% { opacity: 0; } 30% { opacity: 1; } }
+
+  /* wisps: the darker currency (lanterns from the well + stuffing from the plushie machine), candy floss coral */
+  :root { --wisp: #ff9e7d; --chalk: color-mix(in srgb, var(--text) 72%, transparent); }
+
+  /* ---------- shared bits (as in dungeon.html) ---------- */
+  .page2 { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; user-select: none; }
+  .bar { display: flex; align-items: center; gap: 10px; }
+  .muted { color: var(--muted); }
+  .num { font-variant-numeric: tabular-nums; }
+  .wispchip { margin-left: auto; position: relative; display: flex; align-items: center; gap: 7px; padding: 2px 14px 2px 8px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--wisp) 40%, var(--line)); color: var(--wisp); }
+  .wispchip b { font: 400 18px/1 var(--display); color: var(--wisp); font-variant-numeric: tabular-nums; }
+  .wispchip.bump b { animation: bump .5s var(--ease-out); }
+  @keyframes bump { 30% { transform: scale(1.2); color: var(--text); } }
+  .wispico { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; display: block; }
+  .rise { position: absolute; pointer-events: none; font: 400 15px/1 var(--display); color: var(--wisp); white-space: nowrap; animation: rise 1.3s var(--ease-out) forwards; z-index: 9; }
+  @keyframes rise { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, -30px); opacity: 0; } }
+  .h3 { margin: 0; font: 400 15px/1 var(--display); color: var(--lilac); white-space: nowrap; }
+  .panel { border-radius: var(--r-panel); border: 2px solid var(--line); background: var(--paper); overflow: hidden; position: relative; }
+
+  .step { display: inline-flex; align-items: center; gap: 2px; background: var(--deep); border: 2px solid var(--line); border-radius: var(--r-md); padding: 1px; flex: none; }
+  .step button { width: 20px; height: 22px; border: 0; background: none; color: var(--muted); border-radius: 6px; cursor: pointer; padding: 0; line-height: 1; }
+  .step button:hover:not(:disabled) { color: var(--pink); background: var(--raised); }
+  .step button:disabled { opacity: .35; cursor: default; }
+  .step output { min-width: 40px; text-align: center; font-size: 12px; color: var(--tc, var(--text)); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+  .feel { display: inline-flex; align-items: center; padding: 0 8px; border-radius: 999px; font-size: 11px; line-height: 18px; background: var(--deep); border: 2px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .feel.mid { color: var(--text); border-color: color-mix(in srgb, var(--lilac) 35%, var(--line)); }
+  .feel.hot { color: var(--pink); border-color: var(--pink-seam); }
+
+  /* the orders card, now with "start from" */
+  .orders { display: flex; flex-direction: column; gap: 8px; padding: 10px 10px 12px; }
+  .orders .ohead b { font: 400 16px/1 var(--display); color: var(--lilac); }
+  .oline { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; row-gap: 4px; font-size: 11px; white-space: nowrap; }
+  .orders .step button { width: 17px; }
+  .orders .step output { min-width: 30px; font-size: 11px; }
+  .orders .step.floor output { min-width: 22px; }
+  .orders .step.wide output { min-width: 76px; }
+  .orders .feel { padding: 0 5px; font-size: 10.5px; }
+  .oline.start output { color: var(--wisp); }
+  .go { padding: 7px 14px; margin-top: 2px; }
+  .go:disabled { border-color: var(--pink-seam); color: var(--pink); opacity: .8; }
+  .index { transform: rotate(-1.2deg); border-top: 6px solid color-mix(in srgb, var(--lilac) 45%, var(--line)); }
+
+  /* the front row */
+  .fcards { display: grid; gap: 4px; }
+  .fcard { position: relative; width: 36px; height: 42px; display: grid; place-items: end center; padding-bottom: 2px; border-radius: 8px; background: var(--raised); border: 2px solid color-mix(in srgb, var(--tc) 80%, var(--deep)); box-shadow: 0 3px 6px rgba(6, 2, 12, .5); }
+  .fcard img { width: 32px; height: 36px; }
+  .fcard .lead { position: absolute; top: -7px; left: -5px; width: 14px; height: 14px; transform: rotate(-12deg); }
+  .fcard .chalk { position: absolute; top: -6px; right: -6px; width: 16px; height: 16px; border-radius: 50%; background: var(--deep); border: 2px solid var(--chalk); display: grid; place-items: center; }
+  .fcard .chalk svg { width: 10px; height: 10px; fill: none; stroke: var(--chalk); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  @keyframes pop { from { transform: scale(.3); } }
+  .fcard.new { animation: stepup .5s var(--ease-out); }
+  @keyframes stepup { from { transform: translateY(8px); opacity: 0; } }
+
+  .mound { position: relative; flex: none; }
+  .mound img { position: absolute; width: 16px; height: 18px; }
+  .mound img.flip { transform: scaleX(-1); }
+  .hrows { display: flex; flex-direction: column; gap: 5px; }
+  .hrow { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px; font-size: 12px; }
+  .hrow .tname { color: var(--tc); display: flex; flex-direction: column; line-height: 1.15; }
+  .hrow .tname small { font-size: 10px; color: var(--muted); }
+  .gate { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+  .gate b { font: 400 15px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+  .gate b small { font: 11px var(--body); color: var(--muted); }
+  .meter { position: relative; height: 10px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--lilac) 45%, var(--line)); }
+  .meter i { position: absolute; inset: 0 auto 0 0; width: calc(var(--f) * 100%); background: var(--lilac); border-radius: 999px; }
+  .gate.full .meter i { background: var(--pink); }
+
+  /* ---------- the well, drawn ---------- */
+  .well { display: block; }
+  .well .soil { fill: color-mix(in srgb, var(--deep) 40%, var(--paper)); }
+  .well .pebble { fill: none; stroke: var(--line); stroke-width: 1.6; }
+  .well .root { fill: none; stroke: var(--line); stroke-width: 2; stroke-linecap: round; }
+  .well .shaft { fill: var(--deep); }
+  .well .wall { fill: none; stroke: var(--lilac-seam); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+  .well .wall.tail { stroke-dasharray: 3 5; opacity: .6; }
+  .well .brick { stroke: var(--lilac-seam); stroke-width: 2; opacity: .5; stroke-linecap: round; fill: none; }
+  .well .rope { fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; }
+  .well .land { fill: none; stroke: var(--lilac-seam); stroke-width: 2; stroke-dasharray: 3 4; opacity: .75; stroke-linecap: round; stroke-linejoin: round; }
+  .well .land.lit { stroke: var(--wisp); stroke-dasharray: none; opacity: 1; stroke-width: 2.4; }
+  .well .door { fill: var(--raised); stroke: var(--lilac); stroke-width: 1.7; }
+  .well .boing { fill: none; stroke: var(--lilac); stroke-width: 1.5; stroke-linecap: round; opacity: .8; }
+  .well .glow { fill: var(--wisp); opacity: .17; }
+  .well .lamp { fill: var(--wisp); }
+  .well .hook { stroke: var(--muted); stroke-width: 1.4; }
+  .well .fl { font: 10px var(--body); fill: var(--muted); }
+  .well .fl.lit { fill: var(--wisp); }
+  .well .fw { font: 10px var(--body); fill: var(--muted); }
+  .well .fw.mid { fill: var(--text); }
+  .well .fw.hot { fill: var(--pink); }
+  .well .band { font: 12px var(--display); fill: var(--lilac); }
+  .well .guard { fill: var(--raised); stroke: var(--muted); stroke-width: 1.7; stroke-linejoin: round; }
+  .well .eye { fill: var(--pink); }
+  .well .spark { fill: var(--gold); }
+  .well .flag { fill: var(--pink); }
+  .well .pole { stroke: var(--pink); stroke-width: 2; stroke-linecap: round; }
+  .well .grass { fill: none; stroke: var(--mint); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .well .tuft { fill: none; stroke: var(--mint); stroke-width: 2; stroke-linecap: round; opacity: .8; }
+  .well .stone { fill: var(--raised); stroke: var(--lilac); stroke-width: 2.4; }
+  .well .roof { fill: color-mix(in srgb, var(--pink-seam) 40%, var(--raised)); stroke: var(--pink-seam); stroke-width: 2.4; stroke-linejoin: round; }
+  .well .post { fill: none; stroke: var(--lilac); stroke-width: 2.4; stroke-linecap: round; }
+
+  /* 1. the things on nails */
+  .well .nailhead { fill: var(--muted); }
+  .well .string { stroke: var(--muted); stroke-width: 1.2; }
+  .well .thread { fill: none; stroke: var(--wisp); stroke-width: 1.6; stroke-linecap: round; opacity: .55; }
+  .well .thread.off { stroke: var(--lilac-seam); stroke-dasharray: 2 4; opacity: .8; }
+  .thing * { vector-effect: non-scaling-stroke; fill: color-mix(in srgb, var(--wisp) 30%, transparent); stroke: var(--wisp); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .thing.off * { fill: none; stroke: color-mix(in srgb, var(--lilac) 50%, var(--lilac-seam)); stroke-dasharray: 2.4 2.4; }
+  .thing.next * { stroke: color-mix(in srgb, var(--wisp) 70%, var(--lilac-seam)); }
+  .thing.fresh { animation: pop .45s cubic-bezier(.3, 1.6, .5, 1); transform-box: fill-box; transform-origin: center top; }
+  .thing.picked * { stroke-width: 2.4; }
+  .well .ring { fill: none; stroke: var(--pink); stroke-width: 2; stroke-dasharray: 3 3; }
+  .well .hit { fill: transparent; cursor: pointer; }
+  .well [data-nail], .well [data-hold], .well [data-door], .well [data-land], .well [data-pan] { cursor: pointer; }
+  .well [data-nail]:hover .thing * { stroke: var(--pink); }
+  .well .tiplv { font: 9px var(--body); fill: var(--wisp); }
+
+  /* 2. the sewing room door */
+  .well .sewdoor { fill: color-mix(in srgb, var(--pink) 22%, var(--raised)); stroke: var(--pink); stroke-width: 1.8; }
+  .well .knob { fill: var(--wisp); }
+  .well .tunnel { fill: var(--deep); stroke: var(--lilac-seam); stroke-width: 1.6; stroke-dasharray: 3 3; }
+  .well [data-door]:hover .sewdoor { fill: var(--pink-pressed); }
+
+  /* 3. held landings */
+  .crowd { position: absolute; pointer-events: none; z-index: 3; }
+  .crowd img { position: absolute; width: 16px; height: 18px; }
+  .crowd img.flip { transform: scaleX(-1); }
+  .hpill { position: absolute; z-index: 3; padding: 0 5px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--wisp) 60%, var(--line)); font-size: 9.5px; line-height: 14px; color: var(--wisp); font-variant-numeric: tabular-nums; pointer-events: none; white-space: nowrap; }
+  .hpill.part { border-style: dashed; border-color: var(--lilac-seam); color: var(--text); }
+  .well .holdmark { fill: none; stroke: var(--wisp); stroke-width: 1.4; opacity: .9; }
+
+  /* the army on its way down */
+  .party { position: absolute; display: flex; align-items: flex-end; pointer-events: none; z-index: 5; animation: hopdown .28s var(--ease-out); }
+  .party img { width: 16px; height: 18px; margin-right: -4px; }
+  @keyframes hopdown { from { transform: translateY(-6px); } }
+
+  /* ---------- the column + its panning ---------- */
+  .a-body { display: grid; gap: 12px; flex: 1; min-height: 0; }
+  .col { display: flex; flex-direction: column; min-height: 0; }
+  .col h2 { margin: 0; padding: 7px 10px 6px 12px; min-height: 33px; display: flex; align-items: center; gap: 6px; font: 400 18px/1 var(--display); color: var(--pink); border-bottom: 2px dashed var(--line); white-space: nowrap; }
+  .col h2 .pnav { margin-left: auto; font: 11px var(--body); color: var(--muted); background: none; border: 0; padding: 2px 2px; cursor: pointer; }
+  .col h2 .pnav.l { margin-left: 0; margin-right: 2px; }
+  .col h2 .pnav:hover { color: var(--pink); }
+  .pan { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+  .pan .scroll { position: absolute; inset: 0; overflow: hidden auto; scrollbar-width: thin; scrollbar-color: var(--lilac-seam) transparent; transition: transform .45s var(--ease-out); }
+  .pan .strip { display: flex; transition: transform .45s var(--ease-out); }
+  .pan .pane { position: relative; flex: none; }
+  .pan .rooms { position: absolute; inset: 0; transform: translateX(100%); transition: transform .45s var(--ease-out); }
+  .pan.sew .scroll { transform: translateX(-100%); }
+  .pan.sew .rooms { transform: none; }
+  .pan.onwall .strip { transform: translateX(0); }
+  .pan.onwell .strip { transform: translateX(var(--sx)); }
+
+  /* the sewing room */
+  .rooms { display: flex; flex-direction: column; background: color-mix(in srgb, var(--deep) 40%, var(--paper)); }
+  .rooms .rtop { display: flex; align-items: center; gap: 4px; padding: 4px 8px 0; }
+  .rooms .tun { display: block; width: 100%; height: 22px; margin-top: 8px; }
+  .rooms .tun path { fill: none; stroke: var(--lilac-seam); stroke-width: 1.6; stroke-dasharray: 3 3; }
+  .rooms .tun .d { fill: color-mix(in srgb, var(--pink) 22%, var(--raised)); stroke: var(--pink); stroke-dasharray: none; stroke-width: 1.6; }
+  .rooms .tun .k { fill: var(--wisp); }
+  .rooms .rtop .rname { flex: 1; text-align: center; font: 400 15px/1 var(--display); color: var(--pink); white-space: nowrap; }
+  .rarrow { width: 24px; height: 24px; display: grid; place-items: center; border-radius: 8px; border: 2px solid var(--line); background: var(--deep); color: var(--muted); cursor: pointer; padding: 0; line-height: 1; }
+  .rarrow:hover:not(:disabled) { color: var(--pink); border-color: var(--pink-seam); }
+  .rarrow:disabled { opacity: .3; cursor: default; }
+  .rdots { display: flex; justify-content: center; gap: 5px; padding: 6px 0 0; }
+  .rdots i { width: 7px; height: 7px; border-radius: 50%; border: 2px solid var(--lilac-seam); }
+  .rdots i.on { background: var(--pink); border-color: var(--pink); }
+  .rdots i.done { border-color: var(--wisp); }
+  .chamber { position: relative; margin: 10px 10px 0; padding: 18px 10px 14px; border: 2px dashed var(--lilac-seam); border-radius: 70px 70px 12px 12px; background: var(--deep); display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .chamber .pic { width: 176px; height: 87px; display: block; }
+  .chamber .pic * { fill: none; stroke: var(--lilac); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .chamber .pic .p { stroke: var(--pink); }
+  .chamber .pic .c { stroke: var(--wisp); }
+  .chamber .pic .f { fill: color-mix(in srgb, var(--lilac) 18%, transparent); }
+  .board { position: relative; width: 100%; padding: 9px 8px 8px; border-radius: 10px; background: color-mix(in srgb, var(--mint) 7%, var(--deep)); border: 2px solid color-mix(in srgb, var(--chalk) 30%, var(--line)); }
+  .board .marks { display: flex; flex-wrap: wrap; justify-content: center; gap: 4px 8px; }
+  .mark { width: 44px; height: 44px; display: grid; place-items: center; padding: 0; background: none; border: 0; border-radius: 8px; cursor: pointer; }
+  .mark:hover { background: color-mix(in srgb, var(--chalk) 10%, transparent); }
+  .mark svg { width: 34px; height: 34px; overflow: visible; }
+  .mark svg * { fill: none; stroke: var(--chalk); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 3.2 2.2; vector-effect: non-scaling-stroke; }
+  .mark.on svg * { stroke-dasharray: none; fill: color-mix(in srgb, var(--chalk) 45%, transparent); }
+  .mark.on svg .keep { fill: none; }
+  .mark.on { cursor: default; }
+  .mark.on:hover { background: none; }
+  .mark.tier svg * { stroke: var(--tc); }
+  .mark.tier.on svg * { fill: var(--tc); }
+  .mark.fill { animation: pop .4s cubic-bezier(.3, 1.6, .5, 1); }
+  .rfoot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 14px 12px 0; }
+  .rfoot .btn { padding: 6px 12px; }
+  .pennant { display: inline-flex; align-items: center; gap: 4px; color: var(--wisp); font-size: 11px; }
+
+  /* ---------- the side column ---------- */
+  .side { display: flex; flex-direction: column; gap: 14px; min-height: 0; }
+  .card { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; position: relative; }
+  .card .chead { display: flex; align-items: center; gap: 8px; }
+  .card .x { margin-left: auto; width: 20px; height: 20px; padding: 0; border: 0; border-radius: 6px; background: none; color: var(--muted); cursor: pointer; line-height: 1; font-size: 12px; }
+  .card .x:hover { color: var(--pink); background: var(--deep); }
+  .card .row { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--muted); }
+  .card .row b { font: 400 16px/1 var(--display); color: var(--text); display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; }
+  .card .row b.w { color: var(--wisp); }
+  .nail-card { border-color: color-mix(in srgb, var(--wisp) 55%, var(--lilac-seam)); }
+  .nbody { display: flex; align-items: center; gap: 12px; }
+  .bigthing { width: 56px; height: 64px; flex: none; display: grid; place-items: center; border-radius: 10px; background: var(--deep); border: 2px solid var(--line); position: relative; }
+  .bigthing::before { content: ""; position: absolute; top: 6px; left: 50%; width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--muted); }
+  .bigthing svg { width: 36px; height: 36px; overflow: visible; margin-top: 8px; }
+  .ninfo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .pips { display: flex; gap: 3px; }
+  .pips i { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--lilac-seam); }
+  .pips i.on { background: var(--wisp); border-color: var(--wisp); }
+  .lvpill { align-self: flex-start; padding: 0 7px; border-radius: 999px; font-size: 11px; line-height: 17px; color: var(--wisp); border: 2px solid color-mix(in srgb, var(--wisp) 45%, var(--line)); background: var(--deep); }
+  .eff { font-size: 12px; line-height: 1.35; color: var(--muted); }
+  .eff b { font-weight: 400; color: var(--text); }
+  .eff b.to { color: var(--wisp); }
+  .buyb { align-self: stretch; justify-content: space-between; padding: 6px 12px; }
+  .buyb .price { display: inline-flex; align-items: center; gap: 4px; color: var(--wisp); font-variant-numeric: tabular-nums; }
+  .buyb:disabled .price { color: var(--muted); }
+  .hold-card .hline { display: flex; align-items: flex-end; gap: 10px; }
+  .hold-card .hline .count { font: 400 22px/1 var(--display); font-variant-numeric: tabular-nums; }
+  .hold-card .hline span { font-size: 11px; color: var(--muted); }
+  .hold-card .hline span.count { font-size: 22px; color: var(--text); }
+  .hold-card .meter i { background: var(--wisp); }
+  .stitch-line { height: 2px; background: repeating-linear-gradient(to right, var(--line) 0 5px, transparent 5px 9px); border: 0; margin: 0; }
+
+  /* Look B: the landing card */
+  .land-card .sec { display: flex; align-items: center; gap: 10px; }
+  .land-card .mini { width: 34px; height: 38px; flex: none; display: grid; place-items: center; border-radius: 8px; background: var(--deep); border: 2px solid var(--line); }
+  .land-card .mini svg { width: 24px; height: 24px; overflow: visible; }
+  .land-card .sec .mid { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+  .land-card .sec .mid b { font-weight: 400; font-size: 12px; }
+  .land-card .sb { padding: 3px 9px; font-size: 11px; flex: none; border-radius: 7px; }
+  .land-card .sb .price { display: inline-flex; align-items: center; gap: 3px; color: var(--wisp); }
+  .land-card .sb:disabled .price { color: var(--muted); }
+  .well .sel { fill: color-mix(in srgb, var(--wisp) 13%, transparent); stroke: var(--wisp); stroke-width: 1.5; stroke-dasharray: 3 3; }
+  .well .tag * { vector-effect: non-scaling-stroke; }
+
+  /* the herd card (as in dungeon.html) */
+  .mid-col { display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .a-front { padding: 10px 10px 12px; display: flex; flex-direction: column; gap: 9px; }
+  .a-front .fcards { grid-template-columns: repeat(7, 36px); justify-content: space-between; column-gap: 2px; }
+  .a-herd { flex: 1; min-height: 0; padding: 10px 11px 11px; display: flex; flex-direction: column; gap: 8px; }
+  .a-herd .top2 { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+  .a-herd .count { font: 400 22px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+  .a-herd .gate { margin-top: auto; padding-top: 8px; border-top: 2px dashed var(--line); }
+
+  /* Look C: the wall pane */
+  .wallsvg .bricks { stroke: var(--lilac-seam); stroke-width: 1.6; opacity: .35; stroke-linecap: round; }
+  .wallsvg .wbg { fill: color-mix(in srgb, var(--lilac-seam) 12%, var(--paper)); }
+  .wallsvg .ruler { stroke: var(--lilac-seam); stroke-width: 1.4; stroke-dasharray: 2 5; opacity: .6; }
+  .wallsvg .ruler.lit { stroke: var(--wisp); opacity: .45; }
+  .wallsvg .tagp { fill: var(--deep); stroke: color-mix(in srgb, var(--wisp) 60%, var(--line)); stroke-width: 1.6; }
+  .wallsvg .tagt { font: 10px var(--body); fill: var(--wisp); }
+  .wallsvg .pip { fill: none; stroke: var(--lilac-seam); stroke-width: 1.4; }
+  .wallsvg .pip.on { fill: var(--wisp); stroke: var(--wisp); }
+  .wallsvg .edge { fill: var(--deep); }
+  .well .wstrip { fill: color-mix(in srgb, var(--lilac-seam) 18%, var(--paper)); }
+  .well .wdot { fill: var(--wisp); }
+  .well .wdot.off { fill: none; stroke: var(--lilac-seam); stroke-width: 1.4; }
+</style>
+</head>
+<body>
+<div class="looks">
+  <div class="intro">
+    <h1>what hangs in the old well</h1>
+    <p>E1's cross-section with the three new things on it: the wisp perks on nails down the wall, the sewing room behind a door on floor 20, and crowds holding landings 10, 20 and 30. Every frame plays: tap a nail, tap a crowd, tap the little pink door on floor 20, step "start from". Numbers are placeholders.</p>
+  </div>
+
+  <section class="look">
+    <header><b>Look A: on the walls</b><span>everything is drawn on the column at once, each in its own lane: things on nails down the left, crowds on their landings, the door on the right; a tap puts its card under the orders.</span></header>
+    <div class="frame" data-look="A" data-tab="trips" data-say="i hung a little flag on the wall. for luck!"></div>
+  </section>
+
+  <section class="look">
+    <header><b>Look B: one landing at a time</b><span>the column stays like today with only tiny marks; tap a landing and one card says everything on it: its thing on the nail, who's holding it, the door.</span></header>
+    <div class="frame" data-look="B" data-tab="trips" data-say="everyone on landing 20 is holding the door for us!"></div>
+  </section>
+
+  <section class="look">
+    <header><b>Look C: the wall next door</b><span>the column pans three ways at the same depth: the wall of nails on the left, the well in the middle, the sewing room through the door.</span></header>
+    <div class="frame" data-look="C" data-tab="trips" data-say="the wall's getting so pretty. more nails, please!"></div>
+  </section>
+</div>
+
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  // the game's tabs at this stage (as in dungeon.html)
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+  TABS.forEach(t => { t.news = false; });
+
+  // ---------------- placeholder numbers (data/dungeons.json, data/wisp_perks.json, data/sewing_rooms.json) ----------------
+  const MAXF = 40, DRAW_TO = 36;
+  const HOMES = [10, 20, 30, 40, 50, 60, 70, 80, 90];
+  const FIRSTS = ["plain ones", "anyone", "the front row"];
+  const KINDS = { common: ["mint-blob", "peach-cat", "lilac-cat"], uncommon: ["mint-bear", "peach-bear"], rare: ["sky-bunny", "midnight-bear", "lilac-blob"], epic: ["bubblegum-fox", "toxic-cat"], legendary: ["gold-dragon"] };
+  const HERD_TIERS = ["common", "uncommon", "rare"];
+  const POWER = { common: 20, uncommon: 40, rare: 100, epic: 1200, legendary: 2500, frontRare: 600, frontUncommon: 300 };
+  const TINT = { "mint-blob": "#8fe8c0", "peach-cat": "#ffb59a", "lilac-cat": "#c9a0ff", "mint-bear": "#8fe8c0", "peach-bear": "#ffb59a",
+    "sky-bunny": "#8cc8ff", "midnight-bear": "#8c8cff", "lilac-blob": "#c9a0ff", "bubblegum-fox": "#ff8fc8", "toxic-cat": "#b8ff6b", "gold-dragon": "#ffe08a" };
+  // front-row pets carry the parts, finishes and traits the sewing room's chalk locks ask for
+  const FRONT0 = [
+    { id: "lilac-blob", t: "rare", lead: true, has: [] },
+    { id: "gold-dragon", t: "legendary", has: [] }, { id: "bubblegum-fox", t: "epic", has: ["holo", "zippy"] }, { id: "toxic-cat", t: "epic", has: ["shiny"] }, { id: "bubblegum-fox", t: "epic", has: [] },
+    { id: "sky-bunny", t: "rare", has: ["ears"] }, { id: "midnight-bear", t: "rare", has: ["ghost"] }, { id: "sky-bunny", t: "rare", has: ["ears"] }, { id: "lilac-blob", t: "rare", has: [] },
+    { id: "midnight-bear", t: "rare", has: [] }, { id: "sky-bunny", t: "rare", has: ["ears"] }, { id: "midnight-bear", t: "rare", has: [] },
+    { id: "mint-bear", t: "uncommon", has: ["halo"] }, { id: "peach-bear", t: "uncommon", has: [] }, { id: "mint-bear", t: "uncommon", has: ["halo"] }, { id: "peach-bear", t: "uncommon", has: [] },
+    { id: "mint-bear", t: "uncommon", has: [] }, { id: "peach-bear", t: "uncommon", has: [] }, { id: "mint-bear", t: "uncommon", has: [] }, { id: "peach-bear", t: "uncommon", has: [] },
+  ];
+  const NEXT_BEST = [{ id: "peach-bear", t: "uncommon", has: [] }, { id: "mint-bear", t: "uncommon", has: [] }];
+  const WORDS = [[4, "easy peasy", ""], [2, "a stroll", ""], [1.3, "comfy", ""], [0.95, "spooky", "mid"], [0.7, "tricky", "mid"], [0.5, "so tough", "hot"], [0, "brr!", "hot"]];
+  const TINY = [13, 17], KNOCK = [15, 19];
+
+  // 1. the perk tree: one nail per landing, the entrance on the roof (f 0), the tips at the bottom
+  const THINGS = {
+    bow: `<path d="M12 11 Q7 5.5 4.2 7.6 Q2.6 11 4.4 14.4 Q7.4 16 12 11 Z"/><path d="M12 11 Q17 5.5 19.8 7.6 Q21.4 11 19.6 14.4 Q16.6 16 12 11 Z"/><path d="M11 12.4 L8.4 20.4 M13 12.4 L15.6 20.4"/><circle cx="12" cy="11" r="2"/>`,
+    flag: `<path d="M6 21 L6 3.4"/><path d="M6.6 4 L18.6 7.6 L6.6 11.6 Z"/>`,
+    bell: `<path d="M5.6 17 Q5.4 8.6 12 7.4 Q18.6 8.6 18.4 17 Z"/><path d="M4 17.2 L20 17.2"/><circle cx="12" cy="19.6" r="1.6"/><path d="M12 7.4 L12 4.6"/>`,
+    spool: `<rect x="6" y="3.6" width="12" height="3.2" rx="1.2"/><rect x="6" y="17.2" width="12" height="3.2" rx="1.2"/><path d="M8 6.8 L8 17.2 L16 17.2 L16 6.8 Z"/><path d="M8 9.4 L16 11.6 M8 12.6 L16 14.8"/>`,
+    moon: `<path d="M15.6 4 A8.4 8.4 0 1 0 20.2 16.4 A6.8 6.8 0 0 1 15.6 4 Z"/>`,
+    lunch: `<rect x="4" y="9" width="16" height="11" rx="2.6"/><path d="M9 9 L9 6.4 Q12 4 15 6.4 L15 9"/><path d="M4 13.6 L20 13.6"/>`,
+    scarf: `<path d="M4 7 Q12 3.6 20 7 L20 10.6 Q12 7.2 4 10.6 Z"/><path d="M14.6 9 L16.6 19 L19.6 18.2 L17.8 8.6"/><path d="M16.2 19.8 L15.8 21.4 M18.8 19.2 L19.2 20.8"/>`,
+    pinwheel: `<path d="M12 11 L12 3.6 Q16.6 5.4 12 11 Z"/><path d="M12 11 L19.4 11 Q17.6 15.6 12 11 Z"/><path d="M12 11 L12 18.4 Q7.4 16.6 12 11 Z"/><path d="M12 11 L4.6 11 Q6.4 6.4 12 11 Z"/>`,
+    musicbox: `<rect x="3.6" y="10" width="15" height="10" rx="2"/><path d="M3.6 10 L6.2 6 L16 6 L18.6 10"/><path d="M18.6 15 L21.6 15 M21.6 13 L21.6 17"/>`,
+    star: `<path d="M12 3 L14.4 9 L20.8 9.4 L15.8 13.4 L17.6 19.8 L12 16.2 L6.4 19.8 L8.2 13.4 L3.2 9.4 L9.6 9 Z"/>`,
+    coin: `<circle cx="12" cy="12" r="8"/><path d="M12 7.6 L13.2 10.6 L16.4 10.8 L13.9 12.8 L14.8 15.9 L12 14.2 L9.2 15.9 L10.1 12.8 L7.6 10.8 L10.8 10.6 Z"/>`,
+    rattle: `<circle cx="12" cy="8.6" r="5.6"/><path d="M12 14.2 L12 19.2"/><circle cx="12" cy="20.6" r="1.5"/>`,
+  };
+  const fmt = n => Math.round(n).toLocaleString("en");
+  const short = n => n >= 1e6 ? `${+(n / 1e6).toFixed(1)}M` : n >= 1e3 ? `${+(n / 1e3).toFixed(1)}k` : `${Math.round(n)}`;
+  const x2 = v => `x${v.toFixed(2)}`;
+  // lv = levels bought, steps = what each level makes it (index = lv), prices per next level
+  const NAILS0 = [
+    { id: "entrance", f: 0, thing: "bow", name: "the entrance", what: "fits", steps: [300, 600, 1200, 2400, 4800], fmt: v => short(v), lv: 1, price: [0, 600, 1800, 5400] },
+    { id: "flag", f: 3, thing: "flag", name: "the little flag", what: "front row", steps: [1, 1.2, 1.4, 1.6, 1.8, 2], fmt: x2, lv: 3, price: [150, 300, 700, 1500, 3200] },
+    { id: "bell", f: 6, thing: "bell", name: "the dinner bell", what: "the herd", steps: [1, 1.15, 1.3, 1.45], fmt: x2, lv: 1, price: [200, 700, 1600] },
+    { id: "spool", f: 10, thing: "spool", name: "the spool", what: "wisps", steps: [1, 1.25, 1.5, 1.75, 2, 2.5], fmt: x2, lv: 2, price: [300, 600, 1400, 3000, 6400] },
+    { id: "moon", f: 13, thing: "moon", name: "the nightlight", what: "the cellar", steps: [1, 1.3, 1.6, 2], fmt: x2, lv: 0, price: [800, 2400, 7200] },
+    { id: "lunch", f: 17, thing: "lunch", name: "the lunchbox", what: "rare ones", steps: [1, 1.5, 2, 2.5], fmt: x2, lv: 0, price: [1500, 4000, 9000] },
+    { id: "scarf", f: 20, thing: "scarf", name: "the woolly scarf", what: "the stairs", steps: [1, 1.3, 1.6, 2], fmt: x2, lv: 0, price: [2200, 6000, 14000] },
+    { id: "pinwheel", f: 24, thing: "pinwheel", name: "the pinwheel", what: "front row", steps: [20, 22, 24], fmt: v => `${v} cards`, lv: 0, price: [4000, 12000] },
+    { id: "musicbox", f: 28, thing: "musicbox", name: "the music box", what: "wisps from 20 down", steps: [1, 1.5, 2, 3], fmt: x2, lv: 0, price: [6500, 16000, 40000] },
+    { id: "star", f: 33, thing: "star", name: "the paper star", what: "the stairs", steps: [1, 1.25, 1.5], fmt: x2, lv: 0, price: [12000, 30000] },
+  ];
+  // the two endless tips: +4% a level at x3 the price
+  const TIPS0 = [
+    { id: "coin", tip: true, thing: "coin", name: "the lucky coin", what: "coins", lv: 3, base: 50 },
+    { id: "rattle", tip: true, thing: "rattle", name: "the rattle", what: "pets/sec", lv: 2, base: 50 },
+  ];
+  const tipPrice = n => n.base * Math.pow(3, n.lv);
+
+  // 3. held landings: every 10th landing, a crowd that stays and holds the rope / a door / the stairs
+  const HOLD_NEED = { 10: 500, 20: 2000, 30: 8000 };
+  const HOLD_WHAT = { 10: "the rope", 20: "the door", 30: "the stairs" };
+
+  // 2. the sewing room: rooms reached so far + the next one (no more shown)
+  const MARKS = {
+    halo: `<ellipse class="keep" cx="12" cy="5.6" rx="7" ry="2.4"/><path d="M5.4 21 Q5 11.6 12 11.4 Q19 11.6 18.6 21"/>`,
+    ears: `<path d="M8.6 13.6 Q5.4 3 8.4 2.6 Q11.2 3 10.6 13.6 Z"/><path d="M13.4 13.6 Q12.8 3 15.6 2.6 Q18.6 3 15.4 13.6 Z"/><path d="M5 21.4 Q5 13.4 12 13.2 Q19 13.4 19 21.4"/>`,
+    horns: `<path d="M7.4 12.4 Q2.6 10.4 3.2 3.4 Q6.6 8.6 10.4 11.4 Z"/><path d="M16.6 12.4 Q21.4 10.4 20.8 3.4 Q17.4 8.6 13.6 11.4 Z"/><path d="M5 21.4 Q5 12.4 12 12.2 Q19 12.4 19 21.4"/>`,
+    shiny: `<rect class="keep" x="3.5" y="3.5" width="17" height="17" rx="3"/><path d="M12 6.6 Q12.7 11.3 17.4 12 Q12.7 12.7 12 17.4 Q11.3 12.7 6.6 12 Q11.3 11.3 12 6.6 Z"/>`,
+    holo: `<rect x="3.5" y="3.5" width="17" height="17" rx="3"/><path class="keep" d="M4.4 11 L11 4.4 M4.4 17.4 L17.4 4.4 M9.4 19.6 L19.6 9.4"/>`,
+    ghost: `<rect x="3.5" y="3.5" width="17" height="17" rx="3"/><circle class="keep" cx="9.4" cy="11" r="1.3"/><circle class="keep" cx="14.6" cy="11" r="1.3"/>`,
+    zippy: `<path d="M13.4 3 L6.6 13.2 L11.4 13.2 L10 21 L17.4 10.2 L12.6 10.2 Z"/>`,
+    sleepy: `<path class="keep" d="M4.6 6 L11 6 L4.6 13 L11 13"/><path class="keep" d="M13 11.4 L19.4 11.4 L13 18.6 L19.4 18.6"/>`,
+    tier: `<circle cx="12" cy="12" r="7.6"/>`,
+  };
+  const HINTS = { horns: "horns come in midnight boxes! the doghouse ones have them too.", sleepy: "sleepy ones turn up in sunset boxes. yawn!", halo: "halos come from sunset boxes!", ears: "bunny ears! sunny boxes have lots.", shiny: "shiny ones sparkle out of any box!", holo: "holo ones come in sunny boxes too!", ghost: "ghosty ones come in sunny boxes!", zippy: "zippy ones zoom out of sunset boxes!" };
+  const ROOMS = [
+    { id: "tin", name: "the button tin", marks: [{ k: "ears" }, { k: "tier", t: "rare" }, { k: "shiny" }], cleared: true, power: 60000 },
+    { id: "cushion", name: "the pin cushion", marks: [{ k: "ears" }, { k: "tier", t: "epic" }, { k: "ghost" }, { k: "zippy" }], cleared: true, power: 110000 },
+    { id: "maze", name: "the thread maze", marks: [{ k: "halo" }, { k: "horns" }, { k: "holo" }, { k: "tier", t: "legendary" }, { k: "sleepy" }], cleared: false, power: 230000 },
+  ];
+  const ROOM_PICS = {
+    tin: `<ellipse class="f" cx="75" cy="30" rx="44" ry="11"/><path d="M31 30 L31 56 Q75 72 119 56 L119 30"/><path d="M31 42 Q75 56 119 42"/><circle class="p" cx="60" cy="27" r="6"/><circle class="p" cx="57.6" cy="25.6" r=".6"/><circle class="p" cx="62.4" cy="28.4" r=".6"/><circle class="c" cx="84" cy="31" r="5"/><circle cx="96" cy="26" r="4"/><circle cx="72" cy="22" r="3.4"/><circle class="c" cx="18" cy="62" r="5"/><circle class="p" cx="134" cy="64" r="4"/>`,
+    cushion: `<path class="f" d="M34 60 Q24 34 52 26 Q75 20 98 26 Q126 34 116 60 Q75 72 34 60 Z"/><path d="M75 22 Q70 44 75 68 M52 26 Q48 46 55 64 M98 26 Q102 46 95 64"/><path d="M62 24 L56 6 M86 24 L94 8 M76 22 L77 4"/><circle class="p" cx="56" cy="5" r="3"/><circle class="c" cx="94" cy="7" r="3"/><circle class="p" cx="77" cy="3" r="3"/><path class="p" d="M128 62 L140 44"/><path d="M14 64 Q22 56 30 64"/>`,
+    maze: `<path d="M10 60 Q30 20 52 50 Q66 70 80 36 Q92 10 110 40 Q124 62 140 26"/><path class="p" d="M16 30 Q40 64 64 30 Q86 4 98 50 Q106 70 134 58"/><path class="c" d="M26 12 Q52 36 44 58 M120 10 Q100 30 124 50"/><rect class="f" x="66" y="40" width="18" height="20" rx="3"/><path d="M64 40 L86 40 M64 60 L86 60"/>`,
+  };
+
+  const pet = (id, cls = "") => `<img class="px ${cls}" src="../assets/pets/${id}.png" alt="">`;
+  const WISP = (s = 20) => `<svg class="wispico" viewBox="0 0 24 24" style="width:${s}px;height:${s}px"><path d="M5.2 15.6 Q3.2 11.4 7.4 10 Q8 5.8 12.6 6.2 Q17 6.4 17.4 10.6 Q20.6 11.8 19 15 Q17 17.6 12.6 16.6 Q8.4 18.4 5.2 15.6 Z" fill="currentColor" fill-opacity=".3"/><path d="M17.4 10.6 Q20.4 7.4 18.4 4.4 Q16.8 2.8 15.4 4.6"/><path d="M8.8 13.4 Q11 11.4 13.6 13"/></svg>`;
+  const FLAG = `<svg viewBox="0 0 14 14" fill="none" stroke-linecap="round"><path d="M3 13 L3 1.5" stroke="var(--pink)" stroke-width="2"/><path d="M3.5 2 L12 4.6 L3.5 7.4 Z" fill="var(--pink)" stroke="var(--pink)" stroke-width="1" stroke-linejoin="round"/></svg>`;
+  const PENNANT = `<svg viewBox="0 0 14 14" width="14" height="14" fill="none" stroke-linecap="round"><path d="M3 13 L3 1.5" stroke="var(--wisp)" stroke-width="2"/><path d="M3.5 2 L12 4.6 L3.5 7.4 Z" fill="var(--wisp)" stroke="var(--wisp)" stroke-width="1" stroke-linejoin="round"/></svg>`;
+  const TICK = `<svg viewBox="0 0 12 12"><path d="M2.4 6.4 L5 8.8 L9.6 3.2"/></svg>`;
+  const strength = f => 100 * Math.pow(1.2, f);
+  const thingSvg = (key, x, y, s, cls = "") => `<g class="thing ${cls}" transform="translate(${x - 12 * s} ${y}) scale(${s})">${THINGS[key]}</g>`;
+
+  function mountAt(el) {
+    const others = [...document.querySelectorAll(".app")];
+    others.forEach(a => a.classList.remove("app"));
+    el.classList.add("app");
+    const c = mountFrame();
+    c.removeAttribute("id"); c.classList.add("content");
+    others.forEach(a => a.classList.add("app"));
+    return c;
+  }
+
+  // a pile of tiny pets; how many you see grows slowly with the count
+  function mound(ids, count, w, h, maxN, seedN = 5) {
+    let seed = seedN; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const n = Math.min(count, Math.max(1, Math.min(maxN, Math.round(Math.log10(count + 1) * maxN / 2.6))));
+    const hs = 9, vs = 6, rows = Math.max(1, Math.floor((h - 18) / vs) + 1);
+    let base = 1; const fits = bb => { let c = 0; for (let r = 0; r < rows; r++) c += Math.max(0, bb - 2 * r); return c; };
+    while (fits(base) < n && (base * hs + 16) <= w) base++;
+    const pw = (base - 1) * hs + 16, out = [];
+    let k = 0;
+    for (let r = 0; r < rows && k < n; r++) {
+      const inRow = Math.min(Math.max(0, base - 2 * r), n - k), x0 = (base - inRow) / 2 * hs;
+      for (let c = 0; c < inRow && k < n; c++, k++) {
+        const id = ids[Math.floor(rnd() * ids.length)];
+        const x = x0 + c * hs + (rnd() * 3 - 1.5), yy = h - 18 - r * vs - rnd() * 2;
+        out.push(`<img class="px${rnd() < .5 ? " flip" : ""}" src="../assets/pets/${id}.png" style="left:${x.toFixed(1)}px; top:${yy.toFixed(1)}px; z-index:${rows - r}" alt="">`);
+      }
+    }
+    return { html: out.join(""), w: pw, h };
+  }
+
+  // ---------------- the well, drawn, with what hangs in it ----------------
+  // o: w, cx, g, fw/fc/fs, ww/wc/ws, to, tail, pebbles, every, words, bx
+  //    nails: "lane" (A: things on nails down the left) | "tag" (B: tiny marks on the right) | "edge" (C: dots on a wall strip)
+  function wellSvg(S, o, feelOf) {
+    const { w, cx, g } = o;
+    const y = f => f <= 10 ? g + f * o.fw : f <= 20 ? g + 10 * o.fw + (f - 10) * o.fc : g + 10 * o.fw + 10 * o.fc + (f - 20) * o.fs;
+    const half = f => (f <= 10 ? o.ww : f <= 20 ? o.wc : o.ws) / 2;
+    const fh = f => f <= 10 ? o.fw : f <= 20 ? o.fc : o.fs;
+    const H = y(o.to) + o.tail, a = y(10), b = y(20);
+    const [L0, L1, L2] = [cx - o.ww / 2, cx - o.wc / 2, cx - o.ws / 2], [R0, R1, R2] = [cx + o.ww / 2, cx + o.wc / 2, cx + o.ws / 2];
+    const s = [], html = [];
+    let seed = 23; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+
+    s.push(`<rect class="soil" x="0" y="${g}" width="${w}" height="${H - g}"/>`);
+    for (let i = 0; i < o.pebbles; i++) {
+      const x = rnd() * w, yy = g + 10 + rnd() * (H - g - 14);
+      const hw = yy < a ? o.ww / 2 : yy < b ? o.wc / 2 : o.ws / 2;
+      if (Math.abs(x - cx) < hw + 8) continue;
+      if (o.nails === "lane" && x > 20 && x < 62) continue;   // keep the nail lane clear
+      if (o.nails === "edge" && x < 20) continue;
+      s.push(rnd() < .8 ? `<ellipse class="pebble" cx="${x.toFixed(1)}" cy="${yy.toFixed(1)}" rx="${(2 + rnd() * 2).toFixed(1)}" ry="${(1.5 + rnd()).toFixed(1)}"/>`
+                        : `<path class="root" d="M${x.toFixed(1)} ${yy.toFixed(1)} q 6 4 3 10 m -3 -10 q -5 3 -8 2"/>`);
+    }
+    const E = H + 2;
+    s.push(`<path class="shaft" d="M${L0} ${g} L${L0} ${a} L${L1} ${a} L${L1} ${b} L${L2} ${b} L${L2} ${E} L${R2} ${E} L${R2} ${b} L${R1} ${b} L${R1} ${a} L${R0} ${a} L${R0} ${g} Z"/>`);
+    const cut = H - o.tail;
+    s.push(`<path class="wall" d="M${L0} ${g} L${L0} ${a} L${L1} ${a} L${L1} ${b} L${L2} ${b} L${L2} ${cut}"/><path class="wall" d="M${R0} ${g} L${R0} ${a} L${R1} ${a} L${R1} ${b} L${R2} ${b} L${R2} ${cut}"/>`);
+    s.push(`<path class="wall tail" d="M${L2} ${cut} L${L2} ${H} M${R2} ${cut} L${R2} ${H}"/>`);
+    for (let yy = g + 5, k = 0; yy < a - 2; yy += 7, k++) {
+      const o1 = k % 2 ? 2 : 0;
+      s.push(`<path class="brick" d="M${L0 - 8 + o1} ${yy} L${L0 - 2} ${yy} M${R0 + 2} ${yy + 3} L${R0 + 8 - o1} ${yy + 3}"/>`);
+    }
+    s.push(`<path class="rope" d="M${cx} ${g - 36} Q${cx + 4} ${(g + a) / 2} ${cx} ${a - 3}"/>`);
+
+    for (let f = 1; f <= Math.min(o.to, MAXF); f++) {
+      const yy = y(f), lit = f <= S.deep, hw = half(f), l = cx - hw, r = cx + hw, cls = lit ? "land lit" : "land", h = fh(f);
+      let lampX = l + 6;
+      if (f <= 10) {
+        s.push(`<path class="${cls}" d="M${l + 1} ${yy - 1} Q${cx} ${yy + h * .55} ${r - 1} ${yy - 1}"/>`);
+      } else if (f <= 20) {
+        s.push(`<path class="${cls}" d="M${l + 1} ${yy} L${r - 1} ${yy}"/>`);
+        const tiny = TINY.includes(f), left = f % 2 === 1;
+        const dw = tiny ? 6 : 9, dh = tiny ? 8 : Math.min(13, h - 4);
+        const x0 = left ? l + 4 : r - 4 - dw;
+        s.push(`<path class="door" d="M${x0} ${yy} L${x0} ${yy - dh + dw / 2} A${dw / 2} ${dw / 2} 0 0 1 ${x0 + dw} ${yy - dh + dw / 2} L${x0 + dw} ${yy} Z"/>`);
+        if (KNOCK.includes(f)) {
+          const bx = left ? x0 + dw + 3 : x0 - 3, sgn = left ? 1 : -1, my = yy - dh / 2;
+          s.push(`<path class="boing" d="M${bx} ${my - 3} q ${2 * sgn} 3 0 6 M${bx + 3 * sgn} ${my - 5} q ${3 * sgn} 5 0 10"/>`);
+        }
+        lampX = left ? r - 7 : l + 7;
+      } else {
+        const y0 = y(f - 1), dir = f % 2 ? 1 : -1, xs = dir > 0 ? l + 4 : r - 4, xe = dir > 0 ? r - 4 : l + 4, n = 4;
+        const dx = (xe - xs) / n, dy = (yy - y0) / n;
+        let d = `M${xs} ${y0}`; for (let i = 0; i < n; i++) d += ` l${dx.toFixed(2)} 0 l0 ${dy.toFixed(2)}`;
+        s.push(`<path class="${cls}" d="${d}"/>`);
+        lampX = dir > 0 ? l + 6 : r - 6;
+        if (f % 10 === 0 && !S.held[f]) {   // a guard every 10th (gone once a crowd holds the landing)
+          const gx = dir > 0 ? r - 14 : l + 14;
+          s.push(`<path class="guard" d="M${gx - 7} ${yy} Q${gx - 8} ${yy - 13} ${gx} ${yy - 14} Q${gx + 8} ${yy - 13} ${gx + 7} ${yy} Z"/><path class="hook" d="M${gx} ${yy - 14} L${gx} ${yy - 18}"/><circle class="eye" cx="${gx - 2.6}" cy="${yy - 8}" r="1.3"/><circle class="eye" cx="${gx + 2.6}" cy="${yy - 8}" r="1.3"/>`);
+        }
+      }
+      if (lit && h >= 8 && !HOLD_NEED[f]) {
+        const ly = yy - Math.min(8, h - 3);
+        s.push(`<circle class="glow" cx="${lampX}" cy="${ly}" r="${Math.min(7, h / 2 + 1)}"/><path class="hook" d="M${lampX} ${ly - 4} L${lampX} ${ly - 2}"/><rect class="lamp" x="${lampX - 2}" y="${ly - 2}" width="4" height="5" rx="1.2"/>`);
+      }
+      if (f === 10) {
+        const sx = r - 9, sy = yy - Math.min(7, h - 4);
+        s.push(`<path class="spark" d="M${sx} ${sy - 5} Q${sx + .8} ${sy - .8} ${sx + 5} ${sy} Q${sx + .8} ${sy + .8} ${sx} ${sy + 5} Q${sx - .8} ${sy + .8} ${sx - 5} ${sy} Q${sx - .8} ${sy - .8} ${sx} ${sy - 5} Z"/>`);
+      }
+      const labelled = o.every === 1 || f % 5 === 0 || f === S.deep || f === S.target;
+      if (labelled) s.push(`<text class="fl${lit ? " lit" : ""}" x="${cx - half(f) - 5}" y="${yy + 3}" text-anchor="end">${f}</text>`);
+      if (o.words && f > S.deep && ((f <= S.deep + o.words && h >= 12) || f === S.target)) {
+        const [word, heat] = feelOf(f);
+        s.push(`<text class="fw ${heat}" x="${cx + half(f) + 6}" y="${yy + 3}">${word}</text>`);
+      }
+    }
+    // the target flag
+    if (S.target <= o.to) {
+      const ty = y(S.target), px = cx + half(S.target) - 6;
+      s.push(`<path class="pole" d="M${px} ${ty - 1} L${px} ${ty - 13}"/><path class="flag" d="M${px} ${ty - 13} L${px - 8} ${ty - 10} L${px} ${ty - 7} Z"/>`);
+    }
+    // band names
+    [["the well", g, a], ["the cellar", a, b], ["further down", b, H]].forEach(([name, t, btm]) => {
+      const my = (t + Math.min(btm, H - 6)) / 2;
+      s.push(`<text class="band" x="0" y="0" text-anchor="middle" transform="translate(${o.bx} ${my}) rotate(-90)">${name}</text>`);
+    });
+    // the well mouth
+    const rl = L0 - 9, rr = R0 + 9;
+    s.push(`<path class="grass" d="M0 ${g} Q${w * .12} ${g - 3} ${w * .25} ${g} T${w * .5} ${g} T${w * .75} ${g} T${w} ${g}"/>`);
+    for (let i = 0; i < 9; i++) { const tx = 10 + i * (w - 20) / 8 + (i % 2 ? 7 : -4); if (tx > rl - 20 && tx < rr + 20) continue; s.push(`<path class="tuft" d="M${tx} ${g} l-3 -6 M${tx} ${g} l0 -8 M${tx} ${g} l3 -6"/>`); }
+    s.push(`<path class="post" d="M${rl + 4} ${g - 12} L${rl + 4} ${g - 40} M${rr - 4} ${g - 12} L${rr - 4} ${g - 40}"/>`);
+    s.push(`<path class="roof" d="M${rl - 10} ${g - 38} L${cx} ${g - 58} L${rr + 10} ${g - 38} Z"/>`);
+    s.push(`<path class="post" d="M${rl + 4} ${g - 34} L${rr - 4} ${g - 34}"/><circle class="stone" cx="${cx}" cy="${g - 34}" r="3.2"/><path class="post" d="M${rr - 4} ${g - 34} l7 0 l0 7"/>`);
+    s.push(`<rect class="stone" x="${rl}" y="${g - 14}" width="${rr - rl}" height="14" rx="4"/><path class="brick" d="M${rl + 10} ${g - 14} L${rl + 10} ${g - 7} M${cx} ${g - 7} L${cx} ${g} M${rr - 10} ${g - 14} L${rr - 10} ${g - 7}"/>`);
+
+    const decoStart = s.length;
+    // ---- 2. the sewing room door: cut through the right wall on floor 20 ----
+    if (S.deep >= 20) {
+      const dy = y(20), dx = R1 + 3, dw = 12, dh = 17;
+      s.push(`<g data-door="1"><rect class="hit" x="${dx - 6}" y="${dy - dh - 6}" width="${dw + 14}" height="${dh + 10}"/><path class="tunnel" d="M${R1 - 1} ${dy} L${R1 - 1} ${dy - dh - 2} L${dx + dw + 4} ${dy - dh - 2} L${dx + dw + 4} ${dy} Z"/><path class="sewdoor" d="M${dx} ${dy} L${dx} ${dy - dh + dw / 2} A${dw / 2} ${dw / 2} 0 0 1 ${dx + dw} ${dy - dh + dw / 2} L${dx + dw} ${dy} Z"/><circle class="knob" cx="${dx + dw - 3.2}" cy="${dy - 6}" r="1.6"/></g>`);
+    }
+
+    // ---- 3. held landings: a crowd holding the rope / door / stairs, and a pill with how many ----
+    Object.keys(HOLD_NEED).map(Number).forEach(f => {
+      if (f > S.deep || !S.held[f]) return;
+      const yy = y(f), hw = half(f + 0.5 > 20 ? f : f), n = S.held[f], full = n >= HOLD_NEED[f];
+      const big = o.nails !== "tag";
+      const cw = f === 10 ? 52 : big ? 64 : 46, ch = big ? 24 : 20;
+      const ids = f === 10 ? ["mint-blob", "peach-cat", "lilac-cat"] : f === 20 ? ["peach-cat", "mint-blob", "mint-bear"] : ["lilac-cat", "mint-blob", "peach-cat"];
+      const m = mound(ids, Math.round(n * (full ? 1 : .6)), cw, ch, big ? 14 : 8, 3 + f);
+      const left = f === 20 ? cx - m.w / 2 - 10 : cx - m.w / 2;
+      html.push(`<div class="crowd" style="left:${left.toFixed(1)}px; top:${(yy - m.h + 2).toFixed(1)}px; width:${m.w}px; height:${m.h}px">${m.html}</div>`);
+      s.push(`<g data-hold="${f}"><rect class="hit" x="${cx - 34}" y="${yy - 24}" width="68" height="28"/></g>`);
+      if (big) {
+        const px = cx + half(f) + 5 + (f === 20 ? 0 : 0), py = f === 20 ? yy + 3 : yy - 8;
+        html.push(`<span class="hpill${full ? "" : " part"}" style="left:${px}px; top:${py}px">${full ? short(n) : `${short(n)}/${short(HOLD_NEED[f])}`}</span>`);
+      }
+    });
+
+    // ---- 1. the perk tree on the wall ----
+    const nails = S.nails.filter(n => n.f <= S.deep);
+    const avail = n => n.lv > 0 || S.nails.indexOf(n) === 0 || S.nails[S.nails.indexOf(n) - 1].lv > 0;
+    const tipsY = H - (o.nails === "tag" ? 26 : 46);
+    if (o.nails === "lane") {
+      const X = 40;
+      const at = n => n.f === 0 ? { x: rl - 3, y: g - 30 } : { x: X, y: y(n.f) - 20 };
+      // the thread: nail to nail down the lane, coral up to the last one bought
+      let prev = at(nails[0]);
+      nails.slice(1).forEach(n => {
+        const p = at(n);
+        s.push(`<path class="thread${n.lv ? "" : " off"}" d="M${prev.x} ${prev.y} Q${(prev.x + p.x) / 2 - 8} ${(prev.y + p.y) / 2} ${p.x} ${p.y}"/>`);
+        prev = p;
+      });
+      S.tips.forEach((t, i) => { const tx = X - 14 + i * 30; s.push(`<path class="thread" d="M${prev.x} ${prev.y} Q${prev.x} ${tipsY - 20} ${tx} ${tipsY}"/>`); });
+      nails.forEach(n => {
+        const p = at(n), sc = n.f === 0 ? .76 : .9, cls = n.lv ? "" : avail(n) ? "off next" : "off";
+        const pick = S.card && S.card.nail === n.id;
+        s.push(`<g data-nail="${n.id}"><rect class="hit" x="${p.x - 16}" y="${p.y - 4}" width="32" height="28"/>${pick ? `<circle class="ring" cx="${p.x}" cy="${p.y + 11}" r="14"/>` : ""}<circle class="nailhead" cx="${p.x}" cy="${p.y}" r="1.8"/><path class="string" d="M${p.x} ${p.y} L${p.x} ${p.y + 3}"/>${thingSvg(n.thing, p.x, p.y + 2, sc, cls + (S.fresh === n.id ? " fresh" : ""))}</g>`);
+      });
+      S.tips.forEach((t, i) => {
+        const tx = X - 14 + i * 30, pick = S.card && S.card.nail === t.id;
+        s.push(`<g data-nail="${t.id}"><rect class="hit" x="${tx - 14}" y="${tipsY - 3}" width="28" height="40"/>${pick ? `<circle class="ring" cx="${tx}" cy="${tipsY + 10}" r="13"/>` : ""}<circle class="nailhead" cx="${tx}" cy="${tipsY}" r="1.8"/>${thingSvg(t.thing, tx, tipsY + 2, .9, S.fresh === t.id ? "fresh" : "")}<text class="tiplv" x="${tx}" y="${tipsY + 34}" text-anchor="middle">lv ${t.lv}</text></g>`);
+      });
+    } else if (o.nails === "tag") {
+      // tiny marks on the right of each landing that has a thing; the entrance hangs on the roof post
+      nails.forEach(n => {
+        const x = n.f === 0 ? rr + 6 : cx + (n.f <= 20 ? o.wc : o.ws) / 2 + (n.f === 20 ? 25 : 9), yy = n.f === 0 ? g - 30 : y(n.f) - 12;
+        s.push(`<g class="tag">${n.f === 0 ? `<circle class="nailhead" cx="${x}" cy="${yy}" r="1.5"/>` : ""}${thingSvg(n.thing, x, yy + 1, .46, n.lv ? "" : avail(n) ? "off next" : "off")}</g>`);
+      });
+      S.tips.forEach((t, i) => s.push(`<g class="tag">${thingSvg(t.thing, cx + o.ws / 2 + 12 + i * 15, tipsY + 4, .5)}</g>`));
+      // every landing is a tap target (under the door and the crowds); the picked one gets a dashed band
+      const lands = [];
+      for (let f = 0; f <= Math.min(S.deep, o.to); f++) {
+        const top = f === 0 ? g - 58 : y(f - 1), bot = f === 0 ? g : y(f);
+        if (S.sel === f) lands.push(`<rect class="sel" x="${o.bx + 8}" y="${top + 1}" width="${w - o.bx - 10}" height="${bot - top}" rx="5"/>`);
+        lands.push(`<rect class="hit" data-land="${f}" x="${o.bx + 8}" y="${top}" width="${w - o.bx - 8}" height="${bot - top}"/>`);
+      }
+      s.splice(decoStart, 0, ...lands);
+      s.push(`<rect class="hit" data-land="tips" x="0" y="${tipsY - 8}" width="${w}" height="${H - tipsY + 8}"/>`);
+      if (S.sel === "tips") s.push(`<rect class="sel" x="${cx + o.ws / 2 + 2}" y="${tipsY - 7}" width="${w - cx - o.ws / 2 - 4}" height="26" rx="5"/>`);
+    } else if (o.nails === "edge") {
+      // a strip of the wall peeks in on the left; its dots are the nails
+      s.push(`<g data-pan="wall"><rect class="wstrip" x="0" y="${g}" width="15" height="${H - g}"/><path class="brick" d="${Array.from({ length: Math.floor((H - g) / 9) }, (_, k) => `M${k % 2 ? 2 : 6} ${g + 5 + k * 9} L${k % 2 ? 9 : 13} ${g + 5 + k * 9}`).join(" ")}"/>`);
+      nails.forEach(n => { if (n.f) s.push(`<circle class="wdot${n.lv ? "" : " off"}" cx="7.5" cy="${y(n.f) - 8}" r="3"/>`); });
+      S.tips.forEach((t, i) => s.push(`<circle class="wdot" cx="7.5" cy="${tipsY + i * 9}" r="3"/>`));
+      s.push(`</g>`);
+    }
+    return { svg: `<svg class="well" width="${w}" height="${H}" viewBox="0 0 ${w} ${H}" aria-hidden="true">${s.join("")}</svg>${html.join("")}`, y, H, tipsY };
+  }
+
+  // Look C: the wall of nails beside the well, at the same depth
+  function wallSvg(S, o, y, H, tipsY) {
+    const { w, g } = o, s = [];
+    s.push(`<rect class="wbg" x="0" y="0" width="${w}" height="${H}"/>`);
+    s.push(`<path class="grass" d="M0 ${g} Q${w * .12} ${g - 3} ${w * .25} ${g} T${w * .5} ${g} T${w * .75} ${g} T${w} ${g}"/>`);
+    for (let i = 0; i < 7; i++) { const tx = 14 + i * (w - 28) / 6; s.push(`<path class="tuft" d="M${tx} ${g} l-3 -6 M${tx} ${g} l0 -8 M${tx} ${g} l3 -6"/>`); }
+    let bricks = "";
+    for (let yy = g + 8, k = 0; yy < H; yy += 12, k++) {
+      bricks += `M4 ${yy} L${w - 4} ${yy} `;
+      for (let x = (k % 2 ? 18 : 40); x < w - 6; x += 44) bricks += `M${x} ${yy} L${x} ${yy + 12} `;
+    }
+    s.push(`<path class="bricks" d="${bricks}"/>`);
+    // a depth ruler at the landings with nails, so it lines up with the well
+    const nails = S.nails.filter(n => n.f <= S.deep && n.f > 0);
+    nails.forEach(n => { const yy = y(n.f); s.push(`<path class="ruler lit" d="M20 ${yy} L${w - 6} ${yy}"/><text class="fl lit" x="6" y="${yy + 3}">${n.f}</text>`); });
+    s.push(`<rect class="edge" x="${w - 3}" y="${g}" width="3" height="${H - g}"/>`);
+    const avail = n => n.lv > 0 || S.nails.indexOf(n) === 0 || S.nails[S.nails.indexOf(n) - 1].lv > 0;
+    const all = S.nails.filter(n => n.f <= S.deep);
+    const at = (n, i) => n.f === 0 ? { x: w / 2, y: 12 } : { x: i % 2 ? w * .34 + 6 : w * .66, y: y(n.f) - 3 };
+    s.push(`<path class="post" d="M${w / 2 - 22} ${g} L${w / 2 - 22} 8 M${w / 2 + 22} ${g} L${w / 2 + 22} 8 M${w / 2 - 28} 10 L${w / 2 + 28} 10"/>`);
+    // the thread through the nails
+    let prev = at(all[0], 0);
+    all.slice(1).forEach((n, k) => { const p = at(n, k + 1); s.push(`<path class="thread${n.lv ? "" : " off"}" d="M${prev.x} ${prev.y} Q${(prev.x + p.x) / 2} ${(prev.y + p.y) / 2 + 16} ${p.x} ${p.y}"/>`); prev = p; });
+    S.tips.forEach((t, i) => { const tx = w * (i ? .66 : .34) + (i ? 0 : 6); s.push(`<path class="thread" d="M${prev.x} ${prev.y} Q${(prev.x + tx) / 2} ${tipsY - 56} ${tx} ${tipsY - 36}"/>`); });
+    const draw = (n, p, isTip) => {
+      const cls = n.lv || isTip ? "" : avail(n) ? "off next" : "off", pick = S.card && S.card.nail === n.id;
+      const max = !isTip && n.lv >= n.steps.length - 1;
+      let under = "";
+      if (isTip) under = `<rect class="tagp" x="${p.x - 17}" y="${p.y + 38}" width="34" height="15" rx="7"/><text class="tagt" x="${p.x}" y="${p.y + 49}" text-anchor="middle">lv ${n.lv}</text>`;
+      else if (n.lv || max) under = Array.from({ length: n.steps.length - 1 }, (_, i) => `<circle class="pip${i < n.lv ? " on" : ""}" cx="${p.x - (n.steps.length - 2) * 4.5 + i * 9}" cy="${p.y + 44}" r="3"/>`).join("");
+      else if (avail(n)) under = `<rect class="tagp" x="${p.x - 22}" y="${p.y + 37}" width="44" height="16" rx="8"/><text class="tagt" x="${p.x + 5}" y="${p.y + 49}" text-anchor="middle">${short(n.price[n.lv])}</text><g transform="translate(${p.x - 19} ${p.y + 39}) scale(.5)" style="color:var(--wisp)"><path d="M5.2 15.6 Q3.2 11.4 7.4 10 Q8 5.8 12.6 6.2 Q17 6.4 17.4 10.6 Q20.6 11.8 19 15 Q17 17.6 12.6 16.6 Q8.4 18.4 5.2 15.6 Z" fill="currentColor" stroke="currentColor" stroke-width="2"/></g>`;
+      return `<g data-nail="${n.id}"><rect class="hit" x="${p.x - 26}" y="${p.y - 6}" width="52" height="${isTip || avail(n) ? 60 : 46}"/>${pick ? `<circle class="ring" cx="${p.x}" cy="${p.y + 17}" r="21"/>` : ""}<circle class="nailhead" cx="${p.x}" cy="${p.y}" r="2.4"/><path class="string" d="M${p.x} ${p.y} L${p.x} ${p.y + 4}"/>${thingSvg(n.thing, p.x, p.y + 3, 1.3, cls + (S.fresh === n.id ? " fresh" : ""))}${under}</g>`;
+    };
+    all.forEach((n, i) => s.push(draw(n, at(n, i), false)));
+    S.tips.forEach((t, i) => s.push(draw(t, { x: w * (i ? .66 : .34) + (i ? 0 : 6), y: tipsY - 36 }, true)));
+    return `<svg class="well wallsvg" width="${w}" height="${H}" viewBox="0 0 ${w} ${H}" aria-hidden="true">${s.join("")}</svg>`;
+  }
+
+  // ---------------- one look = one little game state ----------------
+  function makeLook(frame) {
+    const look = frame.dataset.look;
+    const content = mountAt(frame);
+    const params = new URLSearchParams(location.search);
+    const S = {
+      deep: 31, target: 32, home: 2, first: 0, start: 2,
+      herd: { common: 380, uncommon: 150, rare: 40 }, have: { common: 31200, uncommon: 9400, rare: 880 },
+      front: FRONT0.map(p => ({ ...p })), wisps: 4418, running: false, pos: 0, last: { floor: 31, got: 1204, back: 512 },
+      nails: NAILS0.map(n => ({ ...n })), tips: TIPS0.map(t => ({ ...t })),
+      held: { 10: 500, 20: 2000, 30: 3120 }, send: { common: 0, uncommon: 0 },
+      view: look === "C" ? "wall" : "well", room: 2, card: null, sel: 20, fresh: null,
+    };
+    if (look === "A") S.card = { nail: "moon" };
+    if (look === "C") S.card = { nail: "moon" };
+    if (params.get("sew")) S.view = "rooms";
+    if (params.get("view") && look === "C") S.view = params.get("view");
+    if (params.get("card") === "hold") S.card = { hold: 30 };
+    const STARTS = () => [0, 10, 20, 30].filter(f => f === 0 || S.held[f] >= HOLD_NEED[f]);
+    const startF = () => STARTS()[Math.min(S.start, STARTS().length - 1)];
+    const say = t => { frame.querySelector(".top .bubble").textContent = t; };
+    const herdN = () => HERD_TIERS.reduce((a, t) => a + S.herd[t], 0);
+    const sent = () => S.front.length + herdN();
+    const entrance = () => S.nails[0].steps[S.nails[0].lv];
+    const power = () => S.front.reduce((a, p) => a + (p.t === "rare" ? POWER.frontRare : p.t === "uncommon" ? POWER.frontUncommon : POWER[p.t]), 0) + HERD_TIERS.reduce((a, t) => a + S.herd[t] * POWER[t], 0);
+    const feelOf = f => { const r = power() / strength(f); const w = WORDS.find(x => r >= x[0]); return [w[1], w[2]]; };
+    const roomFeel = rm => { const r = power() / (rm.power / 6); const w = WORDS.find(x => r >= x[0]); return [w[1], w[2]]; };
+    const herdIds = () => HERD_TIERS.flatMap(t => Array.from({ length: Math.max(0, Math.round(S.herd[t] / 40)) }, (_, i) => KINDS[t][i % KINDS[t].length])).concat(["mint-blob"]);
+    const matches = (p, m) => m.k === "tier" ? p.t === m.t : p.has.includes(m.k);
+    const markOn = m => S.front.some(p => matches(p, m));
+    const findNail = id => S.nails.find(n => n.id === id) || S.tips.find(t => t.id === id);
+
+    (() => {
+      const sky = frame.querySelector(".sky"); let sd = 41 + look.charCodeAt(0);
+      const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+      const tints = Object.values(TINT); let out = "";
+      for (let i = 0; i < 190; i++) out += `<rect x="${Math.floor(rr() * 74) + 2}" y="${Math.floor(rr() * 590) + 4}" width="1" height="1" fill="${tints[i % tints.length]}" opacity="${(0.18 + rr() * 0.3).toFixed(2)}"/>`;
+      sky.insertAdjacentHTML("beforeend", out);
+    })();
+
+    // ---------- pieces ----------
+    const bar = () => `<div class="bar"><div class="seg"><button>adventures</button><button>upgrades</button><button class="on">dungeon</button></div><span class="wispchip" data-wispchip>${WISP(20)}<b class="num">${fmt(S.wisps)}</b></span></div>`;
+    const stepper = (key, val, atMin, atMax, cls = "") => `<span class="step ${cls}"><button data-step="${key}" data-d="-1" ${atMin || S.running ? "disabled" : ""}>‹</button><output>${val}</output><button data-step="${key}" data-d="1" ${atMax || S.running ? "disabled" : ""}>›</button></span>`;
+    const feelPill = f => { if (f <= S.deep) return `<span class="feel">${feelOf(f)[0]}</span>`; const [w, h] = feelOf(f); return `<span class="feel ${h}">${w}</span>`; };
+    const goBtn = () => `<button class="btn primary go" data-go ${S.running ? "disabled" : ""}>${S.running ? "on the way…" : "down we go!"}</button>`;
+    const orders = () => {
+      const sf = startF(), st = STARTS();
+      return `<div class="orders sticker index">
+        <div class="ohead"><b>orders</b></div>
+        <div class="oline start"><span>start from</span>${stepper("start", sf ? `landing ${sf}` : "the top", S.start <= 0, S.start >= st.length - 1, "wide")}</div>
+        <div class="oline"><span>go down to floor</span>${stepper("target", S.target, S.target <= sf + 1, S.target >= MAXF, "floor")}${feelPill(S.target)}</div>
+        <div class="oline"><span>come home when</span>${stepper("home", `${HOMES[S.home]}%`, S.home <= 0, S.home >= HOMES.length - 1)}<span>are gone</span></div>
+        <div class="oline"><span>who goes first</span>${stepper("first", FIRSTS[S.first], S.first <= 0, S.first >= FIRSTS.length - 1, "wide")}</div>
+        ${goBtn()}
+      </div>`;
+    };
+    const room = () => ROOMS[S.room];
+    const card = p => {
+      const chalk = S.view === "rooms" && room().marks.some(m => matches(p, m));
+      return `<div class="fcard${p.fresh ? " new" : ""}" style="--tc:var(--tier-${p.t})" title="${p.id.replace("-", " ")}">${p.lead ? `<span class="lead">${FLAG}</span>` : ""}${chalk ? `<span class="chalk">${TICK}</span>` : ""}${pet(p.id)}</div>`;
+    };
+    const herdRows = () => `<div class="hrows">${HERD_TIERS.map(t => {
+        const room = entrance() - sent();
+        return `<div class="hrow" style="--tc:var(--tier-${t})"><span class="tname">${t}<small>of ${fmt(S.have[t])}</small></span>
+          <span class="step"><button data-herd="${t}" data-d="-10" ${S.herd[t] <= 0 || S.running ? "disabled" : ""}>‹</button><output>${fmt(S.herd[t])}</output><button data-herd="${t}" data-d="10" ${room <= 0 || S.herd[t] >= S.have[t] || S.running ? "disabled" : ""}>›</button></span></div>`;
+      }).join("")}</div>`;
+    const gate = () => { const n = sent(), E = entrance(); return `<div class="gate${n >= E ? " full" : ""}"><span>the entrance</span><span class="meter"><i style="--f:${Math.min(1, n / E)}"></i></span><b>${n} <small>/ ${short(E)}</small></b></div>`; };
+    const midCol = () => {
+      const m = mound(herdIds(), herdN(), 150, 40, 34, 7);
+      return `<div class="mid-col">
+        <div class="a-front sticker"><span class="h3">front row</span><div class="fcards">${S.front.map(card).join("")}</div></div>
+        <div class="a-herd sticker">
+          <div class="top2"><div style="display:flex; flex-direction:column; gap:6px"><span class="h3">the herd</span><span class="count">${fmt(herdN())}</span></div><div class="mound" style="width:${m.w}px; height:${m.h}px">${m.html}</div></div>
+          ${herdRows()}${gate()}
+        </div>
+      </div>`;
+    };
+    const lastCard = () => `<div class="card sticker">
+        <span class="h3">last time</span>
+        <div class="row"><span>got to</span><b>floor ${S.last.floor}</b></div>
+        <div class="row"><span>brought home</span><b class="w">${WISP(15)}${fmt(S.last.got)}</b></div>
+        <div class="row"><span>came home</span><b>${fmt(S.last.back)}</b></div>
+      </div>`;
+
+    // what a nail does, as "what now → next"
+    const nailFacts = n => {
+      if (n.tip) { const now = 1 + .04 * n.lv; return { eff: `${n.what} <b>${x2(now)}</b> → <b class="to">${x2(now + .04)}</b>`, price: tipPrice(n), max: false }; }
+      const max = n.lv >= n.steps.length - 1;
+      return { eff: max ? `${n.what} <b class="to">${n.fmt(n.steps[n.lv])}</b>` : `${n.what} <b>${n.fmt(n.steps[n.lv])}</b> → <b class="to">${n.fmt(n.steps[n.lv + 1])}</b>`, price: max ? 0 : n.price[n.lv], max };
+    };
+    const canBuy = n => { if (n.tip) return true; const i = S.nails.indexOf(n); return i === 0 || S.nails[i - 1].lv > 0; };
+    const nailCard = n => {
+      const F = nailFacts(n), ok = canBuy(n), afford = S.wisps >= F.price;
+      const lvl = n.tip ? `<span class="lvpill">lv ${n.lv}</span>` : `<span class="pips">${Array.from({ length: n.steps.length - 1 }, (_, i) => `<i class="${i < n.lv ? "on" : ""}"></i>`).join("")}</span>`;
+      const btn = F.max ? `<button class="btn buyb" disabled>all done!</button>`
+        : ok ? `<button class="btn primary buyb" data-buy="${n.id}" ${afford ? "" : "disabled"}><span>${n.lv || n.tip ? "one more" : "hang it up"}</span><span class="price">${WISP(15)}${fmt(F.price)}</span></button>` : "";
+      return `<div class="card sticker nail-card">
+        <div class="chead"><span class="h3">${n.name}</span><button class="x" data-close title="close">✕</button></div>
+        <div class="nbody"><div class="bigthing"><svg viewBox="0 0 24 24">${thingSvg(n.thing, 12, 0, 1, n.lv || n.tip ? "" : "off next").replace('class="thing', 'class="thing')}</svg></div>
+          <div class="ninfo">${lvl}<div class="eff">${F.eff}</div></div></div>
+        ${btn}
+      </div>`;
+    };
+    const holdCard = f => {
+      const n = S.held[f] || 0, need = HOLD_NEED[f], full = n >= need;
+      const m = mound(["mint-blob", "peach-cat", "lilac-cat", "mint-bear"], n, 96, 32, 16, 13 + f);
+      const rows = full ? "" : `<div class="hrows">${["common", "uncommon"].map(t => `<div class="hrow" style="--tc:var(--tier-${t})"><span class="tname">${t}<small>of ${fmt(S.have[t])}</small></span><span class="step"><button data-send="${t}" data-d="-100" ${S.send[t] <= 0 ? "disabled" : ""}>‹</button><output>${fmt(S.send[t])}</output><button data-send="${t}" data-d="100">›</button></span></div>`).join("")}</div>
+          <button class="btn primary" data-sendgo ${S.send.common + S.send.uncommon ? "" : "disabled"}>hold on tight!</button>`;
+      return `<div class="card sticker hold-card">
+        <div class="chead"><span class="h3">landing ${f}</span>${full ? `<span class="pennant">${PENNANT}</span>` : ""}<button class="x" data-close title="close">✕</button></div>
+        <div class="hline"><div class="mound" style="width:${m.w}px; height:${m.h}px">${m.html}</div><div style="display:flex; flex-direction:column; gap:3px"><span class="count">${fmt(n)}</span><span>holding ${HOLD_WHAT[f]}</span></div></div>
+        ${full ? "" : `<div class="gate"><span></span><span class="meter"><i style="--f:${Math.min(1, n / need)}"></i></span><b>${short(n)} <small>/ ${short(need)}</small></b></div>`}
+        ${rows}
+      </div>`;
+    };
+    // Look B: everything on one landing
+    const landCard = f => {
+      if (f === "tips") return `<div class="card sticker land-card"><div class="chead"><span class="h3">the very bottom</span><button class="x" data-close title="close">✕</button></div>${S.tips.map((t, i) => `${i ? `<hr class="stitch-line">` : ""}${landNail(t)}`).join("")}</div>`;
+      const n = S.nails.find(x => x.f === f), hold = HOLD_NEED[f], door = f === 20;
+      const parts = [];
+      if (n) parts.push(landNail(n));
+      if (hold) {
+        const c = S.held[f] || 0, full = c >= hold;
+        const m = mound(["mint-blob", "peach-cat", "lilac-cat"], c, 30, 26, 5, 4 + f);
+        parts.push(`<div class="sec"><div class="mini"><div class="mound" style="width:${m.w}px; height:${m.h}px">${m.html}</div></div><div class="mid"><b>${fmt(c)}${full ? "" : ` <span class="muted">/ ${short(hold)}</span>`}</b><span class="eff">holding ${HOLD_WHAT[f]}</span></div>${full ? `<span class="pennant">${PENNANT}</span>` : `<button class="btn sb" data-quick="${f}">send 1k</button>`}</div>`);
+      }
+      if (door) parts.push(`<div class="sec"><div class="mini"><svg viewBox="0 0 24 24"><path d="M6 21 L6 10 A6 6 0 0 1 18 10 L18 21 Z" fill="color-mix(in srgb, var(--pink) 22%, var(--raised))" stroke="var(--pink)" stroke-width="1.8"/><circle cx="15" cy="15" r="1.4" fill="var(--wisp)"/></svg></div><div class="mid"><b>the sewing room</b><span class="eff">${ROOMS.filter(r => r.cleared).length} of ${ROOMS.length} rooms</span></div><button class="btn sb" data-door="1">in ›</button></div>`);
+      const title = f === 0 ? "the well mouth" : `landing ${f}`;
+      return `<div class="card sticker land-card"><div class="chead"><span class="h3">${title}</span>${f > 0 ? feelPill(f) : ""}<button class="x" data-close title="close">✕</button></div>
+        ${parts.length ? parts.join(`<hr class="stitch-line">`) : `<div class="row"><span>got here</span><b>${fmt(40 - f)} times</b></div>`}</div>`;
+    };
+    const landNail = n => {
+      const F = nailFacts(n), ok = canBuy(n), afford = S.wisps >= F.price;
+      const lvl = n.tip ? `<span class="lvpill" style="line-height:14px">lv ${n.lv}</span>` : `<span class="pips">${Array.from({ length: n.steps.length - 1 }, (_, i) => `<i class="${i < n.lv ? "on" : ""}"></i>`).join("")}</span>`;
+      const btn = F.max ? `<span class="pennant">${PENNANT}</span>` : ok ? `<button class="btn sb" data-buy="${n.id}" ${afford ? "" : "disabled"}><span class="price">${WISP(13)}${short(F.price)}</span></button>` : "";
+      return `<div class="sec"><div class="mini"><svg viewBox="0 0 24 24">${thingSvg(n.thing, 12, 0, 1, n.lv || n.tip ? "" : "off next")}</svg></div><div class="mid"><b>${n.name}</b>${lvl}<span class="eff">${F.eff}</span></div>${btn}</div>`;
+    };
+    const slot = () => {
+      if (look === "B") return S.sel !== null ? landCard(S.sel) : lastCard();
+      if (S.card && S.card.nail) return nailCard(findNail(S.card.nail));
+      if (S.card && S.card.hold) return holdCard(S.card.hold);
+      return lastCard();
+    };
+
+    // the sewing room pane
+    const roomsPane = () => {
+      const rm = room(), [fw, fh] = roomFeel(rm), full = rm.marks.every(markOn);
+      const marks = rm.marks.map((m, i) => `<button class="mark${m.k === "tier" ? " tier" : ""}${markOn(m) ? " on" : ""}" ${m.t ? `style="--tc:var(--tier-${m.t})"` : ""} data-mark="${i}" title=""><svg viewBox="0 0 24 24">${MARKS[m.k]}</svg></button>`).join("");
+      return `<div class="rooms">
+        <svg class="tun" viewBox="0 0 220 22" preserveAspectRatio="xMinYMid meet"><path d="M0 16 L150 16 Q170 16 176 22" /><path d="M0 6 L148 6 Q182 6 190 22"/><path class="d" d="M3 16 L3 7 A5 5 0 0 1 13 7 L13 16 Z"/><circle class="k" cx="10.4" cy="12" r="1.3"/></svg>
+        <div class="rtop"><button class="rarrow" data-room="-1" ${S.room <= 0 ? "disabled" : ""}>‹</button><span class="rname">${rm.name}</span><button class="rarrow" data-room="1" ${S.room >= ROOMS.length - 1 ? "disabled" : ""}>›</button></div>
+        <div class="rdots">${ROOMS.map((r, i) => `<i class="${i === S.room ? "on" : r.cleared ? "done" : ""}"></i>`).join("")}</div>
+        <div class="chamber"><svg class="pic" viewBox="0 0 150 74">${ROOM_PICS[rm.id]}</svg><div class="board"><div class="marks">${marks}</div></div></div>
+        <div class="rfoot">${rm.cleared ? `<span class="pennant">${PENNANT}</span>` : `<span class="feel ${fh}">${fw}</span>`}<button class="btn primary" data-inwego ${full ? "" : "disabled"}>in we go!</button></div>
+      </div>`;
+    };
+
+    let geo = null, scrollKeep = null;
+    const COLW = { A: 236, B: 230, C: 232 };
+    const SIDEW = { A: 262, B: 264, C: 262 };
+
+    function render(fromView) {
+      const sc = content.querySelector(".scroll"); if (sc) scrollKeep = sc.scrollTop;
+      const W = COLW[look], inner = W - 4;
+      const opts = look === "A"
+        ? { w: inner, cx: 128, g: 70, fw: 16, fc: 22, fs: 17, ww: 56, wc: 96, ws: 80, to: DRAW_TO, tail: 58, pebbles: 90, every: 1, words: 4, bx: 12, nails: "lane" }
+        : look === "B"
+        ? { w: inner, cx: 104, g: 70, fw: 16, fc: 22, fs: 17, ww: 56, wc: 96, ws: 80, to: DRAW_TO, tail: 40, pebbles: 80, every: 1, words: 4, bx: 12, nails: "tag" }
+        : { w: inner, cx: 128, g: 70, fw: 16, fc: 22, fs: 17, ww: 56, wc: 96, ws: 80, to: DRAW_TO, tail: 58, pebbles: 80, every: 1, words: 4, bx: 28, nails: "edge" };
+      geo = wellSvg(S, opts, feelOf);
+      const view = fromView || S.view;
+      const panCls = view === "rooms" ? "sew" : "";
+      const wellPane = `<div class="pane" style="width:${inner}px; height:${geo.H}px">${geo.svg}${S.running ? `<div class="party" style="left:${opts.cx - 22}px; top:${geo.y(S.pos) - 18}px">${pet("lilac-blob")}${pet(S.front[1] ? S.front[1].id : "sky-bunny")}${pet(S.front[2] ? S.front[2].id : "mint-bear")}</div>` : ""}</div>`;
+      let strip;
+      if (look === "C") {
+        const wall = wallSvg(S, opts, geo.y, geo.H, geo.tipsY);
+        const onWall = view === "wall" || (view === "rooms" && S.lastSide === "wall");
+        strip = `<div class="strip" style="width:${inner * 2}px; --sx:-${inner}px">${`<div class="pane" style="width:${inner}px; height:${geo.H}px">${wall}</div>`}${wellPane}</div>`;
+        var panExtra = onWall ? " onwall" : " onwell";
+      } else strip = wellPane;
+      // the column's title follows the pan
+      const title = view === "rooms" ? `<button class="pnav l" data-back>‹</button>the sewing room`
+        : look === "C" && view === "wall" ? `the wall<button class="pnav" data-pan="well">the well ›</button>`
+        : look === "C" ? `<button class="pnav l" data-pan="wall">‹ wall</button>the old well` : "the old well";
+      content.innerHTML = `<div class="page2">${bar()}<div class="a-body" style="grid-template-columns:${W}px 1fr ${SIDEW[look]}px">
+        <div class="col panel"><h2>${title}</h2><div class="pan ${panCls}${look === "C" ? panExtra : ""}"><div class="scroll">${strip}</div>${roomsPane()}</div></div>
+        ${midCol()}
+        <div class="side">${orders()}${slot()}</div>
+      </div></div>`;
+      const sc2 = content.querySelector(".scroll");
+      if (S.running) sc2.scrollTop = Math.max(0, geo.y(S.pos) - sc2.clientHeight / 2);
+      else if (scrollKeep !== null) sc2.scrollTop = scrollKeep;
+      else sc2.scrollTop = Number(params.get("scroll") || (look === "B" ? 190 : look === "A" ? 22 : 0));
+      if (fromView && fromView !== S.view) {
+        const pan = content.querySelector(".pan"); void pan.offsetWidth;
+        pan.classList.toggle("sew", S.view === "rooms");
+        if (look === "C" && S.view !== "rooms") { pan.classList.toggle("onwall", S.view === "wall"); pan.classList.toggle("onwell", S.view === "well"); }
+        const h2 = content.querySelector(".col h2");
+        h2.innerHTML = S.view === "rooms" ? `<button class="pnav l" data-back>‹</button>the sewing room`
+          : look === "C" && S.view === "wall" ? `the wall<button class="pnav" data-pan="well">the well ›</button>`
+          : look === "C" ? `<button class="pnav l" data-pan="wall">‹ wall</button>the old well` : "the old well";
+      }
+      S.fresh = null;
+      wire();
+    }
+
+    function pan(to) {
+      if (S.running) return;
+      const from = S.view;
+      if (to === "rooms") { S.lastSide = from; if (look === "C") S.lastSide = from; }
+      S.view = to;
+      if (to === "rooms") {
+        say("a tiny door! it smells like thread in there.");
+        // leaving for the rooms: keep the well where it was, then slide
+        const sc = content.querySelector(".scroll"); if (sc) scrollKeep = sc.scrollTop;
+        if (look === "C" && from === "wall") S.lastSide = "wall";
+      }
+      render(from);
+    }
+
+    function rise(text) {
+      const el = content.querySelector("[data-wispchip]"); if (!el) return;
+      el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump");
+      const fr = frame.getBoundingClientRect(), r = el.getBoundingClientRect();
+      const p = document.createElement("span"); p.className = "rise"; p.textContent = text;
+      p.style.left = `${r.left - fr.left + r.width / 2}px`; p.style.top = `${r.top - fr.top - 4}px`;
+      frame.appendChild(p); setTimeout(() => p.remove(), 1400);
+    }
+
+    let seed = 99 + look.charCodeAt(0);
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    function addStars(ids) {
+      const sky = frame.querySelector(".sky");
+      ids.forEach(id => {
+        const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        r.setAttribute("x", Math.floor(rnd() * 74) + 2); r.setAttribute("y", Math.floor(rnd() * 590) + 4);
+        r.setAttribute("width", 1); r.setAttribute("height", 1); r.setAttribute("fill", TINT[id] || "#f5dcec");
+        r.setAttribute("opacity", (0.3 + rnd() * 0.35).toFixed(2)); r.classList.add("fresh"); sky.appendChild(r);
+      });
+    }
+    function lose(n) {
+      const gone = [];
+      const fromHerd = (t, k) => { const x = Math.min(k, S.herd[t]); S.herd[t] -= x; S.have[t] -= x; for (let i = 0; i < Math.min(x, 12); i++) gone.push(KINDS[t][i % KINDS[t].length]); return x; };
+      const fromFront = k => { let x = 0; while (x < k && S.front.length > 1) { gone.push(S.front.pop().id); x++; } return x; };
+      let left = n;
+      if (FIRSTS[S.first] === "the front row") left -= fromFront(left);
+      if (FIRSTS[S.first] === "anyone") { const tot = herdN() || 1; HERD_TIERS.forEach(t => { left -= fromHerd(t, Math.round(n * S.herd[t] / tot)); }); }
+      HERD_TIERS.forEach(t => { if (left > 0) left -= fromHerd(t, left); });
+      if (left > 0) fromFront(left);
+      addStars(gone);
+    }
+
+    function go() {
+      if (S.running) return;
+      if (S.view !== "well") { S.view = "well"; }
+      const going = sent(), limit = Math.ceil(going * HOMES[S.home] / 100), sf = startF();
+      let lostAll = 0, got = 0, newDeep = false;
+      S.running = true; S.pos = sf; scrollKeep = null; render();
+      say(sf ? `straight down to landing ${sf}! hi, everyone!` : "down we go! hold paws, everyone!");
+      const tick = () => {
+        S.pos++;
+        const f = S.pos, ratio = power() / strength(f), alive = going - lostAll;
+        const lost = Math.min(alive - 1, Math.round(alive * 0.03 / (ratio * ratio)));
+        if (lost > 0) { lose(lost); lostAll += lost; }
+        const pay = Math.max(1, Math.round(0.6 * Math.pow(1.15, f) * going / 100 * S.nails[3].steps[S.nails[3].lv] / 20));
+        got += pay; S.wisps += pay;
+        if (f > S.deep) { S.deep = f; newDeep = true; }
+        const done = f >= S.target || lostAll >= limit || f >= MAXF;
+        render();
+        if (!done) { setTimeout(tick, 300); return; }
+        setTimeout(() => {
+          S.running = false; S.last = { floor: f, got, back: going - lostAll };
+          while (S.front.length < 20) S.front.push({ ...NEXT_BEST[S.front.length % 2], fresh: true });
+          scrollKeep = null; render(); rise(`+${fmt(got)}`);
+          S.front.forEach(p => { p.fresh = false; });
+          if (S.deep >= 33 && newDeep) { S.fresh = "star"; say("ooh, a new nail down here! something could hang on it."); render(); }
+          else if (f < S.target) say(`we came home a bit early. but ${fmt(got)} wisps! so fluffy!`);
+          else say(`we're home! ${fmt(got)} wisps, all floaty!`);
+        }, 550);
+      };
+      setTimeout(tick, 350);
+    }
+
+    function wire() {
+      content.querySelectorAll("[data-step]").forEach(b => b.addEventListener("click", () => {
+        const d = Number(b.dataset.d), k = b.dataset.step;
+        if (k === "start") { S.start = Math.max(0, Math.min(STARTS().length - 1, S.start + d)); S.target = Math.max(S.target, startF() + 1); }
+        if (k === "target") S.target = Math.max(startF() + 1, Math.min(MAXF, S.target + d));
+        if (k === "home") S.home = Math.max(0, Math.min(HOMES.length - 1, S.home + d));
+        if (k === "first") S.first = Math.max(0, Math.min(FIRSTS.length - 1, S.first + d));
+        render();
+      }));
+      content.querySelectorAll("[data-herd]").forEach(b => b.addEventListener("click", () => {
+        const t = b.dataset.herd, d = Number(b.dataset.d), room = entrance() - sent();
+        S.herd[t] = Math.max(0, Math.min(S.have[t], S.herd[t] + (d > 0 ? Math.min(d, room) : d)));
+        render();
+      }));
+      content.querySelectorAll("[data-go]").forEach(b => b.addEventListener("click", go));
+      content.querySelectorAll("[data-nail]").forEach(g => g.addEventListener("click", () => {
+        S.card = { nail: g.dataset.nail }; render();
+      }));
+      content.querySelectorAll("[data-hold]").forEach(g => g.addEventListener("click", () => {
+        if (look === "B") { S.sel = Number(g.dataset.hold); render(); return; }
+        S.card = { hold: Number(g.dataset.hold) }; render();
+      }));
+      content.querySelectorAll("[data-land]").forEach(g => g.addEventListener("click", () => {
+        const v = g.dataset.land; S.sel = v === "tips" ? "tips" : Number(v); render();
+      }));
+      content.querySelectorAll("[data-door]").forEach(g => g.addEventListener("click", () => pan("rooms")));
+      content.querySelectorAll("[data-back]").forEach(g => g.addEventListener("click", () => pan(look === "C" ? (S.lastSide || "well") : "well")));
+      content.querySelectorAll("[data-pan]").forEach(g => g.addEventListener("click", () => pan(g.dataset.pan)));
+      content.querySelectorAll("[data-close]").forEach(b => b.addEventListener("click", () => { S.card = null; S.sel = null; render(); }));
+      content.querySelectorAll("[data-buy]").forEach(b => b.addEventListener("click", () => {
+        const n = findNail(b.dataset.buy), F = nailFacts(n);
+        if (S.wisps < F.price) return;
+        S.wisps -= F.price; n.lv++; S.fresh = n.id;
+        say(n.id === "entrance" ? "the entrance got bigger! everyone fits now!" : n.tip ? "another one! it jingles!" : "so pretty! it glows a little!");
+        render(); rise(`-${fmt(F.price)}`);
+      }));
+      content.querySelectorAll("[data-send]").forEach(b => b.addEventListener("click", () => {
+        const t = b.dataset.send; S.send[t] = Math.max(0, Math.min(S.have[t], S.send[t] + Number(b.dataset.d))); render();
+      }));
+      content.querySelectorAll("[data-sendgo]").forEach(b => b.addEventListener("click", () => {
+        const f = S.card.hold, n = S.send.common + S.send.uncommon;
+        S.have.common -= S.send.common; S.have.uncommon -= S.send.uncommon; S.held[f] = Math.min(HOLD_NEED[f], S.held[f] + n);
+        S.send = { common: 0, uncommon: 0 };
+        say(S.held[f] >= HOLD_NEED[f] ? `landing ${f} is held! no more stairs for us!` : "hold on tight, everyone!");
+        render();
+      }));
+      content.querySelectorAll("[data-quick]").forEach(b => b.addEventListener("click", () => {
+        const f = Number(b.dataset.quick); S.have.common -= 1000; S.held[f] = Math.min(HOLD_NEED[f], S.held[f] + 1000);
+        say(S.held[f] >= HOLD_NEED[f] ? `landing ${f} is held! no more stairs for us!` : "hold on tight, everyone!");
+        render();
+      }));
+      content.querySelectorAll("[data-room]").forEach(b => b.addEventListener("click", () => {
+        S.room = Math.max(0, Math.min(ROOMS.length - 1, S.room + Number(b.dataset.room))); render();
+      }));
+      content.querySelectorAll("[data-mark]").forEach(b => b.addEventListener("click", () => {
+        const m = room().marks[Number(b.dataset.mark)];
+        if (!markOn(m)) say(m.k === "tier" ? `a ${m.t} one! boxes, boxes, boxes.` : HINTS[m.k]);
+      }));
+      content.querySelectorAll("[data-inwego]").forEach(b => b.addEventListener("click", () => say("in we go! mind the pins!")));
+    }
+
+    render();
+  }
+
+  document.querySelectorAll(".frame").forEach(makeLook);
+  applyLook(loadLook());
+</script>
+</body>
+</html>

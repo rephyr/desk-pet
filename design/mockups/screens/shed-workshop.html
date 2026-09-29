@@ -1,0 +1,622 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Shed Workshop</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* F3: the shed workshop. Once the old shed is ours (coloured in) and the whistle is found, tap the
+     shed on the backyard map: drawings pinned on the shed wall, each built by a crowd of pets with a
+     rarity need (pets only), each takes away an old chore. Building one pins the next.
+     Three looks stacked, each its own game window. */
+  body { display: block; padding: 28px 16px 60px; }
+  .looks { display: flex; flex-direction: column; align-items: center; gap: 44px; }
+  .intro { width: 920px; max-width: 100%; }
+  .intro h1 { margin: 0 0 4px; font: var(--display-weight) 26px/1.1 var(--display); color: var(--pink); }
+  .intro p { margin: 0; color: var(--muted); font-size: 12px; }
+  .look { display: flex; flex-direction: column; gap: 10px; }
+  .look > header { display: flex; align-items: baseline; gap: 12px; width: 920px; max-width: 100%; }
+  .look > header b { font: var(--display-weight) 20px/1 var(--display); color: var(--pink); white-space: nowrap; }
+  .look > header span { color: var(--muted); font-size: 12px; }
+  .content { flex: 1; min-height: 0; }
+
+  /* the full tab row of this stage: squeeze the spine a little so settings still fits */
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+
+  :root {
+    --sheet: color-mix(in srgb, var(--lilac) 13%, var(--raised));
+    --sheet-dot: color-mix(in srgb, var(--lilac) 22%, var(--raised));
+    --wood: color-mix(in srgb, var(--gold) 8%, var(--deep));
+    --wood-line: color-mix(in srgb, var(--gold) 14%, var(--line));
+  }
+
+  /* ---------- the tab ---------- */
+  .adv { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+  .bar { display: flex; align-items: center; gap: 10px; }
+  .main { display: grid; grid-template-columns: 1fr 250px; grid-template-rows: minmax(0, 1fr); gap: 14px; flex: 1; min-height: 0; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---------- the crayon map (as trips.html) ---------- */
+  .mapwrap { position: relative; min-height: 0; }
+  .marks { position: absolute; right: 14px; top: -2px; display: flex; gap: 4px; z-index: 2; }
+  .mark { padding: 4px 9px 8px; border-radius: 0 0 8px 8px; background: var(--deep); border: 2px solid var(--line); border-top: 0; color: var(--muted); font-size: 11px; cursor: pointer; white-space: nowrap; }
+  .mark:hover { color: var(--pink); }
+  .mark.on { background: var(--raised); color: var(--pink); border-color: var(--pink-seam); padding-top: 8px; }
+  .map { position: absolute; inset: 0; border-radius: var(--r-panel); background: var(--paper); border: 2px solid var(--line); overflow: hidden; }
+  .map > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .map h2 { position: absolute; left: 16px; top: 12px; margin: 0; font: var(--display-weight) 19px/1 var(--display); color: var(--pink); pointer-events: none; }
+  .map h2::after { content: ""; display: block; height: 3px; margin-top: 4px; border-radius: 2px; background: var(--pink-seam); transform: rotate(-1deg); }
+  .crayon { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .thin { stroke-width: 2; }
+  .road { fill: none; stroke: var(--gold); stroke-width: 2.5; stroke-dasharray: 7 7; stroke-linecap: round; opacity: .55; }
+  .place { cursor: pointer; }
+  .place:hover .crayon { stroke-width: 3.6; }
+  .place text.nm { font: var(--display-weight) 13px var(--display); text-anchor: middle; }
+  .place text.note { font: 11px var(--body); fill: var(--gold); }
+  .picked { fill: none; stroke: var(--pink); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 150 12; }
+  .scrib { fill: none; stroke: var(--lilac); stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; opacity: .3; }
+  .mine { fill: none; stroke: var(--lilac); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .glyph path, .glyph circle { fill: none; stroke: var(--lilac); stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; }
+  .glyph.fresh, .paper.fresh, .drow.fresh { animation: pop .55s cubic-bezier(.3, 1.6, .5, 1); transform-box: fill-box; transform-origin: 50% 100%; }
+  @keyframes pop { 0% { transform: scale(.3); opacity: 0; } 60% { transform: scale(1.12, .92); opacity: 1; } }
+  .site path, .site circle { fill: none; stroke: var(--lilac); stroke-width: 3; stroke-dasharray: 5 6; stroke-linecap: round; stroke-linejoin: round; opacity: .8; }
+  .sitefill path { fill: none; stroke-width: 3.4; stroke-linecap: round; stroke-linejoin: round; opacity: .75; }
+  .count { font: var(--display-weight) 15px var(--display); fill: var(--text); text-anchor: middle; paint-order: stroke; stroke: var(--paper); stroke-width: 6px; stroke-linejoin: round; }
+
+  /* ---------- a drawing: crayon on a pinned sheet ---------- */
+  .paper { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 9px 5px 6px; border: 0; border-radius: 4px; cursor: pointer;
+    background-color: var(--sheet); background-image: radial-gradient(circle, var(--sheet-dot) 1px, transparent 1.4px); background-size: 8px 8px;
+    box-shadow: var(--lift); color: var(--text); transform: rotate(var(--rot, 0deg)); transition: transform .15s var(--ease-out); }
+  .paper::before { content: ""; position: absolute; top: -5px; left: 50%; margin-left: -5px; width: 10px; height: 10px; border-radius: 50%; background: var(--pink); box-shadow: 0 2px 3px rgba(6, 2, 12, .5); }
+  .paper:hover { transform: rotate(var(--rot, 0deg)) translateY(-3px); }
+  .paper.on { outline: 2px dashed var(--pink); outline-offset: 3px; }
+  .paper svg { display: block; }
+  .paper svg path, .paper svg circle { fill: none; stroke: var(--text); stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; opacity: .85; }
+  .paper .pn { font: var(--display-weight) 11px/1.1 var(--display); color: var(--lilac); text-align: center; white-space: nowrap; }
+  .paper .mini { align-self: stretch; height: 5px; margin: 1px 3px 0; border-radius: 3px; background: var(--deep); overflow: hidden; }
+  .paper .mini i { display: block; height: 100%; width: calc(var(--f) * 100%); background: var(--lilac); border-radius: 3px; }
+  .paper.full .mini i { background: var(--pink); }
+
+  /* the needs of the picked drawing */
+  .needs { display: flex; flex-direction: column; gap: 5px; }
+  .need { display: grid; grid-template-columns: 100px 1fr 58px; align-items: center; gap: 7px; font-size: 11px; }
+  .need .nl { color: var(--muted); white-space: nowrap; }
+  .need b { font-weight: 400; font-size: 12px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .need b.ok { color: var(--pink); }
+  .meter { position: relative; height: 12px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--c, var(--lilac)) 45%, var(--line)); overflow: hidden; }
+  .meter i { position: absolute; inset: 0 auto 0 0; width: calc(var(--f) * 100%); background: var(--c, var(--lilac)); border-radius: 999px; transition: width .35s var(--ease-out); }
+
+  /* picking a shelf (C1's shelves, one per rarity) */
+  .chips { display: flex; gap: 4px; }
+  .chipshelf { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 4px 1px 3px; border-radius: 10px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--tc) 45%, var(--line)); cursor: pointer; min-width: 0; }
+  .chipshelf img { width: 16px; height: 18px; }
+  .chipshelf b { font: 400 11px/1 var(--display); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .chipshelf:hover { border-color: var(--pink-seam); }
+  .chipshelf.on { border: 2px dashed var(--pink); transform: rotate(-2deg); }
+  .srows { display: flex; flex-direction: column; gap: 4px; }
+  .srow { display: grid; grid-template-columns: 22px 1fr auto; align-items: center; gap: 8px; padding: 2px 8px 2px 6px; border-radius: 8px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--tc) 35%, var(--line)); cursor: pointer; }
+  .srow img { width: 16px; height: 18px; }
+  .srow span { font-size: 11px; color: var(--tc); }
+  .srow b { font: 400 14px/1 var(--display); font-variant-numeric: tabular-nums; }
+  .srow:hover { border-color: var(--pink-seam); }
+  .srow.on { border: 2px dashed var(--pink); background: color-mix(in srgb, var(--pink-pressed) 45%, var(--deep)); }
+  .takes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .takes .btn { padding: 4px 0; }
+  .takes .btn.all { border-color: var(--pink-seam); }
+  .build { width: 100%; }
+  .build.ready { border-color: var(--pink); color: var(--pink); box-shadow: 0 0 14px color-mix(in srgb, var(--pink) 40%, transparent); animation: nudge 1.4s ease-in-out infinite; }
+  @keyframes nudge { 0%, 70%, 100% { transform: none; } 78% { transform: rotate(-2deg); } 86% { transform: rotate(2deg); } }
+  .btnrow { display: flex; gap: 8px; }
+  .btnrow .btn { flex: 1; white-space: nowrap; padding: 6px 8px; }
+  .btnrow .btn.build { flex: 1.6; }
+
+  /* ---------- A: the workshop card, stuck on the map ---------- */
+  .shop { position: absolute; left: 12px; top: 46px; width: 298px; padding: 11px 12px 12px; display: flex; flex-direction: column; gap: 8px; transform: rotate(-1deg); z-index: 3; }
+  .shop h3, .side h2 { margin: 0; font: var(--display-weight) 18px/1.1 var(--display); color: var(--pink); display: flex; align-items: baseline; gap: 8px; white-space: nowrap; }
+  .shop h3 small, .side h2 small { font: 11px var(--body); color: var(--gold); }
+  .planks { display: flex; justify-content: space-around; align-items: flex-start; padding: 13px 6px 10px; border-radius: 10px; border: 2px solid var(--wood-line);
+    background-color: var(--wood); background-image: repeating-linear-gradient(to bottom, transparent 0 34px, var(--wood-line) 34px 36px); }
+  .planks .paper { width: 82px; }
+
+  /* away (as trips.html) */
+  .away { display: flex; flex-direction: column; gap: 11px; min-height: 0; overflow: hidden; padding: 2px 4px 8px 2px; }
+  .away h2 { margin: 0; font: var(--display-weight) 17px/1 var(--display); color: var(--pink); }
+  .trip { padding: 9px 11px 10px; }
+  .trip .head { display: flex; align-items: center; gap: 8px; }
+  .trip .head img { width: 32px; height: 36px; }
+  .trip .head b { display: block; font-weight: inherit; color: var(--pink); font-size: 13px; }
+  .trip .head span { display: block; font-size: 11px; color: var(--muted); }
+  .trip .head .link { margin-left: auto; font-size: 12px; white-space: nowrap; }
+  .trip .story { font-size: 12px; line-height: 1.35; margin: 7px 0; }
+  .trip .story em { font-style: normal; color: var(--muted); }
+  .trip .tbar { height: 8px; border-radius: 4px; background: var(--deep); border: 2px solid var(--line); overflow: hidden; }
+  .trip .tbar i { display: block; height: 100%; background: var(--lilac); border-radius: 3px; }
+  .trip .when { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
+  .trip .choices { display: grid; gap: 5px; }
+  .trip .choices .btn { font-size: 12px; padding: 4px 8px; }
+  .trip.waiting { border-color: var(--gold); }
+  .trip.back { border-color: var(--mint); }
+  .trip .got { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 7px; }
+  .trip .head .rang { margin-left: auto; width: 22px; height: 22px; }
+  .rang path, .rang circle { fill: none; stroke: var(--mint); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 999px; font-size: 11px; background: var(--deep); border: 2px solid var(--line); color: var(--muted); white-space: nowrap; }
+
+  /* ---------- the side card (B, C) ---------- */
+  .side { display: flex; flex-direction: column; gap: 8px; padding: 11px 12px 12px; min-height: 0; overflow: hidden; }
+  .side .sec { font: 400 12px/1 var(--display); color: var(--lilac); margin-top: 2px; }
+  .side .grow { flex: 1; }
+
+  /* B: the wall is a list in the side column */
+  .drows { display: flex; flex-direction: column; gap: 7px; padding: 8px 7px 8px 8px; border-radius: 10px; border: 2px solid var(--wood-line);
+    background-color: var(--wood); background-image: repeating-linear-gradient(to bottom, transparent 0 24px, var(--wood-line) 24px 26px); }
+  .drow { display: grid; grid-template-columns: 54px 1fr; gap: 9px; align-items: center; padding: 5px 7px 5px 5px; border-radius: 10px; background: var(--raised); border: 2px solid var(--line); cursor: pointer; }
+  .drow:hover { border-color: var(--pink-seam); }
+  .drow.on { border: 2px dashed var(--pink); }
+  .drow .paper { width: 54px; padding: 7px 3px 4px; pointer-events: none; }
+  .drow .paper .pn { display: none; }
+  .drow .dn { font: var(--display-weight) 13px/1.1 var(--display); color: var(--text); margin-bottom: 4px; white-space: nowrap; }
+  .drow.on .dn { color: var(--pink); }
+  .drow .mm { display: grid; grid-template-columns: 1fr 44px; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); }
+  .drow .mm + .mm { margin-top: 3px; }
+  .drow .mm .meter { height: 9px; }
+  .drow .mm em { font-style: normal; text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+
+  /* C: inside the shed */
+  .scene { position: absolute; inset: 0; border-radius: var(--r-panel); background: var(--paper); border: 2px solid var(--line); overflow: hidden; }
+  .scene > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .scene .back { position: absolute; left: 10px; top: 10px; z-index: 2; padding: 4px 12px; }
+  .scene .paper { position: absolute; width: 90px; }
+  .scene .paper.tiny { width: 38px; padding: 6px 2px 3px; cursor: default; }
+  .scene .paper.tiny:hover { transform: rotate(var(--rot, 0deg)); }
+  .scene .paper.tiny .tick { position: absolute; right: -6px; bottom: -6px; width: 18px; height: 18px; border-radius: 50%; background: var(--gold); display: grid; place-items: center; }
+  .scene .paper.tiny .tick svg path { stroke: var(--deep); stroke-width: 2.6; opacity: 1; }
+  .scene .paper .pn { font-size: 12px; }
+  .crowd { display: flex; align-items: flex-end; height: 34px; padding: 0 2px 2px 8px; margin-top: 4px; background: var(--deep); border: 2px solid var(--line); border-radius: var(--r-md); }
+  .crowd img { width: 24px; height: 27px; margin-left: -5px; }
+  .crowd img:nth-child(odd) { transform: translateY(-2px); }
+  .crowd .more { margin-left: auto; padding: 0 6px 6px; font-size: 11px; color: var(--muted); }
+  .bignum { display: flex; align-items: baseline; justify-content: space-between; font-size: 11px; color: var(--muted); }
+  .bignum b { font: 400 16px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+  .bignum b.ok { color: var(--pink); }
+  .bignum b small { font: 11px var(--body); color: var(--muted); }
+
+  /* ---------- the drawings list (under the looks) ---------- */
+  .ideas { width: 920px; max-width: 100%; padding: 14px 16px 10px; }
+  .ideas h2 { margin: 0 0 2px; font: var(--display-weight) 18px/1.1 var(--display); color: var(--pink); }
+  .ideas > p { margin: 0 0 8px; font-size: 12px; color: var(--muted); }
+  .ideas table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+  .ideas col.c1 { width: 58px; } .ideas col.c2 { width: 146px; } .ideas col.c4 { width: 150px; } .ideas col.c5 { width: 210px; }
+  .ideas td { padding: 6px 6px; vertical-align: middle; border-top: 2px dashed var(--line); line-height: 1.35; }
+  .ideas tr:first-child td { border-top: 0; }
+  .ideas .paper { width: 44px; padding: 6px 2px 3px; cursor: default; }
+  .ideas .paper:hover { transform: rotate(var(--rot, 0deg)); }
+  .ideas .dname { font: var(--display-weight) 13px var(--display); color: var(--lilac); }
+  .ideas .flag { color: var(--gold); }
+  .ideas .ok { color: var(--muted); }
+  .ideas .kept { margin-top: 10px; padding-top: 8px; border-top: 2px dashed var(--line); font-size: 12px; color: var(--muted); }
+  .ideas .kept b { font-weight: 400; color: var(--text); }
+</style>
+</head>
+<body>
+<div class="looks">
+  <div class="intro">
+    <h1>the shed workshop</h1>
+    <p>F3. The old shed is ours (coloured in) and the whistle is found: tap the shed on the backyard map. Pick a drawing, pick a shelf, send 1 / 10 / 100 / all; when it's full, build it and the next drawing gets pinned up. The bell rope is already built in every look. Numbers are placeholders.</p>
+  </div>
+
+  <section class="look">
+    <header><b>Look A: the card on the map</b><span>a workshop card sticks on the map like a place card, three drawings pinned on a plank; trips away stay on the right.</span></header>
+    <div class="frame" data-look="A" data-say="the shed is ours! i drew some things for it."></div>
+  </section>
+
+  <section class="look">
+    <header><b>Look B: the building site</b><span>the drawings are a list in the side column (away hides while the shed is picked); the picked one gets built next to the shed on the map, coloured in as helpers arrive.</span></header>
+    <div class="frame" data-look="B" data-say="everyone's hammering! tap tap tap."></div>
+  </section>
+
+  <section class="look">
+    <header><b>Look C: inside the shed</b><span>tapping the shed zooms the map into it: big drawings on the back wall, the helpers piled under each one, built drawings pinned small by the door.</span></header>
+    <div class="frame" data-look="C" data-say="welcome to our workshop! mind the sawdust."></div>
+  </section>
+
+  <div class="ideas sticker" id="ideas"></div>
+</div>
+
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  // the game's tabs at this stage (as in new-homes.html / next-door.html)
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "boxes").news = false;
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+
+  // ---------------- placeholder data (would live in data/workshop.json) ----------------
+  const TIERS = ["common", "uncommon", "rare", "epic", "legendary"];
+  const TIERPET = { common: "mint-blob", uncommon: "peach-bear", rare: "sky-bunny", epic: "bubblegum-fox", legendary: "gold-dragon" };
+  const SHELVES = { common: 18402, uncommon: 6118, rare: 1904, epic: 212, legendary: 14 };
+  const CREW = ["mint-blob", "peach-cat", "lilac-cat", "mint-bear", "peach-bear", "sky-bunny", "midnight-bear", "bubblegum-fox", "toxic-cat"];
+  // art: crayon lines on a 48 x 48 sheet; spot: where the built thing stands on the backyard map
+  const DRAWINGS = [
+    { id: "bell", name: "the bell rope", need: 40, tier: "rare", count: 5, spot: [220, 262, .5],
+      chore: `tapping "welcome back" on every trip that comes home; finds go straight into the bag`,
+      say: "ding ding! everyone's home and nobody has to wave.", done: "we built the bell rope! ding!",
+      art: `<path d="M10 45 L10 7 L32 7"/><path d="M25 23 Q25 12 32 12 Q39 12 39 23 Z"/><path d="M23 23 L41 23"/><circle cx="32" cy="26" r="2"/><path d="M32 7 L32 12"/><path d="M14 7 Q16 20 13 30 Q11 38 15 43"/><path d="M4 45 L16 45"/>` },
+    { id: "shelf", name: "the toy shelf", need: 60, tier: "epic", count: 10, spot: [226, 336, .5],
+      chore: "picking a toy again every time a play ends (10 min, 30 min, 2 h): your pet takes the same one back down",
+      say: "a shelf for my toys! then i can grab the next one myself.", done: "the toy shelf is up! my toys look so neat.",
+      art: `<path d="M8 45 L8 5 L40 5 L40 45"/><path d="M8 18 L40 18 M8 31 L40 31"/><circle cx="16" cy="13" r="3.4"/><path d="M26 18 L26 11 Q26 8 29 8 L32 8 Q35 8 35 11 L35 18"/><circle cx="30" cy="25" r="4"/><path d="M26.4 22 L25.4 20 M33.6 22 L34.6 20"/><path d="M13 31 L13 27 L21 27 L21 31"/><circle cx="31" cy="38" r="4"/><path d="M27 38 L35 38"/><path d="M4 45 L44 45"/>` },
+    { id: "vane", name: "the weather vane", need: 120, tier: "epic", count: 20, spot: [409, 180, .42],
+      chore: "answering trip choices: it points the way you picked last time at that place",
+      say: "it spins around and points the way we went last time!", done: "the weather vane is up on the roof! whee!",
+      art: `<path d="M24 45 L24 10"/><path d="M8 16 L38 16 M33 11 L39 16 L33 21"/><path d="M8 16 L4 11 M8 16 L4 21 M12 16 L8 11 M12 16 L8 21"/><circle cx="24" cy="7" r="2.4"/><path d="M16 30 L32 30 M24 24 L24 36"/><path d="M16 45 L32 45"/>` },
+    { id: "chart", name: "the chore chart", need: 250, tier: "epic", count: 40, spot: [456, 238, .46],
+      chore: "putting new pets on errands yourself: they hop onto the errand with the smallest crew",
+      say: "a chart! new pets can see where to help.", done: "the chore chart is up! everyone knows where to go.",
+      art: `<path d="M8 7 L40 7 L40 43 L8 43 Z"/><circle cx="24" cy="4" r="2"/><path d="M13 16 L16 19 L21 13 M25 16 L35 16"/><path d="M13 26 L16 29 L21 23 M25 26 L35 26"/><path d="M13 36 L20 36 M25 36 L32 36"/>` },
+    { id: "spade", name: "the garden spade", need: 500, tier: "legendary", count: 5, spot: [178, 252, .5],
+      chore: "tapping the rummage spots in the room when they twinkle: they get dug through on their own",
+      say: "a spade! the corners of my room can dig themselves.", done: "the garden spade is ready! dig dig.",
+      art: `<path d="M17 5 L31 5 M24 5 L24 26"/><path d="M16 26 L32 26 L30 37 Q24 46 18 37 Z"/><path d="M5 45 Q10 39 15 45 M34 45 Q39 40 44 45"/>` },
+    { id: "basket", name: "the sewing basket", need: 1000, tier: "legendary", count: 10, spot: [300, 338, .5],
+      chore: "fixing worn toys at the workbench: toys resting on the shelf mend a little",
+      say: "a sewing basket! tiny stitches while the toys have a nap.", done: "the sewing basket is ready! snip snip.",
+      art: `<path d="M6 24 L42 24 L38 43 L10 43 Z"/><path d="M8 32 L40 32 M16 24 L17 43 M24 24 L24 43 M32 24 L31 43"/><path d="M14 24 Q24 8 34 24"/><path d="M33 16 L44 5"/><path d="M36 13 Q30 8 26 12 Q22 16 28 18"/>` },
+    { id: "banner", name: "the treat banner", need: 2000, tier: "legendary", count: 25, spot: [196, 150, .5],
+      chore: `"toss a treat" at parties you watch: the banner tosses one whenever it's ready`,
+      say: "a banner! treats go flying whenever they're ready.", done: "the treat banner is up! yum yum.",
+      art: `<path d="M6 45 L6 7 M42 45 L42 7"/><path d="M6 10 Q24 22 42 10"/><path d="M10 12 L13 20 L17 14.5 M21 16 L24 24 L27 16 M31 14.5 L35 20 L38 12"/><circle cx="24" cy="36" r="5"/><circle cx="22.4" cy="34.6" r=".8"/><circle cx="25.8" cy="37" r=".8"/>` },
+    { id: "letter", name: "the letterbox", need: 5000, tier: "legendary", count: 60, spot: [262, 356, .5],
+      chore: "closing every postcard as trips come home: they wait in the letterbox until you open it",
+      say: "a letterbox! postcards can wait in here for you.", done: "the letterbox is up! ooh, mail.",
+      art: `<path d="M24 45 L24 27"/><path d="M8 27 L8 15 Q8 8 15 8 L38 8 L38 27 Z"/><path d="M8 15 Q8 8 15 8 Q22 8 22 15 L22 27"/><path d="M38 15 L44 15 L44 9"/><path d="M16 45 L32 45"/>` },
+  ];
+  const D = id => DRAWINGS.find(d => d.id === id);
+  const rank = t => TIERS.indexOf(t);
+  const tc = t => `var(--tier-${t})`;
+  const fmt = n => n >= 10000 ? (n / 1000).toFixed(n >= 100000 ? 0 : 1).replace(/\.0$/, "") + "k" : Math.round(n).toLocaleString("en");
+  const pet = (id, cls = "") => `<img class="px ${cls}" src="../assets/pets/${id}.png" alt="">`;
+  const sheet = (d, size) => `<svg width="${size}" height="${size}" viewBox="0 0 48 48" aria-hidden="true">${d.art}</svg>`;
+  const BELL_ICON = `<svg class="rang" viewBox="0 0 24 24"><path d="M6.4 16.6 Q6.6 8 12 7.6 Q17.4 8 17.6 16.6 Z"/><path d="M4.6 16.8 L19.4 16.8"/><circle cx="12" cy="19.2" r="1.4"/><path d="M12 7.6 L12 5"/></svg>`;
+
+  // ---------------- the backyard map (as trips.html; the shed is ours) ----------------
+  const PLACES = [
+    { id: "garden", name: "the garden path", x: 0, y: 0, doodle: "house", color: "var(--pink)", note: "home" },
+    { id: "meadow", name: "the meadow", x: -1.3, y: -0.8, doodle: "grass", color: "var(--mint)", note: "so many flowers!!" },
+    { id: "woods", name: "the woods", x: -2.3, y: -1.9, doodle: "trees", color: "var(--mint)", note: "spooky!" },
+    { id: "pond", name: "the duck pond", x: 0.9, y: 1.1, doodle: "pond", color: "var(--cyan)", note: "quack!" },
+    { id: "stream", name: "the stream", x: 2.1, y: 1.7, doodle: "stream", color: "var(--cyan)", note: "splashy" },
+    { id: "shed", name: "the old shed", x: 1.6, y: -0.6, doodle: "hut", color: "var(--lilac)", note: "ours!" },
+  ];
+  const ROADS = [["garden", "meadow"], ["meadow", "woods"], ["garden", "shed"], ["garden", "pond"], ["pond", "stream"]];
+  const U = 92, OX = 262, OY = 272;
+  const at = p => [OX + p.x * U, OY + p.y * U];
+  const place = id => PLACES.find(p => p.id === id);
+  const MAP_DOODLES = {
+    house: c => `<path class="crayon" stroke="${c}" d="M-20 2 L0 -18 L21 1 M-15 -2 L-14 18 L15 17 L15 -3 M-5 17 L-4 7 L5 7 L6 17"/>`,
+    grass: c => `<path class="crayon" stroke="var(--mint)" d="M-22 14 L-17 -2 L-12 14 M-8 14 L-3 -6 L2 14 M6 14 L11 0 L16 14"/><circle cx="-12" cy="-6" r="4" fill="var(--pink)"/><circle cx="10" cy="-9" r="4" fill="var(--gold)"/>`,
+    trees: c => `<path class="crayon" stroke="${c}" d="M-26 14 L-18 -14 L-10 14 Z M-6 14 L3 -20 L12 14 Z M14 14 L21 -10 L28 14 Z"/><path class="crayon" stroke="var(--gold)" d="M-18 14 L-18 20 M3 14 L3 21 M21 14 L21 20" opacity=".7"/>`,
+    pond: c => `<path class="crayon" stroke="${c}" d="M-26 4 Q-24 -10 0 -10 Q26 -9 25 4 Q23 15 0 15 Q-24 15 -26 4 Z"/><path class="crayon" stroke="var(--gold)" d="M6 -2 Q10 -8 14 -2 Q10 2 6 -2 Z"/><path class="crayon" stroke="${c}" d="M-14 4 L-4 4" opacity=".6"/>`,
+    stream: c => `<path class="crayon" stroke="${c}" d="M-26 -8 Q-13 -16 0 -8 Q13 0 26 -8 M-26 2 Q-13 -6 0 2 Q13 10 26 2 M-26 12 Q-13 4 0 12 Q13 20 26 12"/>`,
+    hut: c => `<path class="crayon" stroke="${c}" d="M-20 0 L0 -20 L20 0 M-16 -3 L-16 16 L16 16 L16 -3 M-6 16 L-6 4 L6 4 L6 16"/>`,
+  };
+
+  // crayon colouring-in: zigzag bands from the bottom up, inside a shape (half(y) = [left, right])
+  function scribble(y0, y1, half, bands, done, cls = "scrib", colour = "") {
+    let out = "";
+    const bh = (y1 - y0) / bands;
+    for (let b = 0; b < done; b++) {
+      const bot = y1 - b * bh, top = bot - bh - 2, mid = (top + bot) / 2;
+      const [l, r] = half(mid);
+      if (r - l < 4) continue;
+      const pts = [];
+      let i = 0;
+      for (let x = l; x <= r; x += 6, i++) pts.push(`${x.toFixed(1)},${(i % 2 ? top : bot).toFixed(1)}`);
+      out += `<polyline class="${cls}" ${colour ? `style="stroke:${colour}"` : ""} points="${pts.join(" ")}"/>`;
+    }
+    return out;
+  }
+  const hutHalf = y => y < 0 ? [-(y + 20) * .9, (y + 20) * .9] : [-14, 14];
+  // what your pet leaves in a place that's ours: a flower and a heart
+  const mine = (x, y) => `<g class="mine" transform="translate(${x} ${y})"><circle r="2" fill="var(--gold)" stroke="none"/><circle cx="0" cy="-4.5" r="2.4"/><circle cx="4.5" cy="0" r="2.4"/><circle cx="0" cy="4.5" r="2.4"/><circle cx="-4.5" cy="0" r="2.4"/><path d="M0 7 L0 14" stroke="var(--mint)"/><path d="M14 8 Q10 3 14 2 Q16 1 16 4 Q16 1 18 2 Q22 3 18 8 L16 11 Z" transform="translate(-2 -6)"/></g>`;
+  const glyph = (d, fresh) => { const [x, y, s] = d.spot; return `<g class="glyph${fresh ? " fresh" : ""}" transform="translate(${x - 24 * s} ${y - 24 * s}) scale(${s})">${d.art}</g>`; };
+
+  function mapSvg(S, look) {
+    let s = ROADS.map(([a, b]) => { const [x1, y1] = at(place(a)), [x2, y2] = at(place(b)); const mx = (x1 + x2) / 2 + (y2 - y1) * .12, my = (y1 + y2) / 2 - (x2 - x1) * .12; return `<path class="road" d="M${x1} ${y1} Q${mx} ${my} ${x2} ${y2}"/>`; }).join("");
+    PLACES.forEach(p => {
+      const [x, y] = at(p), ours = p.id === "shed";
+      s += `<g class="place" data-id="${p.id}" transform="translate(${x} ${y})">`;
+      if (ours) s += scribble(-19, 15, hutHalf, 7, 7);
+      if (ours && (look !== "A" || S.open)) s += `<path class="picked" d="M-44 -4 Q-42 -36 2 -38 Q46 -36 46 0 Q44 38 0 40 Q-40 40 -46 6"/>`;
+      s += MAP_DOODLES[p.doodle](p.color);
+      s += `<text class="nm" y="36" fill="${p.color}">${p.name}</text>`;
+      s += `<text class="note" x="${p.doodle === "house" ? 20 : 26}" y="-18">${p.note}</text>`;
+      if (ours) s += mine(-40, -16);
+      s += `</g>`;
+    });
+    // built things stand around the backyard
+    S.built.forEach(id => s += glyph(D(id), S.justBuilt === id));
+    // B: the picked drawing is being built next to the shed, coloured in as helpers arrive
+    if (look === "B") s += siteSvg(S);
+    // pets out on trips, walking the roads (as trips.html)
+    const [gx, gy] = at(place("garden")), [mx, my] = at(place("meadow")), [px, py] = at(place("pond"));
+    s += `<image href="../assets/pets/peach-cat.png" x="${(gx + mx) / 2 - 12}" y="${(gy + my) / 2 - 30}" width="24" height="27" style="image-rendering: pixelated"/>`;
+    s += `<image href="../assets/pets/mint-bear.png" x="${px - 52}" y="${py - 30}" width="24" height="27" style="image-rendering: pixelated"/><text x="${px - 26}" y="${py - 22}" style="font: 16px var(--display); fill: var(--gold)">!</text>`;
+    return s;
+  }
+
+  function siteSvg(S) {
+    const d = D(S.pick), p = S.prog[d.id], f = Math.min(1, p.sent / d.need);
+    const X = 446, Y = 276, sc = 1.2;
+    let s = `<g transform="translate(${X} ${Y}) scale(${sc})">`;
+    // coloured in from the bottom, in the helpers' colours
+    s += scribble(4, 46, () => [7, 41], 9, Math.round(f * 9));
+    s += `<g class="site">${d.art}</g></g>`;
+    // a few helpers at work
+    const n = Math.max(1, Math.min(5, Math.ceil(f * 5)));
+    for (let i = 0; i < n; i++) s += `<image href="../assets/pets/${CREW[(i * 3 + 1) % CREW.length]}.png" x="${X - 10 + i * 15}" y="${Y + 62 + (i % 2) * 3}" width="16" height="18" style="image-rendering: pixelated"/>`;
+    s += `<text class="count" x="${X + 28}" y="${Y + 100}">${fmt(p.sent)}</text>`;
+    return s;
+  }
+
+  // ---------------- the frame, several windows on one page ----------------
+  function mountInto(el, say) {
+    const tab = t => `<a class="tab${t.id === "trips" ? " on" : ""}" href="${t.id}.html"><span data-icon="${t.icon}"></span>${t.label}${t.news ? `<span class="new" title="something new"></span>` : ""}</a>`;
+    el.classList.add("app");
+    el.innerHTML = `
+      <nav class="spine">
+        <svg class="sky" width="80" height="600" aria-hidden="true">${stars(60)}</svg>
+        <div class="moon" title="lilac blob, your active pet"><img class="px" src="../assets/pets/lilac-blob.png" alt="lilac blob"></div>
+        ${TABS.map(tab).join("")}
+        <div class="grow"></div>
+        ${tab({ id: "settings", label: "", icon: "settings" })}
+      </nav>
+      <main class="page dots">
+        <div class="top">
+          <div class="bubble">${say}</div>
+          <span class="chip coins"><span data-icon="coin"></span>48.2M</span>
+          <span class="chip xp"><span data-icon="xp"></span>21.4k</span>
+          <div class="winbtns"><button title="shrink">▾</button><button title="close">✕</button></div>
+        </div>
+        <div class="content"></div>
+      </main>`;
+    return el.querySelector(".content");
+  }
+
+  const MARKS = `<div class="marks"><button class="mark on">the backyard</button><button class="mark">beyond the fence</button><button class="mark">next door</button></div>`;
+  const BAR = `<div class="bar"><div class="seg"><button class="on">adventures</button><button>upgrades</button></div></div>`;
+  const AWAY = `
+    <h2>away</h2>
+    <div class="trip sticker waiting">
+      <div class="head">${pet("mint-bear")}<div><b>the duck pond</b><span>22 pets</span></div><button class="link">watch ›</button></div>
+      <div class="story">ducks! and something sparkly at the bottom. <em>everyone is looking at mint bear…</em></div>
+      <div class="choices"><button class="btn">feed the ducks</button><button class="btn">dive for it</button><button class="btn">go home</button></div>
+    </div>
+    <div class="trip sticker">
+      <div class="head">${pet("peach-cat")}<div><b>the meadow</b><span>30 pets</span></div><button class="link">watch ›</button></div>
+      <div class="tbar"><i style="width: 38%"></i></div>
+      <div class="when"><span>on the way</span><span>back in 3:12</span></div>
+    </div>
+    <div class="trip sticker back">
+      <div class="head">${pet("sky-bunny")}<div><b>the stream</b><span>18 pets</span></div>${BELL_ICON}</div>
+      <div class="got"><span class="tag" style="color: var(--cyan)"><span data-icon="coin" data-px="1.1"></span>1.2k</span><span class="tag" style="color: var(--gold)"><span data-icon="xp" data-px="1.1"></span>340</span><span class="tag" style="color: var(--lilac)">a bolt</span></div>
+    </div>`;
+
+  // ---------------- one look = one little game state ----------------
+  function makeLook(frame) {
+    const look = frame.dataset.look;
+    const content = mountInto(frame, frame.dataset.say);
+    const say = t => { frame.querySelector(".top .bubble").textContent = t; };
+    const S = {
+      shelf: { ...SHELVES }, built: ["bell"], wall: ["shelf", "vane", "chart"], queue: ["spade", "basket", "banner", "letter"],
+      prog: { shelf: { sent: 42, qual: 7 }, vane: { sent: 12, qual: 2 }, chart: { sent: 0, qual: 0 } },
+      pick: "shelf", from: "epic", justBuilt: "", fresh: "", open: true,
+    };
+    const full = d => S.prog[d.id].sent >= d.need && S.prog[d.id].qual >= d.count;
+    const frac = d => Math.min(1, S.prog[d.id].sent / d.need);
+    // how many from a shelf still help (pets that don't meet the rarity leave room for the ones that do)
+    const useful = (d, t) => { const p = S.prog[d.id], left = d.need - p.sent;
+      return rank(t) >= rank(d.tier) ? Math.max(0, left) : Math.max(0, left - Math.max(0, d.count - p.qual)); };
+    const HI = ["hi helpers!", "more hammers!", "tap tap tap!", "careful with the nails!", "that's the spirit!"];
+    let hi = 0;
+
+    function take(n) {
+      const d = D(S.pick), t = S.from;
+      const k = Math.min(n === "all" ? Infinity : Number(n), useful(d, t), S.shelf[t]);
+      if (k <= 0) { say(full(d) ? "it's ready! let's build it!" : "hmm, we need some fancier helpers."); return; }
+      S.shelf[t] -= k; S.prog[d.id].sent += k;
+      if (rank(t) >= rank(d.tier)) S.prog[d.id].qual += k;
+      say(full(d) ? "that's everyone! let's build it!" : HI[hi++ % HI.length]);
+      S.justBuilt = ""; S.fresh = "";
+      render();
+    }
+    function build() {
+      const d = D(S.pick);
+      if (!full(d)) return;
+      S.built.push(d.id);
+      const i = S.wall.indexOf(d.id), next = S.queue.shift();
+      delete S.prog[d.id];
+      if (next) { S.wall[i] = next; S.prog[next] = { sent: 0, qual: 0 }; S.pick = next; S.fresh = next; }
+      else { S.wall.splice(i, 1); S.pick = S.wall[0] || ""; S.fresh = ""; }
+      S.justBuilt = d.id;
+      say(d.done);
+      render();
+    }
+    function pick(id) { S.pick = id; S.justBuilt = ""; S.fresh = ""; say(D(id).say); render(); }
+
+    // ---------- shared pieces ----------
+    const paper = (d, size, rot, cls = "") => `<button class="paper${d.id === S.pick ? " on" : ""}${S.fresh === d.id ? " fresh" : ""}${S.prog[d.id] && full(d) ? " full" : ""} ${cls}" data-d="${d.id}" style="--rot:${rot}deg">${sheet(d, size)}<span class="pn">${d.name.replace(/^the /, "")}</span>${S.prog[d.id] ? `<span class="mini" style="--f:${frac(d)}"><i></i></span>` : ""}</button>`;
+    const needs = d => { const p = S.prog[d.id];
+      return `<div class="needs">
+        <div class="need"><span class="nl">helpers</span><div class="meter" style="--f:${Math.min(1, p.sent / d.need)}"><i></i></div><b class="${p.sent >= d.need ? "ok" : ""}">${fmt(p.sent)}/${fmt(d.need)}</b></div>
+        <div class="need" style="--c:${tc(d.tier)}"><span class="nl" style="color:${tc(d.tier)}">${d.tier} or up</span><div class="meter" style="--f:${Math.min(1, p.qual / d.count)}"><i></i></div><b class="${p.qual >= d.count ? "ok" : ""}">${fmt(Math.min(p.qual, d.count))}/${fmt(d.count)}</b></div>
+      </div>`; };
+    const chips = () => `<div class="chips">${TIERS.map(t => `<div class="chipshelf${t === S.from ? " on" : ""}" data-shelf="${t}" style="--tc:${tc(t)}" title="${t}">${pet(TIERPET[t])}<b>${fmt(S.shelf[t])}</b></div>`).join("")}</div>`;
+    const srows = () => `<div class="srows">${TIERS.map(t => `<div class="srow${t === S.from ? " on" : ""}" data-shelf="${t}" style="--tc:${tc(t)}">${pet(TIERPET[t])}<span>${t}</span><b>${fmt(S.shelf[t])}</b></div>`).join("")}</div>`;
+    const takes = () => `<div class="takes">${[1, 10, 100, "all"].map(n => `<button class="btn${n === "all" ? " all" : ""}" data-take="${n}" ${S.shelf[S.from] ? "" : "disabled"}>${n}</button>`).join("")}</div>`;
+    const crowd = p => { const n = Math.min(p.sent, 8);
+      return `<div class="crowd">${Array.from({ length: n }, (_, i) => pet(CREW[(i * 5 + 2) % CREW.length])).join("")}${p.sent > n ? `<span class="more">+${fmt(p.sent - n)}</span>` : ""}</div>`; };
+    const buildBtn = (cls = "") => { const d = D(S.pick); return `<button class="btn primary build ${cls}${full(d) ? " ready" : ""}" data-build ${full(d) ? "" : "disabled"}>build it! <span data-icon="heart" data-px="1.3"></span></button>`; };
+
+    // ---------- the look's layout ----------
+    function render() {
+      if (look === "A") renderA(); else if (look === "B") renderB(); else renderC();
+      paintIcons(content);
+      content.querySelectorAll("[data-d]").forEach(b => b.addEventListener("click", () => pick(b.dataset.d)));
+      content.querySelectorAll("[data-shelf]").forEach(b => b.addEventListener("click", () => { S.from = b.dataset.shelf; S.justBuilt = ""; S.fresh = ""; render(); }));
+      content.querySelectorAll("[data-take]").forEach(b => b.addEventListener("click", () => take(b.dataset.take)));
+      content.querySelector("[data-build]")?.addEventListener("click", build);
+      content.querySelector("[data-close]")?.addEventListener("click", () => { S.open = false; S.justBuilt = ""; S.fresh = ""; render(); say("i'll be in the shed if you need me!"); });
+      content.querySelector('.place[data-id="shed"]')?.addEventListener("click", () => { S.open = true; S.justBuilt = ""; S.fresh = ""; render(); say("welcome to the workshop!"); });
+    }
+
+    function renderA() {
+      const d = D(S.pick), rots = [-3, 2, -1.5];
+      content.innerHTML = `<div class="adv">${BAR}<div class="main">
+        <div class="mapwrap">${MARKS}<div class="map"><svg viewBox="0 0 530 516" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${mapSvg(S, "A")}</svg><h2>lilac blob's map</h2></div>
+          <div class="shop sticker"${S.open ? "" : ` style="display:none"`}>
+            <h3>the old shed<small>ours!</small></h3>
+            <div class="planks">${S.wall.map((id, i) => paper(D(id), 50, rots[i])).join("")}</div>
+            ${needs(d)}
+            ${chips()}
+            ${takes()}
+            <div class="btnrow"><button class="btn" data-close>not yet</button>${buildBtn()}</div>
+          </div>
+        </div>
+        <div class="away">${AWAY}</div>
+      </div></div>`;
+    }
+
+    function renderB() {
+      const d = D(S.pick);
+      const row = w => { const x = D(w), p = S.prog[w];
+        return `<div class="drow${w === S.pick ? " on" : ""}${S.fresh === w ? " fresh" : ""}" data-d="${w}">
+          ${paper(x, 36, w === S.pick ? -3 : 2)}
+          <div><div class="dn">${x.name}</div>
+            <div class="mm"><div class="meter" style="--f:${Math.min(1, p.sent / x.need)}"><i></i></div><em>${fmt(p.sent)}/${fmt(x.need)}</em></div>
+            <div class="mm"><div class="meter" style="--c:${tc(x.tier)};--f:${Math.min(1, p.qual / x.count)}"><i></i></div><em style="color:${tc(x.tier)}">${fmt(Math.min(p.qual, x.count))}/${x.count}</em></div>
+          </div></div>`; };
+      content.innerHTML = `<div class="adv">${BAR}<div class="main">
+        <div class="mapwrap">${MARKS}<div class="map"><svg viewBox="0 0 530 516" preserveAspectRatio="xMidYMid meet" aria-hidden="true">${mapSvg(S, "B")}</svg><h2>lilac blob's map</h2></div></div>
+        <div class="side sticker">
+          <h2>the old shed<small>ours!</small></h2>
+          <div class="drows">${S.wall.map(row).join("")}</div>
+          <div class="grow"></div>
+          ${chips()}
+          ${takes()}
+          ${buildBtn()}
+        </div>
+      </div></div>`;
+      content.querySelectorAll(".drow .paper").forEach(p => p.removeAttribute("data-d"));
+    }
+
+    // C: the map zoomed into the shed (coordinates of a 546 x 482 area)
+    const SPOTS = [[192, 150, -3], [292, 140, 2], [392, 150, -1.5]];
+    function sceneSvg() {
+      let s = "";
+      // the backyard around it, big and faint at the edges
+      s += `<g opacity=".55"><path class="crayon" stroke="var(--mint)" d="M14 190 L34 110 L54 190 Z M494 200 L512 128 L530 200 Z"/><path class="crayon" stroke="var(--gold)" d="M34 190 L34 206 M512 200 L512 214" opacity=".7"/>`;
+      s += `<path class="crayon" stroke="var(--pink)" d="M-30 452 L22 404 L74 450"/><path class="crayon" stroke="var(--pink)" d="M-10 444 L-9 500 M60 440 L60 500"/>`;
+      s += `<path class="crayon" stroke="var(--mint)" d="M500 470 L505 454 L510 470 M516 470 L521 450 L526 470" /><circle cx="490" cy="252" r="4" fill="var(--pink)" stroke="none"/><circle cx="30" cy="300" r="4" fill="var(--gold)" stroke="none"/>`;
+      s += `<path class="road" d="M273 478 Q268 466 273 454"/></g>`;
+      // the shed, front cut away: back wall, planks, a round window with the moon
+      s += `<path d="M90 130 L273 42 L456 130 L456 446 L90 446 Z" fill="var(--deep)" opacity=".55"/>`;
+      for (const y of [196, 262, 328, 394]) s += `<path d="M92 ${y} L454 ${y}" stroke="var(--wood-line)" stroke-width="2" opacity=".9"/>`;
+      s += scribble(46, 126, y => { const w = (y - 42) / 88 * 183; return [273 - w + 6, 273 + w - 6]; }, 9, 9);
+      s += `<path class="crayon" stroke="var(--lilac)" d="M60 136 L273 34 L486 136 M90 124 L90 446 M456 124 L456 446 M44 446 L502 446"/>`;
+      s += `<circle class="crayon" stroke="var(--lilac)" cx="273" cy="94" r="17"/><path d="M279 83 Q265 86 267 97 Q271 106 281 103 Q272 99 279 83 Z" fill="none" stroke="var(--gold)" stroke-width="2" stroke-linejoin="round"/>`;
+      s += mine(474, 424);
+      // tools hanging on nails between the drawings and the helpers
+      s += `<g class="crayon thin" stroke="var(--muted)" opacity=".85"><path d="M170 300 L430 300" stroke="var(--wood-line)" stroke-width="3"/>`;
+      s += `<circle cx="208" cy="300" r="2" fill="var(--muted)"/><path d="M208 302 L208 348 M196 306 L220 306 L220 316 L196 316 Z"/>`;
+      s += `<circle cx="276" cy="300" r="2" fill="var(--muted)"/><path d="M262 304 L276 302 L278 316 L264 318 Z M270 318 L276 350 L300 344 L282 314 M280 326 L284 324 M284 334 L289 332 M288 342 L293 340"/>`;
+      s += `<circle cx="336" cy="300" r="2" fill="var(--muted)"/><path d="M336 312 L336 346"/><circle cx="336" cy="306" r="6"/><circle cx="336" cy="350" r="4"/>`;
+      s += `<circle cx="396" cy="300" r="2" fill="var(--muted)"/><circle cx="396" cy="318" r="12"/><circle cx="396" cy="318" r="4"/><path d="M408 322 L426 324 L426 330"/></g>`;
+      // the helpers, piled up under each drawing
+      S.wall.forEach((id, i) => {
+        const d = D(id), p = S.prog[id], [cx] = SPOTS[i];
+        const shown = p.sent ? Math.max(1, Math.min(15, Math.ceil(p.sent / d.need * 15))) : 0;
+        let k = 0;
+        for (let row = 0; row < 5 && k < shown; row++) {
+          const inRow = 5 - row;
+          for (let c = 0; c < inRow && k < shown; c++, k++) {
+            const x = cx - inRow * 8 + c * 16, y = 424 - row * 14;
+            s += `<image href="../assets/pets/${CREW[(k * 5 + i * 2) % CREW.length]}.png" x="${x}" y="${y}" width="16" height="18" style="image-rendering: pixelated"/>`;
+          }
+        }
+        s += `<text class="count" x="${cx}" y="${p.sent ? 424 - Math.ceil(shown / 5) * 14 - 10 : 432}" style="stroke: var(--deep)">${p.sent ? fmt(p.sent) : ""}</text>`;
+      });
+      return s;
+    }
+    function renderC() {
+      const d = D(S.pick), p = S.prog[d.id];
+      const papers = S.wall.map((id, i) => { const [cx, top, rot] = SPOTS[i]; return paper(D(id), 58, rot).replace('class="paper', `style="left:${cx - 45}px;top:${top}px;--rot:${rot}deg" class="paper`); }).join("");
+      const tiny = S.built.map((id, i) => `<div class="paper tiny" style="left:${97 + (i % 2) * 4}px;top:${156 + i * 52}px;--rot:${i % 2 ? 4 : -5}deg">${sheet(D(id), 30)}<span class="tick"><svg width="12" height="12" viewBox="0 0 12 12"><path d="M2.5 6.5 L5 9 L9.5 3" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg></span></div>`).join("");
+      content.innerHTML = `<div class="adv">${BAR}<div class="main">
+        <div class="mapwrap"><div class="scene"><svg viewBox="0 0 546 482" preserveAspectRatio="xMidYMid slice" aria-hidden="true">${sceneSvg()}</svg>
+          <button class="btn back" data-close>‹ map</button>${papers}${tiny}</div></div>
+        <div class="side sticker">
+          <h2>${d.name}</h2>
+          <div class="bignum"><span>helpers</span><b class="${p.sent >= d.need ? "ok" : ""}">${fmt(p.sent)}<small> / ${fmt(d.need)}</small></b></div>
+          <div class="meter" style="--f:${Math.min(1, p.sent / d.need)}"><i></i></div>
+          <div class="bignum"><span style="color:${tc(d.tier)}">${d.tier} or up</span><b class="${p.qual >= d.count ? "ok" : ""}">${fmt(Math.min(p.qual, d.count))}<small> / ${fmt(d.count)}</small></b></div>
+          <div class="meter" style="--c:${tc(d.tier)};--f:${Math.min(1, p.qual / d.count)}"><i></i></div>
+          ${crowd(p)}
+          <div class="grow"></div>
+          ${srows()}
+          ${takes()}
+          ${buildBtn()}
+        </div>
+      </div></div>`;
+      // the papers in the scene are placed by the scene's own coordinates: scale them with the area
+      const sc = content.querySelector(".scene"), svg = sc.querySelector("svg");
+      const fit = () => { const r = sc.getBoundingClientRect(); const k = Math.max(r.width / 546, r.height / 482);
+        const ox = (r.width - 546 * k) / 2, oy = (r.height - 482 * k) / 2;
+        sc.querySelectorAll(".paper").forEach(el => { if (!el.dataset.x) { el.dataset.x = parseFloat(el.style.left); el.dataset.y = parseFloat(el.style.top); }
+          el.style.left = (ox + el.dataset.x * k) + "px"; el.style.top = (oy + el.dataset.y * k) + "px"; }); };
+      requestAnimationFrame(fit);
+    }
+
+    render();
+  }
+
+  document.querySelectorAll(".frame").forEach(makeLook);
+
+  // ---------------- the drawings, suggested (under the looks) ----------------
+  const FLAGS = {
+    vane: "only the plain choices? risky ones are a luck moment",
+    chart: "errands only: the whistle already fills worker spots",
+    banner: "treats are the watching-a-party bit; maybe the banner tosses a smaller treat",
+    letter: "postcards are a reward moment; maybe only while the game is closed",
+  };
+  document.getElementById("ideas").innerHTML = `
+    <h2>the drawings</h2>
+    <p>Suggested order (the wall shows three at a time; building one pins the next). The needs grow about x2 a drawing.</p>
+    <table><colgroup><col class="c1"><col class="c2"><col><col class="c4"><col class="c5"></colgroup>
+      ${DRAWINGS.map((d, i) => `<tr>
+        <td><div class="paper" style="--rot:${i % 2 ? 3 : -3}deg">${sheet(d, 34)}</div></td>
+        <td class="dname">${d.name}</td>
+        <td>takes away ${d.chore}</td>
+        <td>${fmt(d.need)} helpers, <span style="color:${tc(d.tier)}">${d.count} ${d.tier} or up</span></td>
+        <td class="${FLAGS[d.id] ? "flag" : "ok"}">${FLAGS[d.id] || "no clash"}</td>
+      </tr>`).join("")}
+    </table>
+    <div class="kept">Left out on purpose (manual by design): <b>the school bell</b>, <b>banking reels</b> on the plushie machine, <b>the newest globe's lever</b>, <b>ripping boxes yourself</b>.</div>`;
+
+  applyLook(loadLook());
+</script>
+</body>
+</html>
