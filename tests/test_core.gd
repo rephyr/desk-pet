@@ -65,6 +65,8 @@ func _init() -> void:
 	_test_edge(catalog)
 	_test_school(catalog)
 	_test_edge_school_game(catalog)
+	_test_herd_knacks(catalog)
+	_test_dungeon(catalog)
 	var result := "ALL PASSED" if _failures == 0 else "%d FAILED" % _failures
 	if not _skipped.is_empty():
 		result += ", BUT SKIPPED " + ", ".join(_skipped)
@@ -469,7 +471,8 @@ func _test_voice(catalog: Catalog) -> void:
 	_check("well" in can and "orchard" in can and not "cellar" in can, "only rumours whose way is open can be heard (%s)" % [can])
 	open["location:well"] = true
 	can = Rumours.hearable(catalog, { "orchard": true }, is_open).map(func(r): return r.id)
-	_check("cellar" in can and not "well" in can and not "orchard" in can, "heard or already open rumours don't come again (%s)" % [can])
+	_check(not "well" in can and not "orchard" in can, "heard or already open rumours don't come again (%s)" % [can])
+	_check(not "cellar" in can and not "below" in can, "the cellar and further down are dungeon bands now: their rumours are never heard (%s)" % [can])
 	for r in catalog.rumours:
 		for id in r.unlocks + r.get("requires", []):
 			var bits: PackedStringArray = str(id).split(":")
@@ -910,7 +913,7 @@ func _test_unlocks(catalog: Catalog) -> void:
 		_check(entry.show in ["locked", "hidden"], "unlock %s is shown locked or hidden" % entry.id)
 		for o in entry.opens:
 			var bits := str(o).split(":")
-			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "whistle", "new_homes", "sorting", "edge", "school"]) or (bits[0] == "page" and bits[1] in page_ids) \
+			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "whistle", "new_homes", "sorting", "edge", "school", "dungeon", "lead_army"]) or (bits[0] == "page" and bits[1] in page_ids) \
 				or (bits[0] == "job" and catalog.jobs.any(func(j): return str(j.get("needs", "")) == o))
 			_check(ok, "unlock %s opens something real (%s)" % [entry.id, o])
 		if entry.earn.has("find"):
@@ -918,7 +921,8 @@ func _test_unlocks(catalog: Catalog) -> void:
 		_check(not "{" in str(entry.get("announce", "")), "unlock %s announcement has no placeholders" % entry.id)
 	for find in catalog.finds:
 		var machine_gives: bool = find == str(catalog.machine.get("intel", {}).get("find", ""))
-		_check(machine_gives or catalog.events.values().any(func(e): return e.get("find", "") == find), "some event (or the machine) gives %s" % find)
+		var dungeon_gives: bool = catalog.dungeon.get("firsts", {}).values().any(func(f): return str(f.get("find", "")) == find)
+		_check(machine_gives or dungeon_gives or catalog.events.values().any(func(e): return e.get("find", "") == find), "some event (or the machine, or a dungeon floor) gives %s" % find)
 	var meadow := catalog.location("meadow")
 	var seen := false
 	for t in 200:
@@ -994,7 +998,8 @@ func _test_automation(catalog: Catalog) -> void:
 	var jobs: Array = catalog.automation.get("jobs", [])
 	_check(jobs.size() >= 3 and Automation.job(catalog, "machine").get("needs", "") == "", "automation has its jobs, the machine first")
 	for j in jobs:
-		_check(int(j.coins) > 0, "job %s is taught with coins" % j.id)
+		var learned: bool = catalog.unlock_list.any(func(e): return str(e.get("learns", "")) == str(j.id))
+		_check(int(j.coins) > 0 or learned, "job %s is taught with coins (or learned when it opens)" % j.id)
 		if j.has("needs"):
 			var opened := catalog.unlock_list.any(func(e): return str(j.needs) in e.opens)
 			_check(opened, "job %s waits for something that opens (%s)" % [j.id, j.needs])
@@ -4012,12 +4017,14 @@ func _test_knacks(catalog: Catalog) -> void:
 	_check(Knacks.size(catalog, "tough", "common") == 3, "a common blob is 3% tougher")
 	_check(Knacks.size(catalog, "tough", "legendary") == 24, "legendary x-eyes: 24% tougher")
 	_check(Knacks.size(catalog, "spots", "epic", "holo") == 30, "a holo cyclops: 20 x1.5 = 30% spotting")
-	var open := func(_gate: String) -> bool: return true
+	var open := func(gate: String) -> bool: return gate != "feature:dungeon"  # everything but the dungeon
 	var shut := func(gate: String) -> bool: return gate != "feature:parts"
 	var pet := Pet.new()
 	pet.parts = { "body": "bunny", "palette": "gold", "pattern": "stars", "eyes": "cyclops", "accessory": "horns" }
 	var ks := Knacks.of(catalog, pet, open)
-	_check(ks.size() == 4 and not ks.any(func(k): return k.kind == "power"), "the demon horns' power knack stays hidden until fights (%d)" % ks.size())
+	_check(ks.size() == 4 and not ks.any(func(k): return k.kind == "power"), "the demon horns' power knack stays hidden until the dungeon opens (%d)" % ks.size())
+	var all_open := func(_gate: String) -> bool: return true
+	_check(Knacks.of(catalog, pet, all_open).any(func(k): return k.kind == "power"), "the demon horns' power knack shows once the dungeon is open")
 	_check(Knacks.of(catalog, pet, shut).is_empty(), "no knacks at all before parts open")
 	var spots := Knacks.parts(catalog, pet, "spots", open)
 	_check(spots.size() == 1 and spots[0].source == "knacks" and spots[0].id == "body:bunny+eyes:cyclops" and is_equal_approx(float(spots[0].x), 1.32),
@@ -4296,3 +4303,273 @@ func _test_next_door(catalog: Catalog) -> void:
 	_check(ours >= theirs, "more come home from the doghouse once it's ours (%.2f vs %.2f)" % [ours, theirs])
 	# v31 (built as v24): visits per place, every place visited before counts once
 	_check(Ours.visits_from(["garden", "meadow"]) == { "garden": 1, "meadow": 1 }, "old saves count one visit per place visited")
+
+
+## Where the herd meets knacks: counts work at their plain template's speed (no uid, no knack
+## share), cards at their own knack-adjusted speed, on errands and as workers alike.
+func _test_herd_knacks(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped the herd's knacks: it needs a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 9
+	var roller := PetRoller.new(catalog, rng)
+	var active := roller.roll("starter", "common")
+	active.uid = "1"
+	var dressed := roller.roll("starter", "common")
+	dressed.uid = "2"
+	dressed.finish = "holo"  # always a card
+	dressed.stats = Herd.stats_for(catalog, "common")  # the same stats as a count's template
+	dressed.traits = []
+	dressed.parts.palette = "mint"  # minty fresh: errands
+	dressed.parts.accessory = "crown"  # royal: automation
+	var auto := Automation.fresh()
+	auto.taught = { "machine": true }
+	auto.others = { "machine": true }
+	auto.spots = { "machine": 10 }
+	var save := { "version": load("res://scripts/game_state.gd").SAVE_VERSION, "coins": 1000, "tutorial": "done",
+		"saved_at": Time.get_unix_time_from_system(),
+		"unlocks": ["feature:parts", "feature:errands", "tab:errands", "tab:automation"],
+		"collection": { "pets": [active.to_dict(), dressed.to_dict()], "herd": { "common:normal": 3 }, "active": "1", "next_id": 3 },
+		"automation": auto }
+	SaveFile.write(path, save)
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	var card: Pet = gs.collection.get_pet("2")
+	var job: Dictionary = catalog.job("coin_hunt")
+	var template := Herd.template(catalog, "common:normal")
+	_check(card != null and gs.feature_on("parts") and gs.feature_on("errands"), "the dressed card loads with parts and errands open")
+	if card == null:
+		gs.free()
+		return
+	_check(is_equal_approx(Jobs.pet_speed(card, job), Jobs.pet_speed(template, job)), "the card and the count have the same plain speed")
+	_check(gs._pet_speed(card, job) > Jobs.pet_speed(card, job), "minty fresh makes the card faster on errands (%.3f)" % gs._pet_speed(card, job))
+	_check(template.uid == "" and gs.knack_own(template, "errands") == 1.0 and gs.knack_own(template, "automation") == 1.0,
+		"a count's template counts no knacks")
+	gs.put_on_job("coin_hunt", 1)
+	_check(gs.job_crew("coin_hunt") == ["2"] and gs.job_herd("coin_hunt").is_empty(), "+1 picks the dressed card ahead of an equal count")
+	gs.put_on_job("coin_hunt", -1)
+	gs.take_off_job("coin_hunt", 1)
+	_check(gs.job_crew("coin_hunt") == ["2"] and gs.job_size("coin_hunt") == 3, "-1 sends a pet from the count home first")
+	gs.take_off_job("coin_hunt", -1)
+	_check(gs.job_size("coin_hunt") == 0, "everyone home again")
+	var put: int = gs.put_workers("machine", -1)
+	var own: float = gs.knack_own(card, "automation")
+	var want := Automation.worker_speed(catalog, card) * own + Automation.worker_speed(catalog, template) * 3
+	_check(put == 4 and own > 1.0, "the card and 3 from the count start working (%d, x%.3f)" % [put, own])
+	_check(is_equal_approx(gs.workers_speed("machine"), want), "only the card adds its knack share to the workers (%.3f vs %.3f)" % [gs.workers_speed("machine"), want])
+	gs.free()
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+
+## An army for Dungeon's rules: `n` cards of `power` (rarity rank `rank`), `herd` plain commons of `herd_power`.
+func _army(n: int, power: float, herd: int, herd_power: float, rank := 0, luck := 1.0) -> Dictionary:
+	var cards: Array = []
+	for i in n:
+		cards.append({ "uid": "c%d" % i, "power": power, "rank": rank })
+	var h := {}
+	if herd > 0:
+		h["common:normal"] = { "n": herd, "power": herd_power, "rank": 0 }
+	return { "cards": cards, "herd": h, "luck": luck, "boost": 1.0 }
+
+
+## E1, the old well dungeon (Dungeon, data/dungeon.json): floors, power, a run, the lanterns (wisps)
+## it pays, losses and who goes first; then in the game: the army's pets are busy, lost ones become
+## stars, firsts pay once, the key stays hidden, the cellar and further down are bands, the v24 save.
+func _test_dungeon(catalog: Catalog) -> void:
+	var d: Dictionary = catalog.dungeon
+	# the well: bands and floors
+	_check(is_equal_approx(Dungeon.strength(catalog, 1), 120.0) and is_equal_approx(Dungeon.strength(catalog, 10), 100.0 * pow(1.2, 10)),
+		"floor strength is 100 x 1.2^floor (%.1f, %.1f)" % [Dungeon.strength(catalog, 1), Dungeon.strength(catalog, 10)])
+	var kinds := [1, 10, 11, 13, 15, 17, 19, 20, 21, 30].map(func(f): return Dungeon.floor_kind(catalog, f))
+	_check(kinds == ["rope", "rope", "door", "tiny", "knock", "tiny", "knock", "door", "stairs", "guard"], "the well's floors: rope, doors, tiny and knock doors, stairs, a guard every 10th (%s)" % [kinds])
+	_check(is_equal_approx(Dungeon.strength(catalog, 30), 100.0 * pow(1.2, 30) * 2.0), "a guard floor is twice as strong")
+	var fresh := Dungeon.fresh(catalog)
+	_check(Dungeon.shown_bands(catalog, fresh) == ["well"] and Dungeon.target_max(catalog, fresh) == 5, "a new dungeon shows the well only, and aims 5 floors down at most")
+	fresh.deep = 10
+	_check(Dungeon.shown_bands(catalog, fresh) == ["well", "cellar"] and Dungeon.target_max(catalog, fresh) == 15, "at the bottom of the well the cellar shows")
+	_check(not Dungeon.first_earned(catalog, fresh), "who goes first isn't earned at floor 10")
+	fresh.deep = 11
+	_check(Dungeon.first_earned(catalog, fresh), "who goes first is earned in the cellar")
+	var word_low: Array = Dungeon.word(catalog, 0.1)
+	var word_high: Array = Dungeon.word(catalog, 10.0)
+	_check(word_low[0] == "brr!" and word_high[0] == "easy peasy", "feeling words go from easy peasy to brr!")
+
+	# pet power: stat (traits) x rarity x finish x its own knack
+	var pet := _plain_pet(catalog, "rare", "normal", 3)
+	pet.traits.clear()
+	var base := float(pet.stats.power) * float(d.power.rarity_x.rare)
+	_check(is_equal_approx(Dungeon.pet_power(catalog, pet), base), "a rare's power is its stat x the rare multiplier")
+	pet.finish = "holo"
+	_check(is_equal_approx(Dungeon.pet_power(catalog, pet, 1.1), base * float(d.power.finish_x.holo) * 1.1), "a finish and its own power knack multiply it")
+
+	# rope floors: only the front row; tiny doors: only rare and up
+	var a := _army(30, 10.0, 100, 5.0)
+	_check(is_equal_approx(Dungeon.army_power(catalog, a, "rope"), 200.0), "on a rope floor only the front row fights (%.1f)" % Dungeon.army_power(catalog, a, "rope"))
+	_check(is_equal_approx(Dungeon.army_power(catalog, a, "door"), 200.0 + 10 * 10 * 0.5 + 100 * 5 * 0.5), "on other floors everyone behind counts half")
+	_check(Dungeon.army_power(catalog, a, "tiny") == 0.0, "commons don't fit through a tiny door")
+	a.cards.push_front({ "uid": "r", "power": 50.0, "rank": catalog.rank("rare") })
+	_check(is_equal_approx(Dungeon.army_power(catalog, a, "tiny"), 50.0), "a rare fits through a tiny door")
+
+	# a knock-back door nobody answers sends them home: no pay for that floor
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 4
+	var strong := _army(20, 1.0e6, 280, 1.0e5, catalog.rank("rare"), 0.0)
+	var knocked := Dungeon.simulate(catalog, strong, { "target": 20, "home_at": 90 }, rng)
+	_check(knocked.why == "knock" and int(knocked.turned) == 15 and Dungeon.cleared_to(knocked) == 14 and knocked.floors.size() == 14,
+		"a missed knock door ends the run on the floor before (%s at %d)" % [knocked.why, int(knocked.turned)])
+	var weak := Dungeon.simulate(catalog, _army(20, 0.0, 0, 0.0), { "target": 5, "home_at": 90 }, rng)
+	_check(weak.why == "stuck" and Dungeon.cleared_to(weak) == 0 and Dungeon.run_pay(weak) == 0, "an army with no power can't pass floor 1 and brings nothing")
+
+	# pay: per pet sent (at most the entrance), never per pet lost
+	_check(Dungeon.pay(catalog, 5, 1000, 0) == Dungeon.pay(catalog, 5, 300, 0) and Dungeon.pay(catalog, 5, 300, 0) > Dungeon.pay(catalog, 5, 100, 0),
+		"a floor pays for the pets sent, at most the entrance")
+	_check(Dungeon.pay(catalog, 12, 300, 0) > Dungeon.pay(catalog, 11, 300, 0), "deeper floors pay more")
+	rng.seed = 11
+	var fine := Dungeon.simulate(catalog, _army(20, 1000.0, 280, 50.0), { "target": 5, "home_at": 90 }, rng)
+	var hurt := Dungeon.simulate(catalog, _army(20, 15.0, 280, 1.0), { "target": 5, "home_at": 90 }, rng)
+	var lost_fine := Dungeon.run_lost(fine)
+	var lost_hurt := Dungeon.run_lost(hurt)
+	_check(Dungeon.cleared_to(hurt) == 5 and lost_hurt[0].size() + Herd.total(lost_hurt[1]) > lost_fine[0].size() + Herd.total(lost_fine[1]),
+		"a weaker army loses more on the way (%d)" % (lost_hurt[0].size() + Herd.total(lost_hurt[1])))
+	_check(Dungeon.run_pay(fine) == Dungeon.run_pay(hurt) and Dungeon.run_pay(fine) > 0, "and brings home just as much: pay never looks at losses (%d, %d)" % [Dungeon.run_pay(fine), Dungeon.run_pay(hurt)])
+
+	# come home when X% are gone
+	rng.seed = 2
+	var home := Dungeon.simulate(catalog, _army(20, 12.0, 280, 1.0), { "target": 10, "home_at": 10 }, rng)
+	var lost_home := Dungeon.run_lost(home)
+	_check(home.why == "home" and Dungeon.cleared_to(home) < 10 and lost_home[0].size() + Herd.total(lost_home[1]) >= 30,
+		"'come home when 10%% are gone' brings them home early (%s at floor %d)" % [home.why, Dungeon.cleared_to(home)])
+
+	# who goes first: the injured first until it's earned, then the herd, anyone or the front row
+	var cards := [{ "uid": "a", "power": 9.0, "rank": 0 }, { "uid": "b", "power": 8.0, "rank": 0 }, { "uid": "c", "power": 7.0, "rank": 0 }, { "uid": "d", "power": 6.0, "rank": 0 }]
+	var herd := { "common:normal": 10 }
+	var got: Array = Dungeon._take(2, "", cards.duplicate(), { "a": true, "c": true }, herd.duplicate(), {}, 20, rng)
+	got[0].sort()
+	_check(got[0] == ["a", "c"] and Herd.total(got[1]) == 0, "before who goes first is earned, the injured go first (%s)" % [got[0]])
+	got = Dungeon._take(3, "plain ones", cards.duplicate(), {}, herd.duplicate(), {}, 20, rng)
+	_check(got[0].is_empty() and Herd.total(got[1]) == 3, "'plain ones' go first: the herd")
+	got = Dungeon._take(3, "the front row", cards.duplicate(), {}, herd.duplicate(), {}, 20, rng)
+	_check(got[0].size() == 3 and Herd.total(got[1]) == 0, "'the front row' goes first: the cards")
+	var no_gear := RegEx.create_from_string("Gear\\.[a-z_]+\\(|\\bgear\\b")
+	_check(no_gear.search(FileAccess.get_file_as_string("res://scripts/dungeon/dungeon.gd")) == null, "gear never counts in the dungeon")
+	_test_dungeon_game(catalog)
+
+
+func _test_dungeon_game(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped the dungeon in the game: it needs a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var pets := []
+	var tiers := ["common", "uncommon", "rare", "epic"]
+	for i in 30:
+		var p := _plain_pet(catalog, tiers[i % tiers.size()], "holo", 100 + i)  # holo: they stay cards
+		p.uid = str(i + 1)
+		pets.append(p.to_dict())
+	var auto := Automation.fresh()
+	auto.party = { "place": "cellar", "n": 3 }
+	var old := { "version": 32, "coins": 1000, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(),
+		"unlocks": ["page:beyond", "location:well", "location:cellar", "location:below", "feature:parts", "tab:automation",
+			"feature:errands", "tab:errands"],
+		"heard": ["well", "cellar"], "rumours": ["cellar"],
+		"collection": { "pets": pets, "active": "1", "next_id": 31, "seen": {}, "herd": { "common:normal": 500 }, "herd_ever": true },
+		"automation": auto, "room": 20 }
+	SaveFile.write(path, old)
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	# v33 (built as v24): the cellar and further down are bands already reached; waiting rumours and parties move on
+	_check(gs.dungeon.bands == ["well", "cellar", "below"], "an old save that had the cellar and further down has those bands (%s)" % [gs.dungeon.bands])
+	_check(not "cellar" in gs.rumours and gs.automation.party.place == "well", "their rumours go, a party going there goes to the well")
+	_check(gs.is_unlocked("location:cellar"), "the old unlocks stay")
+	_check(not gs.location_open(catalog.location("cellar")) and not gs.location_open(catalog.location("below")), "the cellar and further down aren't trips any more")
+	var some: Array[Pet] = [gs.collection.get_pet("2")]
+	_check(gs.send_on_adventure("cellar", some) == null, "nobody can be sent to a band")
+	_check(gs.location_open(catalog.location("well")), "the top of the well is still a trip")
+	_check(not gs.dungeon_open(), "the dungeon waits for the rope find")
+	gs.grant({ "find:deep_rope": 1 })
+	_check(gs.dungeon_open(), "the rope find opens the dungeon")
+
+	# the army's pets are busy: not resting, not sendable, not on errands
+	var resting_before: int = gs.resting_count()
+	gs.army_best()
+	var army: Dictionary = gs.army()
+	_check(army.cards.size() == 20 and int(army.sent) == 20, "the best ones fill the front row (%d)" % army.cards.size())
+	var best_uid: String = army.cards[0].uid
+	_check(not gs.resting_cards().any(func(p): return p.uid == best_uid) and not gs.sendable_pets().any(func(p): return p.uid == best_uid),
+		"a card in the army isn't resting or sendable")
+	gs.set_army_herd("common", 1000)
+	army = gs.army()
+	_check(int(army.herd.get("common", 0)) == 280 and int(army.sent) == 300, "the herd fills the entrance and no more (%d)" % int(army.sent))
+	_check(gs.resting_count() == resting_before - 300, "the army's pets aren't resting (%d)" % gs.resting_count())
+	gs.put_on_job("coin_hunt", -1)
+	_check(gs.job_size("coin_hunt") == resting_before - 300 and int(gs.army().sent) == 300, "errands take everyone else, never the army")
+	gs.take_off_job("coin_hunt", -1)
+	_check(gs.floor_words(1, 3).size() == 3, "the next floors get feeling words")
+
+	# a run: it goes, its pets stay busy, it comes home
+	_check(gs.send_army() and gs.dungeon_running(), "the army goes down")
+	_check(not gs.set_army_card("2", true) and gs.dungeon_floor_now() >= 0.0, "the army can't change while it's down there")
+	var sent_uids: Array = gs.dungeon.run.cards.duplicate()
+	var lost_uid: String = sent_uids[5]
+	var stars: int = gs.collection.fallen_n
+	var plain: int = gs.collection.plain_count()
+	var parts_before := 0
+	for k in gs.parts:
+		parts_before += int(gs.parts[k])
+	var floors := []
+	for f in range(1, 11):
+		floors.append({ "f": f, "cleared": true, "lost_cards": [lost_uid] if f == 3 else [], "lost_herd": { "common:normal": 5 } if f == 4 else {}, "pay": 2 })
+	# before parts are open, floor 10's part waits for a later clear (never lost)
+	gs.unlocks.erase("feature:parts")
+	gs.dungeon.run = { "at": 0.0, "floors": floors.slice(0, 10).map(func(f): return { "f": f.f, "cleared": true, "lost_cards": [], "lost_herd": {}, "pay": 0 }),
+		"why": "target", "turned": 0, "cards": sent_uids, "herd": { "common:normal": 280 }, "sent": 300, "target": 10 }
+	gs._dungeon_tick()
+	_check(not gs.dungeon.firsts.has("10"), "floor 10's part waits while parts aren't open")
+	gs.unlocks["feature:parts"] = true
+	gs.dungeon.deep = 0
+	gs.dungeon.last = {}
+	gs.dungeon.run = { "at": 0.0, "floors": floors, "why": "target", "turned": 0, "cards": sent_uids, "herd": { "common:normal": 280 }, "sent": 300, "target": 10 }
+	gs._dungeon_tick()
+	_check(not gs.dungeon_running() and gs.wisps == 20 and int(gs.dungeon.deep) == 10, "home: 10 floors lit, their wisps paid (%d)" % gs.wisps)
+	_check(gs.collection.get_pet(lost_uid) == null and gs.collection.fallen_n == stars + 6, "pets that didn't come back are stars now (%d)" % (gs.collection.fallen_n - stars))
+	_check(gs.collection.herd_count("common:normal") == 495 and gs.collection.plain_count() == plain - 5, "and they leave the room")
+	_check(not lost_uid in gs.dungeon.cards and gs.dungeon.last.back == 294, "the army and the last run know (%d came home)" % int(gs.dungeon.last.back))
+	var parts_after := 0
+	for k in gs.parts:
+		parts_after += int(gs.parts[k])
+	_check(parts_after == parts_before + 1 and gs.dungeon.firsts.has("10"), "floor 10 gives the first dungeon part")
+	_check(gs.feature_on("lead_army") and gs.knows_job("army"), "and your pet learns to lead the army")
+	_check(not gs.finds.has("little_key"), "the key stays hidden before floor 20")
+	gs.dungeon.run = { "at": 0.0, "floors": floors, "why": "target", "turned": 0, "cards": gs.dungeon.cards.duplicate(), "herd": {}, "sent": 19, "target": 10 }
+	gs._finish_dungeon_run()
+	var parts_again := 0
+	for k in gs.parts:
+		parts_again += int(gs.parts[k])
+	_check(parts_again == parts_after, "a floor's first thing comes only once")
+	var deep_floors := []
+	for f in range(1, 21):
+		deep_floors.append({ "f": f, "cleared": true, "lost_cards": [], "lost_herd": {}, "pay": 1 })
+	gs.dungeon.run = { "at": 0.0, "floors": deep_floors, "why": "target", "turned": 0, "cards": gs.dungeon.cards.duplicate(), "herd": {}, "sent": 19, "target": 20 }
+	gs._finish_dungeon_run()
+	_check(gs.finds.has("little_key") and gs.announcements.any(func(t): return "key" in t), "floor 20 gives the key, with one quiet line")
+	# your pet leads the army: it goes down again whenever it's home
+	gs.set_task("army")
+	gs._dungeon_tick()
+	_check(gs.dungeon_running(), "leading the army sends it again when it's home")
+	gs.save_game()
+	var gs2: Node = load("res://scripts/game_state.gd").new()
+	_check(gs2.dungeon_running() and gs2.wisps == gs.wisps and int(gs2.dungeon.deep) == 20 and gs2.dungeon.cards.size() == gs.dungeon.cards.size(),
+		"the dungeon comes back from the save")
+	gs.free()
+	gs2.free()
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))

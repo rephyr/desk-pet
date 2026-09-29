@@ -1,7 +1,8 @@
 class_name AdventuresTab
 extends VBoxContainer
-## Sending pets on adventures ("trips"). Two pages, switched at the top once the first xp is home:
-## adventures and upgrades (gear for the trips, bought with xp: GearView).
+## Sending pets on adventures ("trips"). Up to three pages, switched at the top: adventures,
+## upgrades (gear for the trips, bought with xp: GearView; once the first xp is home) and the
+## dungeon (the old well, all the way down: DungeonView; once the rope find opens it).
 ## Your pet's crayon map of the world (MapView) fills the
 ## left; tapping a place sticks a card onto the map for picking who goes there. A hands-on trip
 ## can be watched up close on the trail (TrailView), in the map's place. The trips that are away
@@ -43,6 +44,9 @@ var _estimate := 1.0
 var _tick := 0.0
 var _voice_rng := RandomNumberGenerator.new()
 var gear_view := GearView.new()  # the upgrades page
+var dungeon_view := DungeonView.new()  # the dungeon page
+var _wisp_chip: PanelContainer  # the darker currency, by the switch on the dungeon page
+var _wisp_label: Label
 var _main := HBoxContainer.new()  # the adventures page: the map (or trail) and the trips away
 var _bar := HBoxContainer.new()
 var _mode: PanelContainer
@@ -54,16 +58,36 @@ func _init() -> void:
 	add_theme_constant_override("separation", 10)
 	size_flags_vertical = SIZE_EXPAND_FILL
 	_voice_rng.randomize()
-	# adventures | upgrades, like machine | upgrades (hidden until there's xp to spend)
-	_mode = UiTheme.segmented(["adventures", "upgrades"], 0, func(i): _show_page(i))
+	# adventures | upgrades | dungeon, like machine | upgrades (each hidden until it's there)
+	_mode = UiTheme.segmented(["adventures", "upgrades", "dungeon"], 0, func(i): _show_page(i))
 	_bar.add_child(_mode)
-	_bar.visible = GameState.gear_page_open()
+	_bar.add_child(UiTheme.spacer())
+	_wisp_chip = PanelContainer.new()
+	var chip_sb := UiTheme.box(UiTheme.DEEP, UiTheme.WISP.lerp(UiTheme.LINE, 0.6), 999, 2, 0)
+	chip_sb.content_margin_left = 8
+	chip_sb.content_margin_right = 14
+	chip_sb.content_margin_top = 2
+	chip_sb.content_margin_bottom = 2
+	_wisp_chip.add_theme_stylebox_override("panel", chip_sb)
+	_wisp_chip.size_flags_vertical = SIZE_SHRINK_CENTER
+	var chip_row := HBoxContainer.new()
+	chip_row.add_theme_constant_override("separation", 7)
+	chip_row.add_child(UiTheme.icon_rect("lantern", 20, UiTheme.WISP))
+	_wisp_label = UiTheme.title("0", 18, UiTheme.WISP)
+	chip_row.add_child(_wisp_label)
+	_wisp_chip.add_child(chip_row)
+	_wisp_chip.tooltip_text = str(Catalog.shared().dungeon.get("currency", {}).get("word", "wisps"))
+	_wisp_chip.visible = false
+	_bar.add_child(_wisp_chip)
+	_refresh_bar()
 	add_child(_bar)
 	_main.add_theme_constant_override("separation", 14)
 	_main.size_flags_vertical = SIZE_EXPAND_FILL
 	add_child(_main)
 	gear_view.visible = false
 	add_child(gear_view)
+	dungeon_view.visible = false
+	add_child(dungeon_view)
 	_location_id = GameState.open_locations()[0].id
 
 	# the map, with the place card stuck onto it and the trail in its place when watching
@@ -111,9 +135,12 @@ func _init() -> void:
 		_rebuild_if_dirty()
 		if not is_visible_in_tree():
 			return
-		# back on the upgrades page: stay there (the trip can be watched from the adventures page)
+		# back on the upgrades or dungeon page: stay there (the trip can be watched from the adventures page)
 		if gear_view.visible:
 			gear_view.speak()
+			return
+		if dungeon_view.visible:
+			dungeon_view.speak()
 			return
 		speak()
 		# a hands-on trip is out: go along with it
@@ -141,7 +168,7 @@ func speak() -> void:
 	PetBubble.say(self, PetVoice.line(pet, what, _voice_rng, catalog))
 
 
-## 0 the adventures (map and trips), 1 the upgrades (gear); flips the switch at the top too.
+## 0 the adventures (map and trips), 1 the upgrades (gear), 2 the dungeon; flips the switch at the top too.
 ## `quiet`: flipped for you on the way to something else, so your pet doesn't talk over it.
 func show_page(page: int, quiet := false) -> void:
 	_quiet = quiet
@@ -149,15 +176,39 @@ func show_page(page: int, quiet := false) -> void:
 	_quiet = false
 
 
+## A page by its name ("dungeon", "upgrades"), for an unlock's "show me".
+func show_named_page(page_name: String) -> void:
+	var i := ["adventures", "upgrades", "dungeon"].find(page_name)
+	if i >= 0:
+		show_page(i)
+
+
 func _show_page(page: int) -> void:
 	_main.visible = page == 0
 	gear_view.visible = page == 1
+	dungeon_view.visible = page == 2
+	_refresh_bar()
 	if _quiet:
 		return
-	if page == 1:
-		gear_view.speak()
-	else:
-		speak()
+	match page:
+		1: gear_view.speak()
+		2: dungeon_view.speak()
+		_: speak()
+
+
+## The switch shows once there's more than one page; each page's button only once it's there, and
+## the wisps by it on the dungeon page.
+func _refresh_bar() -> void:
+	var row := _mode.get_child(0)
+	var gear_on := GameState.gear_page_open()
+	var dungeon_on := GameState.dungeon_open()
+	(row.get_child(1) as Control).visible = gear_on
+	(row.get_child(2) as Control).visible = dungeon_on
+	_bar.visible = gear_on or dungeon_on
+	_wisp_chip.visible = dungeon_view.visible
+	_wisp_label.text = UiTheme.num(GameState.wisps)
+	if (gear_view.visible and not gear_on) or (dungeon_view.visible and not dungeon_on):
+		show_page(0, true)
 
 
 ## The signpost at the edge was tapped: its card turns up in the right column.
@@ -174,7 +225,7 @@ func _refresh_edge_card() -> void:
 
 ## Shows a page of the map (the dev driver's "map-page").
 func show_map_page(page_id: String) -> void:
-	if gear_view.visible:
+	if not _main.visible:
 		show_page(0, true)
 	_show_map(true)
 	_map.show_map_page(page_id)
@@ -187,7 +238,7 @@ func pick_edge() -> void:
 
 ## Opens a place's card, as if it was tapped on the map (dev flag --pick).
 func pick_place(location_id: String) -> void:
-	if gear_view.visible:
+	if not _main.visible:
 		show_page(0, true)
 	_choose_place(location_id)
 
@@ -238,7 +289,7 @@ func _show_map(on: bool) -> void:
 
 ## Up close on a hands-on trip: the trail, where you click it along.
 func _show_trail(run: RunState) -> void:
-	if gear_view.visible:
+	if not _main.visible:
 		show_page(0, true)
 	_trail.show_run(run)
 	_postcard.visible = false
@@ -743,7 +794,7 @@ func _process(delta: float) -> void:
 	if _tick <= 0.0:
 		_tick = 0.5
 		_refresh_runs()
-		_bar.visible = GameState.gear_page_open()
+		_refresh_bar()
 		_refresh_edge_card()
 
 

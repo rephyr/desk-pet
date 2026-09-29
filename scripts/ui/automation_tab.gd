@@ -104,6 +104,7 @@ func _init() -> void:
 	GameState.changed.connect(func(): _dirty = true)
 	GameState.automation_changed.connect(func(): _dirty = true)
 	GameState.unlocked.connect(func(_e): _dirty = true)
+	GameState.dungeon_changed.connect(func(): _dirty = true)  # the army's job card says where it is
 	GameState.collection.active_changed.connect(func(_p): _dirty = true)
 	GameState.pet_cranked.connect(_on_cranked)
 	GameState.school_changed.connect(func(): _dirty = true)
@@ -221,6 +222,7 @@ func _process(_delta: float) -> void:
 	key += "|%d|%s|%s|%s" % [jobs.size(), run.location_id if run else "", str(GameState.can_auto_open()), pet.display_name(GameState.catalog) if pet else ""]
 	if not GameState.can_auto_open():  # the box job then shows the pile count (or the squish)
 		key += "|%d|%s" % [GameState.boxes_on_pile(), str(GameState.room_is_full())]
+	key += "|%s|%d" % [str(GameState.dungeon.run.get("target", -1)), int(GameState.army().sent)]  # the army's job card
 	# the workers page: what's taught, bought and who's on it, and what you can afford there
 	var a: Dictionary = GameState.automation
 	key += "|%s|%s|%s|%s|%s|%s|%s" % [_page, str(a.others), str(a.spots), str(a.parties), str(a.workers), str(a.get("wherd", {})), str(a.get("wjoin", {}))]
@@ -336,6 +338,7 @@ static func doing(task: String) -> String:
 		"adventures": return "on adventures"
 		"boxes": return "opening boxes"
 		Automation.WHISTLE: return "managing"
+		"army": return "leading the army"
 	return "free"
 
 
@@ -397,6 +400,10 @@ static func rate_line(job: Dictionary) -> String:
 				return "the pile is empty"
 			var pile := "a box on your pile" if boxes == 1 else "%s boxes on your pile" % UiTheme.num(boxes)
 			return "squish! " + pile if GameState.room_is_full() else pile
+		"army":
+			if GameState.dungeon_running():
+				return "down to floor %d" % int(GameState.dungeon.run.get("target", GameState.dungeon.target))
+			return "waiting by the well" if int(GameState.army().sent) == 0 else "back up the rope"
 	return ""
 
 
@@ -1179,6 +1186,7 @@ class JobScene extends Control:
 		match kind:
 			"machine": _draw_machine()
 			"boxes": _draw_boxes()
+			"army": _draw_well()
 			_: _draw_gate()
 		if _pop_t >= 0.0 and _pop_text != "":
 			var font := UiTheme.DISPLAY_FONT if UiTheme.DISPLAY_FONT else get_theme_default_font()
@@ -1233,6 +1241,26 @@ class JobScene extends Control:
 		draw_line(Vector2(6, 62), Vector2(64, 62), UiTheme.PINK, 3.0, true)
 		draw_line(Vector2(12, 62), Vector2(10, 78), UiTheme.PINK, 3.0, true)
 		draw_line(Vector2(58, 62), Vector2(60, 78), UiTheme.PINK, 3.0, true)
+
+	## The old well: a little roof, the rope going down, a lantern bobbing on it while the army's out.
+	func _draw_well() -> void:
+		var lilac := UiTheme.LILAC
+		draw_line(Vector2(16, 30), Vector2(16, 58), lilac, 2.4, true)
+		draw_line(Vector2(54, 30), Vector2(54, 58), lilac, 2.4, true)
+		var roof := PackedVector2Array([Vector2(8, 32), Vector2(35, 16), Vector2(62, 32)])
+		draw_colored_polygon(roof, UiTheme.PAGE.lerp(UiTheme.PINK_SEAM, 0.4))
+		roof.append(roof[0])
+		draw_polyline(roof, UiTheme.PINK_SEAM, 2.4, true)
+		draw_line(Vector2(16, 36), Vector2(54, 36), lilac, 2.4, true)
+		var bob := sin(_time * 2.0) * 4.0 if running else 0.0
+		draw_line(Vector2(35, 36), Vector2(35, 60 + bob), UiTheme.MUTED, 2.0, true)
+		draw_rect(Rect2(31, 60 + bob, 8, 9), UiTheme.WISP)
+		draw_circle(Vector2(35, 64 + bob), 8.0, Color(UiTheme.WISP, 0.18))
+		var rim := Rect2(10, 58, 50, 18)
+		draw_rect(rim, UiTheme.PAGE.lerp(lilac, 0.15))
+		draw_rect(rim, lilac, false, 2.4)
+		draw_line(Vector2(22, 58), Vector2(22, 67), Color(UiTheme.LILAC_SEAM, 0.6), 2.0)
+		draw_line(Vector2(48, 58), Vector2(48, 67), Color(UiTheme.LILAC_SEAM, 0.6), 2.0)
 
 	func _draw_gate() -> void:
 		var mint := UiTheme.MINT

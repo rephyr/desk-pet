@@ -155,8 +155,9 @@ func _refresh_active() -> void:
 		return
 	var is_active := GameState.collection.active_uid == _pet.uid
 	var away := GameState.away().has(_pet.uid)
-	_active_button.disabled = is_active or away
-	_active_button.text = "your active pet" if is_active else ("away on an adventure…" if away else "make active")
+	var down: bool = GameState.dungeon_running() and _pet.uid in GameState.dungeon.run.get("cards", [])
+	_active_button.disabled = is_active or away or down
+	_active_button.text = "your active pet" if is_active else ("away on an adventure…" if away else ("down the well…" if down else "make active"))
 	# the heart: pink-rimmed while it's a favourite; stand-ins (pets from the herd) can't be one
 	_fav_button.visible = not Herd.is_stand_in(_pet.uid)
 	var fav_sb := UiTheme.box(UiTheme.DEEP, UiTheme.PINK if _pet.fav else UiTheme.LINE, 8, 2, 6)

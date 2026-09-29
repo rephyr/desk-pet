@@ -1,0 +1,91 @@
+# E1 the old well dungeon (look A, the cross-section): the rope find at the well opens it. The
+# dungeon page shows the well as a drawn column, the army (the front row of cards with your pet's
+# flag, the herd by shelf, the entrance) and the orders card. The army goes down, comes home with
+# wisps and lit landings; deeper down the cellar's doors and the stairs with a guard show, and your
+# pet learns to lead the army. Everything stays inside the window.
+from rich
+view full
+stickers off                         # 300 pets fill a random few book pages: no sticker popups
+pets 300
+herd common normal 3000
+herd uncommon normal 900
+herd rare normal 80
+unlock page:beyond
+unlock location:well
+unlock tab:automation
+tab adventures
+wait 1
+expect no-text "dungeon"             # hidden until the rope find
+dungeon
+wait popup
+expect fits
+shot found
+click "show me"
+wait 1
+expect text "the old well"
+expect text "down we go!"
+expect text "front row"
+expect no-text "who goes first"      # earned in the cellar
+expect fits
+shot empty
+click FrontRow#1
+wait 1
+expect text "best ones"
+expect fits
+shot picker
+click "best ones"
+wait 1
+click "done"
+wait 1
+army-herd common 150
+army-herd uncommon 90
+orders 5 30
+wait 1
+expect text "240"
+expect fits
+shot army
+down
+wait 45                              # a floor takes 20 s: they're a couple of landings down
+expect text "on the way…"
+expect fits
+shot running
+down-done
+wait 1
+expect text "last time"
+expect text "brought home"
+expect fits
+shot home
+deep 24
+wait popup                           # past floor 10: your pet can lead the army
+shot lead_popup
+click "show me"
+wait 1
+expect text "lead the army"
+click "lead the army"
+wait 1
+click "move it here"
+wait 1
+wait 2
+expect text "down to floor*"          # your pet took the army down again
+expect fits
+shot automation
+task none
+down-done
+tab adventures
+wait 1
+orders 27 30 "plain ones"
+wait 1
+expect text "who goes first"
+expect fits
+shot deep
+tab collection
+wait 1
+expect fits
+tab adventures
+wait 1
+page adventures 0
+wait 1
+map-page beyond                      # the cellar and further down aren't places on the map any more
+wait 1
+expect fits
+shot map

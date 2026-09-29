@@ -316,10 +316,11 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   safe home, bits and parts, trail pickups, treat length, while away, rummaging, shiny capsules,
   pet boxes. Traits stay beside knacks (traits per pet, knacks per part). Hidden until earned:
   nothing shows before parts open (40 trips), and a knack for something you haven't got (fever
-  before the lights, errands, automation, toys, the shiny branch; power until fights) stays hidden.
+  before the lights, errands, automation, toys, the shiny branch; power until the dungeon opens) stays hidden.
   Shown as round sewn badges under the pet on its details (tap one: a card reads it out, "one big
-  eye", "+30% spotting", "eyes: cyclops"), and each collection grid card wears its best badge on
-  the top-right corner. Numbers are placeholders.
+  eye", "+30% spotting", "eyes: cyclops"), and each card in an opened shelf wears its best badge on
+  the bottom-right corner (not on the cushion). Herd counts have no looks, so their knacks don't
+  count (x1); stand-ins are whole pets and count theirs. Numbers are placeholders.
   **The broken machine and its tree (Emilia, built):** the machine is an old broken one you fix
   up (machine tab: machine | upgrades). The upgrade TREE (data/machine_tree.json) has a trunk of
   repairs (tape up the crack, oil the lever, unstick the flap, new glass, rewire the lights, better
@@ -616,6 +617,40 @@ All opt-in, with odds shown before confirming:
   dungeons (losses are the cost there). Prices 25-120 xp at x1.6 a level are placeholders until
   the pacing sim (A1).
 - Later, maybe: gear bought or gambled (boxes), found on adventures, equipped on pets.
+
+## The old well (dungeon)
+
+- **Built (E1, look A: the cross-section):** the well line is one dungeon. The top of the well
+  stays a trip (parties of up to 100, no swarms); a party of 100 there finds "the rope goes further
+  down" (`deep_rope`), which opens the dungeon as a third page in adventures (adventures | upgrades
+  | dungeon, a coral lantern chip with the wisps by the switch). The cellar and further down stop
+  being trips: they're bands of the well (old saves that had them keep them as bands already
+  reached; their rumours are never heard again). data/dungeon.json, `Dungeon`.
+  - **Bands:** the well (floors 1-10, rope floors: only the front row fights), the cellar (11-20,
+    doors; tiny doors on 13/17 let only rare and up through, knock-back doors on 15/19 roll luck:
+    nobody answers and the army comes home), further down (21+, stairs forever, a guard every 10th
+    at x2). A band shows once the army has stood at its top.
+  - **The army:** card pets you add (tap the front row: resting cards by power, "best ones") and
+    pets from the herd taken by the shelf (steppers of 10). The best 20 cards by power (stats with
+    traits, rarity, finish, their own power knack) fight in front; the rest and the herd walk
+    behind at half. Your active pet's flag leads the front row (it never fights or falls). The
+    entrance fits 300 at first. Army pets are busy: not resting, not on errands or trips.
+  - **Floors:** strength 100 x 1.2^floor, shown only as feeling words (easy peasy, a stroll, comfy,
+    spooky, tricky, so tough, brr!). The orders card: "go down to floor ‹N›" (up to 5 past the
+    deepest), "come home when ‹30%› are gone", and from the cellar on "who goes first ‹plain ones /
+    anyone / the front row›". Before that, losses take the injured first, then anyone.
+  - **A run** is worked out when it sets off (20 s a floor): per floor some get hurt (half
+    strength) and some don't come back (lose / ratio², at most a quarter a floor); a floor below
+    0.4 of its strength can't be passed. Pets that don't come back become stars, never named.
+  - **Wisps (the darker currency, candy floss coral):** each cleared floor pays 0.01 x 1.15^floor
+    x pets SENT (at most the entrance), never per pet lost. Lit landings are the progress bar.
+    Nothing spends wisps yet (widening the entrance is the first buy, later).
+  - **Firsts:** floor 10 gives the first dungeon part (an epic) and your pet learns "lead the
+    army" (automation: it takes the same army down again whenever it's home, while the game runs);
+    floor 20 gives a tiny key (E3's), fully hidden until found. While parts aren't open yet
+    (40 trips), floor 10's part waits: it's given on the first clear after parts open, and its
+    glint on the well only shows once parts are open.
+  - Gear never works in the dungeon; the power boost (your active pet's power knacks) does.
 
 ## Economy (first numbers, to be tuned)
 

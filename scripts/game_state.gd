@@ -27,12 +27,13 @@ signal globe_arrived(id: String)  # a new machine globe came home (a pet brought
 signal page_opened(page_id: String)  # a map page was opened by the game's code (open_page)
 signal edge_changed  # pets went past the edge (the scribbles and the number to go changed)
 signal school_changed  # pets sat down in the school, or the bell rang
+signal dungeon_changed  # the army or its orders changed, it set off down the well, or it came home
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
 ## Headless tests set this before making a GameState: it starts empty and never loads or saves
 ## (a test turns saving on with its own save_path).
 static var testing := false
-const SAVE_VERSION := 32
+const SAVE_VERSION := 33
 const WORKER_BOXES_MAX := 2000  # box workers open at most this many boxes in one go (every pet is rolled)
 const OFFLINE_CAP := 12.0 * 3600.0
 const FRAME_GAP := 5.0  # a frame this long means the computer slept: counts as closed (no care drain)
@@ -143,6 +144,9 @@ var debug_gift_roll := ""  # debug builds: the next present holds "one" box, "tw
 var bits := {}  # machine bits pets bring home from adventures: bit id (gear, spring, bolt, glass) -> how many
 ## What your pet does for you (the automation tab), see Automation and data/automation.json
 var automation := Automation.fresh()
+var dungeon := Dungeon.fresh(Catalog.shared())  # the old well, all the way down (see Dungeon)
+var wisps := 0  # the darker currency: lanterns the dungeon's cleared floors pay (data/dungeon.json)
+var dungeon_news := {}  # the army just came home: { got, floor, early, deepest } for your pet to say (not saved)
 var _auto_at := 0.0  # unix time your pet's jobs have worked up to
 var _hold_saves := false  # automation's tick is running: saves wait for the end of it
 var _loading := false  # load_game is running: the book waits (collection signals fire halfway through)
@@ -210,6 +214,9 @@ func _init() -> void:
 			_take_off([p.uid])
 		if p and _worker_of.has(p.uid):
 			_take_off_workers([p.uid])
+		if p and p.uid in dungeon.cards:
+			dungeon.cards.erase(p.uid)  # your active pet leads the army, it isn't in it
+			dungeon_changed.emit()
 		if _was_active != "" and (p == null or p.uid != _was_active):
 			_place_new([_was_active])  # your old active pet goes back to work (where new pets join)
 		_was_active = p.uid if p else "")
@@ -250,6 +257,7 @@ func _process(delta: float) -> void:
 	if _run_timer <= 0.0:
 		_run_timer = 1.0
 		_advance_runs()
+		_dungeon_tick()
 		_work_jobs(Time.get_unix_time_from_system())
 		_work_automation(Time.get_unix_time_from_system())
 		_tick_gifts(Time.get_unix_time_from_system())
@@ -745,10 +753,10 @@ func unlock(id: String) -> void:
 
 
 ## A place you can go: its map page is open, and it's the page's first place or one a pet spotted
-## (or a rumour led to) and you said yes.
+## (or a rumour led to) and you said yes. Never a band of the dungeon (data/adventures.json "band").
 func location_open(location: Dictionary) -> bool:
-	if location.is_empty() or not page_open(str(location.get("page", catalog.pages[0].id))):
-		return false
+	if location.is_empty() or location.has("band") or not page_open(str(location.get("page", catalog.pages[0].id))):
+		return false  # a band of the old well's dungeon is never a trip
 	return location.get("start", false) or is_unlocked("location:" + location.id)
 
 
@@ -802,6 +810,9 @@ func _open_entry(entry: Dictionary) -> void:
 		_opened(str(o))
 	if str(entry.get("pet_job", "")) != "":
 		_gift_pet(str(entry.pet_job))
+	if str(entry.get("learns", "")) != "":
+		automation.taught[str(entry.learns)] = true  # your pet knows this job straight away
+		automation_changed.emit()
 	if str(entry.get("announce", "")) != "":
 		announcements.append(entry.announce)
 	unlocked.emit(entry)
@@ -864,6 +875,8 @@ func _earned(earn: Dictionary) -> bool:
 		return false
 	if int(homes.by_hand) < int(earn.get("homes_by_hand", 0)):
 		return false
+	if int(dungeon.deep) < int(earn.get("floor", 0)):
+		return false
 	var levels: Dictionary = earn.get("job_level", {})
 	for job_id in levels:
 		if job_level(str(job_id)) < int(levels[job_id]):
@@ -877,13 +890,13 @@ func _earned(earn: Dictionary) -> bool:
 	return true
 
 
-## Whether every place on a map page is open (and the page itself).
+## Whether every place on a map page is open (and the page itself). Dungeon bands don't count.
 func all_places_open(page_id: String) -> bool:
 	if not page_open(page_id):
 		return false
 	for location in catalog.locations:
-		if str(location.get("page", "")) == page_id and not location_open(location):
-			return false
+		if str(location.get("page", "")) == page_id and not location.has("band") and not location_open(location):
+			return false  # dungeon bands were places once: they never count
 	return true
 
 
@@ -898,6 +911,13 @@ func _gift_pet(job_id: String) -> void:
 ## The oldest news your pet hasn't told you yet, or "" (then forgotten).
 func take_announcement() -> String:
 	return announcements.pop_front() if not announcements.is_empty() else ""
+
+
+## What the army's last run was like, for your pet to say (once), or {}.
+func take_dungeon_news() -> Dictionary:
+	var news := dungeon_news
+	dungeon_news = {}
+	return news
 
 
 ## Whether an unlock id ("location:cellar", "automation", "parties") is open.
@@ -1098,6 +1118,9 @@ func debug_new_game() -> void:
 	gifts = Gifts.fresh()
 	bits = {}
 	automation = Automation.fresh()
+	dungeon = Dungeon.fresh(catalog)
+	wisps = 0
+	dungeon_news = {}
 	_auto_at = 0.0
 	_worker_of.clear()
 	_worker_speed.clear()
@@ -1115,6 +1138,7 @@ func debug_new_game() -> void:
 	collection.load_from({})
 	_start_tutorial()
 	_check_care()
+	_knacks_changed()  # after load_from: uids start over at 1
 	collection.active_changed.emit(collection.active())
 	save_game()
 	new_game.emit()
@@ -1197,16 +1221,19 @@ func open_jobs() -> Array[Dictionary]:
 
 # ---- who's resting: not your active pet, not away on an adventure, not on an errand or working ----
 
-## Who's resting, worked out once until crews, workers, trips or the herd change:
-## { cards: [Pet], herd: { count key: n }, n: everyone }.
+## Who's resting, worked out once until crews, workers, trips, the army or the herd change:
+## { cards: [Pet], herd: { count key: n }, n: everyone, army_herd: { count key: n } (the dungeon's) }.
 func _resting() -> Dictionary:
 	if _rest.is_empty():
-		var gone := away()
+		var gone := _out()
 		var cards: Array[Pet] = []
 		for pet in collection.pets:
 			if pet.uid != collection.active_uid and not gone.has(pet.uid) and not _job_of.has(pet.uid) and not _worker_of.has(pet.uid):
 				cards.append(pet)
 		var used := _herd_used(gone)
+		var army := _army_herd(used)  # the dungeon's army takes its pets from the herd after everyone else
+		for k in army:
+			Herd.put(used, k, int(army[k]))
 		var free := {}
 		var n := cards.size()
 		for k in collection.herd:
@@ -1214,7 +1241,7 @@ func _resting() -> Dictionary:
 			if left > 0:
 				free[k] = left
 				n += left
-		_rest = { "cards": cards, "herd": free, "n": n }
+		_rest = { "cards": cards, "herd": free, "n": n, "army_herd": army }
 	return _rest
 
 
@@ -1294,7 +1321,7 @@ func _resting_stand_ins() -> Array[Pet]:
 
 ## Pets on your spare list: everyone but your active pet and pets away on adventures.
 func spare_count() -> int:
-	var gone := away()
+	var gone := _out()
 	return maxi(0, collection.count() - (1 if collection.active() != null else 0) - gone.size())
 
 
@@ -1344,9 +1371,9 @@ func shelf_split(rarity: String) -> Array:
 	return [always, newest]
 
 
-## Uids that must stay whole cards right now: away, good pulls waiting to be seen, party leaders.
+## Uids that must stay whole cards right now: away, in the army, good pulls waiting to be seen, party leaders.
 func _busy_uids() -> Dictionary:
-	var out := away()
+	var out := _out()
 	for uid in pinned:
 		out[uid] = true
 	for uid in workers_of("adventures"):
@@ -2833,8 +2860,8 @@ func _load_automation(saved: Dictionary) -> void:
 			automation.parties.append({ "place": str(p.get("place", "")), "n": int(p.get("n", 0)) })
 	while automation.parties.size() < Automation.spots(automation, "adventures"):
 		automation.parties.append({ "place": "", "n": 0 })
-	# workers: pets you still have, not your active pet, not away, one job each, one per spot
-	var on_trips := away()
+	# workers: pets you still have, not your active pet, not away or in the army, one job each, one per spot
+	var on_trips := _out()
 	var placed := {}
 	for id in saved.get("workers", {}):
 		var list: Array = []
@@ -2892,6 +2919,360 @@ func _load_automation(saved: Dictionary) -> void:
 		for uid in automation.workers[id]:
 			if str(uid) != "":
 				_worker_of[uid] = id
+
+
+# ---- the dungeon: the old well, all the way down (see Dungeon, data/dungeon.json) ----------
+
+## Whether the dungeon is open (the rope find at the well).
+func dungeon_open() -> bool:
+	return feature_on("dungeon")
+
+
+## Whether the army is down the well right now.
+func dungeon_running() -> bool:
+	return not dungeon.run.is_empty()
+
+
+## Cards in the army: the picked ones, and the ones down there now. uid -> true.
+func _army_uids() -> Dictionary:
+	var out := {}
+	for uid in dungeon.cards:
+		out[str(uid)] = true
+	for uid in dungeon.run.get("cards", []):
+		out[str(uid)] = true
+	return out
+
+
+## Everyone busy elsewhere for good reason: away on a trip, or in the dungeon's army. uid -> true.
+func _out() -> Dictionary:
+	var out := away()
+	out.merge(_army_uids())
+	return out
+
+
+## The army's pets from the herd: the run's while it's down there, otherwise the shelves' picks spread
+## over their counts (better finishes first), out of what's left once everyone else has theirs (`used`).
+func _army_herd(used: Dictionary) -> Dictionary:
+	if dungeon_running():
+		return Herd.clean_counts(catalog, dungeon.run.get("herd", {}))
+	var out := {}
+	for rarity: String in dungeon.herd:
+		var left := int(dungeon.herd[rarity])
+		var keys: Array = collection.herd.keys().filter(func(k): return Herd.rarity_of(k) == rarity)
+		keys.sort_custom(func(a, b): return catalog.finish_rank(Herd.finish_of(a)) > catalog.finish_rank(Herd.finish_of(b)))
+		for k in keys:
+			if left <= 0:
+				break
+			var take := mini(left, collection.herd_count(k) - int(used.get(k, 0)))
+			if take > 0:
+				out[k] = take
+				left -= take
+	return out
+
+
+## The army's pets from the herd: count key -> how many.
+func army_herd_keys() -> Dictionary:
+	return _resting().get("army_herd", {})
+
+
+## A pet's power in the dungeon (its own power knack counts, gear never does).
+func army_power_of(pet: Pet) -> float:
+	return Dungeon.pet_power(catalog, pet, knack_own(pet, "power"))
+
+
+## The cards in the army, the strongest first (while it's down there: the ones that went).
+func army_cards() -> Array[Pet]:
+	var out: Array[Pet] = []
+	var uids: Array = dungeon.run.get("cards", []) if dungeon_running() else dungeon.cards
+	for uid in uids:
+		var pet := collection.get_pet(str(uid))
+		if pet:
+			out.append(pet)
+	return _strongest_first(out)
+
+
+## Cards that could go in the army (resting ones and the ones in it), the strongest first.
+func army_choices() -> Array[Pet]:
+	var out: Array[Pet] = []
+	if not dungeon_running():
+		for uid in dungeon.cards:
+			var pet := collection.get_pet(str(uid))
+			if pet:
+				out.append(pet)
+	out.append_array(resting_cards())
+	return _strongest_first(out)
+
+
+## Pets sorted by their power in the dungeon, the strongest first (each pet's power worked out once).
+func _strongest_first(pets: Array[Pet]) -> Array[Pet]:
+	var pairs: Array = pets.map(func(p: Pet): return [army_power_of(p), p])
+	pairs.sort_custom(func(a, b): return float(a[0]) > float(b[0]))
+	var out: Array[Pet] = []
+	for pair in pairs:
+		out.append(pair[1])
+	return out
+
+
+## The army as the page shows it: { cards: [Pet] strongest first, herd: { rarity: n }, sent, entrance }.
+func army() -> Dictionary:
+	var herd := {}
+	var keys := army_herd_keys()
+	for k in keys:
+		herd[Herd.rarity_of(k)] = int(herd.get(Herd.rarity_of(k), 0)) + int(keys[k])
+	var cards := army_cards()
+	return { "cards": cards, "herd": herd, "keys": keys, "sent": cards.size() + Herd.total(keys),
+		"entrance": Dungeon.entrance(catalog, int(dungeon.entrance)) }
+
+
+## Pets of a rarity from the herd that could go: resting ones and the ones in the army already.
+func army_herd_room(rarity: String) -> int:
+	var n := 0
+	for k in resting_herd():
+		if Herd.rarity_of(k) == rarity:
+			n += int(resting_herd()[k])
+	for k in army_herd_keys():
+		if Herd.rarity_of(k) == rarity:
+			n += int(army_herd_keys()[k])
+	return n
+
+
+## Adds a resting card to the army (while there's room at the entrance), or takes it out.
+func set_army_card(uid: String, on: bool) -> bool:
+	if dungeon_running() or on == (uid in dungeon.cards):
+		return false
+	if on:
+		var a := army()
+		if int(a.sent) >= int(a.entrance) or not resting_cards().any(func(p): return p.uid == uid):
+			return false
+		dungeon.cards.append(uid)
+	else:
+		dungeon.cards.erase(uid)
+	_army_changed()
+	return true
+
+
+## The best cards (by power) in the front row: the army's cards become the strongest front_row of
+## the ones it has and the resting ones. The herd makes room if the entrance is full.
+func army_best() -> void:
+	if dungeon_running():
+		return
+	var best: Array = army_choices().slice(0, int(catalog.dungeon.get("front_row", 20))).map(func(p): return p.uid)
+	var room := Dungeon.entrance(catalog, int(dungeon.entrance))
+	dungeon.cards = best.slice(0, room)
+	_rest_changed()
+	_trim_army_herd()
+	_army_changed()
+
+
+## Pets of a rarity from the herd in the army (as many as there are and the entrance lets through).
+func set_army_herd(rarity: String, n: int) -> void:
+	if dungeon_running():
+		return
+	var a := army()
+	var others := int(a.sent) - int(a.herd.get(rarity, 0))
+	n = clampi(n, 0, mini(army_herd_room(rarity), int(a.entrance) - others))
+	if n > 0:
+		dungeon.herd[rarity] = n
+	else:
+		dungeon.herd.erase(rarity)
+	_army_changed()
+
+
+## The herd's picks make room for the cards: the plainest shelves give way first.
+func _trim_army_herd() -> void:
+	var over := int(army().sent) - Dungeon.entrance(catalog, int(dungeon.entrance))
+	for tier in catalog.tiers:
+		if over <= 0:
+			break
+		var have := int(dungeon.herd.get(tier.id, 0))
+		var cut := mini(have, over)
+		if cut > 0:
+			if have - cut > 0:
+				dungeon.herd[tier.id] = have - cut
+			else:
+				dungeon.herd.erase(tier.id)
+			over -= cut
+			_rest_changed()
+
+
+func _army_changed() -> void:
+	_rest_changed()
+	dungeon_changed.emit()
+	save_game()
+
+
+## Steps an order: "target" (go down to floor), "home" (come home when X% are gone), "first" (who
+## goes first, once earned).
+func set_order(key: String, step: int) -> void:
+	if dungeon_running():
+		return
+	var d: Dictionary = catalog.dungeon
+	match key:
+		"target":
+			dungeon.target = clampi(int(dungeon.target) + step, 1, Dungeon.target_max(catalog, dungeon))
+		"home":
+			var steps: Array = d.home_at.map(func(v): return int(v))
+			var i := clampi(steps.find(int(dungeon.home_at)) + step, 0, steps.size() - 1)
+			dungeon.home_at = steps[i]
+		"first":
+			if not Dungeon.first_earned(catalog, dungeon):
+				return
+			var lines: Array = d.first.lines
+			var i := clampi(lines.find(str(dungeon.first)) + step, 0, lines.size() - 1)
+			dungeon.first = str(lines[i])
+	dungeon_changed.emit()
+	save_game()
+
+
+## The army lined up now (or the one army() gave) for the rules, for floor_words.
+func army_rules(a: Dictionary = {}) -> Dictionary:
+	if a.is_empty():
+		a = army()
+	return _army_rules(a.cards, a.keys)
+
+
+## The army for the rules (Dungeon.simulate): its cards with their power, its herd pets with their
+## rarity's, the knock doors' chance from the front row's luck, the power boost.
+func _army_rules(cards: Array, herd_keys: Dictionary) -> Dictionary:
+	var list: Array = []
+	for pet in cards:
+		list.append({ "uid": pet.uid, "power": army_power_of(pet), "rank": catalog.rank(pet.rarity) })
+	list.sort_custom(func(a, b): return float(a.power) > float(b.power))
+	var herd := {}
+	for k in herd_keys:
+		herd[k] = { "n": int(herd_keys[k]), "power": Dungeon.pet_power(catalog, Herd.template(catalog, k)), "rank": catalog.rank(Herd.rarity_of(k)) }
+	var front := cards.slice(0, int(catalog.dungeon.get("front_row", 20)))
+	var luck := 0.0
+	for pet in front:
+		luck += Party.stat_of(pet, "luck", catalog)
+	luck = luck / front.size() if not front.is_empty() else 0.0
+	return { "cards": list, "herd": herd, "luck": Dungeon.knock_chance(catalog, luck, boost("luck")), "boost": boost("power") }
+
+
+## The feeling words for floors `from`..`to`: floor -> [word, heat] (strength is never a number).
+## `rules` from army_rules() (worked out once per page), or the army lined up now.
+func floor_words(from: int, to: int, rules: Dictionary = {}) -> Dictionary:
+	var out := {}
+	if rules.is_empty():
+		rules = army_rules()
+	var powers := {}
+	for f in range(maxi(1, from), to + 1):
+		var kind := Dungeon.floor_kind(catalog, f)
+		if not powers.has(kind):
+			powers[kind] = Dungeon.army_power(catalog, rules, kind)
+		out[f] = Dungeon.word(catalog, float(powers[kind]) / Dungeon.strength(catalog, f))
+	return out
+
+
+## Sends the army down the well with its orders: the whole run is worked out now (Dungeon.simulate),
+## its pets stay busy until it's home. Returns whether it went.
+func send_army() -> bool:
+	if not dungeon_open() or dungeon_running() or tutorial_active():
+		return false
+	var cards := army_cards()
+	var herd_keys := army_herd_keys()
+	var room := Dungeon.entrance(catalog, int(dungeon.entrance))
+	if cards.size() > room:
+		cards = cards.slice(0, room)
+	var sent := cards.size() + Herd.total(herd_keys)
+	if sent <= 0:
+		return false
+	var rng := RandomNumberGenerator.new()
+	rng.seed = _rng.randi()
+	var orders := { "target": int(dungeon.target), "home_at": int(dungeon.home_at), "entrance": int(dungeon.entrance),
+		"first": str(dungeon.first) if Dungeon.first_earned(catalog, dungeon) else "" }
+	var result := Dungeon.simulate(catalog, _army_rules(cards, herd_keys), orders, rng)
+	dungeon.run = { "at": Time.get_unix_time_from_system(), "floors": result.floors, "why": result.why, "turned": result.turned,
+		"cards": cards.map(func(p): return p.uid), "herd": herd_keys.duplicate(), "sent": sent, "target": int(dungeon.target) }
+	_rest_changed()
+	dungeon_changed.emit()
+	changed.emit()
+	save_game()
+	return true
+
+
+## Where the army is now: floors from the top (0 at the well mouth), or -1 when it's home.
+func dungeon_floor_now() -> float:
+	if not dungeon_running():
+		return -1.0
+	return Dungeon.run_floor(catalog, dungeon.run, Time.get_unix_time_from_system() - float(dungeon.run.at))
+
+
+## Seconds until the army is home (0 when it is).
+func dungeon_left() -> float:
+	if not dungeon_running():
+		return 0.0
+	return maxf(0.0, float(dungeon.run.at) + Dungeon.run_seconds(catalog, dungeon.run) - Time.get_unix_time_from_system())
+
+
+## Every second: an army that's done comes home; your pet leading the army takes it down again.
+func _dungeon_tick() -> void:
+	if dungeon_running() and dungeon_left() <= 0.0:
+		_finish_dungeon_run()
+	if automation.task == "army" and knows_job("army") and not dungeon_running():
+		send_army()
+
+
+## The army is home: pets that didn't come back leave (a star each, never a word about them), the
+## cleared floors pay their wisps, the landings stay lit, and a floor's first time gives its thing.
+func _finish_dungeon_run() -> void:
+	var run: Dictionary = dungeon.run
+	dungeon.run = {}
+	_rest_changed()
+	var lost := Dungeon.run_lost(run)
+	var lost_cards: Array[String] = []
+	for uid in lost[0]:
+		if str(uid) != collection.active_uid and collection.get_pet(str(uid)) != null:
+			lost_cards.append(str(uid))
+	var lost_n := lost_cards.size()
+	collection.remove(lost_cards)
+	for k in lost[1]:
+		lost_n += collection.lose_plain(str(k), int(lost[1][k]))
+	_clamp_herd_places()
+	var got := Dungeon.run_pay(run)
+	var to := Dungeon.cleared_to(run)
+	var deepest := to > int(dungeon.deep)
+	wisps += got
+	dungeon.deep = maxi(int(dungeon.deep), to)
+	for id in Dungeon.shown_bands(catalog, dungeon):
+		if not id in dungeon.bands:
+			dungeon.bands.append(id)
+	dungeon.last = { "floor": to, "got": got, "back": int(run.get("sent", 0)) - lost_n }
+	for f in range(1, to + 1):
+		var first: Dictionary = catalog.dungeon.get("firsts", {}).get(str(f), {})
+		if not first.is_empty() and not dungeon.firsts.has(str(f)):
+			if first.has("part") and not feature_on("parts"):
+				continue  # parts come much later: this floor's part waits for a clear after that
+			dungeon.firsts[str(f)] = true
+			_dungeon_first(first)
+	dungeon.cards = dungeon.cards.filter(func(uid): return collection.get_pet(str(uid)) != null)
+	dungeon.target = mini(int(dungeon.target), Dungeon.target_max(catalog, dungeon))
+	dungeon_news = { "got": got, "floor": to, "early": str(run.get("why", "")) != "target", "deepest": deepest }
+	collection.refold()  # cards home again may fold into the herd
+	check_unlocks()
+	dungeon_changed.emit()
+	adventures_changed.emit()
+	changed.emit()
+	save_game()
+
+
+## What a floor gives the first time it's cleared: a part of its tier, or a find (with your pet's
+## one quiet line).
+func _dungeon_first(first: Dictionary) -> void:
+	var loot := {}
+	if first.has("part"):
+		var tier := str(first.part)
+		var slots: Array = Catalog.SLOTS.filter(func(s): return not catalog.parts_of_tier(s, tier).is_empty())
+		if not slots.is_empty():
+			var slot: String = slots[_rng.randi_range(0, slots.size() - 1)]
+			var options := catalog.parts_of_tier(slot, tier)
+			loot["part:%s:%s" % [slot, options[_rng.randi_range(0, options.size() - 1)].id]] = 1
+	if first.has("find"):
+		loot["find:" + str(first.find)] = 1
+	if str(first.get("say", "")) != "":
+		announcements.append(str(first.say))
+	if not loot.is_empty():
+		grant(loot, false)
 
 
 # ---- grafting ----------------------------------------------------------------
@@ -3158,11 +3539,11 @@ func away() -> Dictionary:
 	return out
 
 
-## Pets that can be sent: not your active pet, and not already away. Pets on errands can: going
+## Pets that can be sent: not your active pet, not already away or in the dungeon's army. Pets on errands can: going
 ## on an adventure takes them off their errand. From each count in the herd, up to
 ## data/herd.json "stand_ins" stand-ins (they come home into the count, or leave it).
 func sendable_pets() -> Array[Pet]:
-	var gone := away()
+	var gone := _out()
 	var out: Array[Pet] = []
 	for pet in collection.pets:
 		if pet.uid != collection.active_uid and not gone.has(pet.uid):
@@ -3179,8 +3560,9 @@ func _sendable_stand_ins(gone: Dictionary) -> Array[Pet]:
 	for uid: String in skip:
 		Herd.put(out_of, Herd.key_of(uid), 1)
 	var per := int(catalog.herd.get("stand_ins", 10))
+	var army := army_herd_keys()  # the dungeon's army keeps its pets
 	for k in collection.herd:
-		var free := collection.herd_count(k) - int(out_of.get(k, 0))
+		var free := collection.herd_count(k) - int(out_of.get(k, 0)) - int(army.get(k, 0))
 		if free > 0:
 			for uid in collection.stand_in_uids(k, mini(per, free), skip):
 				out.append(collection.get_pet(uid))
@@ -3959,7 +4341,8 @@ func _knack_counting(kind: String) -> Dictionary:
 
 
 ## What a pet's own knacks of a kind do for its own work (see Knacks.own), kept per pet until its
-## parts or a gate change, so big crews and parties stay quick.
+## parts or a gate change, so big crews and parties stay quick. Herd counts work at their plain
+## template's speed (no uid, no knack share); stand-ins are whole pets and count theirs.
 func knack_own(pet: Pet, kind: String) -> float:
 	if pet == null or pet.uid == "":  # a count's template (see Herd.template): pets from the herd have no knacks
 		return 1.0
@@ -4274,6 +4657,8 @@ func save_game() -> void:
 		"edge": edge,
 		"school": school,
 		"automation": automation,
+		"dungeon": dungeon,
+		"wisps": wisps,
 		"reserve_capsules": reserve_capsules,
 		"saved_boxes": saved_boxes.keys(),
 		"boxes_bought": boxes_bought,
@@ -4375,8 +4760,15 @@ func _load_save() -> bool:
 		if run != null:
 			runs.append(run)
 
+	# the dungeon before the jobs: its army's pets aren't on errands
+	wisps = maxi(0, int(data.get("wisps", 0)))  # v33 added the dungeon
+	dungeon = Dungeon.clean(catalog, data.get("dungeon", {}))
+	var trips := away()
+	dungeon.cards = dungeon.cards.filter(func(uid): return collection.get_pet(uid) != null and uid != collection.active_uid \
+		and not Herd.is_stand_in(uid) and not trips.has(uid))
+	_rest_changed()
 	jobs.clear()
-	var on_trips := away()
+	var on_trips := _out()
 	var placed := {}
 	var saved_jobs: Dictionary = data.get("jobs", {})
 	for job_id in saved_jobs:
@@ -4691,6 +5083,31 @@ func _migrate(data: Dictionary) -> Dictionary:
 		if "type:dungeon" in had:
 			data.unlocks = had + ["location:cellar", "location:below"]
 			data.heard = ["well", "cellar", "below"]
+	if version < 33:
+		# v33 (built as v24 in the dungeon lane): the well line is one dungeon. The cellar and further down stop being trips and become
+		# bands of it; a save that had them open has those bands already (the unlocks stay). Rumours
+		# waiting about them go, and parties going there go to the well instead (trips already out
+		# there come home as usual).
+		var had: Array = data.get("unlocks", [])
+		var dg: Dictionary = data.get("dungeon", {}) if data.get("dungeon", {}) is Dictionary else {}
+		var bands: Array = [str(Catalog.shared().dungeon.bands[0].id)]
+		var band_places: Array[String] = []
+		for b in Catalog.shared().dungeon.bands:
+			var place := str(b.get("place", ""))
+			if place != "" and ("location:" + place) in had and not str(b.id) in bands:
+				bands.append(str(b.id))
+		for l in Catalog.shared().locations:
+			if l.has("band"):
+				band_places.append(str(l.id))
+		dg["bands"] = bands
+		data.dungeon = dg
+		data.rumours = data.get("rumours", []).filter(func(id): return not str(id) in band_places)
+		var a = data.get("automation", {})
+		if a is Dictionary:
+			var parties: Array = [a.get("party", {})] + a.get("parties", [])
+			for p in parties:
+				if p is Dictionary and str(p.get("place", "")) in band_places:
+					p.place = str(Catalog.shared().dungeon.bands[0].get("place", "well"))
 	data.version = SAVE_VERSION
 	return data
 

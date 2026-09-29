@@ -205,6 +205,8 @@ func show_tab(tab_id: String, unlock_id := "") -> void:
 				page_id = GameState.stickers.back()
 			collection.open_book_page(page_id)
 		return
+	var page := tab_id.get_slice(":", 1) if ":" in tab_id else ""  # "adventures:dungeon": a tab's page
+	tab_id = tab_id.get_slice(":", 0)
 	if not _tabs.has(tab_id) or not GameState.tab_open(tab_id):
 		return
 	_current = tab_id
@@ -214,6 +216,8 @@ func show_tab(tab_id: String, unlock_id := "") -> void:
 	spine.set_current(tab_id)
 	if unlock_id != "" and _tabs[tab_id].has_method("show_unlock"):  # an unlock's "show me": the tab can open on it
 		_tabs[tab_id].show_unlock(unlock_id)
+	if page != "" and _tabs[tab_id].has_method("show_named_page"):
+		_tabs[tab_id].show_named_page(page)
 	# tabs with something of their own to say say it when they open; the rest get a general line
 	if not _tabs[tab_id].has_method("speak"):
 		_general_line()

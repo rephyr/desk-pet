@@ -11,6 +11,7 @@ scripts/pets/        pet rules and pet visuals (Pet, PetRoller, Collection, Knac
 scripts/adventure/   adventure rules: runs, events, parties, rewards, rumours, the pet's voice
 scripts/idle/        errands (Jobs) and automation (Automation): pure rules for idle jobs, see data/errands.json, data/automation.json
 scripts/machine/     the capsule machine (Machine) and capsule toys (Toys): pure rules, see data/machine.json, data/toys.json
+scripts/dungeon/     the old well's dungeon (Dungeon): floors, power, a whole run worked out at once, pay; pure rules, see data/dungeon.json
 scripts/dev/         debug-only: launch flags, test profiles, scripted test flows (DevDriver)
 scripts/game_state   the player's progress + saving (autoload "GameState")
 scripts/ui/          screens and widgets; they read GameState and call its functions
@@ -61,10 +62,12 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `_knack_gates_changed()` (unlock, unlocked, machine_upgraded, tutorial_changed, debug lock-all,
   the `fix` dev step) clears boosts and the knack caches, clears the errand / worker speeds only
   when the tables for "errands" / "automation" changed, bumps `knack_version` and emits
-  `knacks_changed` (the collection grid redraws its badges only when the open kinds differ from
-  its last draw). active_changed only clears boosts (your active pet never works). Other pets:
+  `knacks_changed` (the pets tab marks itself dirty, so an open shelf redraws its `MiniCard` corner
+  badges, only when the open kinds differ from its last draw). active_changed only clears boosts (your active pet never works). Other pets:
   `_pet_speed` (errand speed x `knack_own(.., "errands")`, used to pick who goes on and who comes
-  off), `workers_speed` x `knack_own(.., "automation")`. The adventures tab keeps
+  off), `workers_speed` x `knack_own(.., "automation")` (cards; herd counts in crews and on machines work
+  at `Herd.template` speed: `knack_own` is 1.0 for a pet with no uid, so the templates never share
+  a cache slot). The adventures tab keeps
   `trip_knacks(pets)` by a key of place, picks, gear, active pet, trip boosts and `knack_version`,
   so a big swarm isn't walked on every click. Trips pack `RunState.knacks` when they set off
   (`GameState.trip_knacks`: boost x party share for each kind marked `"trip": true` in
@@ -190,7 +193,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `GameState._whistle_checks`, caps via `GameState.spot_room`; the school page: `SchoolView`, rules in
   `School`, state in `GameState.school`, `GameState.school_boost()` is the `school` source of the
   automation and errands boosts; `HerdPicker` is the shelves + 1 / 10 / 100 / all the edge and the
-  school share; pages are strings: `pet`, `workers`, `whistle`, `school`), `InventoryTab`
+  school share; pages are strings: `pet`, `workers`, `whistle`, `school`); the adventures tab's
+  dungeon page is `DungeonView` (`WellColumn` draws the well's cross-section, `FrontRow` the front
+  row; rules in `Dungeon`, state in `GameState.dungeon` and `GameState.wisps`), `InventoryTab`
   (the bag and sewing) and `SettingsTab` (general and video pages).
   Tabs can be locked or hidden until something opens them (`data/unlocks.json`).
 - The full game is laid out at 920x600 (`home.gd` `EXPANDED_SIZE`) and scaled to the chosen
@@ -283,7 +288,7 @@ has more plain pets than the first room holds gets room for them plus data/herd.
 `Collection.herd_changed(keys)` says which counts changed; the pets tab rebuilds once a frame at
 most and leaves an open shelf of another rarity alone.
 Who's resting is worked out once (`GameState._resting`: cards, herd counts minus errands, workers,
-stand-ins away or leading) until `_rest_changed()`.
+stand-ins away or leading, and the dungeon's army) until `_rest_changed()`.
 It also adds new homes: top-level `new_homes` `{ points, by_hand, sorted, room_was_full,
 rule { on, below, to, keep }, today { day, n } }` (`NewHomes`, data/new_homes.json), `jobs[id].join`
 and `automation.wjoin` ("new pets join here"); `jobs_auto` is gone (an older save with it on gets every
@@ -334,6 +339,15 @@ they never share a look or a cached Pet. Pets past the edge and in the school ar
 the sky). Teachers stay on, so the bell adds no stars. The sorting rule's `to` can be `school`
 (`GameState.rule_destinations()`, once the school is open): `_sort_pet` seats the pet while there
 are seats (else it stays) and `Collection.add` drops it without a star.
+Save v33 (E1, built as v24 in its lane) adds the dungeon: `wisps` and `dungeon` = `{ deep, bands, target, home_at, first, cards
+(uids), herd ({ rarity: n } picks), run ({} or { at, floors: [{ f, cleared, lost_cards, lost_herd,
+pay }], why, turned, cards, herd ({ count key: n }), sent, target }), last, firsts, entrance }`.
+Army cards count as busy (`GameState._out()` = away + the army), the army's herd picks are spread
+over counts after everyone else's (`_army_herd`). A run is simulated when it sets off; the 1-second
+tick finishes it (`_finish_dungeon_run`: `Collection.remove` / `lose_plain` add stars). The v33
+migration turns an old save's open cellar/below places into bands, drops rumours about them and moves
+parties going there to the well. Band places have `"band"` in data/adventures.json and are never
+open (`location_open`); retired rumours are never heard (`Rumours.hearable`).
 
 ## Testing
 

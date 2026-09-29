@@ -93,6 +93,15 @@ extends Node
 ##   seat <rarity> <n | all>  sits n resting herd pets of that rarity down in the school's class
 ##   bell                  rings the school's bell (when the class is full)
 ##   classes <n>           n more finished classes of plain commons, for free (the school's x number)
+##   dungeon               a pet brings home the rope find at the well: the dungeon opens (its popup)
+##   army best             the strongest resting cards go in the dungeon's front row
+##   army-herd <rarity> <n>  n pets of that shelf from the herd go in the army (as many as fit)
+##   orders <floor> <home%> [first]  the orders card: go down to floor, come home when home% are gone,
+##                         who goes first (e.g. "plain ones", once earned)
+##   down                  the army goes down the well (fails if it can't)
+##   down-done             the army's run is over now: it comes home
+##   deep <n>              the army has been down to floor n before (bands and orders open up)
+##   wisps <n>             you have exactly n wisps
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -528,6 +537,48 @@ func _step(w: PackedStringArray) -> String:
 				return "unknown place %s" % w[1]
 			GameState.add_visits(w[1], int(w[2]) if w.size() > 2 else 1)
 			GameState.adventures_changed.emit()
+			GameState.changed.emit()
+		"dungeon":  # the rope find at the well: the dungeon opens
+			GameState.grant({ "find:deep_rope": 1 })
+		"army":  # army best: the strongest resting cards in the front row
+			if w.size() < 2 or w[1] != "best":
+				return "army wants best"
+			GameState.army_best()
+		"army-herd":  # army-herd <rarity> <n>
+			if not GameState.catalog.tiers.any(func(t): return t.id == w[1]):
+				return "unknown rarity %s" % w[1]
+			GameState.set_army_herd(w[1], int(w[2]))
+		"orders":  # orders <floor> <home%> [first]
+			var d: Dictionary = GameState.dungeon
+			d.target = clampi(int(w[1]), 1, Dungeon.target_max(GameState.catalog, d))
+			if int(w[2]) in GameState.catalog.dungeon.home_at.map(func(v): return int(v)):
+				d.home_at = int(w[2])
+			else:
+				return "no home step %s" % w[2]
+			if w.size() > 3:
+				if not w[3] in GameState.catalog.dungeon.first.lines or not Dungeon.first_earned(GameState.catalog, d):
+					return "can't pick who goes first: %s" % w[3]
+				d.first = w[3]
+			GameState.dungeon_changed.emit()
+		"down":  # the army goes down the well
+			if not GameState.send_army():
+				return "the army couldn't go"
+		"down-done":  # the run is over now
+			if not GameState.dungeon_running():
+				return "the army isn't down there"
+			GameState.dungeon.run.at = Time.get_unix_time_from_system() - Dungeon.run_seconds(GameState.catalog, GameState.dungeon.run) - 1.0
+			GameState._dungeon_tick()
+		"deep":  # deep <n>: the army has been down to floor n
+			var d: Dictionary = GameState.dungeon
+			d.deep = maxi(0, int(w[1]))
+			for id in Dungeon.shown_bands(GameState.catalog, d):
+				if not id in d.bands:
+					d.bands.append(id)
+			GameState.check_unlocks()
+			GameState.dungeon_changed.emit()
+		"wisps":  # wisps <n>
+			GameState.wisps = int(w[1])
+			GameState.dungeon_changed.emit()
 			GameState.changed.emit()
 		"quit":
 			_finish()

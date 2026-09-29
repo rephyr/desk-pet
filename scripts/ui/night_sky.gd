@@ -18,6 +18,7 @@ func _init() -> void:
 	GameState.collection.pets_removed.connect(func(_uids): queue_redraw())
 	GameState.collection.pets_left.connect(func(_n): queue_redraw())
 	GameState.collection.stars_added.connect(func(_n): queue_redraw())
+	GameState.dungeon_changed.connect(queue_redraw)  # the army's lost herd pets are stars too
 	GameState.new_game.connect(queue_redraw)
 
 

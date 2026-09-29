@@ -402,7 +402,7 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
 
 ## Phase E: THE LOOP BREAK
 
-### E1. Combat adventures and dungeons  (DECIDED; the old well BUILDING in lane dungeon, not merged)
+### E1. Combat adventures and dungeons  (DECIDED; the old well built in lane dungeon, merged as save v33)
 - **Emilia:** adventures go from exploration to actual combat; dungeons need ARMIES of good,
   perfectly rolled pets; this is where the player gets clues they're a dictator managing an army
   "for their own good". Swarms follow standing policies (PolicyChooser, rules still to come).
@@ -415,7 +415,16 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   scales.
 - **Decided 2026-09-28 (brainstorms):** dungeons pay the darker currency as **lanterns** (see
   F2); **gear (A2) doesn't work in dungeons**.
-- **Prep:** the first dungeon (floors, what it asks for), the policies UI.
+- **Built (E1, lanes/dungeon, merged as save v33):** the old well dungeon, look A (the cross-section).
+  data/dungeon.json, `Dungeon` (rules), `DungeonView` / `WellColumn` / `FrontRow` (the adventures
+  tab's third page), save `dungeon` + `wisps`. The well trip caps parties at 100; a party of 100
+  finds the rope (`deep_rope`, after the whistle) that opens the dungeon; the cellar and further down
+  are bands now (old saves keep them as reached, and they don't count for the edge's "every place
+  open"). Army = cards you add (best 20 by power in front, your pet's flag) + herd by shelf,
+  entrance 300; floors 100 x 1.2^n as feeling words; orders card (floor, home at X%, who goes first
+  from the cellar); losses become stars; wisps per floor for pets sent. Floor 10: an epic part +
+  "lead the army" (automation job `army`); floor 20: the tiny key (E3), hidden. Notes and open
+  questions in docs/plans/E1-done.md (something that sends 100 pets at once, wisp spending).
 - **Emilia picked (2026-09-28): the old well, all the way down.** Bands: the well (floors 1-10,
   rope floors where only the front row climbs), the cellar (11-20, doors, tiny doors only rare+ fit
   through, knock-back doors test luck), further down (21+, stairs forever, a guard every 10th). The
