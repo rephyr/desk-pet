@@ -1,0 +1,6 @@
+{
+	"_note": "The wishing jar (Wish, scripts/pets/wish.gd): wish for a sticker you've found in the book (a part, not a finish), send pets into the jar (every pet counts 1, they never come back). steps = how many pets each step of the jar takes, in order. weight = how much more often that look turns up inside its own rarity in every box, by full steps (0 to 4): rarity itself never moves. dots = how many colour dots a jar keeps (the last pets in). All numbers are placeholders until balance.",
+	"steps": [200, 600, 2000, 6000],
+	"weight": [1.0, 1.5, 2.0, 3.0, 4.0],
+	"dots": 90
+}

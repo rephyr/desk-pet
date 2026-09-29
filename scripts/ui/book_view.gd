@@ -6,6 +6,9 @@ extends VBoxContainer
 ## spots with a dark silhouette. Bookmarks along the top jump between spreads.
 ## A page with a reward sticker (data/book.json, Book) ends with it: a dashed gift spot until the
 ## page is full, then the sticker itself, stuck in for good.
+## `narrow`: the wishing jar stands beside the book (WishJarCard): three stickers a row, and a
+## found part's sticker is tapped to wish for it; the wished one gets a jar badge and a pink
+## dashed outline.
 
 # the pet every part is shown on, with just that one part swapped in
 const SHOWCASE := { "body": "blob", "palette": "lilac", "pattern": "plain", "eyes": "round", "accessory": "none" }
@@ -18,6 +21,12 @@ var _spread := HBoxContainer.new()
 var _pages: Array[Dictionary] = []  # { title, bookmark, sticker (its data/book.json page, or {}), tiles: [{ parts, finish, name, tier, seen }] }
 var _at := 0  # which spread is open
 var _dirty := true
+var _shown_wish := ""  # the wish the stickers were drawn with
+var narrow := false:
+	set(value):
+		if value != narrow:
+			narrow = value
+			_mark_dirty()
 
 
 func _init() -> void:
@@ -50,6 +59,9 @@ func _init() -> void:
 	GameState.collection.pets_added.connect(func(_p): _mark_dirty())
 	GameState.sticker_opened.connect(func(_id): _mark_dirty())
 	GameState.collection.seen_changed.connect(_mark_dirty)
+	GameState.wish_changed.connect(func(_step):
+		if str(GameState.wish.on) != _shown_wish:
+			_mark_dirty())
 	visibility_changed.connect(_rebuild_if_needed)
 
 
@@ -79,14 +91,15 @@ func _collect() -> void:
 			var parts := SHOWCASE.duplicate()
 			parts[slot] = part.id
 			var shown_name: String = "no hat" if slot == "accessory" and part.id == "none" else part.name
-			tiles.append({ "parts": parts, "finish": "normal", "name": shown_name, "tier": part.rarity, "seen": collection.times_seen(Collection.part_key(slot, part.id)) })
+			var key := Collection.part_key(slot, part.id)
+			tiles.append({ "parts": parts, "finish": "normal", "name": shown_name, "tier": part.rarity, "seen": collection.times_seen(key), "key": key })
 		_pages.append({ "title": SLOT_TITLES[slot], "bookmark": SLOT_TITLES[slot], "tiles": tiles, "sticker": Book.page_for(catalog, slot) })
 	for body in catalog.slots.body:
 		var tiles: Array = []
 		for f in catalog.finishes:
 			var parts := SHOWCASE.duplicate()
 			parts.body = body.id
-			tiles.append({ "parts": parts, "finish": f.id, "name": f.name if f.name != "" else "normal", "tier": f.rarity, "seen": collection.times_seen(Collection.finish_key(body.id, f.id)) })
+			tiles.append({ "parts": parts, "finish": f.id, "name": f.name if f.name != "" else "normal", "tier": f.rarity, "seen": collection.times_seen(Collection.finish_key(body.id, f.id)), "key": "" })
 		_pages.append({ "title": "%s finishes" % body.name, "bookmark": "finishes" if body == catalog.slots.body[0] else "", "tiles": tiles,
 			"sticker": Book.page_for(catalog, "", str(body.id)) })
 	for page in _pages:
@@ -108,6 +121,7 @@ func open_page(page_id: String) -> void:
 
 
 func _show_spread() -> void:
+	_shown_wish = str(GameState.wish.on)
 	var spreads := ceili(_pages.size() / 2.0)
 	_at = clampi(_at, 0, spreads - 1)
 	UiTheme.clear(_marks)
@@ -154,11 +168,11 @@ func _page(page: Dictionary, side: int, spreads: int) -> Control:
 	var margin := MarginContainer.new()
 	margin.size_flags_horizontal = SIZE_EXPAND_FILL
 	for s in ["left", "right"]:
-		margin.add_theme_constant_override("margin_" + s, 18)
-	margin.add_theme_constant_override("margin_top", 14)
-	margin.add_theme_constant_override("margin_bottom", 8)
+		margin.add_theme_constant_override("margin_" + s, 12 if narrow else 18)
+	margin.add_theme_constant_override("margin_top", 12 if narrow else 14)
+	margin.add_theme_constant_override("margin_bottom", 6 if narrow else 8)
 	var col := VBoxContainer.new()
-	col.add_theme_constant_override("separation", 12)
+	col.add_theme_constant_override("separation", 8 if narrow else 12)
 	margin.add_child(col)
 	if page.is_empty():
 		return margin
@@ -172,9 +186,9 @@ func _page(page: Dictionary, side: int, spreads: int) -> Control:
 	head.add_child(count)
 	col.add_child(head)
 	var grid := GridContainer.new()
-	grid.columns = 4
+	grid.columns = 3 if narrow else 4
 	grid.add_theme_constant_override("h_separation", 10)
-	grid.add_theme_constant_override("v_separation", 12)
+	grid.add_theme_constant_override("v_separation", 8 if narrow else 12)
 	for i in page.tiles.size():
 		grid.add_child(_slot(page.tiles[i], i))
 	if not page.sticker.is_empty():
@@ -202,7 +216,7 @@ func _slot(tile: Dictionary, i: int) -> Control:
 	var got: bool = tile.seen > 0
 	var color := Catalog.shared().tier_color(tile.tier)
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(78, 90)
+	panel.custom_minimum_size = _tile_size()
 	if got:
 		panel.add_theme_stylebox_override("panel", UiTheme.sticker(color, 10, UiTheme.PAGE, 4))
 		panel.tooltip_text = "%s (%s)" % [tile.name, Catalog.shared().tier_at(Catalog.shared().rank(tile.tier)).name]
@@ -227,17 +241,79 @@ func _slot(tile: Dictionary, i: int) -> Control:
 	name_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	col.add_child(name_label)
 	if got:
-		var count := UiTheme.label("×%d" % tile.seen, UiTheme.MUTED, UiTheme.SMALL)
+		var count := UiTheme.label("×%s" % UiTheme.num(tile.seen), UiTheme.MUTED, UiTheme.SMALL)
 		count.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		col.add_child(count)
+	if got and narrow and str(tile.key) != "":
+		_make_wishable(panel, tile)
 	return Tilted.new(panel, TILTS[i % TILTS.size()] if got else 0.0)
+
+
+## A found part's sticker while the jar is out: tap it to wish for it. The wished one wears a jar
+## badge and a pink dashed outline.
+func _make_wishable(panel: PanelContainer, tile: Dictionary) -> void:
+	var key := str(tile.key)
+	panel.mouse_default_cursor_shape = CURSOR_POINTING_HAND
+	panel.gui_input.connect(func(event: InputEvent):
+		# on release over it, like a button (dragging off and letting go cancels; the book redraws
+		# right after, the sticker with it)
+		if event is InputEventMouseButton and not event.pressed and event.button_index == MOUSE_BUTTON_LEFT \
+				and Rect2(Vector2.ZERO, panel.size).has_point(event.position):
+			if GameState.set_wish(key):
+				var done := bool(Wish.where(GameState.catalog, Wish.sent(GameState.wish, key)).done)
+				PetBubble.say_line(self, "wish_done" if done else "wish_pick", { "name": tile.name }))
+	if key != str(GameState.wish.on):
+		return
+	panel.draw.connect(func():
+		var r := Rect2(Vector2(-4, -4), panel.size + Vector2(8, 8))
+		_dashed_rect(panel, r, UiTheme.PINK)
+		var c := Vector2(2, 1)
+		panel.draw_circle(c, 12.0, UiTheme.PINK_SEAM)
+		panel.draw_circle(c, 10.0, UiTheme.RAISED)
+		panel.draw_texture_rect(UiTheme.icon("jar", 16, UiTheme.PINK), Rect2(c - Vector2(8, 8), Vector2(16, 16)), false))
+
+
+static func _dashed_rect(on: CanvasItem, r: Rect2, color: Color) -> void:
+	var corners := [r.position, Vector2(r.end.x, r.position.y), r.end, Vector2(r.position.x, r.end.y)]
+	for i in 4:
+		var a: Vector2 = corners[i]
+		var b: Vector2 = corners[(i + 1) % 4]
+		var length := a.distance_to(b)
+		var t := 0.0
+		while t < length:
+			on.draw_line(a.lerp(b, t / length), a.lerp(b, minf(t + 5.0, length) / length), color, 2.0)
+			t += 9.0
+
+
+func _tile_size() -> Vector2:
+	return Vector2(74, 78) if narrow else Vector2(78, 90)
+
+
+## The pet a part's sticker shows: the showcase pet with just that part swapped in.
+static func showcase_pet(key: String) -> Pet:
+	var pet := Pet.new()
+	pet.parts = SHOWCASE.duplicate()
+	var bits := key.split(":")
+	if bits.size() == 3 and pet.parts.has(bits[1]):
+		pet.parts[bits[1]] = bits[2]
+	return pet
+
+
+## A part's name as the book shows it ("no hat" for no accessory).
+static func look_name(key: String) -> String:
+	var bits := key.split(":")
+	if bits.size() != 3:
+		return ""
+	if bits[1] == "accessory" and bits[2] == "none":
+		return "no hat"
+	return str(Catalog.shared().part(bits[1], bits[2]).get("name", bits[2]))
 
 
 ## The page's reward: a dashed gift spot until the page is full, then its sticker, in gold.
 func _reward(sticker: Dictionary) -> Control:
 	var open := GameState.stickers.has(str(sticker.id))
 	var panel := PanelContainer.new()
-	panel.custom_minimum_size = Vector2(78, 90)
+	panel.custom_minimum_size = _tile_size()
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 3)
 	col.alignment = BoxContainer.ALIGNMENT_CENTER

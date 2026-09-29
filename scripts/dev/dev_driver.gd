@@ -32,7 +32,8 @@ extends Node
 ##   notes <n>             you hold n scout notes (the scouting errand)
 ##   scroll <px>           every scroll box on screen scrolls down that far (for shots of what's below)
 ##   next-prize <id>       the next capsule from the machine is this prize (e.g. toy, golden)
-##   teach <job>           your pet knows an automation job (data/automation.json), for free
+##   teach <job> [others]  your pet knows an automation job (data/automation.json), for free
+##                         (others: the other pets know it too, the workers page)
 ##   task <job | none>     your pet does that automation job (or nothing)
 ##   auto-tool <id> [n]    levels of an automation tool, for free
 ##   crank <n>             your pet's own machine gives n capsules right away
@@ -46,6 +47,8 @@ extends Node
 ##                         any sticker popups waiting go away (for flows with big `pets` steps,
 ##                         where how many pages fill is random)
 ##   tiers all | off       every box tier in the shop, map pages or not (for the 3-tier fits check)
+##   wish <slot> <id> [n]  wishes for that part (found if it wasn't), with n pets already in its jar
+##   wish-shelf <rarity>   picks that shelf on the wishing jar (the chip per rarity)
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -219,6 +222,8 @@ func _step(w: PackedStringArray) -> String:
 			if Automation.job(GameState.catalog, w[1]).is_empty():
 				return "unknown job %s" % w[1]
 			GameState.automation.taught[w[1]] = true
+			if w.size() > 2 and w[2] == "others":
+				GameState.automation.others[w[1]] = true
 			GameState.check_unlocks()
 			GameState.automation_changed.emit()
 			GameState.changed.emit()
@@ -264,6 +269,17 @@ func _step(w: PackedStringArray) -> String:
 		"tiers":  # tiers all: every box tier is in the shop, map pages or not (tiers off: back to normal)
 			GameState.debug_all_tiers = w.size() > 1 and w[1] == "all"
 			GameState.changed.emit()
+		"wish":  # wish <slot> <id> [n]: wish for that part, n pets already in its jar
+			if w.size() < 3:
+				return "wish needs <slot> <id> [n]"
+			if not GameState.debug_wish(Collection.part_key(w[1], w[2]), int(w[3]) if w.size() > 3 else -1):
+				return "can't wish for %s %s" % [w[1], w[2]]
+		"wish-shelf":  # wish-shelf <rarity>: that shelf on the jar
+			if w.size() < 2:
+				return "wish-shelf needs <rarity>"
+			if not GameState.wish_shelves().has(w[1]):
+				return "no %s pets can go" % w[1]
+			home.full_game().collection.wish_jar.pick_shelf(w[1])
 		"quit":
 			_finish()
 		_:

@@ -43,6 +43,21 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `check_book()` opens new ones (`sticker_opened`, shown by `UnlockPopup`), and
   `GameState.boost(kind)` = `toy_boost(kind)` x `book_x(kind)` is what coins and luck read;
   errands speed (`job_rate`) and automation (crank, workers, boxes out of sight) take `book_x` too.
+- `Wish` (scripts/pets/wish.gd, pure rules, data/wish.json) is the wishing jar: steps, where a
+  jar is (`where`), which pets go (`goers`, plainest first), `weights` (book key -> x for every
+  look with a full step). `GameState.wish` = `{ on, jars: { book key: { sent, dots } } }`,
+  `set_wish`, `wish_pool(rarity)` (resting pets minus pinned and pets with sewn parts, one pass),
+  `wish_shelves` (one pass; `Wish.plain_key` = finish, traits, stats as one number, kept on the
+  pet as `Pet.plain`), `send_to_wish` (`goers` buckets by that key, never a sort; pets leave
+  through `Collection.remove`, which drops thousands in one pass), signal `wish_changed(step)`.
+  `WishJarCard` looks over the shelves at most once a second while pets stream in (box tables) and
+  changes chip counts and faces in place.
+  `PetRoller.wish` takes the weights (set on load, new game and every full step): with it empty the
+  roller runs exactly as before; with it, `_pick_part` and `_signature_slot` pick weighted inside the
+  tier already rolled. Every box goes through `GameState._roller`, so your rips, your pet's opening,
+  box tables and the machine's pet box all follow it. UI: `WishJarCard` (scripts/ui/wish_jar.gd,
+  the jar drawn in code, `JarArt`) beside `BookView` in `narrow` mode (`CollectionTab._show_jar`);
+  earned by the unlock `wish` (earn key `others`: a job taught to the other pets).
 - `PetLook` is the placeholder art (pixel maps in code). Real art replaces `PetLook` only;
   `PetView` (draws a pet, blinking, squash, finish shader) and everything above stay the same.
 - Finish effects are one shader, `shaders/finish.gdshader`; `finishes.json` picks the mode.
@@ -119,6 +134,12 @@ whatever the save's version (idempotent): lucky boxes on the pile, "save for me"
 still out (also pre-v5 runs' `boxes`) become sunset boxes, and unknown box ids are dropped from the
 bag. New fields `boxes_bought` (a tier is "new!" until the first) and `boxes_greeted` (its arrival
 played); a save without them counts what's on the pile as bought and greeted.
+Save v26 adds `wish` (the wishing jar; older saves start with nothing wished for, `Wish.clean`
+drops unknown looks and clamps jars to 8,800).
+The collection's `fallen` keeps one `[uid, palette]` per lost pet up to `Collection.FALLEN_MAX`
+(14,000, more than a full window's night sky has room for as specks); past that they're only
+counted in `fallen_more` (palette -> n, drawn in the sky's band, at most `NightSky.BAND_MAX`).
+No version bump: a save without it starts at none, a longer `fallen` moves its extra there.
 
 ## Testing
 

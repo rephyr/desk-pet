@@ -500,6 +500,7 @@ const DOODLES := {
 	"coin": '<path d="M12 3 L19.6 10.4 L12 21.2 L4.4 10.4 Z" fill="{cyan}" stroke="{cyan}"/><path d="M5 10.4 L19 10.4 M9.2 10.4 L12 4.2 L14.8 10.4 L12 19.8 L9.2 10.4" stroke="{page}" stroke-width="1.1"/>',
 	"xp": '<path d="M12 2.6 Q13.1 10 21.4 12 Q13.1 14 12 21.4 Q10.9 14 2.6 12 Q10.9 10 12 2.6 Z" fill="{gold}" stroke="{gold}"/>',
 	"heart": '<path d="M12 20.1 Q3.4 13.6 4.3 8.4 Q5.4 4.2 9.3 5.1 Q11.2 5.7 12 8 Q12.9 5.6 14.8 5.1 Q18.7 4.3 19.7 8.4 Q20.6 13.5 12 20.1 Z" fill="{pink}" stroke="{pink}"/>',
+	"jar": '<path d="M8 3.5 L16 3.5 M9 3.5 L9 6.5 Q4.6 8 4.8 13 L5.2 18.6 Q12 21 18.8 18.6 L19.2 13 Q19.4 8 15 6.5 L15 3.5"/><path d="M8 14 L10 12 L12 14 L14 12 L16 14" opacity=".8"/>',
 }
 
 ## Pixel icons (9x9): "o" is the icon's colour, other letters are fixed colours.
@@ -517,6 +518,7 @@ const PIXELS := {
 	"settings": ["...o.o...", ".ooooooo.", ".o.....o.", "oo..o..oo", "o..ooo..o", "oo..o..oo", ".o.....o.", ".ooooooo.", "...o.o..."],
 	"coin": ["....w....", "...wab...", "..waaab..", ".waaaaab.", "waaaaaaab", ".aaaaabb.", "..aaabb..", "...abb...", "....b...."],
 	"xp": ["....g....", "....g....", "...ggg...", "..ggwgg..", "gggwwwggg", "..ggwgg..", "...ggg...", "....g....", "....g...."],
+	"jar": ["..ooooo..", "...o.o...", "..o...o..", ".o.....o.", ".o.o.o.o.", ".oo.o.oo.", ".o.....o.", ".o.....o.", "..ooooo.."],
 	"heart": [".pp...pp.", "pwpp.pppp", "pwppppppp", "ppppppppd", ".pppppdd.", "..pppdd..", "...pdd...", "....d....", "........."],
 }
 

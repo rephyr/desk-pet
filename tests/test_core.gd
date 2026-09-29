@@ -37,6 +37,7 @@ func _init() -> void:
 	_test_unlocks(catalog)
 	_test_gear(catalog)
 	_test_book(catalog)
+	_test_wish(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -380,6 +381,19 @@ func _test_adventures(catalog: Catalog) -> void:
 	_check(c.active() != null, "losing the active pet picks another")
 	var c2 := Collection.from_dict(JSON.parse_string(JSON.stringify(c.to_dict())))
 	_check(c2.fallen == c.fallen, "the stars survive a save")
+	# thousands lost (the wishing jar): past FALLEN_MAX they're only counted per colour
+	var crowd: Array[Pet] = []
+	var crowd_roller := PetRoller.new(catalog)
+	for i in Collection.FALLEN_MAX + 500:
+		crowd.append(crowd_roller.roll("starter"))
+	var cc := Collection.new()
+	cc.add(crowd)
+	var crowd_uids: Array[String] = []
+	crowd_uids.assign(crowd.map(func(p): return p.uid))
+	cc.remove(crowd_uids)
+	_check(cc.fallen.size() == Collection.FALLEN_MAX and cc.fallen_count() == Collection.FALLEN_MAX + 500, "the sky keeps %d specks and counts the rest (%d)" % [Collection.FALLEN_MAX, cc.fallen_count()])
+	var cc2 := Collection.from_dict(JSON.parse_string(JSON.stringify(cc.to_dict())))
+	_check(cc2.fallen.size() == Collection.FALLEN_MAX and cc2.fallen_more == cc.fallen_more, "the counted stars survive a save")
 
 	# a trip saved before v5 (as a "dungeon" run with coins/boxes/parts) still loads
 	var old := { "dungeon": "woods", "chooser": "player", "seed": 3.0, "step": 1.0, "started": 0.0, "next_at": 5.0,
@@ -875,7 +889,7 @@ func _test_unlocks(catalog: Catalog) -> void:
 		_check(entry.show in ["locked", "hidden"], "unlock %s is shown locked or hidden" % entry.id)
 		for o in entry.opens:
 			var bits := str(o).split(":")
-			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures"]) or (bits[0] == "page" and bits[1] in page_ids) \
+			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "wish"]) or (bits[0] == "page" and bits[1] in page_ids) \
 				or (bits[0] == "job" and catalog.jobs.any(func(j): return str(j.get("needs", "")) == o))
 			_check(ok, "unlock %s opens something real (%s)" % [entry.id, o])
 		if entry.earn.has("find"):
@@ -1528,6 +1542,204 @@ func _test_book(catalog: Catalog) -> void:
 		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 	for n in [gs, gs2, gs3, gs4, gs5]:
 		n.free()
+
+
+## The wishing jar (Wish, data/wish.json): steps, what can be wished for, weights inside a tier
+## that never move rarity, which pets go (and never come back), the unlock, the save.
+func _test_wish(catalog: Catalog) -> void:
+	var st: Array = Wish.steps(catalog)
+	_check(st.map(func(x): return int(x)) == [200, 600, 2000, 6000] and Wish.total(catalog) == 8800, "the jar has 4 steps of 200 / 600 / 2k / 6k (%s)" % [st])
+	var w0 := Wish.where(catalog, 0)
+	_check(w0.full == 0 and w0.have == 0 and w0.need == 200 and not w0.done, "an empty jar: step 1, 0 / 200")
+	var w199 := Wish.where(catalog, 199)
+	_check(w199.full == 0 and w199.have == 199, "199 in: still step 1")
+	var w200 := Wish.where(catalog, 200)
+	_check(w200.full == 1 and w200.have == 0 and w200.need == 600, "200 in: one full step, 0 / 600")
+	var w800 := Wish.where(catalog, 800)
+	_check(w800.full == 2 and w800.need == 2000, "800 in: two full steps")
+	var w8800 := Wish.where(catalog, 8800)
+	_check(w8800.full == 4 and w8800.done, "8,800 in: the jar is full")
+	_check(Wish.can_wish(catalog, "part:pattern:spots") and Wish.can_wish(catalog, "part:accessory:none") and Wish.can_wish(catalog, "part:body:bunny"), "parts can be wished for")
+	_check(not Wish.can_wish(catalog, "finish:blob:shiny") and not Wish.can_wish(catalog, "part:pattern:nope") and not Wish.can_wish(catalog, ""), "finishes and unknown looks can't")
+
+	# rarity never moves: the tier shares are the same with heavy wishes on
+	var heavy := { "part:pattern:spots": 4.0, "part:body:bunny": 4.0, "part:eyes:sleepy": 4.0, "part:palette:toxic": 4.0, "part:accessory:crown": 4.0, "part:body:fox": 4.0 }
+	for box_id in ["starter", "sunset"]:
+		var plain := _wish_roll(catalog, box_id, {}, 20000, 11)
+		var wished := _wish_roll(catalog, box_id, heavy, 20000, 11)
+		var worst := 0.0
+		for t in catalog.tiers:
+			worst = maxf(worst, absf(float(plain.tiers.get(t.id, 0)) - float(wished.tiers.get(t.id, 0))) / 20000.0)
+		_check(worst < 0.015, "%s box: wishes don't move rarity (worst tier differs by %.2f%%)" % [box_id, worst * 100.0])
+		for p in wished.bad:
+			_check(false, "a wished pet's parts still fit its rarity: %s" % p)
+	# the weight works inside the tier: spots among the common patterns
+	var none := _wish_roll(catalog, "starter", {}, 20000, 5)
+	var spots := _wish_roll(catalog, "starter", { "part:pattern:spots": 4.0 }, 20000, 5)
+	var share0: float = float(none.looks.get("part:pattern:spots", 0)) / (none.looks.get("part:pattern:spots", 0) + none.looks.get("part:pattern:plain", 0))
+	var share4: float = float(spots.looks.get("part:pattern:spots", 0)) / (spots.looks.get("part:pattern:spots", 0) + spots.looks.get("part:pattern:plain", 0))
+	_check(absf(share0 - 0.5) < 0.03 and absf(share4 - 0.8) < 0.04, "spots x4: its share of the common patterns goes 50%% to 80%% (%.3f to %.3f)" % [share0, share4])
+	# a look alone in its tier (the only rare body) turns up more on rare pets, through the signature slot
+	var bunny := _wish_roll(catalog, "starter", { "part:body:bunny": 4.0 }, 20000, 7)
+	var b0 := float(none.rare_bunny) / maxi(1, none.tiers.get("rare", 0))
+	var b4 := float(bunny.rare_bunny) / maxi(1, bunny.tiers.get("rare", 0))
+	_check(b4 > b0 * 1.5, "bunny x4 turns up more on rare pets (%.3f to %.3f)" % [b0, b4])
+	# no wish: exactly the same rolls as before for the same seed
+	var r1 := RandomNumberGenerator.new()
+	r1.seed = 99
+	var r2 := RandomNumberGenerator.new()
+	r2.seed = 99
+	var a := PetRoller.new(catalog, r1)
+	var b := PetRoller.new(catalog, r2)
+	b.wish = { "part:pattern:spots": 2.0 }
+	b.wish = {}
+	var same := true
+	for i in 300:
+		var pa := a.roll("sunset")
+		var pb := b.roll("sunset")
+		same = same and pa.parts == pb.parts and pa.rarity == pb.rarity and pa.finish == pb.finish
+	_check(same, "no wish rolls exactly as before")
+	# weights: only looks with a full step, by step
+	var ws := Wish.fresh()
+	ws.jars["part:pattern:spots"] = { "sent": 800, "dots": [] }
+	ws.jars["part:eyes:happy"] = { "sent": 150, "dots": [] }
+	var wt := Wish.weights(catalog, ws)
+	_check(wt.size() == 1 and is_equal_approx(float(wt.get("part:pattern:spots", 0.0)), 2.0), "two full steps weigh x2, a jar without a full step nothing (%s)" % [wt])
+	var clean := Wish.clean(catalog, { "on": "finish:blob:shiny", "jars": { "part:pattern:spots": { "sent": 99999, "dots": ["mint", "nope"] }, "bogus": { "sent": 5 } } })
+	_check(clean.on == "" and clean.jars.size() == 1 and clean.jars["part:pattern:spots"].sent == 8800 and clean.jars["part:pattern:spots"].dots == ["mint"], "clean keeps only real looks, within a jar (%s)" % [clean])
+
+	# GameState: hidden until the box tables, resting pets only, they never come back
+	var GS: GDScript = load("res://scripts/game_state.gd")
+	GS.testing = true
+	var gs: Node = GS.new()
+	var popped: Array = []
+	gs.unlocked.connect(func(e): popped.append(e.id))
+	gs.debug_give_pets(400)
+	gs.coins = 100000000
+	gs.check_unlocks()
+	_check(not gs.wish_open(), "the jar is hidden before the box tables")
+	_check(not gs.set_wish("part:pattern:plain"), "no wishing before the jar")
+	gs.automation.taught["boxes"] = true
+	_check(gs.teach_others("boxes"), "the others learn to open boxes")
+	_check(gs.wish_open() and "wish" in popped, "teaching the others to open boxes brings the jar (%s)" % [popped])
+	var spots_key := "part:pattern:spots"
+	if gs.collection.times_seen(spots_key) == 0:
+		gs.collection.see(spots_key)
+	_check(not gs.set_wish("part:pattern:nope") and not gs.set_wish("finish:blob:normal"), "only a real part can be wished for")
+	_check(gs.set_wish(spots_key) and gs.wish.on == spots_key, "wishing for spots")
+	# who can go: not the active pet, pets away, on errands, working or pinned
+	var active: Pet = gs.collection.active()
+	var commons: Array = gs.collection.pets.filter(func(p): return p.rarity == "common" and p.uid != active.uid)
+	var on_errand: String = commons[0].uid
+	var working: String = commons[1].uid
+	var pinned_uid: String = commons[2].uid
+	gs.unlocks["feature:errands"] = true
+	gs.jobs["coin_hunt"] = { "crew": [on_errand], "fill": 0.0 }
+	gs._crews_changed()
+	gs.automation.spots["boxes"] = 1
+	gs.put_workers("boxes", 1)
+	working = str(gs.workers_of("boxes")[0])
+	gs.pinned.append(pinned_uid)
+	var sewn_pet: Pet = commons[3]
+	sewn_pet.sewn.append("pattern")  # a pet with a part sewn on (the part spent on it would go too)
+	var pool: Array = gs.wish_pool().map(func(p): return p.uid)
+	_check(not active.uid in pool and not on_errand in pool and not working in pool and not pinned_uid in pool, "the active pet, errands, workers and pinned pets never go")
+	_check(not sewn_pet.uid in pool and not sewn_pet.uid in gs.wish_pool("common").map(func(p): return p.uid), "a pet with sewn parts never goes")
+	var pool_common: Array[Pet] = gs.wish_pool("common")
+	_check(pool_common.all(func(p): return p.rarity == "common") and pool_common.size() == int(gs.wish_shelves().common.n), "a shelf's pool is its rarity only, as many as the chip says")
+	# the plainest go first: a normal finish, then fewer traits, then the lowest stats
+	var plain_a := Pet.new()
+	plain_a.stats = { "power": 1, "luck": 1, "speed": 1 }
+	var plain_b := Pet.new()
+	plain_b.stats = { "power": 9, "luck": 9, "speed": 9 }
+	var traited := Pet.new()
+	traited.stats = { "power": 1, "luck": 1, "speed": 1 }
+	traited.traits.assign(["brave"])
+	var shiny := Pet.new()
+	shiny.stats = { "power": 0, "luck": 0, "speed": 0 }
+	shiny.finish = str(catalog.finishes.filter(func(f): return catalog.rank(f.rarity) > 0)[0].id)
+	var line: Array[Pet] = [shiny, plain_b, traited, plain_a]
+	_check(Wish.goers(catalog, line, 1) == [plain_a] and Wish.goers(catalog, line, 3) == [plain_a, plain_b, traited] and Wish.goers(catalog, line, -1).size() == 4,
+		"the plainest go first: finish, then traits, then stats")
+	var sh_first: Pet = gs.wish_shelves().common.first
+	_check(Wish.goers(catalog, pool_common, 1)[0].plain == sh_first.plain, "the shelf's face is the one that goes first")
+	var shelves: Dictionary = gs.wish_shelves()
+	var commons_free := int(shelves.common.n)
+	var fallen_before: int = gs.collection.fallen.size()
+	var pets_before: int = gs.collection.pets.size()
+	var sent: Dictionary = gs.send_to_wish("common", 10)
+	_check(sent.sent == 10 and gs.collection.pets.size() == pets_before - 10, "sending 10 takes 10 pets (%d)" % sent.sent)
+	_check(gs.collection.fallen.size() == fallen_before + 10, "they never come back: 10 new stars")
+	_check(Wish.sent(gs.wish, spots_key) == 10 and gs.wish.jars[spots_key].dots.size() == 10, "the jar counts them and keeps their colours")
+	_check(gs.collection.get_pet(on_errand) != null and gs.collection.get_pet(pinned_uid) != null and gs.collection.active() == active, "the ones who can't go are still here")
+	_check(int(gs.wish_shelves().common.n) == commons_free - 10, "the shelf has 10 fewer")
+	# a full step: the roller learns the wish
+	_check(gs._roller.wish.is_empty(), "no full step yet: the boxes roll as always")
+	gs.debug_give_pets(300)
+	var steps: Array = []
+	gs.wish_changed.connect(func(step): steps.append(step))
+	var more: Dictionary = gs.send_to_wish("common", 190)
+	_check(more.before == 0 and more.after == 1 and steps == [1], "200 in: the first step fills (%s)" % [steps])
+	_check(is_equal_approx(float(gs._roller.wish.get(spots_key, 0.0)), 1.5), "one full step: spots weighs x1.5 in every box (%s)" % [gs._roller.wish])
+	# switching keeps the old jar's steps (and its weight)
+	var sleepy := "part:eyes:sleepy"
+	if gs.collection.times_seen(sleepy) == 0:
+		gs.collection.see(sleepy)
+	gs.set_wish(sleepy)
+	_check(Wish.sent(gs.wish, spots_key) == 200 and Wish.sent(gs.wish, sleepy) == 0, "switching keeps spots' 200")
+	_check(gs._roller.wish.has(spots_key), "spots keeps its boost after switching")
+	gs.set_wish(spots_key)
+	_check(int(Wish.where(catalog, Wish.sent(gs.wish, spots_key)).full) == 1, "switching back: one step still full")
+	# the cap: never more than a whole jar
+	gs.debug_wish(spots_key, 8795)
+	gs.debug_give_pets(50)
+	var last: Dictionary = gs.send_to_wish("common", -1)
+	_check(last.sent == 5 and Wish.sent(gs.wish, spots_key) == 8800 and last.after == 4, "the last 5 fill the jar and no more (%d)" % last.sent)
+	_check(gs.send_to_wish("common", 10).sent == 0, "a full jar takes nobody")
+	# the save keeps it; an old save starts with an empty jar
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://profiles/test-core/"))
+	var path := "user://profiles/test-core/wish_save.json"
+	gs.save_path = path
+	gs._can_save = true
+	gs.save_game()
+	var gs2: Node = GS.new()
+	gs2.save_path = path
+	gs2.load_game()
+	_check(gs2.wish.on == spots_key and Wish.sent(gs2.wish, spots_key) == 8800 and Wish.sent(gs2.wish, sleepy) == 0, "a save round trip keeps the wish and its jar")
+	_check(is_equal_approx(float(gs2._roller.wish.get(spots_key, 0.0)), 4.0), "a loaded game rolls with the jar's weight (%s)" % [gs2._roller.wish])
+	_check(gs2.wish_open(), "the jar stays open after loading")
+	SaveFile.write(path, { "version": 25, "collection": { "seen": {} }, "unlocks": [] })
+	var gs3: Node = GS.new()
+	gs3.save_path = path
+	gs3.load_game()
+	_check(gs3.wish.on == "" and gs3.wish.jars.is_empty() and gs3._roller.wish.is_empty() and not gs3.wish_open(), "a v25 save starts with no wish and no jar")
+	for f in [path, path + ".bak"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	for n in [gs, gs2, gs3]:
+		n.free()
+
+
+## Rolls `n` pets with a wish: { tiers: { tier: n }, looks: { book key: n }, rare_bunny, bad: [...] }.
+func _wish_roll(catalog: Catalog, box_id: String, wish: Dictionary, n: int, seed_: int) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_
+	var roller := PetRoller.new(catalog, rng)
+	roller.wish = wish
+	var out := { "tiers": {}, "looks": {}, "rare_bunny": 0, "bad": [] }
+	for i in n:
+		var pet := roller.roll(box_id)
+		out.tiers[pet.rarity] = int(out.tiers.get(pet.rarity, 0)) + 1
+		for slot in Catalog.SLOTS:
+			var k := Collection.part_key(slot, pet.parts[slot])
+			out.looks[k] = int(out.looks.get(k, 0)) + 1
+		if pet.rarity == "rare" and pet.parts.body == "bunny":
+			out.rare_bunny += 1
+		var top := 0
+		for slot in Catalog.SLOTS:
+			top = maxi(top, catalog.rank(catalog.part(slot, pet.parts[slot]).rarity))
+		if top != catalog.rank(pet.rarity) and out.bad.size() < 3:
+			out.bad.append("%s %s" % [pet.rarity, pet.parts])
+	return out
 
 
 func _check(ok: bool, what: String) -> void:

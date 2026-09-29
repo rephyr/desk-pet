@@ -1,7 +1,8 @@
 class_name CollectionTab
 extends VBoxContainer
 ## Collectibles: your pets (a sortable, filterable, paged grid of stickers + the chosen pet's
-## details), your capsule toys (ToysView) and the collection book. Filters are chips and sorts are buttons, never dropdowns: a dropdown is a
+## details), your capsule toys (ToysView) and the collection book (with the wishing jar beside it
+## once that's earned, WishJarCard). Filters are chips and sorts are buttons, never dropdowns: a dropdown is a
 ## separate OS popup window (embed_subwindows is off), which doesn't open properly on Hyprland.
 
 const PAGE_SIZE := 24
@@ -10,6 +11,8 @@ const FILTERS := ["common", "uncommon", "rare", "epic", "legendary", "mythic"]
 
 var _pets_view := HBoxContainer.new()
 var _book := BookView.new()
+var _book_row := HBoxContainer.new()  # the book, and the wishing jar beside it
+var wish_jar := WishJarCard.new()
 var toys := ToysView.new()
 var _grid := GridContainer.new()
 var _scroll := ScrollContainer.new()
@@ -90,8 +93,15 @@ func _init() -> void:
 	_lock_toys()
 	GameState.changed.connect(_lock_toys)
 	GameState.new_game.connect(_lock_toys)
-	add_child(_book)
-	_book.visible = false
+	_book_row.size_flags_vertical = SIZE_EXPAND_FILL
+	_book_row.add_theme_constant_override("separation", 12)
+	_book_row.add_child(_book)
+	_book_row.add_child(wish_jar)
+	add_child(_book_row)
+	_book_row.visible = false
+	_show_jar()
+	GameState.changed.connect(_show_jar)
+	GameState.new_game.connect(_show_jar)
 
 	GameState.collection.pets_added.connect(func(_p):
 		_dirty = true
@@ -147,6 +157,14 @@ func show_mode(mode: int) -> void:
 	(_mode.get_child(0).get_child(mode) as Button).pressed.emit()  # flips the switch too
 
 
+## The wishing jar stands beside the book once it's earned (hidden until then); the book narrows.
+func _show_jar() -> void:
+	var on := GameState.wish_open()
+	if wish_jar.visible != on or _book.narrow != on:
+		wish_jar.visible = on
+		_book.narrow = on
+
+
 func _lock_toys() -> void:
 	var open := GameState.feature_on("toys")
 	_toys_button.text = "toys" if open else "???"
@@ -160,7 +178,7 @@ func _show_mode(mode: int) -> void:
 		PetBubble.say(self, "toys? " + _toys_button.tooltip_text + "!")
 		show_mode(0)
 		return
-	_book.visible = mode == 2
+	_book_row.visible = mode == 2
 	toys.visible = mode == 1
 	_pets_view.visible = mode == 0
 	_pets_bar.visible = mode == 0

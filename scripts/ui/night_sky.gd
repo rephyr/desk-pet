@@ -7,6 +7,7 @@ extends Control
 const DENSITY := 40.0  # px² of panel per star before the band takes over
 const ALPHA := 0.2
 const BAND_ALPHA := 0.07
+const BAND_MAX := 8000  # counted stars (Collection.fallen_more) drawn at most; past that the band only deepens
 
 
 func _init() -> void:
@@ -20,6 +21,7 @@ func _draw() -> void:
 	var fallen := GameState.collection.fallen
 	if fallen.is_empty() or size.x < 1.0 or size.y < 1.0:
 		return
+	_draw_more()
 	var catalog := Catalog.shared()
 	var room := int(size.x * size.y / DENSITY)
 	var tints := {}
@@ -42,3 +44,27 @@ func _draw() -> void:
 			y = clampf(0.85 - 0.7 * x + spread, 0.0, 1.0)
 			tint.a = BAND_ALPHA
 		draw_rect(Rect2(floorf(x * (size.x - 1.0)), floorf(y * (size.y - 1.0)), 1.0, 1.0), tint)
+
+
+## The counted stars (past Collection.FALLEN_MAX), all in the band: a share of BAND_MAX per
+## palette, and the band a touch deeper the more there are.
+func _draw_more() -> void:
+	var more := GameState.collection.fallen_more
+	if more.is_empty():
+		return
+	var total := 0
+	for palette in more:
+		total += int(more[palette])
+	var catalog := Catalog.shared()
+	var draw_share := minf(1.0, float(BAND_MAX) / total)
+	var alpha := minf(BAND_ALPHA * 2.0, BAND_ALPHA * (1.0 + 0.3 * log(maxf(1.0, total / float(BAND_MAX))) / log(10.0)))
+	for palette in more:
+		var tint := Color(str(catalog.part("palette", str(palette)).get("body", "#ffffff"))).lerp(Color.WHITE, 0.4)
+		tint.a = alpha
+		var base := hash(str(palette))
+		for j in ceili(int(more[palette]) * draw_share):
+			var h := hash(base + j * 7919)
+			var x := float(h & 0xffff) / 65535.0
+			var spread := (float((h >> 16) & 0xffff) / 65535.0 - 0.5) * 0.35
+			var y := clampf(0.85 - 0.7 * x + spread, 0.0, 1.0)
+			draw_rect(Rect2(floorf(x * (size.x - 1.0)), floorf(y * (size.y - 1.0)), 1.0, 1.0), tint)

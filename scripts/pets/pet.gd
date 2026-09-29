@@ -13,6 +13,7 @@ var stats := {}  # stat name -> int
 var rarity := "common"  # overall tier, rolled first; the finish is a separate axis
 var box := ""  # which box it came from
 var pulled_at := 0  # unix time
+var plain := -1  # Wish.plain_key, worked out once (finish, traits and stats never change); not saved
 
 
 func display_name(catalog: Catalog) -> String:

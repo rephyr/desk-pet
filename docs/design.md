@@ -146,6 +146,18 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   luck, automation speed or errands speed, +10% each for now). Stickers multiply with each other
   and with toys (toys x1.25 x book x1.10 = x1.375). **Open:** stickers for the other bodies'
   finishes pages.
+- **The wishing jar** (built, F3's wish list, data/wish.json): once the other pets learn to open
+  boxes (box tables), a jar sticker stands beside a narrower book (3 stickers a row). Tap a part
+  sticker you've found (body, palette, pattern, eyes, accessory; never a finish) to wish for it: it
+  becomes the jar's label. Send pets by shelf (a chip per rarity, then 1 / 10 / 100 / all): every
+  pet counts 1 and never comes back (each is a night-sky star), the plainest go first (a normal
+  finish, then fewer traits, then the lowest stats), and never your active pet, pets away, on
+  errands, working, pinned, or a pet with parts sewn on. The jar fills with dots in their
+  colours, 4 steps of 200 / 600 / 2k / 6k (8,800 in all); a gold star lights per full step and the
+  lid glows when it's full (then it takes nobody). Each full step makes that look turn up more
+  often INSIDE its already-rolled tier in every box (x1.5 / x2 / x3 / x4): the part picked in the
+  tier and which slot carries the pet's rarity. Rarity never moves. Switching the wish keeps every
+  jar's steps and their boost. Your pet cheers, with a line of its own per full step.
 
 ## Care (active side)
 

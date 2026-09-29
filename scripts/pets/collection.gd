@@ -17,8 +17,12 @@ var auto_active := true
 var _by_uid := {}
 var _next_id := 1
 var _seen := {}  # book key -> times pulled, see part_key() / finish_key()
-## One [uid, palette] per pet that didn't come back, in order. Never shown as a list.
+## One [uid, palette] per pet that didn't come back, in order, up to FALLEN_MAX (more than the
+## biggest night sky has room for as specks). Never shown as a list.
 var fallen: Array = []
+## The ones after that, only counted: palette id -> how many (the night sky's band).
+var fallen_more := {}
+const FALLEN_MAX := 14000  # a 920x600 window's sky holds 13,800 specks (NightSky.DENSITY)
 
 
 static func part_key(slot: String, id: String) -> String:
@@ -74,20 +78,39 @@ func add(new_pets: Array[Pet]) -> void:
 ## Takes pets out of the collection for good (they didn't come back).
 func remove(uids: Array[String]) -> void:
 	var gone: Array[String] = []
+	var many := uids.size() > 16  # thousands at once (the wishing jar): one pass over the list, not one per pet
 	for uid in uids:
 		var pet: Pet = _by_uid.get(uid)
 		if pet == null:
 			continue
-		pets.erase(pet)
+		if not many:
+			pets.erase(pet)
 		_by_uid.erase(uid)
-		fallen.append([int(uid), pet.parts.palette])
+		_fall(int(uid), str(pet.parts.palette))
 		gone.append(uid)
 	if gone.is_empty():
 		return
+	if many:
+		pets.assign(pets.filter(func(p: Pet): return _by_uid.has(p.uid)))
 	if not _by_uid.has(active_uid):
 		active_uid = pets[0].uid if not pets.is_empty() else ""
 		active_changed.emit(active())
 	pets_removed.emit(gone)
+
+
+## Every pet that didn't come back, specks and band.
+func fallen_count() -> int:
+	var n := fallen.size()
+	for palette in fallen_more:
+		n += int(fallen_more[palette])
+	return n
+
+
+func _fall(uid: int, palette: String) -> void:
+	if fallen.size() < FALLEN_MAX:
+		fallen.append([uid, palette])
+	else:
+		fallen_more[palette] = int(fallen_more.get(palette, 0)) + 1
 
 
 func get_pet(uid: String) -> Pet:
@@ -123,7 +146,7 @@ func to_dict() -> Dictionary:
 	var list := []
 	for pet in pets:
 		list.append(pet.to_dict())
-	return { "pets": list, "active": active_uid, "next_id": _next_id, "seen": _seen, "fallen": fallen }
+	return { "pets": list, "active": active_uid, "next_id": _next_id, "seen": _seen, "fallen": fallen, "fallen_more": fallen_more }
 
 
 ## Replaces the contents in place, so everything connected to this collection stays connected.
@@ -142,9 +165,15 @@ func load_from(d: Dictionary) -> void:
 	for key in d.get("seen", {}):
 		_seen[key] = int(d.seen[key])
 	fallen.clear()
+	fallen_more.clear()
+	var more: Variant = d.get("fallen_more", {})
+	if more is Dictionary:
+		for palette in more:
+			if int(more[palette]) > 0:
+				fallen_more[str(palette)] = int(more[palette])
 	for f in d.get("fallen", []):
 		if f is Array and f.size() == 2:
-			fallen.append([int(f[0]), str(f[1])])
+			_fall(int(f[0]), str(f[1]))
 	pets_added.emit(pets)
 	active_changed.emit(active())
 

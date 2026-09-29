@@ -5,6 +5,9 @@ extends RefCounted
 ## and the other parts roll at or below it. The finish (the foil) is its own separate roll.
 ## Parts are picked from what the box can hold (Catalog.parts_in: some looks only come out of
 ## the better boxes), and a box holds its "pets" [min, max] pets (roll_box).
+## `wish` (the wishing jar, see Wish) makes some looks turn up more often inside the tier that was
+## already rolled: the part picked within a tier, and which slot carries the pet's rarity. The
+## rarity roll itself never looks at it.
 
 const STAT_BASE := 5  # stats roll between base and 2x base, and base grows with rarity
 
@@ -12,6 +15,13 @@ var catalog: Catalog
 var rng: RandomNumberGenerator
 var _capped := {}  # "box|max rank" -> the box's rarity odds up to that rank (_roll_rank_up_to)
 var _signature_options := {}  # "tier|box" -> the slots with a part at that tier in that box
+## Book key (Collection.part_key) -> how many times more often that look turns up inside its tier.
+## Empty: every look in a tier is as likely as the next (and the rolls are exactly as before).
+var wish := {}:
+	set(value):
+		wish = value
+		_wish_weights.clear()
+var _wish_weights := {}  # "slot|tier|box" or "sig|tier|box" -> the weights for that pick with this wish
 
 
 func _init(p_catalog: Catalog = Catalog.shared(), p_rng: RandomNumberGenerator = null) -> void:
@@ -60,7 +70,21 @@ func _signature_slot(tier_rank: int, box_id: String) -> String:
 	var options: Array = _signature_options[key]
 	if options.is_empty():
 		return "body"
-	return options[rng.randi_range(0, options.size() - 1)]
+	if wish.is_empty():
+		return options[rng.randi_range(0, options.size() - 1)]
+	# a slot whose looks at this tier are wished for carries the rarity more often (so a look that's
+	# alone in its tier, like the only rare body, still turns up more)
+	var wkey := "sig|" + key
+	if not _wish_weights.has(wkey):
+		var w := {}
+		for slot in options:
+			var parts := catalog.parts_in(slot, tier_id, box_id)
+			var sum := 0.0
+			for p in parts:
+				sum += float(wish.get(Collection.part_key(slot, p.id), 1.0))
+			w[slot] = sum / parts.size()
+		_wish_weights[wkey] = w
+	return Weighted.pick(_wish_weights[wkey], rng)
 
 
 ## The highest tier at or below max_rank that this slot has parts for.
@@ -85,8 +109,17 @@ func _roll_rank_up_to(box_id: String, tier_weights: Dictionary, max_rank: int) -
 
 ## A random part of the given tier, stepping down if the slot has nothing at that tier.
 func _pick_part(slot: String, tier_rank: int, box_id: String) -> String:
-	var options := catalog.parts_in(slot, catalog.tier_at(_best_rank_in(slot, tier_rank, box_id)).id, box_id)
-	return options[rng.randi_range(0, options.size() - 1)].id
+	var tier_id: String = catalog.tier_at(_best_rank_in(slot, tier_rank, box_id)).id
+	var options := catalog.parts_in(slot, tier_id, box_id)
+	if wish.is_empty():
+		return options[rng.randi_range(0, options.size() - 1)].id
+	var wkey := "%s|%s|%s" % [slot, tier_id, box_id]
+	if not _wish_weights.has(wkey):
+		var w := {}
+		for p in options:
+			w[p.id] = float(wish.get(Collection.part_key(slot, p.id), 1.0))
+		_wish_weights[wkey] = w
+	return Weighted.pick(_wish_weights[wkey], rng)
 
 
 func _roll_traits(count_weights: Array) -> Array[String]:
