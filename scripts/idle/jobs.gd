@@ -252,12 +252,43 @@ static func tool_base(tool: Dictionary, value := 1.0) -> float:
 
 
 ## What the next `n` levels of a tool cost, with `have` levels already, a capsule worth `value`.
+## Level i costs the base (tool_base) x grow^i; with "flat_at" (worker spots), past that many each
+## one grows by "grow_late" instead, so thousands stay reachable. Big buys are worked out in one go
+## (geometric sums), not level by level. At least 1 coin when n > 0, capped at MAX_PRICE.
 static func tool_cost(tool: Dictionary, have: int, n := 1, value := 1.0) -> int:
 	var base := tool_base(tool, value)
+	if n <= 0 or base <= 0.0:
+		return 0
+	var grow := float(tool.get("grow", 1.0))
+	var flat := int(tool.get("flat_at", 1 << 40))
+	var late := float(tool.get("grow_late", grow))
 	var total := 0.0
-	for i in n:
-		total += base * pow(float(tool.get("grow", 1.0)), have + i)
-	return maxi(1, roundi(minf(total, MAX_PRICE))) if n > 0 and base > 0.0 else 0
+	var a := have
+	var b := have + n  # levels a .. b-1
+	if n <= 64:  # a few levels: one by one (exactly the prices you'd pay buying them one at a time)
+		for i in range(a, b):
+			total += base * (pow(grow, i) if i < flat else pow(grow, flat) * pow(late, i - flat))
+	else:
+		if a < flat:
+			total += _geo(grow, a, mini(b, flat))
+		if b > flat:
+			total += pow(grow, flat) * _geo(late, maxi(a, flat) - flat, b - flat)
+		total *= base
+	if is_nan(total) or is_inf(total) or total > MAX_PRICE:
+		return roundi(MAX_PRICE)
+	return maxi(1, roundi(total))
+
+
+## r^a + r^(a+1) + ... + r^(b-1).
+static func _geo(r: float, a: int, b: int) -> float:
+	if b <= a:
+		return 0.0
+	if is_equal_approx(r, 1.0):
+		return float(b - a)
+	var hi := pow(r, b)
+	if is_inf(hi):
+		return INF
+	return (hi - pow(r, a)) / (r - 1.0)
 
 
 const MAX_PRICE := 4.0e18  # prices stop here: past about 9.2e18 a whole number wraps round to negative

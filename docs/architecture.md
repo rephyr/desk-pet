@@ -109,7 +109,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   scouting fills `GameState.scout_notes` and `send_on_adventure` packs one onto `RunState.scout`,
   read by `Intel.roll` and `AdventureRunner`), `AutomationTab` (a card per job your pet can do, `JobScene` draws each one; rules in
   `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:
-  `WorkerCard` / `WorkerSpot`, `GameState.put_workers` / `buy_spots` / `teach_others`), `InventoryTab`
+  `WorkerCard` / `WorkerSpot`, `GameState.put_workers` / `buy_spots` / `teach_others`; the whistle page: `Clipboard`,
+  `TodoRow`, `Tick`, `TinyCrowd`, rules in `Automation.whistle_plan` / `exist` / `checks`, applied by
+  `GameState._whistle_checks`, caps via `GameState.spot_room`), `InventoryTab`
   (the bag and sewing) and `SettingsTab` (general and video pages).
   Tabs can be locked or hidden until something opens them (`data/unlocks.json`).
 - The full game is laid out at 920x600 (`home.gd` `EXPANDED_SIZE`) and scaled to the chosen
@@ -164,6 +166,9 @@ whatever the save's version (idempotent): lucky boxes on the pile, "save for me"
 still out (also pre-v5 runs' `boxes`) become sunset boxes, and unknown box ids are dropped from the
 bag. New fields `boxes_bought` (a tier is "new!" until the first) and `boxes_greeted` (its arrival
 played); a save without them counts what's on the pile as bought and greeted.
+Save v27 adds the whistle, `automation.whistle` = { ticks: { job: { haul, fill } }, keep, wait }
+(no migration: a save without it starts with every tick on and the default set aside);
+`automation.taught.whistle` comes back from the `feature:whistle` unlock.
 
 ## Testing
 

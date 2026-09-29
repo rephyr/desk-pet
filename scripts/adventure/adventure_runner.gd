@@ -28,14 +28,15 @@ const HOME_OPTION := {
 ## `fixed` is the capsule machine's fixed nodes (node id -> levels), for events that wait on one.
 ## `gear` is the gear the trip packs (Gear.for_trip) and `knacks` what knacks do for it
 ## (GameState.trip_knacks): both are kept on the run for the whole trip.
-static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: int, catalog: Catalog, found := {}, fixed := {}, gear := {}, knacks := {}) -> RunState:
+## `workers` is how many workers you have (the automation tab), for events that wait for them.
+static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: int, catalog: Catalog, found := {}, fixed := {}, gear := {}, knacks := {}, workers := 0) -> RunState:
 	var location := catalog.location(location_id)
 	var s := RunState.new()
 	s.location_id = location_id
 	s.party = Party.make(pets, catalog)
 	s.chooser = Chooser.kind_for(pets.size())
 	s.rng_seed = rng_seed
-	s.events = pick_events(location, rng_seed, found, catalog, fixed)
+	s.events = pick_events(location, rng_seed, found, catalog, fixed, workers)
 	s.started = now
 	s.gear = gear
 	s.knacks = knacks
@@ -46,15 +47,18 @@ static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: i
 
 ## The events a trip will meet: a place's fixed list, or a draw from its pool (weighted, no
 ## repeats), so trips to the same place go differently.
-static func pick_events(location: Dictionary, rng_seed: int, found := {}, catalog: Catalog = null, fixed := {}) -> Array[String]:
+static func pick_events(location: Dictionary, rng_seed: int, found := {}, catalog: Catalog = null, fixed := {}, workers := 0) -> Array[String]:
 	var out: Array[String] = []
-	# a find's event stops once it's found, one with "after" waits until that find is home, and one
-	# with "after_machine" until that node on the capsule machine's tree is fixed
+	# a find's event stops once it's found, one with "after" waits until that find is home, one
+	# with "after_machine" until that node on the capsule machine's tree is fixed, and one with
+	# "after_workers" until you have that many workers
 	var still := func(id) -> bool:
 		if catalog == null:
 			return true
 		var e: Dictionary = catalog.events.get(id, {})
 		if e.has("after_machine") and int(fixed.get(str(e.after_machine), 0)) <= 0:
+			return false
+		if workers < int(e.get("after_workers", 0)):
 			return false
 		return not found.has(str(e.get("find", ""))) and (not e.has("after") or found.has(str(e.after)))
 	if not location.has("pool"):

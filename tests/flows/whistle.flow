@@ -1,0 +1,78 @@
+# The whistle (automation layer 2): a find at the old well once you have enough workers. It adds a
+# third page to the automation tab: your pet's to-do list (haul them home / keep them full per job),
+# set aside coins, two tools. Managing is your pet's one job. Scales to thousands of workers.
+from rich
+view full
+stickers off                  # the pets here can fill a book page now and then: no sticker popups
+pets 60
+fix drops
+coins 900000000
+toy snail
+find tiny_machine
+wait popup
+click "lovely"
+wait 1
+wait popup
+click "show me"
+wait 1
+click "teach for*"
+wait 1
+auto-tool crank 3
+wait 1
+click "teach the others"
+wait 1
+expect no-text "whistle"
+unlock feature:auto_adventures
+unlock feature:packs
+teach adventures others
+teach boxes others
+workers machine 30
+workers boxes 8
+workers adventures 3
+wait 1
+expect no-text "whistle"
+find whistle
+wait popup
+expect fits
+shot whistle_popup
+click "show me"
+wait 1
+expect text "haul them home"
+expect text "keep them full"
+expect text "start new ones"
+expect text "move it here"
+expect fits
+shot whistle_page
+click "move it here"
+wait 1
+expect text "take it off"
+manage 3
+wait 1
+expect text "since you looked:"
+expect fits
+shot whistle_managing
+click "haul them home"
+wait 1
+click "+"
+wait 1
+expect fits
+shot whistle_untick
+unlock page:beyond
+wait 1
+expect fits
+shot whistle_beyond
+spots machine 2000
+pets 3000
+manage 1
+wait 2
+expect fits
+shot whistle_crowd
+click "workers"
+wait 1
+expect no-text "+1 machine*"
+expect fits
+shot workers_cap
+click "your pet"
+wait 1
+expect fits
+shot your_pet_managing

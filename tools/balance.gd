@@ -46,6 +46,7 @@ func _init() -> void:
 	_errands(catalog, rng)
 	_rummage(catalog)
 	_box_tiers(catalog, rng)
+	_spots(catalog)
 	quit()
 
 
@@ -76,6 +77,33 @@ func _box_tiers(catalog: Catalog, rng: RandomNumberGenerator) -> void:
 			with_look += 1 if has_look else 0
 		print("%-13s %6d %9.2f %11.1f %10.2f %8.1f%% %9.1f%%" % [box.name, int(box.capsules), float(pets) / BOXES,
 			float(box.capsules) * BOXES / pets, float(rank_sum) / pets, 100.0 * rare / pets, 100.0 * with_look / BOXES])
+
+
+## Workers' spots (data/automation.json): what the 10th, 100th and 1000th one costs and what the
+## first 10 / 100 / 1000 cost together (prices flatten past "flat_at"), and how many exist.
+func _short(n: float) -> String:
+	for u in [[1e15, "Q"], [1e12, "T"], [1e9, "B"], [1e6, "M"], [1e3, "k"]]:
+		if n >= u[0]:
+			return ("%.1f" % (n / u[0])).trim_suffix(".0") + u[1]
+	return str(roundi(n))
+
+
+func _spots(catalog: Catalog) -> void:
+	print("\nworkers' spots: the nth one, and the first n together")
+	print("%-11s %10s %10s %10s %10s %10s %10s  %s" % ["job", "10th", "100th", "1000th", "first 10", "first 100", "first 1000", "exist"])
+	var pages := catalog.pages.map(func(p): return str(p.id))
+	for j in catalog.automation.get("jobs", []):
+		var spot: Dictionary = j.get("spot", {})
+		if spot.is_empty():
+			continue
+		var row := [str(j.id)]
+		for n in [10, 100, 1000]:
+			row.append(_short(Jobs.tool_cost(spot, n - 1, 1)))
+		for n in [10, 100, 1000]:
+			row.append(_short(Jobs.tool_cost(spot, 0, n)))
+		var exist := "1 a place" if spot.has("per_place") else "%d (all pages)" % Automation.exist(catalog, str(j.id), pages, 0)
+		row.append(exist)
+		print("%-11s %10s %10s %10s %10s %10s %10s  %s" % row)
 
 
 ## Rummaging in your pet's room, tapping every spot as soon as it's ready: the most it can bring.

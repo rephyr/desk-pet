@@ -9,7 +9,12 @@ extends VBoxContainer
 ## Once your pet has taught the others a job, a second page appears: WORKERS. A card per job with
 ## its machines (tables, parties) and the pets working them; the side card buys more, puts resting
 ## pets on or takes them off, sets each party's place and size, and holds the workers' tools.
-## Design: design/mockups/screens/automation.html (C: cards, and ?page=workers).
+## Once a pet brings the whistle home, a third page: THE WHISTLE (managing the workers is your pet's
+## one job). A clipboard with a to-do row per job taught to the others: how many are home and still
+## out there, a tiny crowd, and two ticks (haul them home / start new ones, keep them full). The side
+## card moves your pet there, sets the coins set aside (− / +) and holds the whistle's tools.
+## Design: design/mockups/screens/automation.html (C: cards, and ?page=workers),
+## design/mockups/screens/automation-layers.html (look A: the to-do list).
 
 const SIDE_WIDTH := 236
 const CARD_WIDTH := 172  # three cards and the side card fit the window
@@ -22,8 +27,10 @@ var _picked := ""
 var _dirty := true
 var _last := ""
 var _scenes := {}  # job id -> JobScene, for the capsules popping out of your pet's machine
-var _page := 0  # 0 your pet, 1 workers
-var _mode: PanelContainer  # the your pet | workers switch (there once the others know a job)
+var _page := 0  # 0 your pet, 1 workers, 2 the whistle
+var _mode: PanelContainer  # the your pet | workers (| whistle) switch (there once the others know a job)
+var _mode_size := 0  # how many buttons the switch has
+var _bar: HBoxContainer
 
 
 func _init() -> void:
@@ -31,11 +38,8 @@ func _init() -> void:
 	size_flags_vertical = SIZE_EXPAND_FILL
 
 	var bar := HBoxContainer.new()
-	_mode = UiTheme.segmented(["your pet", "workers"], 0, func(i):
-		_page = i
-		_dirty = true
-		PetBubble.say_line(self, "automation_workers" if i == 1 else "automation"))
-	bar.add_child(_mode)
+	_bar = bar
+	_make_mode(2)
 	bar.add_child(UiTheme.spacer())
 	var pill := PanelContainer.new()
 	var sb := UiTheme.box(UiTheme.DEEP, UiTheme.PINK_SEAM, 999, 2, 3)
@@ -76,11 +80,42 @@ func _init() -> void:
 	visibility_changed.connect(func():
 		if is_visible_in_tree():
 			_dirty = true
-			speak())
+			speak()
+		elif _page == 2:
+			GameState.whistle_seen())
+
+
+## An unlock popup's "show me" brought you here: the whistle's lands on its page.
+func show_unlock(id: String) -> void:
+	if id == Automation.WHISTLE:
+		_page = 2
+		_dirty = true
+
+
+## The switch: your pet | workers, and whistle once it's found (rebuilt when that changes).
+func _make_mode(n: int) -> void:
+	if _mode:
+		_mode.queue_free()
+	_mode_size = n
+	var names := ["your pet", "workers", "whistle"].slice(0, n)
+	_mode = UiTheme.segmented(names, mini(_page, n - 1), func(i):
+		if _page == 2 and i != 2:
+			GameState.whistle_seen()
+		_page = i
+		_dirty = true
+		PetBubble.say_line(self, ["automation", "automation_workers", "automation_whistle"][i]))
+	if n > 2:
+		var b: Button = _mode.get_child(0).get_child(2)
+		b.icon = UiTheme.icon("whistle", 15, UiTheme.PINK)
+		b.add_theme_constant_override("h_separation", 5)
+	_bar.add_child(_mode)
+	_bar.move_child(_mode, 0)
 
 
 func speak() -> void:
-	if GameState.automation.task == "" and not GameState.automation.taught.is_empty():
+	if _page == 2:
+		PetBubble.say_line(self, "automation_whistle")
+	elif GameState.automation.task == "" and not GameState.automation.taught.is_empty():
 		PetBubble.say_line(self, "automation_free")
 	else:
 		PetBubble.say_line(self, "automation")
@@ -105,8 +140,12 @@ func _process(_delta: float) -> void:
 	# the workers page: what's taught, bought and who's on it, and what you can afford there
 	var a: Dictionary = GameState.automation
 	key += "|%d|%s|%s|%s|%s" % [_page, str(a.others), str(a.spots), str(a.parties), str(a.workers)]
-	if _page == 1:  # changes every time a box worker opens a box: only the workers page shows it
+	if _page >= 1:  # changes every time a box worker opens a box: only the workers pages show it
 		key += "|%d" % GameState.resting_pets().size()
+	key += "|%s|%s|%d|%d" % [str(a.get("whistle", {}).get("ticks", {})), str(a.get("whistle", {}).get("keep", -1)),
+		GameState.open_locations().size(), GameState.open_pages().size()]
+	if _page == 2:
+		key += "|%s" % str(GameState.whistle_since)
 	for j in jobs:
 		key += "1" if GameState.coins >= GameState.teach_others_cost(j.id) else "0"
 		key += "1" if GameState.coins >= int(GameState.spot_plan(j.id, 1)[1]) else "0"
@@ -199,6 +238,7 @@ static func doing(task: String) -> String:
 		"machine": return "cranking"
 		"adventures": return "on adventures"
 		"boxes": return "opening boxes"
+		Automation.WHISTLE: return "managing"
 	return "free"
 
 
@@ -207,11 +247,17 @@ func _rebuild() -> void:
 	var pet := GameState.collection.active()
 	var who := pet.display_name(catalog) if pet else "your pet"
 	var workers := GameState.worker_jobs()
+	var page_count := 3 if GameState.feature_on(Automation.WHISTLE) and not workers.is_empty() else 2
+	if page_count != _mode_size:
+		_make_mode(page_count)
 	_mode.visible = not workers.is_empty()
 	if workers.is_empty() and _page != 0:
 		_page = 0
 		(_mode.get_child(0).get_child(0) as Button).pressed.emit()  # the switch shows "your pet" again
-	_where_pet.visible = _page == 0
+	elif _page >= page_count:
+		_page = 0
+	_select_mode(_page)
+	_where_pet.visible = _page != 1
 	_where_pet.set_pet(pet)
 	_where.text = "%s is %s" % [who, doing(str(GameState.automation.task))]
 	UiTheme.clear(_cards)
@@ -223,16 +269,35 @@ func _rebuild() -> void:
 		_where.text = "%s %s" % [UiTheme.num(total), "worker" if total == 1 else "workers"]
 		_rebuild_workers(workers)
 		return
+	if _page == 2:
+		_rebuild_whistle(workers, pet, who)
+		return
 	var jobs := GameState.auto_jobs()
 	if jobs.is_empty():
 		return
 	if not jobs.any(func(j): return j.id == _picked):
-		_picked = str(GameState.automation.task) if GameState.automation.task != "" else str(jobs[0].id)
+		var task := str(GameState.automation.task)
+		_picked = task if jobs.any(func(j): return j.id == task) else str(jobs[0].id)
 	for j in jobs:
 		var card := JobCard.new(j, j.id == _picked, self)
 		_scenes[j.id] = card.scene
 		_cards.add_child(card)
 	_rebuild_side(Automation.job(catalog, _picked), pet, who)
+
+
+## Shows page `i` as picked on the switch (without saying anything).
+func _select_mode(i: int) -> void:
+	var row := _mode.get_child(0)
+	for j in row.get_child_count():
+		var b: Button = row.get_child(j)
+		var on := j == i
+		var st := UiTheme.box(UiTheme.PINK_PRESSED if on else Color(0, 0, 0, 0), Color(0, 0, 0, 0), 6, 0, 3)
+		st.content_margin_left = 12
+		st.content_margin_right = 12
+		for state in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
+			b.add_theme_stylebox_override(state, st)
+		b.add_theme_color_override("font_color", UiTheme.TEXT if on else UiTheme.MUTED)
+		b.add_theme_color_override("font_hover_color", UiTheme.TEXT if on else UiTheme.PINK)
 
 
 ## What a job's card says under its picture.
@@ -432,13 +497,14 @@ func _rebuild_worker_side(job: Dictionary) -> void:
 	ErrandToolsView._add_row(counts, "resting pets", UiTheme.num(GameState.resting_pets().size()), UiTheme.MUTED)
 	col.add_child(counts)
 	var plan := GameState.spot_plan(id, 1)
-	var buy := UiTheme.button("+1 %s for %s" % [job.spot.get("name", "spot"), UiTheme.num(int(plan[1]))], func(): _buy_spot(id))
-	buy.icon = UiTheme.icon("coin", 14, UiTheme.CYAN)
-	buy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	buy.custom_minimum_size = Vector2(60, 0)
-	buy.disabled = GameState.coins < int(plan[1])
-	buy.add_theme_stylebox_override("normal", UiTheme.box(UiTheme.DEEP, UiTheme.PINK_SEAM, 8, 2, 6))
-	col.add_child(buy)
+	if int(plan[0]) > 0:  # none left out there: the button is simply gone
+		var buy := UiTheme.button("+1 %s for %s" % [job.spot.get("name", "spot"), UiTheme.num(int(plan[1]))], func(): _buy_spot(id))
+		buy.icon = UiTheme.icon("coin", 14, UiTheme.CYAN)
+		buy.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		buy.custom_minimum_size = Vector2(60, 0)
+		buy.disabled = GameState.coins < int(plan[1])
+		buy.add_theme_stylebox_override("normal", UiTheme.box(UiTheme.DEEP, UiTheme.PINK_SEAM, 8, 2, 6))
+		col.add_child(buy)
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 4)
 	var off := UiTheme.small_button("−", func(): _take_off_workers(id, 1))
@@ -507,6 +573,315 @@ func _worker_party_row(slot: int, leader: String) -> Control:
 	n_row.add_child(UiTheme.small_button("+", func(): _change_worker_party(slot, 0, 1)))
 	col.add_child(n_row)
 	return panel
+
+
+# ---- the whistle page: your pet's to-do list ------------------------------------------
+
+func _rebuild_whistle(jobs: Array[Dictionary], pet: Pet, who: String) -> void:
+	_where.text = "%s is %s" % [who, doing(str(GameState.automation.task))]
+	var board := Clipboard.new()
+	board.size_flags_horizontal = SIZE_EXPAND_FILL
+	_cards.add_child(board)
+	var col := board.paper_column
+	col.add_child(UiTheme.title("%s's list" % who, 18, UiTheme.PINK))
+	for j in jobs:
+		col.add_child(TodoRow.new(j, self))
+	var resting := GameState.resting_pets()
+	var note := PanelContainer.new()
+	note.size_flags_horizontal = SIZE_SHRINK_BEGIN
+	note.add_theme_stylebox_override("panel", UiTheme.box(UiTheme.RAISED.lerp(UiTheme.MINT, 0.1), UiTheme.LINE.lerp(UiTheme.MINT, 0.4), 6, 2, 6))
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	note.add_child(row)
+	var n := UiTheme.label(UiTheme.num(resting.size()), UiTheme.MINT, UiTheme.SMALL)
+	n.size_flags_vertical = SIZE_SHRINK_CENTER
+	row.add_child(n)
+	var words := UiTheme.label("pets resting", UiTheme.TEXT, UiTheme.SMALL)
+	words.size_flags_vertical = SIZE_SHRINK_CENTER
+	row.add_child(words)
+	if not resting.is_empty():
+		row.add_child(TinyCrowd.new(resting.slice(0, 6).map(func(p): return p.uid), 3))
+	col.add_child(note)
+	_rebuild_whistle_side(pet, who)
+
+
+func _rebuild_whistle_side(pet: Pet, who: String) -> void:
+	UiTheme.clear(_card)
+	var job := Automation.job(GameState.catalog, Automation.WHISTLE)
+	var color := color_of(job)
+	var here := str(GameState.automation.task) == Automation.WHISTLE
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	head.add_child(UiTheme.icon_rect(str(job.icon), 22, color))
+	head.add_child(UiTheme.title(str(job.name), 17, color))
+	_card.add_child(head)
+
+	var you := PanelContainer.new()
+	you.add_theme_stylebox_override("panel", UiTheme.box(UiTheme.DEEP, UiTheme.PINK_SEAM if here else UiTheme.LINE, 10, 2, 8))
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 6)
+	you.add_child(col)
+	var line := HBoxContainer.new()
+	line.add_theme_constant_override("separation", 8)
+	var portrait := PetPortrait.new(2, false)
+	portrait.set_pet(pet)
+	line.add_child(portrait)
+	var words_label := ErrandToolsView._wrapped("%s is here ♡\nmanaging" % who if here else "nobody here", UiTheme.TEXT, UiTheme.SMALL + 1)
+	words_label.size_flags_horizontal = SIZE_EXPAND_FILL
+	words_label.size_flags_vertical = SIZE_SHRINK_CENTER
+	line.add_child(words_label)
+	col.add_child(line)
+	var button := UiTheme.button("take it off" if here else "move it here", func(): _move("" if here else Automation.WHISTLE))
+	if not here:
+		button.add_theme_stylebox_override("normal", UiTheme.box(UiTheme.DEEP, UiTheme.PINK_SEAM, 8, 2, 6))
+	col.add_child(button)
+	_card.add_child(you)
+
+	# set aside: − 250k +
+	var step := PanelContainer.new()
+	var sb := UiTheme.box(UiTheme.DEEP, UiTheme.LINE, 6, 2, 3)
+	sb.content_margin_left = 8
+	step.add_theme_stylebox_override("panel", sb)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 2)
+	step.add_child(row)
+	var aside := UiTheme.label("set aside", UiTheme.TEXT, UiTheme.SMALL)
+	aside.size_flags_horizontal = SIZE_EXPAND_FILL
+	aside.size_flags_vertical = SIZE_SHRINK_CENTER
+	row.add_child(aside)
+	var keep := Automation.keep(GameState.catalog, GameState.automation)
+	var steps: Array = job.get("keep_steps", [0])
+	var less := UiTheme.small_button("−", func(): _step_keep(-1))
+	less.disabled = keep <= int(steps[0])
+	row.add_child(less)
+	var price := UiTheme.label(UiTheme.num(keep), UiTheme.CYAN, UiTheme.SMALL)
+	price.custom_minimum_size = Vector2(44, 0)
+	price.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	price.size_flags_vertical = SIZE_SHRINK_CENTER
+	var coin := UiTheme.icon_rect("coin", 13, UiTheme.CYAN)
+	row.add_child(coin)
+	row.add_child(price)
+	var more := UiTheme.small_button("+", func(): _step_keep(1))
+	more.disabled = keep >= int(steps[steps.size() - 1])
+	row.add_child(more)
+	_card.add_child(step)
+
+	var tools := Automation.all_tools(GameState.catalog).filter(func(t): return t.job == Automation.WHISTLE)
+	if not tools.is_empty():
+		_card.add_child(UiTheme.title("upgrades", 13, UiTheme.LILAC))
+		for t in tools:
+			_card.add_child(ToolRow.new(t, UiTheme.LILAC, self))
+
+	# since you looked: what it did while you watched (or were away), only when it did something
+	var since: Dictionary = GameState.whistle_since
+	var lines: Array[String] = []
+	for j in GameState.worker_jobs():
+		var got := int(since.hauled.get(j.id, 0))
+		if got > 0:
+			lines.append("+%s %s %s" % [UiTheme.num(got), j.spot.get("name", "spot") if got == 1 else j.spot.get("names", "spots"),
+				"started" if j.spot.has("per_place") else "hauled home"])
+	if int(since.put) > 0:
+		lines.append("%s %s put to work" % [UiTheme.num(int(since.put)), "pet" if int(since.put) == 1 else "pets"])
+	if not lines.is_empty():
+		var gap := Control.new()
+		gap.size_flags_vertical = SIZE_EXPAND_FILL
+		_card.add_child(gap)
+		var foot := DashedTop.new()
+		foot.add_theme_constant_override("separation", 1)
+		foot.add_child(UiTheme.label("since you looked:", UiTheme.MUTED, UiTheme.SMALL))
+		for l in lines:
+			var got_label := ErrandToolsView._wrapped(l, UiTheme.MINT, UiTheme.SMALL)
+			foot.add_child(got_label)
+		_card.add_child(foot)
+
+
+func _step_keep(d: int) -> void:
+	GameState.step_whistle_keep(d)
+	PetBubble.say_line(self, "automation_keep")
+
+
+func _tick(job_id: String, key: String) -> void:
+	var on := not Automation.tick(GameState.automation, job_id, key)
+	GameState.set_whistle_tick(job_id, key, on)
+	PetBubble.say_line(self, "automation_tick_on" if on else "automation_tick_off")
+
+
+## The whistle's clipboard: a lilac board with a clip on top and a sheet of paper on it (a pink
+## margin line down the left), holding `paper_column`.
+class Clipboard extends PanelContainer:
+	var paper_column := VBoxContainer.new()
+
+	func _init() -> void:
+		var sb := UiTheme.box(UiTheme.DEEP.lerp(UiTheme.LILAC, 0.12), UiTheme.LILAC_SEAM, 16, 2, 12)
+		sb.content_margin_top = 22
+		sb.shadow_color = UiTheme.SHADOW
+		sb.shadow_size = 7
+		sb.shadow_offset = Vector2(0, 5)
+		add_theme_stylebox_override("panel", sb)
+		var paper := Paper.new()
+		paper.add_theme_stylebox_override("panel", _paper_box())
+		add_child(paper)
+		paper_column.add_theme_constant_override("separation", 0)
+		paper.add_child(paper_column)
+
+	static func _paper_box() -> StyleBoxFlat:
+		var sb := UiTheme.box(UiTheme.PAPER, UiTheme.PAPER, 6, 0, 0)
+		sb.content_margin_left = 20
+		sb.content_margin_right = 14
+		sb.content_margin_top = 14
+		sb.content_margin_bottom = 10
+		return sb
+
+	func _draw() -> void:
+		# the clip: a rounded bar over the top edge with a slot in it
+		var w := 112.0
+		var clip := Rect2(size.x / 2.0 - w / 2.0, -8, w, 28)
+		var fill := UiTheme.box(UiTheme.RAISED, UiTheme.LILAC, 9, 2, 0)
+		draw_style_box(fill, clip)
+		var slot := UiTheme.box(UiTheme.DEEP, UiTheme.LILAC_SEAM, 5, 2, 0)
+		draw_style_box(slot, Rect2(size.x / 2.0 - 14, -3, 28, 10))
+
+	class Paper extends PanelContainer:
+		func _draw() -> void:
+			draw_line(Vector2(9, 4), Vector2(9, size.y - 4), Color(UiTheme.PINK, 0.22), 2.0)
+
+
+## One job on the whistle's list: its name, how many work there and a tiny crowd; how many are home
+## and still out there; the two ticks.
+class TodoRow extends HBoxContainer:
+	func _init(job: Dictionary, tab: AutomationTab) -> void:
+		var id := str(job.id)
+		var color := AutomationTab.color_of(job)
+		var spot: Dictionary = job.get("spot", {})
+		add_theme_constant_override("separation", 10)
+		size_flags_vertical = SIZE_EXPAND_FILL
+		custom_minimum_size = Vector2(0, 76)
+
+		var name_box := HBoxContainer.new()
+		name_box.add_theme_constant_override("separation", 8)
+		name_box.custom_minimum_size = Vector2(150, 0)
+		name_box.add_child(UiTheme.icon_rect(str(job.icon), 22, color))
+		var words := VBoxContainer.new()
+		words.add_theme_constant_override("separation", 0)
+		words.size_flags_vertical = SIZE_SHRINK_CENTER
+		words.add_child(UiTheme.title(str(spot.get("names", "spots")), 16, color))
+		var working := GameState.workers_count(id)
+		words.add_child(UiTheme.label("%s working" % UiTheme.num(working), UiTheme.MUTED, UiTheme.SMALL))
+		var crew := GameState.workers_of(id).filter(func(uid): return str(uid) != "")
+		if not crew.is_empty():
+			words.add_child(TinyCrowd.new(crew.slice(0, 5), 3))
+		name_box.add_child(words)
+		add_child(name_box)
+
+		var counts := VBoxContainer.new()
+		counts.add_theme_constant_override("separation", 0)
+		counts.custom_minimum_size = Vector2(130, 0)
+		counts.size_flags_vertical = SIZE_SHRINK_CENTER
+		var home := Automation.spots(GameState.automation, id)
+		counts.add_child(UiTheme.title(UiTheme.num(home), 26, UiTheme.TEXT))
+		var sub := HBoxContainer.new()
+		sub.add_theme_constant_override("separation", 4)
+		var left := GameState.spot_room(id)
+		if spot.has("per_place"):
+			sub.add_child(UiTheme.label("of", UiTheme.MUTED, UiTheme.SMALL))
+			var places := GameState.open_locations().size()
+			sub.add_child(UiTheme.label("%s %s" % [UiTheme.num(places), "place" if places == 1 else "places"], color, UiTheme.SMALL))
+		else:
+			sub.add_child(UiTheme.label("home,", UiTheme.MUTED, UiTheme.SMALL))
+			sub.add_child(UiTheme.label("%s out there" % (UiTheme.num(left) if left > 0 else "none"), color, UiTheme.SMALL))
+		counts.add_child(sub)
+		add_child(counts)
+
+		var ticks := VBoxContainer.new()
+		ticks.add_theme_constant_override("separation", 6)
+		ticks.size_flags_horizontal = SIZE_EXPAND_FILL
+		ticks.size_flags_vertical = SIZE_SHRINK_CENTER
+		ticks.add_child(Tick.new("start new ones" if spot.has("per_place") else "haul them home", Automation.tick(GameState.automation, id, "haul"), func(): tab._tick(id, "haul")))
+		ticks.add_child(Tick.new("keep them full", Automation.tick(GameState.automation, id, "fill"), func(): tab._tick(id, "fill")))
+		add_child(ticks)
+
+	func _draw() -> void:  # a dashed line under the row
+		var x := 0.0
+		while x < size.x:
+			draw_line(Vector2(x, size.y - 1), Vector2(minf(x + 6.0, size.x), size.y - 1), UiTheme.LINE, 2.0)
+			x += 11.0
+
+
+## A tick box on the to-do list: a little tilted square, ticked in pink when on.
+class Tick extends Button:
+	var on := true
+
+	func _init(words: String, is_on: bool, on_pressed: Callable) -> void:
+		text = words
+		on = is_on
+		focus_mode = FOCUS_NONE
+		mouse_default_cursor_shape = CURSOR_POINTING_HAND
+		alignment = HORIZONTAL_ALIGNMENT_LEFT
+		var sb := StyleBoxEmpty.new()
+		sb.content_margin_left = 26
+		sb.content_margin_top = 1
+		sb.content_margin_bottom = 1
+		for state in ["normal", "hover", "pressed", "hover_pressed", "focus", "disabled"]:
+			add_theme_stylebox_override(state, sb)
+		add_theme_font_size_override("font_size", UiTheme.SMALL + 1)
+		add_theme_color_override("font_color", UiTheme.TEXT if on else UiTheme.MUTED)
+		add_theme_color_override("font_hover_color", UiTheme.PINK)
+		add_theme_color_override("font_pressed_color", UiTheme.PINK)
+		size_flags_horizontal = SIZE_SHRINK_BEGIN
+		pressed.connect(on_pressed)
+
+	func _draw() -> void:
+		var c := Vector2(10, size.y / 2.0)
+		draw_set_transform(c, deg_to_rad(-3.0), Vector2.ONE)
+		var box := UiTheme.box(UiTheme.DEEP, UiTheme.LILAC_SEAM, 4, 2, 0)
+		draw_style_box(box, Rect2(-8.5, -8.5, 17, 17))
+		if on:  # the tick: a short stroke and a long one, a bit past the box like a pen would
+			draw_polyline(PackedVector2Array([Vector2(-4.5, -0.5), Vector2(-0.5, 4.5), Vector2(7.5, -9.5)]), UiTheme.PINK, 3.0, true)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## A handful of pets in a little huddle, bobbing (a tiny crowd on the to-do list).
+class TinyCrowd extends Control:
+	var _views: Array[PetView] = []
+	var _time := 0.0
+	var _overlap := 3
+
+	func _init(uids: Array, overlap := 3) -> void:
+		_overlap = overlap
+		mouse_filter = MOUSE_FILTER_IGNORE
+		custom_minimum_size = Vector2(uids.size() * (PetLook.W - overlap) + overlap + 4, PetLook.H + 4)
+		for i in uids.size():
+			var view := PetView.new()
+			view.pixel = 1
+			view.animated = false
+			view.pet = GameState.collection.get_pet(str(uids[i]))
+			view.position = Vector2(2 + i * (PetLook.W - overlap) + PetLook.W / 2.0, PetLook.H + 3)
+			view.set_meta("y", view.position.y)
+			add_child(view)
+			_views.append(view)
+
+	func _notification(what: int) -> void:
+		if what == NOTIFICATION_VISIBILITY_CHANGED or what == NOTIFICATION_ENTER_TREE:
+			set_process(is_visible_in_tree())
+
+	func _process(delta: float) -> void:
+		_time += delta
+		for i in _views.size():
+			_views[i].position.y = _views[i].get_meta("y") - roundf(absf(sin(_time * 4.0 + i * 1.3)) * 2.0)
+
+
+## A column with a dashed line along its top (the side card's foot).
+class DashedTop extends VBoxContainer:
+	func _init() -> void:
+		var pad := Control.new()
+		pad.custom_minimum_size = Vector2(0, 6)
+		add_child(pad)
+
+	func _draw() -> void:
+		var x := 0.0
+		while x < size.x:
+			draw_line(Vector2(x, 0), Vector2(minf(x + 6.0, size.x), 0), UiTheme.LINE, 2.0)
+			x += 11.0
 
 
 ## A job on the workers page: its machines (tables, parties) with the pets working them. Past a

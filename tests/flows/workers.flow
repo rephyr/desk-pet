@@ -49,6 +49,7 @@ click "your pet"
 wait 1
 expect text "a pull every*"
 unlock feature:auto_adventures
+unlock location:meadow  # parties: one per open place
 wait 1
 click "run adventures"
 wait 1

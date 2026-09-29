@@ -206,6 +206,12 @@ huge scrapyard crew floods the bag); prices in automation are placeholders.
   many exist (invading and automating feed each other).
 - **Prep:** the look (a layer switch on the automation tab), the find's name.
 - Also: spot prices must flatten so thousands of workers are possible.
+- **Built (2026-09-28, lane b3, notes in docs/plans/B3-done.md):** the whistle (look A, the to-do
+  list): a find at the old well after 30 workers, a third switch button, managing is your pet's one
+  job, haul / fill ticks per job, set aside, pencil + wagon, caps per map page (parties one per
+  place), flattened spot prices, offline with the stool. Save v27 (automation.whistle, additive).
+  Open: the numbers (30 workers, caps, set aside, prices) are placeholders; the pace sim doesn't
+  play the whistle yet.
 
 ---
 

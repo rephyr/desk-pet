@@ -530,7 +530,7 @@ func _gate() -> Dictionary:
 			_seen_gate(name)
 			_ready_gate(name)
 			out.append({ "kind": "others", "id": j.id, "cost": gs.teach_others_cost(j.id), "name": name })
-		if gs.knows_others(j.id) and Automation.spots(gs.automation, j.id) == 0:
+		if gs.knows_others(j.id) and Automation.spots(gs.automation, j.id) == 0 and gs.spot_room(j.id) > 0:
 			var name := "first spot " + str(j.id)
 			_seen_gate(name)
 			_ready_gate(name)
@@ -595,10 +595,10 @@ func _candidates() -> Array[Dictionary]:
 		var gain := speed * 60.0 * (1.0 / Automation.worker_seconds(catalog, what, "machine") - 1.0 / Automation.worker_seconds(catalog, gs.automation, "machine")) * ev
 		out.append({ "kind": "auto_tool", "id": "grease", "cost": gs.auto_tool_cost("grease"), "gain": gain, "name": "grease" })
 	# more machines for workers: a common's pulls, less what it made on errands
-	if gs.knows_others("machine") and Automation.spots(gs.automation, "machine") > 0:
+	if gs.knows_others("machine") and Automation.spots(gs.automation, "machine") > 0 and gs.spot_room("machine") > 0:
 		var gain := _new_worker_speed() * 60.0 / Automation.worker_seconds(catalog, gs.automation, "machine") * _capsule_ev(gs.machine) - _pet_worth()
 		out.append({ "kind": "spot", "id": "machine", "cost": int(gs.spot_plan("machine", 1)[1]), "gain": gain, "name": "spot machine" })
-	if gs.knows_others("adventures") and Automation.spots(gs.automation, "adventures") > 0 and _party_minutes > 30.0:
+	if gs.knows_others("adventures") and Automation.spots(gs.automation, "adventures") > 0 and gs.spot_room("adventures") > 0 and _party_minutes > 30.0:
 		var gain := _party_coins / _party_minutes - _pet_worth() * 3.0
 		out.append({ "kind": "spot", "id": "adventures", "cost": int(gs.spot_plan("adventures", 1)[1]), "gain": gain, "name": "spot adventures" })
 	return out
