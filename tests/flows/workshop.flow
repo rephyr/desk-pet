@@ -1,0 +1,273 @@
+# The shed workshop (F3, look A: the card on the map). Hidden until the old shed is ours AND the
+# whistle is found; then tapping the shed sticks a workshop card on the backyard map: 3 drawings on
+# a plank (all fill at once), the picked one's needs (helpers, and how many at its tier or up),
+# shelf chips, 1 / 10 / 100 / all, not yet / build it!. Building pins the next drawing in its spot
+# and the built thing stands on the map. Built: the bell rope welcomes trips back (postcards wait),
+# the treat banner tosses treats on the trail, the letterbox keeps postcards till you tap it.
+from rich
+view full
+pets 20
+herd common normal 3000
+herd uncommon normal 400
+herd rare normal 120
+herd epic normal 40
+herd legendary normal 12
+unlock location:meadow
+unlock location:woods
+unlock location:pond
+unlock location:stream
+unlock location:shed
+tab adventures
+wait 1
+click "‹ map"  # the save has a trip out at the garden path: bring it home first
+wait 0.5
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+wait 1
+click name:welcome_garden
+wait 1
+click "lovely"
+wait 0.5
+# hidden until earned: the shed is just a place
+place shed
+wait 0.5
+expect text "send them"
+expect no-text "build it!"
+expect no-text "workshop ›"
+unlock feature:whistle
+open next_door
+wait popup
+click "lovely"
+wait 0.5
+place shed
+wait 0.5
+expect no-text "build it!"
+# the shed becomes ours: the workshop opens
+visit shed 40
+wait popup
+expect text "new: the workshop!"
+expect fits
+shot workshop_popup
+click "show me"
+wait 1
+
+click "the backyard"
+wait 1
+shot map_ours
+place shed
+wait 1
+expect text "the old shed"
+expect text "ours!"
+expect text "bell rope"
+expect text "toy shelf"
+expect text "weather vane"
+expect text "rare or up"
+expect text "0/40"
+expect text "not yet"
+expect fits
+shot workshop_card
+# commons leave room for the 5 rares; then the rares finish it
+click name:shelf_common
+wait 0.3
+click "all"
+wait 0.5
+expect text "35/40"
+expect text "0/5"
+click "all"
+wait text "hmm, we need some fancier helpers."
+click name:shelf_rare
+wait 0.3
+click "10"
+wait text "that's everyone! let's build it!"
+expect text "40/40"
+expect fits
+shot workshop_full
+# pick another drawing: its own needs
+click "toy shelf"
+wait text "a shelf for my toys!*"
+expect text "epic or up"
+shot workshop_pick
+click "bell rope"
+wait 0.3
+click "build it!"
+wait text "we built the bell rope! ding!"
+expect built bell
+expect text "chore chart"
+expect no-text "bell rope"
+wait 0.2
+shot workshop_built_pop
+wait 1
+expect fits
+shot workshop_built
+click "not yet"
+wait text "i'll be in the shed if you need me!"
+wait 1
+shot map_bell
+# "adventure ›" swaps to the shed's own place card, "workshop ›" back
+place shed
+wait 0.5
+click "adventure ›"
+wait 0.5
+expect text "send them"
+expect text "workshop ›"
+expect fits
+shot shed_place_card
+click "workshop ›"
+wait 0.5
+expect text "build it!"
+click "not yet"
+wait 0.5
+# the bell rope: a trip comes home and welcomes itself back, its postcard pops up
+send garden 1
+wait 1
+click "‹ map"
+wait 0.5
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+wait 2.5
+expect no-text "welcome back"
+expect text "lovely"
+expect fits
+shot bell_postcard
+click "lovely"
+wait 1
+# watching a trip, then off to another tab: the bell rope takes it home, and coming back shows the
+# map with its postcard (not a trail for a trip that's gone)
+send garden 1
+wait 1
+walk
+answer
+walk
+answer
+walk
+answer
+walk
+answer
+walk
+answer
+walk
+wait 1.5
+tab home
+wait 2
+tab adventures
+wait 1.5
+expect text "lovely"
+expect fits
+shot bell_came_back
+click "lovely"
+wait 1
+# more built: things stand around the backyard, the plank refills
+build shelf
+build vane
+build chart
+build spade
+build basket
+wait 0.5
+place shed
+wait 1
+expect text "treat banner"
+expect text "letterbox"
+expect no-text "chore chart"
+expect fits
+shot workshop_two
+# a huge crowd: 2M commons, 4,940 go at once to the letterbox (60 legendary or up still needed)
+herd common normal 2000000
+wait 0.5
+click "letterbox"
+wait 0.5
+expect text "2M"
+expect text "legendary or up"
+click name:shelf_common
+wait 0.3
+click "all"
+wait 0.5
+expect text "4,940/5,000"
+expect fits
+shot workshop_crowd
+helpers banner 2000 25
+wait 0.5
+click "treat banner"
+wait 0.5
+expect text "2,000/2,000"
+expect fits
+shot workshop_banner_full
+click "build it!"
+wait text "the treat banner is up! yum yum."
+expect built banner
+# the treat banner: treats go flying on the trail by themselves
+send garden 1
+wait 1.5
+expect text "zoom!"
+shot trail_banner
+click "‹ map"
+wait 0.5
+build letter
+wait 1
+# all 8 built: the shed is just the shed again
+place shed
+wait 0.5
+expect text "send them"
+expect no-text "workshop ›"
+click "not yet"
+wait 1.5
+expect fits
+shot map_all
+# the letterbox: postcards wait in it until you tap it
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+wait 2.5
+expect postcards 1
+expect no-text "lovely"
+expect no-text "welcome back"
+shot letterbox_waiting
+click name:letterbox
+wait 1
+expect text "lovely"
+expect postcards 0
+expect fits
+shot letterbox_postcard
+click "lovely"
+wait 0.5
+# the toy shelf: a play goes again (tap the playing toy: last round, then a new toy can go on)
+toy snail normal 1
+tab collection
+wait 1
+click "toys"
+wait 0.3
+click "a quick play (10 min)"
+wait 0.5
+expect text "again!"
+expect fits
+shot shelf_again
+click name:playing_snail_normal
+wait 0.5
+expect no-text "again!"
+expect fits
+shot shelf_last

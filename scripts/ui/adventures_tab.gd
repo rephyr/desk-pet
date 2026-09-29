@@ -45,6 +45,9 @@ var _main := HBoxContainer.new()  # the adventures page: the map (or trail) and 
 var _bar := HBoxContainer.new()
 var _mode: PanelContainer
 var _quiet := false  # the page is being flipped for you (to the trail, to a place): your pet says nothing
+var _shop := WorkshopCard.new()  # the shed workshop, stuck on the map instead of the shed's place card
+var _shop_stuck: Tilted
+var _to_shop: Button  # on the shed's place card: back to the workshop
 
 
 func _init() -> void:
@@ -85,10 +88,22 @@ func _init() -> void:
 	_stuck = Tilted.new(_picker, 1.0)
 	_stick_card(false)
 	area.add_child(_stuck)
+	# the workshop card sticks onto the map's top left, crooked the other way (the shed is on the right)
+	_shop_stuck = Tilted.new(_shop, -1.0)
+	_shop_stuck.set_anchors_preset(PRESET_TOP_LEFT)
+	_shop_stuck.offset_left = 12
+	_shop_stuck.offset_top = 46
+	_shop_stuck.visible = false
+	area.add_child(_shop_stuck)
+	_shop.closed.connect(func():
+		_show_map(true)
+		PetBubble.say(self, str(Catalog.shared().workshop.get("close_say", ""))))
+	_shop.to_place.connect(func(): _choose_place("shed", true))
 	area.add_child(_postcard)  # over the map and the place card
 	_main.add_child(_runs_column())
 
-	_map.place_picked.connect(_choose_place)
+	_map.place_picked.connect(func(id): _choose_place(id))
+	_map.letter_picked.connect(_open_letterbox)
 	_map.lead_picked.connect(func(id): GameState.follow_lead(id))
 	_map.rumour_picked.connect(func(id): GameState.follow_rumour(id))
 	# not GameState.changed: that also fires on every passive coin
@@ -102,6 +117,8 @@ func _init() -> void:
 	GameState.collection.active_changed.connect(func(_p): _dirty = true)
 	visibility_changed.connect(func():
 		_rebuild_if_dirty()
+		_drop_stale_trail()
+		_watch()
 		if not is_visible_in_tree():
 			return
 		# back on the upgrades page: stay there (the trip can be watched from the adventures page)
@@ -145,6 +162,7 @@ func show_page(page: int, quiet := false) -> void:
 func _show_page(page: int) -> void:
 	_main.visible = page == 0
 	gear_view.visible = page == 1
+	_watch()
 	if _quiet:
 		return
 	if page == 1:
@@ -180,8 +198,19 @@ func _stick_card(left: bool) -> void:
 	_stuck.reset_size()
 
 
-## A place on the map was tapped: stick its card onto the map to pick who goes.
-func _choose_place(location_id: String) -> void:
+## A place on the map was tapped: stick its card onto the map to pick who goes. The old shed, once
+## the workshop is open, sticks the workshop card instead (`as_place`: its place card after all).
+func _choose_place(location_id: String, as_place := false) -> void:
+	if location_id == "shed" and not as_place and GameState.workshop_shown():
+		_location_id = location_id
+		_map.selected = location_id
+		_map.queue_redraw()
+		_show_map(false)
+		_picker.visible = false
+		_shop_stuck.visible = true
+		_shop.open()
+		return
+	_shop_stuck.visible = false
 	var location := Catalog.shared().location(location_id)
 	var street := str(Catalog.shared().page_info(str(location.get("page", ""))).get("layout", "")) == "street"
 	_stick_card(street and not StreetPage.in_fence(location) and int(location.get("map", {}).get("x", 0)) >= 2)
@@ -198,8 +227,23 @@ func _show_map(on: bool) -> void:
 	_picker.visible = not on
 	_trail.visible = false
 	if on:
+		_shop_stuck.visible = false
 		_map.selected = ""
 		_map.refresh()
+	_watch()
+
+
+## The trip on the trail is the one you're watching (the bell rope and the weather vane leave it
+## to you), while the trail shows.
+func _watch() -> void:
+	GameState.watching = _trail.run if _trail.is_visible_in_tree() and _trail.run != null else null
+
+
+## The trip on the trail was welcomed back while you were away (the bell rope): back to the map,
+## where its postcard pops up.
+func _drop_stale_trail() -> void:
+	if _trail.visible and (_trail.run == null or not _trail.run in GameState.runs):
+		_show_map(true)
 
 
 ## Up close on a hands-on trip: the trail, where you click it along.
@@ -210,7 +254,9 @@ func _show_trail(run: RunState) -> void:
 	_postcard.visible = false
 	_map.visible = false
 	_picker.visible = false
+	_shop_stuck.visible = false
 	_trail.visible = true
+	_watch()
 
 
 # ---- the place card ----------------------------------------------------------------
@@ -221,7 +267,16 @@ func _build_picker() -> void:
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 7)
 	_picker.add_child(col)
-	col.add_child(_place_title)
+	var head := HBoxContainer.new()
+	head.add_theme_constant_override("separation", 8)
+	_place_title.size_flags_horizontal = SIZE_EXPAND_FILL
+	head.add_child(_place_title)
+	_to_shop = UiTheme.small_button("workshop ›", func(): _choose_place("shed"))
+	_to_shop.add_theme_font_size_override("font_size", UiTheme.SMALL)
+	_to_shop.add_theme_color_override("font_color", UiTheme.MUTED)
+	_to_shop.size_flags_vertical = SIZE_SHRINK_CENTER
+	head.add_child(_to_shop)
+	col.add_child(head)
 	col.add_child(_place_note)
 	_lights.draw.connect(_draw_lights)
 	col.add_child(_lights)
@@ -477,6 +532,7 @@ func _refresh_send() -> void:
 	var catalog := Catalog.shared()
 	var d := catalog.location(_location_id)
 	_place_title.text = d.name
+	_to_shop.visible = _location_id == "shed" and GameState.workshop_shown()
 	_place_note.text = str(d.get("map", {}).get("note", ""))
 	_place_note.visible = _place_note.text != ""
 	var ours := GameState.is_ours(_location_id)
@@ -662,11 +718,30 @@ func _collect(run: RunState) -> void:
 		return
 	if _trail.visible and _trail.run == run:
 		_show_map(true)
+	_show_postcard(trip)
+
+
+## A trip's postcard over the map (welcomed back by you, or by the bell rope and waiting).
+func _show_postcard(trip: Dictionary) -> void:
 	_picker.visible = false
+	_shop_stuck.visible = false
 	_postcard.show_trip(trip)
 	_postcard.visible = true
 	_rebuild()
+	# a trip the bell rope welcomed back: your pet talks about this one (its news waited with it)
+	if trip.has("news"):
+		GameState.news = trip.news
+		var told: Array = trip.get("announce", [])
+		for i in range(told.size() - 1, -1, -1):
+			GameState.announcements.push_front(str(told[i]))
 	speak()
+
+
+## The letterbox on the map was tapped: the oldest postcard waiting in it.
+func _open_letterbox() -> void:
+	var trip := GameState.take_postcard()
+	if not trip.is_empty():
+		_show_postcard(trip)
 
 
 func _wrapped(text: String, color: Color) -> Label:
@@ -684,7 +759,15 @@ func _process(delta: float) -> void:
 	if _tick <= 0.0:
 		_tick = 0.5
 		_refresh_runs()
+		_drop_stale_trail()
 		_bar.visible = GameState.gear_page_open()
+		if _shop_stuck.visible and not GameState.workshop_shown():
+			_show_map(true)  # the last drawing is built: the shed is just the shed again
+		# trips the bell rope welcomed back: their postcards, one at a time, when you're not busy on a
+		# card (with the letterbox built they wait in it for you)
+		if _main.visible and not _postcard.visible and not _trail.visible and not _picker.visible and not _shop_stuck.visible \
+				and not GameState.postcards.is_empty() and not GameState.built("letter"):
+			_show_postcard(GameState.take_postcard())
 
 
 static func _about(minutes: float) -> String:

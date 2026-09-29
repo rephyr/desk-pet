@@ -176,7 +176,7 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   pets join here" is on, or on every open errand. "sorted today N" on the card and on each plank
   under the line (local day).
 - **Stars:** every pet that leaves (new homes, lost on an adventure) adds a night-sky star, never
-  explained.
+  explained. Pets who stay on for good (workshop helpers) add none.
 - **Open:** completion rewards (per page, per body, per finish set).
 
 ## Care (active side)
@@ -314,6 +314,35 @@ economy: currency, body parts, and rewards for mechanics not designed yet. Rewar
   events; their numbers are met x0.5 danger / x1.2 coins from the first trip). Backyard places become ours too after 40 visits each, once
   next door is open. Locals only ever as traces. Nothing you find opens next door: pets past the
   edge (C2) open it from code (`GameState.open_page`), and with it the midnight box.
+- **The shed workshop (F3, look A, built):** once the old shed is ours (coloured in) and the
+  whistle is found (a popup, "new: the workshop!"), tapping the shed on the backyard map sticks a
+  workshop card on the map's top left instead of its place card ("adventure ›" swaps to the place
+  card, "workshop ›" back): 3 drawings pinned on a wooden plank, each with a little bar; the picked
+  one's needs as two meters, helpers N/M and "‹tier› or up" n/count; shelf chips (a face and how
+  many of that rarity may go); 1 / 10 / 100 / all; "not yet" / "build it!" (lit and nudging when
+  the picked one is full). All the pinned drawings fill at once; you tap "build it!"; the next
+  drawing is pinned in that spot and the built thing stands on the backyard map as a crayon
+  drawing. Helpers are **pets only**, the plain pets the new homes stall may take (never
+  favourites, your active pet, new parts, holo and better, pets away); they **stay on for good**
+  (leave the collection, no star). Pets below the tier only go in while there's room for the ones
+  that meet it, so a drawing can always be finished. Your pet talks: a line per drawing when you
+  pick it, "hi helpers!"-style cheers, "that's everyone! let's build it!", "hmm, we need some
+  fancier helpers." The 8 drawings (data/workshop.json, the mockup's numbers, tune later), each
+  takes one chore away: **the bell rope** (40, 5 rare+) trips you sent welcome themselves back
+  (not the one you're watching on the trail), their postcards pop up one at a time when you're on
+  the map (their news waits with them: your pet talks about the trip on the card); **the toy
+  shelf** (60, 10 epic+) a play that ends starts again, same toy, same length ("again!" by its
+  clock; tap the playing toy for a last round, then the spot is free for a new toy);
+  **the weather vane** (120, 20 epic+) a trip waiting at a plain choice (no option risky at that
+  place) takes your last pick for that event at that place (never the trip you're watching; its
+  own picks don't count as yours); **the chore chart** (250, 40 epic+) every errand has "new pets
+  join here" (the switches go away); **the garden spade** (500, 5 legendary+) twinkling rummage
+  spots are dug through by themselves; **the sewing basket** (1000, 10 legendary+) toys not being
+  played with lose 0.1 wear an hour (stitched once a minute; also while closed, up to 12 h); **the treat banner** (2000,
+  25 legendary+) on the trail a treat is tossed whenever one's ready; **the letterbox** (5000, 60
+  legendary+) postcards wait in it (a count on it, at most 30, not saved) until you tap it. Manual
+  on purpose, never a drawing: the school bell, reel banking, the newest globe's lever, ripping
+  boxes yourself, risky trip choices. With all 8 built the shed opens its place card again.
 - Scale: 1 pet → a few with gear → 10 → hundreds → 100k+.
 - **Open:** raids (all pets as one force against a boss) as a later type.
 

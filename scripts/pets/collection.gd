@@ -177,7 +177,8 @@ func remove(uids: Array[String]) -> void:
 ## Pets leave for new homes: `counts` (count key -> how many) come off the herd and `uids` are
 ## cards. Each one adds a star (a count's stars take the looks of the stand-ins that would have
 ## come next, and those looks never come back). Returns how many left. The active pet never leaves.
-func leave(counts: Dictionary, uids: Array) -> int:
+## `star` false: they stay on for good somewhere (workshop helpers): no star, and no pets_left.
+func leave(counts: Dictionary, uids: Array, star := true) -> int:
 	var n := 0
 	var gone: Array[String] = []
 	var drop := {}
@@ -189,7 +190,8 @@ func leave(counts: Dictionary, uids: Array) -> int:
 		drop[uid] = pet
 		_by_uid.erase(uid)
 		_tally(pet.rarity, pet.finish, -1)
-		_star(str(pet.parts.palette))
+		if star:
+			_star(str(pet.parts.palette))
 		gone.append(uid)
 		n += 1
 	if not drop.is_empty():
@@ -216,7 +218,12 @@ func leave(counts: Dictionary, uids: Array) -> int:
 		if take <= 0:
 			continue
 		_herd_less(k, take)
+		keys.append(k)
+		n += take
 		var start := int(stand_next.get(k, 0))
+		if not star:
+			stand_next[k] = start + take  # their looks went with them
+			continue
 		var palettes: Array[String] = []  # a few faces, cycled for the rest of the stars
 		for i in mini(take, LEAVE_FACES):
 			var face := Herd.stand_in(_catalog(), Herd.uid(k, start + i))
@@ -226,11 +233,10 @@ func leave(counts: Dictionary, uids: Array) -> int:
 		for i in named:
 			fallen.append(palettes[i % palettes.size()])
 		fallen_n += take
-		keys.append(k)
-		n += take
 	if n == 0:
 		return 0
-	pets_left.emit(n)
+	if star:
+		pets_left.emit(n)
 	if not gone.is_empty():
 		pets_removed.emit(gone)
 	if not keys.is_empty():

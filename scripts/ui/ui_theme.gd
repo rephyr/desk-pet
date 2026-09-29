@@ -564,6 +564,18 @@ static func _pixel_texture(icon_name: String, size: int, color: Color) -> ImageT
 	return ImageTexture.create_from_image(img)
 
 
+## A crayon drawing on a 48 x 48 sheet (SVG path bodies, e.g. a workshop drawing's "art") at
+## `size` px, in `color` with lines `width` thick (in the sheet's units), drawn at 2x.
+static func drawing(art: String, size: int, color: Color, width := 2.2) -> Texture2D:
+	var key := "drawing|%d|%d|%s|%.2f" % [hash(art), size, color.to_html(), width]
+	if _icons.has(key):
+		return _icons[key]
+	var svg := '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="%s" stroke-width="%.2f" stroke-linecap="round" stroke-linejoin="round">%s</svg>' % [_hex(color), width, art]
+	var tex := _svg_texture(svg, size * 2 / 48.0)
+	_icons[key] = tex
+	return tex
+
+
 static func _svg_texture(svg: String, scale: float) -> ImageTexture:
 	var img := Image.new()
 	img.load_svg_from_string(svg, scale)

@@ -21,9 +21,10 @@ signal gear_changed  # a gear upgrade was bought with xp (the adventures' upgrad
 signal page_opened(page_id: String)  # a map page was opened by the game's code (open_page)
 signal room_full  # you tried to open a box but the room is full (it waits on the pile)
 signal homes_paid(boxes: int)  # pets left for new homes and their points filled this many boxes
+signal workshop_changed(built_id: String)  # helpers joined a drawing in the shed workshop, or one was built (its id)
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
-const SAVE_VERSION := 26
+const SAVE_VERSION := 27
 const WORKER_BOXES_MAX := 2000  # box workers open at most this many boxes in one go (every pet is rolled)
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
@@ -88,6 +89,11 @@ var _rest := {}
 var room := 0  # room upgrades bought: the room holds this many plain pets, see Herd.room_cap
 ## New homes: the stall's jar, the sorting rule and its count, see NewHomes and data/new_homes.json
 var homes := NewHomes.fresh(Catalog.shared())
+var workshop := Workshop.fresh(Catalog.shared())  # the shed workshop's drawings, see Workshop
+var watching: RunState = null  # the trip you're watching on the trail (AdventuresTab; not saved)
+var postcards: Array[Dictionary] = []  # trips the bell rope welcomed back, waiting for you to see (not saved)
+var _mend_at := 0.0  # unix time the sewing basket has mended toys up to
+var _mend_acc := 0.0  # seconds of mending saved up (the basket stitches once a minute)
 var _to_work := {}  # uid -> true: new pets the sorting rule sends to work (placed as they're added)
 var _sent_home := {}  # uid -> true: pets from the last open_boxes the sorting rule sent to new homes
 
@@ -207,11 +213,12 @@ func _process(delta: float) -> void:
 		_advance_runs()
 		_work_jobs(Time.get_unix_time_from_system())
 		_work_automation(Time.get_unix_time_from_system())
-		var ended := Toys.finish_plays(toys, Time.get_unix_time_from_system())
+		var ended := _finish_plays(Time.get_unix_time_from_system())
 		if not ended.is_empty():
 			toys_changed.emit()
 			play_ended.emit(ended)
 			save_game()
+		_workshop_chores(Time.get_unix_time_from_system())
 
 	_save_timer += delta
 	if _save_timer >= 30.0:
@@ -480,6 +487,169 @@ func send_home(rarity: String, n := 1) -> Dictionary:
 	return { "n": gone, "boxes": boxes }
 
 
+# ---- the shed workshop (F3, data/workshop.json) ----------------------------------------
+
+## Whether the shed workshop is open (the old shed is ours and the whistle is found).
+func workshop_open() -> bool:
+	return feature_on("workshop")
+
+
+## Whether tapping the shed opens the workshop card: it's open and something's still pinned.
+func workshop_shown() -> bool:
+	return workshop_open() and not Workshop.pinned(workshop).is_empty()
+
+
+## Whether a drawing is built (its chore is taken away).
+func built(id: String) -> bool:
+	return Workshop.has(workshop, id)
+
+
+## How many pets of a rarity could go and help on a pinned drawing right now: plain pets the new
+## homes stall may take (see homes_pick), as many as still help it (Workshop.useful).
+func helpers_can_go(id: String, rarity: String) -> int:
+	var useful := Workshop.useful(catalog, workshop, id, rarity)
+	if useful <= 0:
+		return 0
+	return int(homes_pick(rarity, useful).n)
+
+
+## `n` pets of a rarity (-1: as many as help) go and help build a pinned drawing. They come off
+## their errands and machines if they have to, and stay on for good: they leave the collection with
+## no star. Returns how many went.
+func send_helpers(id: String, rarity: String, n := 1) -> int:
+	if not workshop_open() or not id in Workshop.pinned(workshop):
+		return 0
+	var useful := Workshop.useful(catalog, workshop, id, rarity)
+	var plan := homes_pick(rarity, useful if n < 0 else mini(n, useful))
+	if int(plan.n) <= 0:
+		return 0
+	for k in plan.work:
+		_herd_off_places(k, int(plan.work[k]))
+	var counts: Dictionary = plan.rest.duplicate()
+	for k in plan.work:
+		Herd.put(counts, k, int(plan.work[k]))
+	var gone := collection.leave(counts, plan.cards, false)
+	Workshop.take(catalog, workshop, id, rarity, gone)
+	workshop_changed.emit("")
+	changed.emit()
+	save_game()
+	return gone
+
+
+## Builds a full drawing: the next one is pinned in its spot and the built thing stands on the map.
+func build_drawing(id: String) -> bool:
+	if not workshop_open() or Workshop.build(catalog, workshop, id) == null:
+		return false
+	_built(id)
+	return true
+
+
+## Dev: a pinned drawing is built for free, whatever its helpers.
+func debug_build(id: String) -> bool:
+	if Workshop.finish(catalog, workshop, id) == null:
+		return false
+	_built(id)
+	return true
+
+
+func _built(id: String) -> void:
+	_milestone("built_" + id)
+	if id == "chart":
+		jobs_changed.emit()  # every errand has "new pets join here" now
+	workshop_changed.emit(id)
+	adventures_changed.emit()
+	changed.emit()
+	save_game()
+
+
+## The next postcard waiting (the bell rope welcomed its trip back), taken off the pile, or {}.
+func take_postcard() -> Dictionary:
+	return postcards.pop_front() if not postcards.is_empty() else {}
+
+
+## Plays whose time is up end (the toys wear a little); with the toy shelf built your pet takes
+## the same toy back down for the same length (unless you tapped it: this one goes back on the
+## shelf). Returns the editions that ended and weren't handed again.
+func _finish_plays(now: float) -> Array:
+	var again: Array = Toys.ending(toys, now) if built("shelf") else []
+	var ended := Toys.finish_plays(toys, now)
+	var handed := false
+	for p in again:
+		if Toys.play(toys, catalog, str(p.key), str(p.play), now):
+			ended.erase(p.key)
+			handed = true
+	if handed:
+		toys_changed.emit()
+		save_game()
+	return ended
+
+
+## With the toy shelf built, whether the shelf hands this play again when it ends (tapping the
+## playing toy flips it). Returns the new setting, or false when there's nothing to flip.
+func toy_again(edition: String) -> bool:
+	if not built("shelf"):
+		return false
+	var on := Toys.flip_again(toys, edition, Time.get_unix_time_from_system())
+	toys_changed.emit()
+	save_game()
+	return on
+
+
+## The weather vane answers a trip waiting at a plain choice with your last pick there (see
+## Workshop.vane_pick). Never the trip you're watching on the trail. Returns whether it answered.
+func _vane(run: RunState) -> bool:
+	if not built("vane") or run == watching:
+		return false
+	var pick := Workshop.vane_pick(catalog, workshop, run)
+	if pick < 0:
+		return false
+	run.answer = pick
+	_advance(run)
+	return true
+
+
+## What the built things do every second: the bell rope welcomes trips back (their postcards wait),
+## the garden spade digs the room's rummage spots, the sewing basket mends resting toys.
+func _workshop_chores(now: float) -> void:
+	var gap := clampf(now - _mend_at, 0.0, 60.0) if _mend_at > 0.0 else 0.0
+	_mend_at = now
+	if built("basket"):
+		# quietly, once a minute (the toy views rebuild on toys_changed)
+		_mend_acc += gap
+		if _mend_acc >= 60.0:
+			var per := float(catalog.workshop.get("basket_mend_per_hour", 0.0)) * _mend_acc / 3600.0
+			_mend_acc = 0.0
+			if Toys.mend(toys, per, now):
+				toys_changed.emit()
+	if built("spade") and not tutorial_active():
+		for spot in catalog.rummage_spots:
+			if rummage_ready(str(spot.id)):
+				rummage(str(spot.id))
+	if built("bell"):
+		_ring_bell()
+
+
+## The bell rope: every trip you sent that's home is welcomed back by itself (not the one you're
+## watching on the trail; your pet's own trips welcome themselves already). Its postcard waits.
+func _ring_bell() -> void:
+	var keep := int(catalog.workshop.get("letterbox_keep", 30))
+	for run in runs.duplicate():
+		if run.auto or run == watching or run.status != RunState.Status.DONE:
+			continue
+		var told := announcements.size()
+		var trip := collect_run(run)
+		if trip.is_empty():
+			continue
+		# what your pet has to say about this trip goes with its postcard (told when it pops up)
+		trip.news = news
+		trip.announce = announcements.slice(told)
+		news = {}
+		announcements.resize(told)
+		postcards.append(trip)
+		while postcards.size() > keep:
+			postcards.pop_front()
+
+
 ## The sorting rule, if it's on (and found): what Collection.add asks about each new pet from a box.
 func _sorter() -> Callable:
 	if tutorial_active() or not feature_on("sorting") or not homes.rule.on:
@@ -712,6 +882,8 @@ func _earned(earn: Dictionary) -> bool:
 		return false
 	if earn.get("room", "") == "full" and not homes.room_was_full:
 		return false
+	if earn.has("ours") and not is_ours(str(earn.ours)):
+		return false
 	if int(homes.by_hand) < int(earn.get("homes_by_hand", 0)):
 		return false
 	var levels: Dictionary = earn.get("job_level", {})
@@ -903,6 +1075,9 @@ func debug_new_game() -> void:
 	jobs.clear()
 	jobs_away = {}
 	homes = NewHomes.fresh(catalog)
+	workshop = Workshop.fresh(catalog)
+	postcards.clear()
+	watching = null
 	_to_work.clear()
 	errand_tools = {}
 	gear = {}
@@ -1537,6 +1712,8 @@ func set_job_join(job_id: String, on: bool) -> void:
 
 
 func job_joins(job_id: String) -> bool:
+	if Workshop.has(workshop, "chart"):
+		return true  # the chore chart: every errand
 	return bool(jobs.get(job_id, {}).get("join", false))
 
 
@@ -2741,6 +2918,7 @@ func answer_event(run: RunState, option_index: int) -> void:
 	if not option_index in AdventureRunner.allowed_options(run.current_event(catalog), run.party, catalog.location(run.location_id)):
 		return
 	run.answer = option_index
+	workshop.vane[Workshop.vane_key(run.location_id, str(run.current_event(catalog).get("id", "")))] = option_index  # the weather vane remembers
 	_advance(run)
 	adventures_changed.emit()
 	changed.emit()
@@ -2940,6 +3118,7 @@ func _advance_runs() -> void:
 	var moved := false
 	for run in runs:
 		moved = _advance(run) or moved
+		moved = _vane(run) or moved
 	if moved:
 		changed.emit()
 		adventures_changed.emit()
@@ -3391,6 +3570,7 @@ func save_game() -> void:
 		"announcements": announcements,
 		"jobs": jobs,
 		"new_homes": homes,
+		"workshop": workshop,
 		"errand_tools": errand_tools,
 		"gear": gear,
 		"room": room,
@@ -3575,8 +3755,18 @@ func load_game() -> bool:
 				"spares": maxi(0, int(e.get("spares", 0))), "wear": clampf(float(e.get("wear", 0.0)), 0.0, 1.0) }
 	for p in saved_toys.get("playing", []):
 		if p is Dictionary and toys.owned.has(str(p.get("key", ""))):
-			toys.playing.append({ "key": str(p.key), "until": float(p.get("until", 0.0)), "wear": float(p.get("wear", 0.0)) })
-	Toys.finish_plays(toys, Time.get_unix_time_from_system())  # plays that ended while the game was closed
+			toys.playing.append({ "key": str(p.key), "until": float(p.get("until", 0.0)), "wear": float(p.get("wear", 0.0)),
+				"play": str(p.get("play", "")), "again": bool(p.get("again", true)) })  # v27 added the play's length (the toy shelf)
+	workshop = Workshop.clean(catalog, data.get("workshop", {}))  # v27 added the shed workshop
+	postcards.clear()
+	watching = null
+	_finish_plays(Time.get_unix_time_from_system())  # plays that ended while the game was closed
+	# the sewing basket kept stitching while the game was closed
+	_mend_at = Time.get_unix_time_from_system()
+	_mend_acc = 0.0
+	if Workshop.has(workshop, "basket"):
+		var closed_for := minf(maxf(0.0, _mend_at - float(data.get("saved_at", _mend_at))), OFFLINE_CAP)
+		Toys.mend(toys, float(catalog.workshop.get("basket_mend_per_hour", 0.0)) * closed_for / 3600.0, _mend_at)
 	if from_version >= 15 and from_version < 20:
 		_regate()
 		if knows_job("boxes"):  # it had the cushion: opening boxes stays (now in the automation tab)
@@ -3743,6 +3933,8 @@ func _migrate(data: Dictionary) -> Dictionary:
 			a.taught["boxes"] = true
 			a.task = "boxes" if bool(data.get("packs_on", true)) else ""
 			data.automation = a
+	# v27 added the shed workshop (load_game: Workshop.clean makes a fresh one) and a play's length on
+	# toys being played with (older plays just aren't handed again by the toy shelf)
 	# v26: new homes and "new pets join here" (load_game: jobs_auto switches
 	# every open errand's on, a room that's full already opens the stall)
 	# v25: the herd. Collection.load_from reads the old collection (stars as

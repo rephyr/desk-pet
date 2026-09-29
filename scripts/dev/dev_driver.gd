@@ -15,6 +15,7 @@ extends Node
 ##   expect <what>         tutorial <step> | tab <id> | text "..." | no-text "..." | pile <box> <n>
 ##                         | fits (the full game fits its window) | ours <place> | not-ours <place>
 ##                         | lights <place> <n> (lights still on behind a next-door place)
+##                         | built <drawing> | postcards <n> (waiting: the bell rope, the letterbox)
 ##   shot <name>           a screenshot of the game, from inside it (works while it's off-screen)
 ##   say "<text>"          your pet says it (for testing the bubble)
 ##   answer                every adventure waiting at an event takes its first choice
@@ -58,6 +59,9 @@ extends Node
 ##   rule on|off [below] [to] [keep]  the sorting rule (below: a rarity, to: homes | work, keep: a finish)
 ##   join <job> on|off     "new pets join here" on an errand or a workers' job
 ##   homes-points <n>      the new homes jar has exactly n points
+##   helpers <drawing> <n> [qual]  n helpers on a pinned workshop drawing for free (qual of them at
+##                         its tier or up; default all), no pets needed (data/workshop.json)
+##   build <drawing>       a pinned workshop drawing is built for free (the next one is pinned)
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -167,6 +171,8 @@ func _step(w: PackedStringArray) -> String:
 				if run.status == RunState.Status.WAITING:
 					var catalog := Catalog.shared()
 					GameState.answer_event(run, AdventureRunner.allowed_options(run.current_event(catalog), run.party, catalog.location(run.location_id))[0])
+		"walk":  # every trip walks on to its next stop (or home), from any tab
+			GameState.debug_finish_runs()
 		"pets":
 			GameState.debug_give_pets(int(w[1]))
 		"find":
@@ -271,6 +277,7 @@ func _step(w: PackedStringArray) -> String:
 			if Catalog.shared().location(w[1]).is_empty():
 				return "unknown place %s" % w[1]
 			GameState.add_visits(w[1], int(w[2]) if w.size() > 2 else 1)
+			GameState.check_unlocks()  # a place that's ours now can open things (the workshop)
 			GameState.adventures_changed.emit()
 			GameState.changed.emit()
 		"herd":  # herd <rarity> <finish> <n>: n plain pets straight into a count
@@ -323,6 +330,17 @@ func _step(w: PackedStringArray) -> String:
 		"homes-points":  # homes-points <n>: the jar has exactly n points
 			GameState.homes.points = clampi(int(w[1]), 0, NewHomes.box_at(GameState.catalog) - 1)
 			GameState.changed.emit()
+		"helpers":  # helpers <drawing> <n> [qual]: helpers on a pinned drawing, for free
+			var ws := GameState.workshop
+			if not w[1] in Workshop.pinned(ws):
+				return "%s isn't pinned in the workshop" % w[1]
+			var p: Dictionary = ws.prog[w[1]]
+			p.sent = int(p.sent) + int(w[2])
+			p.qual = int(p.qual) + (int(w[3]) if w.size() > 3 else int(w[2]))
+			GameState.workshop_changed.emit("")
+		"build":  # build <drawing>: a pinned drawing is built, for free
+			if not GameState.debug_build(w[1]):
+				return "%s isn't pinned in the workshop" % w[1]
 		"quit":
 			_finish()
 		_:
@@ -380,6 +398,10 @@ func _expect(w: PackedStringArray) -> String:
 		"lights":
 			var left := GameState.lights_left(w[2])
 			return "" if left == int(w[3]) else "%d lights on behind %s" % [left, w[2]]
+		"built":
+			return "" if GameState.built(w[2]) else "%s isn't built" % w[2]
+		"postcards":
+			return "" if GameState.postcards.size() == int(w[2]) else "%d postcards waiting" % GameState.postcards.size()
 		"fits":
 			# nothing on screen needs more room than the window has (it would spill past the edge)
 			var game: Control = get_parent().full_game()

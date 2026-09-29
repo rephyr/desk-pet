@@ -165,16 +165,36 @@ func _playing_slot(edition: String, now: float) -> Control:
 	if Toys.is_favourite(GameState.toys, catalog, edition):
 		col.add_child(UiTheme.label("a favourite: always on", UiTheme.GOLD, UiTheme.SMALL))
 	else:
+		var line := HBoxContainer.new()
+		line.add_theme_constant_override("separation", 6)
 		var t := UiTheme.label(_clock(Toys.left(GameState.toys, edition, now)), UiTheme.MUTED, UiTheme.SMALL)
 		_time_labels[edition] = t
-		col.add_child(t)
+		line.add_child(t)
+		# the toy shelf hands it again when it's done (tap it: this is the last round)
+		if GameState.built("shelf") and Toys.again(GameState.toys, edition):
+			line.add_child(UiTheme.label("again!", UiTheme.LILAC, UiTheme.SMALL))
+		col.add_child(line)
 	row.add_child(col)
-	# tap it while it's being played with: your pet won't let go
+	# tap it while it's being played with: your pet won't let go (with the toy shelf: once more, or
+	# back on the shelf after this round)
 	row.mouse_filter = MOUSE_FILTER_STOP
+	row.name = "playing_" + edition.replace(":", "_")
 	row.gui_input.connect(func(e: InputEvent):
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
-			PetBubble.say_line(self, "toy_busy"))
+			if GameState.built("shelf") and not Toys.is_favourite(GameState.toys, catalog, edition) \
+					and str(_play_of(edition)) != "":
+				PetBubble.say_line(self, "toy_again" if GameState.toy_again(edition) else "toy_last")
+			else:
+				PetBubble.say_line(self, "toy_busy"))
 	return row
+
+
+## The play length a toy is being played with ("" for plays from before v27).
+func _play_of(edition: String) -> String:
+	for p in GameState.toys.playing:
+		if p.key == edition:
+			return str(p.get("play", ""))
+	return ""
 
 
 func _card(t: Dictionary, tilt: float, now: float) -> Control:

@@ -47,6 +47,8 @@ func _init() -> void:
 	_test_new_homes_game(catalog)
 	_test_merged_saves(catalog)
 	_test_party_places(catalog)
+	_test_workshop(catalog)
+	_test_workshop_game(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -777,7 +779,7 @@ func _test_unlocks(catalog: Catalog) -> void:
 		_check(entry.show in ["locked", "hidden"], "unlock %s is shown locked or hidden" % entry.id)
 		for o in entry.opens:
 			var bits := str(o).split(":")
-			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "new_homes", "sorting", "whistle"]) or (bits[0] == "page" and bits[1] in page_ids) \
+			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "new_homes", "sorting", "whistle", "workshop"]) or (bits[0] == "page" and bits[1] in page_ids) \
 				or (bits[0] == "job" and catalog.jobs.any(func(j): return str(j.get("needs", "")) == o))
 			_check(ok, "unlock %s opens something real (%s)" % [entry.id, o])
 		if entry.earn.has("find"):
@@ -1959,7 +1961,7 @@ func _test_next_door(catalog: Catalog) -> void:
 	_check(Ours.visits_from(["garden", "meadow"]) == { "garden": 1, "meadow": 1 }, "old saves count one visit per place visited")
 
 
-## The merged save chain: a v22 save (plain pets, places visited, workers of uids) loads as v26
+## The merged save chain: a v22 save (plain pets, places visited, workers of uids) loads as v27
 ## with herd counts, visits and every whistle tick on; loading it again changes nothing. And a
 ## sunset box (2-3 pets) opens while the room has a space left, then the room is full.
 func _test_merged_saves(catalog: Catalog) -> void:
@@ -1997,7 +1999,7 @@ func _test_merged_saves(catalog: Catalog) -> void:
 	_check(Automation.tick(gs.automation, "machine", "haul") and Automation.tick(gs.automation, "machine", "fill"), "every whistle tick starts on")
 	gs.save_game()
 	var saved: Dictionary = JSON.parse_string(FileAccess.get_file_as_string(path))
-	_check(int(saved.get("version", 0)) == 26, "it saves as v26 (%s)" % str(saved.get("version")))
+	_check(int(saved.get("version", 0)) == 27, "it saves as v27 (%s)" % str(saved.get("version")))
 	var herd_before: int = gs.collection.herd_total()
 	gs.free()
 	var again: Node = load("res://scripts/game_state.gd").new()
@@ -2049,3 +2051,284 @@ func _test_party_places(catalog: Catalog) -> void:
 	_check(not picked.any(func(id): return str(catalog.location(id).get("type", "")) == "dungeon"),
 		"every other place taken, new parties still stay out of dungeons (%s)" % [picked])
 	gs.free()
+
+
+## A run of one pet at `place` standing at `event_id`, waiting for an answer (for the weather vane).
+func _waiting_run(catalog: Catalog, place: String, event_id: String) -> RunState:
+	var roller := PetRoller.new(catalog, RandomNumberGenerator.new())
+	var going: Array[Pet] = [roller.roll("starter")]
+	var run := AdventureRunner.start(place, going, 0.0, 7, catalog)
+	run.events.assign([event_id])
+	run.step = 0
+	run.next_at = 0.0
+	AdventureRunner.resolve(run, PlayerChooser.new(), 1.0, catalog)
+	return run
+
+
+## A plain event (nothing risky at that place) and a risky one: [[place, event], [place, event]].
+func _plain_and_risky(catalog: Catalog) -> Array:
+	var plain := []
+	var risky := []
+	for l in catalog.locations:
+		for id in l.get("events", []) + l.get("pool", []).map(func(p): return p.event):
+			var e: Dictionary = catalog.events.get(id, {})
+			if e.is_empty() or e.get("auto", false) or e.has("min_party") or e.has("only_if"):
+				continue
+			var any_risky: bool = AdventureRunner.options_of(e, l).any(func(o): return AdventureRunner.risky(o, l))
+			if any_risky and risky.is_empty():
+				risky = [str(l.id), str(id)]
+			elif not any_risky and plain.is_empty():
+				plain = [str(l.id), str(id)]
+	return [plain, risky]
+
+
+## The shed workshop (F3): its drawings are sound data, helpers fill them (pets below the tier leave
+## room for the ones that meet it), building pins the next in the same spot, a save is cleaned, and
+## the weather vane only ever answers plain choices you've answered before.
+func _test_workshop(catalog: Catalog) -> void:
+	var list := Workshop.drawings(catalog)
+	var ids: Array = list.map(func(d): return str(d.id))
+	_check(ids == ["bell", "shelf", "vane", "chart", "spade", "basket", "banner", "letter"], "the 8 drawings from the mockup, in order (%s)" % [ids])
+	var last_need := 0
+	var places: Array = catalog.locations.filter(func(l): return str(l.get("page", "")) == "backyard" and l.has("map"))
+	var spots: Array[Vector2] = []
+	for d in list:
+		_check(catalog.tiers.any(func(t): return t.id == d.tier), "drawing %s needs a real tier" % d.id)
+		_check(int(d.count) > 0 and int(d.count) <= int(d.need), "drawing %s needs no more at its tier than helpers (%d of %d)" % [d.id, d.count, d.need])
+		_check(int(d.need) > last_need, "drawing %s needs more helpers than the one before" % d.id)
+		last_need = int(d.need)
+		_check(str(d.get("art", "")).begins_with("<"), "drawing %s has its crayon art" % d.id)
+		_check(str(d.get("chore", "")) != "" and str(d.get("say", "")) != "" and str(d.get("done", "")) != "", "drawing %s says what it takes away" % d.id)
+		var at := Vector2(float(d.at[0]), float(d.at[1]))
+		for l in places:
+			_check(at.distance_to(Vector2(float(l.map.x), float(l.map.y))) >= 0.35, "drawing %s doesn't stand on %s" % [d.id, l.id])
+		for other in spots:
+			_check(at.distance_to(other) >= 0.3, "drawing %s doesn't stand on another built thing" % d.id)
+		spots.append(at)
+	var entry := UnlockRules.opening(catalog.unlock_list, "feature:workshop")
+	_check(str(entry.get("earn", {}).get("ours", "")) == "shed" and str(entry.earn.get("open", "")) == "feature:whistle" and entry.show == "hidden",
+		"the workshop waits for the old shed being ours and the whistle, hidden till then")
+	# a fresh workshop: the first 3 pinned, nothing built
+	var ws := Workshop.fresh(catalog)
+	_check(ws.pinned == ["bell", "shelf", "vane"] and ws.built.is_empty(), "a new workshop pins the first 3 drawings (%s)" % [ws.pinned])
+	# helpers: 40 for the bell rope, 5 of them rare or up
+	_check(Workshop.useful(catalog, ws, "bell", "common") == 35, "commons leave room for the 5 rares (%d)" % Workshop.useful(catalog, ws, "bell", "common"))
+	_check(Workshop.take(catalog, ws, "bell", "common", 1000) == 35, "all: never more than helps")
+	_check(Workshop.useful(catalog, ws, "bell", "uncommon") == 0 and Workshop.take(catalog, ws, "bell", "common", 5) == 0, "then no more commons")
+	_check(Workshop.useful(catalog, ws, "bell", "epic") == 5, "epics count as rare or up")
+	_check(not Workshop.full(catalog, ws, "bell") and Workshop.build(catalog, ws, "bell") == null, "not full: it can't be built")
+	_check(Workshop.take(catalog, ws, "bell", "rare", 10) == 5 and Workshop.full(catalog, ws, "bell"), "5 rares finish it")
+	_check(Workshop.take(catalog, ws, "shelf", "legendary", 3) == 3 and Workshop.take(catalog, ws, "vane", "common", 7) == 7,
+		"every pinned drawing fills at once")
+	_check(int(ws.helpers) == 50, "helpers are counted (%d)" % ws.helpers)
+	_check(is_equal_approx(Workshop.fill(catalog, ws, "bell"), 1.0) and is_equal_approx(Workshop.fill(catalog, ws, "shelf"), 0.05), "the plank's bars")
+	var next: Variant = Workshop.build(catalog, ws, "bell")
+	_check(next == "chart" and ws.pinned == ["chart", "shelf", "vane"] and Workshop.has(ws, "bell"), "building pins the next drawing in its spot (%s)" % [ws.pinned])
+	_check(int(Workshop.prog(ws, "shelf").sent) == 3, "the others keep their helpers")
+	for id in ["shelf", "vane", "chart", "spade", "basket", "banner", "letter"]:
+		Workshop.finish(catalog, ws, id)
+	_check(Workshop.pinned(ws).is_empty() and Workshop.all_built(catalog, ws) and ws.built.size() == 8, "all 8 built: nothing left pinned")
+	_check(Workshop.finish(catalog, ws, "bell") == null, "a built drawing can't be built again")
+	# cleaning a save
+	_check(Workshop.clean(catalog, "junk") == Workshop.fresh(catalog) and Workshop.clean(catalog, {}) == Workshop.fresh(catalog), "junk or nothing: a fresh workshop")
+	var odd := Workshop.clean(catalog, { "pinned": ["bell", "nope", "bell"], "built": ["bell", "bell", "zz", "shelf"],
+		"prog": { "vane": { "sent": -4, "qual": 9 } }, "helpers": -3, "vane": { "garden:garden_fork": 1 } })
+	_check(odd.built == ["bell", "shelf"] and odd.pinned == ["vane", "chart", "spade"] and int(odd.helpers) == 0,
+		"built ones are never pinned, unknown ones go, empty spots fill up (%s %s)" % [odd.built, odd.pinned])
+	_check(int(odd.prog.vane.sent) == 0 and int(odd.prog.vane.qual) == 0 and int(odd.vane["garden:garden_fork"]) == 1, "numbers are never negative, the vane keeps your picks")
+	# the weather vane: plain choices only, only what you picked there last
+	var pr := _plain_and_risky(catalog)
+	_check(not pr[0].is_empty() and not pr[1].is_empty(), "the test found a plain and a risky event")
+	if not pr[0].is_empty() and not pr[1].is_empty():
+		var vane := Workshop.fresh(catalog)
+		var plain := _waiting_run(catalog, pr[0][0], pr[0][1])
+		_check(plain.status == RunState.Status.WAITING, "the plain run waits at its event")
+		_check(Workshop.vane_pick(catalog, vane, plain) == -1, "nothing picked there before: the vane leaves it to you")
+		vane.vane[Workshop.vane_key(pr[0][0], pr[0][1])] = 0
+		_check(Workshop.vane_pick(catalog, vane, plain) == 0, "a plain choice: your last pick there")
+		vane.vane[Workshop.vane_key(pr[0][0], pr[0][1])] = 99
+		_check(Workshop.vane_pick(catalog, vane, plain) == -1, "a pick this party can't take: left to you")
+		var risky := _waiting_run(catalog, pr[1][0], pr[1][1])
+		vane.vane[Workshop.vane_key(pr[1][0], pr[1][1])] = 0
+		_check(risky.status == RunState.Status.WAITING and Workshop.vane_pick(catalog, vane, risky) == -1, "a risky choice always waits for you")
+		vane.vane[Workshop.vane_key(pr[0][0], pr[0][1])] = 0
+		plain.auto = true
+		_check(Workshop.vane_pick(catalog, vane, plain) == -1, "your pet's own trips aren't the vane's")
+	# toys: a play knows its length, the shelf hands the ones ending, the basket mends resting toys
+	var toys := Toys.fresh()
+	Toys.add(toys, "snail", "normal")
+	Toys.add(toys, "snail", "holo")
+	_check(Toys.play(toys, catalog, "snail:normal", "quick", 0.0) and str(toys.playing[0].play) == "quick", "a play keeps its length")
+	_check(Toys.ending(toys, 10.0).is_empty() and Toys.ending(toys, 601.0) == [{ "key": "snail:normal", "play": "quick" }], "the plays ending now")
+	_check(Toys.again(toys, "snail:normal") and not Toys.flip_again(toys, "snail:normal", 10.0) and not Toys.again(toys, "snail:normal")
+		and Toys.ending(toys, 601.0).is_empty(), "tapped: this round is the last, the shelf leaves it")
+	_check(Toys.flip_again(toys, "snail:normal", 10.0) and Toys.ending(toys, 601.0).size() == 1, "tapped again: once more after all")
+	_check(not Toys.flip_again(toys, "snail:holo", 10.0), "nothing to flip on a resting toy")
+	toys.owned["snail:normal"].wear = 0.5
+	toys.owned["snail:holo"].wear = 0.5
+	Toys.mend(toys, 0.2, 10.0)
+	_check(is_equal_approx(float(toys.owned["snail:holo"].wear), 0.3) and is_equal_approx(float(toys.owned["snail:normal"].wear), 0.5), "the basket mends resting toys, not the one being played with")
+	Toys.mend(toys, 5.0, 10.0)
+	_check(float(toys.owned["snail:holo"].wear) == 0.0, "never below good as new")
+
+
+## The workshop in the game: it opens only with the shed ours AND the whistle, helpers are plain
+## pets that leave with no star, building pins the next, a v26 save gets a fresh workshop, and each
+## built thing does its chore (and leaves alone what stays yours).
+func _test_workshop_game(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped the workshop in the game: it needs a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var pets := []
+	for i in 6:
+		var p := _plain_pet(catalog, "common", "normal", 300 + i)
+		p.uid = str(i + 1)
+		if i == 1:
+			p.fav = true
+		pets.append(p.to_dict())
+	SaveFile.write(path, { "version": 26, "coins": 1000, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(),
+		"unlocks": ["feature:errands", "tab:errands", "tab:automation"], "room": 30,
+		"collection": { "pets": pets, "herd": { "common:normal": 200, "rare:normal": 20 }, "active": "1", "next_id": 7, "seen": {} },
+		"toys": { "owned": { "snail:normal": { "level": 1, "spares": 0, "wear": 0.0 } }, "playing": [{ "key": "snail:normal", "until": Time.get_unix_time_from_system() + 600.0, "wear": 0.04 }] } })
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	var c: Collection = gs.collection
+	_check(gs.workshop == Workshop.fresh(catalog), "a v26 save gets a fresh workshop")
+	_check(str(gs.toys.playing[0].get("play", "x")) == "", "an old play loads without a length")
+	# it opens only with both: the shed ours and the whistle
+	gs.check_unlocks()
+	_check(not gs.workshop_open(), "closed at first")
+	gs.unlocks["page:next_door"] = true
+	gs.add_visits("shed", 40)
+	gs.check_unlocks()
+	_check(gs.is_ours("shed") and not gs.workshop_open(), "the shed ours but no whistle: still closed")
+	gs.visits["shed"] = 0
+	gs.unlocks["feature:whistle"] = true
+	gs.check_unlocks()
+	_check(not gs.is_ours("shed") and not gs.workshop_open(), "the whistle but the shed not ours: still closed")
+	gs.visits["shed"] = 40
+	gs.check_unlocks()
+	_check(gs.workshop_open() and gs.workshop_shown(), "both: the workshop opens")
+	# helpers: plain pets only, off for good, no stars
+	var stars: int = c.fallen_n
+	var count0: int = c.count()
+	_check(gs.helpers_can_go("bell", "common") == 35, "35 commons may help (%d)" % gs.helpers_can_go("bell", "common"))
+	_check(gs.send_helpers("bell", "common", -1) == 35, "all: 35 commons go")
+	_check(c.fallen_n == stars and c.count() == count0 - 35, "helpers stay on for good: no stars (%d -> %d)" % [stars, c.fallen_n])
+	_check(c.get_pet("1") != null and c.get_pet("2") != null, "never the active pet or a favourite")
+	_check(gs.send_helpers("bell", "common", 10) == 0, "no more commons once only rares help")
+	_check(not gs.build_drawing("bell"), "not full: no building")
+	_check(gs.send_helpers("bell", "rare", 100) == 5 and Workshop.full(catalog, gs.workshop, "bell"), "5 rares finish the bell rope")
+	_check(gs.build_drawing("bell") and gs.built("bell") and gs.workshop.pinned[0] == "chart", "built: the chore chart is pinned in its spot")
+	# the bell rope: trips you sent welcome themselves back, not the one you watch, not your pet's
+	var going: Array[Pet] = [c.get_pet("3")]
+	var mine: RunState = gs.send_on_adventure("garden", going)
+	var watched: RunState = gs.send_on_adventure("garden", [c.get_pet("4")] as Array[Pet])
+	var auto: RunState = gs.send_on_adventure("garden", [c.get_pet("5")] as Array[Pet])
+	auto.auto = true
+	for r: RunState in [mine, watched, auto]:
+		r.events.clear()
+		r.next_at = 0.0
+		gs._advance(r)
+	gs.watching = watched
+	var trips0: int = gs.trips_done
+	gs._ring_bell()
+	_check(not mine in gs.runs and gs.postcards.size() == 1 and gs.trips_done == trips0 + 1, "a trip you sent is welcomed back, its postcard waits")
+	_check(gs.news.is_empty() and str(gs.postcards[0].get("news", {}).get("place", "")) == str(catalog.location("garden").name)
+		and gs.postcards[0].has("announce"), "its news waits with its postcard (your pet talks about that trip)")
+	_check(watched in gs.runs and auto in gs.runs, "not the one you're watching, not your pet's own")
+	gs.watching = null
+	gs._ring_bell()
+	_check(not watched in gs.runs and gs.postcards.size() == 2, "watching stops: then it's welcomed back too")
+	gs.runs.erase(auto)
+	_check(not gs.take_postcard().is_empty() and gs.postcards.size() == 1, "postcards are taken one at a time")
+	var keep := int(catalog.workshop.letterbox_keep)
+	for i in keep + 5:
+		gs.postcards.append({ "place": str(i) })
+	var one_more: RunState = gs.send_on_adventure("garden", [c.get_pet("6")] as Array[Pet])
+	one_more.events.clear()
+	one_more.next_at = 0.0
+	gs._advance(one_more)
+	gs._ring_bell()
+	_check(gs.postcards.size() == keep and str(gs.postcards[-1].get("place", "")) == str(catalog.location("garden").name),
+		"at most %d postcards wait (the oldest go)" % keep)
+	gs.postcards.clear()
+	# the weather vane: it answers plain choices you've answered there before, never risky ones
+	var pr := _plain_and_risky(catalog)
+	if not pr[0].is_empty() and not pr[1].is_empty():
+		var plain := _waiting_run(catalog, pr[0][0], pr[0][1])
+		var risky := _waiting_run(catalog, pr[1][0], pr[1][1])
+		gs.runs.append(plain)
+		gs.runs.append(risky)
+		gs.answer_event(plain, 0)
+		_check(int(gs.workshop.vane.get(Workshop.vane_key(pr[0][0], pr[0][1]), -1)) == 0, "your answers are remembered for the vane")
+		plain.status = RunState.Status.WAITING
+		plain.step = 0
+		plain.next_at = 0.0
+		plain.history.clear()
+		gs.workshop.vane[Workshop.vane_key(pr[1][0], pr[1][1])] = 0
+		gs._advance_runs()
+		_check(plain.status == RunState.Status.WAITING and risky.status == RunState.Status.WAITING, "no vane yet: they wait")
+		Workshop.finish(catalog, gs.workshop, "vane")
+		gs.watching = plain
+		gs._advance_runs()
+		_check(plain.status == RunState.Status.WAITING, "the vane leaves the trip you're watching to you")
+		gs.watching = null
+		gs._advance_runs()
+		_check(plain.history.size() == 1 and plain.status != RunState.Status.WAITING, "the vane answers the plain choice")
+		_check(risky.status == RunState.Status.WAITING and risky.history.is_empty(), "the risky one still waits for you")
+		gs.runs.erase(plain)
+		gs.runs.erase(risky)
+	# the toy shelf: a play that ends starts again, the same length
+	var now := Time.get_unix_time_from_system()
+	gs.toys.playing.clear()
+	Toys.play(gs.toys, catalog, "snail:normal", "long", now - 4000.0)
+	var ended: Array = gs._finish_plays(now)
+	_check(ended == ["snail:normal"] and gs.toys.playing.is_empty(), "no shelf: the play just ends")
+	Workshop.finish(catalog, gs.workshop, "shelf")
+	Toys.play(gs.toys, catalog, "snail:normal", "long", now - 4000.0)
+	ended = gs._finish_plays(now)
+	_check(ended.is_empty() and gs.toys.playing.size() == 1 and str(gs.toys.playing[0].play) == "long" and float(gs.toys.playing[0].until) > now + 1700.0,
+		"the toy shelf: your pet plays with it again, just as long")
+	gs.toy_again("snail:normal")
+	gs.toys.playing[0].until = now - 1.0
+	ended = gs._finish_plays(now)
+	_check(ended == ["snail:normal"] and gs.toys.playing.is_empty(), "tapped: it goes back on the shelf, the spot is free for a new toy")
+	# the chore chart: every errand has new pets join
+	_check(not gs.job_joins("coin_hunt"), "no chart: the errand's switch is off")
+	gs.debug_build("chart")
+	_check(gs.job_joins("coin_hunt"), "the chore chart: every errand has new pets join")
+	var hunt0: int = gs.job_size("coin_hunt")
+	gs.debug_give_pets(4)
+	_check(gs.job_size("coin_hunt") == hunt0 + 4, "new pets start on the errands (%d)" % (gs.job_size("coin_hunt") - hunt0))
+	# the garden spade and the sewing basket
+	gs.rummaged.clear()
+	var coins0: int = gs.coins
+	gs.workshop.pinned[gs.workshop.pinned.find("spade")] = "spade"
+	gs.debug_build("spade")
+	gs._workshop_chores(Time.get_unix_time_from_system())
+	_check(catalog.rummage_spots.all(func(sp): return not gs.rummage_ready(str(sp.id))) and gs.coins > coins0, "the garden spade digs every twinkling spot")
+	gs.toys.playing.clear()
+	gs.toys.owned["snail:normal"].wear = 0.5
+	gs.debug_build("basket")
+	gs._mend_at = Time.get_unix_time_from_system() - 30.0
+	gs._workshop_chores(Time.get_unix_time_from_system())
+	_check(float(gs.toys.owned["snail:normal"].wear) == 0.5, "the basket stitches quietly: not every second")
+	gs._mend_at = Time.get_unix_time_from_system() - 40.0
+	gs._workshop_chores(Time.get_unix_time_from_system())
+	_check(float(gs.toys.owned["snail:normal"].wear) < 0.5, "the sewing basket mends resting toys (once a minute)")
+	# a round trip keeps it all
+	Toys.play(gs.toys, catalog, "snail:normal", "long", Time.get_unix_time_from_system())
+	gs.save_game()
+	var gs2: Node = load("res://scripts/game_state.gd").new()
+	_check(gs2.workshop.built == gs.workshop.built and gs2.workshop.pinned == gs.workshop.pinned and gs2.workshop.vane == gs.workshop.vane
+		and int(gs2.workshop.helpers) == 40, "the workshop loads back (%s)" % [gs2.workshop.built])
+	_check(str(gs2.toys.playing[0].get("play", "")) == "long", "the play's length loads back")
+	gs2.free()
+	gs.free()
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))

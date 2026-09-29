@@ -161,6 +161,8 @@ func _process(delta: float) -> void:
 	_update_art(delta)
 	if autoplay:
 		_autoplay(delta, walking)
+	elif walking and GameState.built("banner") and GameState.treat_ready_in(run) <= 0.0:
+		_toss_treat()  # the treat banner: a treat goes flying whenever one's ready
 	view.position = Vector2(roundf(_pet_x()), _ground() - roundf(sin(_hop * PI) * 18.0))
 	_back.position = Vector2(size.x - _back.size.x - 12.0, 12.0)
 	var wait := GameState.treat_ready_in(run)
