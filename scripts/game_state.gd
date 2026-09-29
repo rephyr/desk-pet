@@ -2149,28 +2149,57 @@ func _auto_adventures() -> void:
 	var unseen := {}
 	for uid in pinned:
 		unseen[uid] = true
-	var pools: Array = [resting_cards(), _resting_stand_ins(), sendable_pets()]
+	var gone := away()
+	var cards: Array[Pet] = []
+	for pet in collection.pets:
+		if pet.uid != collection.active_uid and not gone.has(pet.uid):
+			cards.append(pet)
+	var pools: Array = [resting_cards(), _resting_stand_ins(), cards, _sendable_stand_ins(gone)]
 	var used := {}
+	# a count only offers its first few stand-ins at a time: when the next party could run out of
+	# them, fresh ones are looked up (the ones that left are away now). Looked up only then, not
+	# after every party (that made hundreds of parties slow); once a look-up brings nothing new,
+	# the herd has no more for this round.
+	var dry := [false, false]  # resting stand-ins, sendable stand-ins
+	var from := [0, 0, 0, 0]  # where each pool is looked through from (see _send_auto_party)
 	for slot in due:
-		if _send_auto_party(slot, pools, unseen, used):
-			# fresh stand-ins for the next party: the ones that just left are away now
-			pools = [pools[0], _resting_stand_ins(), pools[2], _sendable_stand_ins(away())]
+		var party := auto_party(slot)
+		for i in 2:
+			var k: int = 1 + i * 2
+			if not dry[i] and _unused(pools[k], used) < int(party.n):
+				var before := _unused(pools[k], used)
+				pools[k] = _resting_stand_ins() if i == 0 else _sendable_stand_ins(away())
+				dry[i] = _unused(pools[k], used) <= before
+				from[k] = 0
+		_send_auto_party(slot, party, pools, from, unseen, used)
 
 
-## Sends party `slot` out (from `pools` of pets, skipping `unseen` and ones `used` already).
-## Returns whether it left.
-func _send_auto_party(slot: int, pools: Array, unseen: Dictionary, used: Dictionary) -> bool:
-	var party := auto_party(slot)
+## How many pets of a pool haven't been `used` yet.
+func _unused(pool: Array, used: Dictionary) -> int:
+	var n := 0
+	for pet: Pet in pool:
+		if not used.has(pet.uid):
+			n += 1
+	return n
+
+
+## Sends party `slot` out (from `pools` of pets, skipping `unseen` and ones `used` already; each
+## pool is looked through from its place in `at`, so hundreds of parties don't go over the same
+## pets again and again). Returns whether it left.
+func _send_auto_party(slot: int, party: Dictionary, pools: Array, at: Array, unseen: Dictionary, used: Dictionary) -> bool:
 	if str(party.place) == "":
 		return false
 	var party_pets: Array[Pet] = []
-	for pool in pools:
-		for pet: Pet in pool:
-			if party_pets.size() >= int(party.n):
-				break
+	for p in pools.size():
+		var pool: Array = pools[p]
+		var i: int = at[p]
+		while i < pool.size() and party_pets.size() < int(party.n):
+			var pet: Pet = pool[i]
+			i += 1
 			if not used.has(pet.uid) and not unseen.has(pet.uid) and not _worker_of.has(pet.uid):
 				used[pet.uid] = true
 				party_pets.append(pet)
+		at[p] = i  # everyone before it is taken or stays home this round
 	if party_pets.is_empty():
 		return false
 	var run := send_on_adventure(str(party.place), party_pets, false)
@@ -2818,10 +2847,11 @@ func send_on_adventure(location_id: String, pets: Array[Pet], by_you := true) ->
 	for pet in going:
 		if Herd.is_stand_in(pet.uid):
 			Herd.put(need, Herd.key_of(pet.uid), 1)
-	var free := resting_herd()
-	for k in need:
-		if int(need[k]) > int(free.get(k, 0)):
-			_herd_off_places(k, int(need[k]) - int(free.get(k, 0)))
+	if not need.is_empty():  # (resting_herd goes over every pet: only when stand-ins go)
+		var free := resting_herd()
+		for k in need:
+			if int(need[k]) > int(free.get(k, 0)):
+				_herd_off_places(k, int(need[k]) - int(free.get(k, 0)))
 	# every trip packs the gear you have when it sets off (yours, your pet's and the workers' parties;
 	# never dungeons, see Gear.for_trip)
 	var run := AdventureRunner.start(location_id, going, Time.get_unix_time_from_system(), _rng.randi(), catalog, finds, machine.bought,

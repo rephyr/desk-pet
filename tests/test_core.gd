@@ -1753,6 +1753,7 @@ func _test_game_state(catalog: Catalog) -> void:
 	_test_crank_catch_up(catalog)
 	_test_auto_adventures(catalog)
 	_test_many_workers(catalog)
+	_test_auto_stand_ins(catalog)
 	_test_gear_state(catalog)
 	_test_jobs_state(catalog)
 	var path := DevProfile.path("save.json")
@@ -2161,6 +2162,37 @@ func _test_auto_adventures(catalog: Catalog) -> void:
 	gs = _state_from(d)
 	gs._work_automation(now)
 	_check(gs.runs.is_empty(), "no auto parties during the tutorial")
+	gs.free()
+
+
+## Auto parties from the herd: each count offers a few stand-ins at a time (10), so 20 parties in
+## one go look up fresh ones when they run low (never the same pet twice, never a leader).
+func _test_auto_stand_ins(_catalog: Catalog) -> void:
+	var d := _old_save(gs_version(), 10)
+	d.collection.herd = { "common:normal": 300 }
+	var all := { "adventures": true }
+	d.automation = { "taught": all, "others": all, "spots": { "adventures": 20 } }
+	var gs = _state_from(d)
+	_check(gs.collection.herd_total() == 300, "300 plain pets in the herd (%d)" % gs.collection.herd_total())
+	_check(gs.put_workers("adventures", -1) == 20, "20 party leaders")
+	for slot in 20:
+		gs.set_auto_party("meadow", 3, slot)
+	gs._work_automation(Time.get_unix_time_from_system())
+	var auto_runs: Array = gs.runs.filter(func(r): return r.auto)
+	var leaders := {}
+	for uid in gs.workers_of("adventures"):
+		leaders[str(uid)] = true
+	var went := {}
+	var twice := 0
+	var stand_ins := 0
+	for r in auto_runs:
+		for uid in r.party.uids:
+			twice += 1 if went.has(uid) or leaders.has(uid) else 0
+			went[uid] = true
+			stand_ins += 1 if Herd.is_stand_in(uid) else 0
+	_check(auto_runs.size() == 20 and auto_runs.all(func(r): return r.party.setting_out() == 3),
+		"20 full parties of 3 set out from the herd (%d)" % auto_runs.size())
+	_check(twice == 0 and went.size() == 60 and stand_ins == 60, "60 different stand-ins, none twice (%d, %d stand-ins, %d twice)" % [went.size(), stand_ins, twice])
 	gs.free()
 
 
