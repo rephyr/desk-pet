@@ -297,28 +297,27 @@ static func segmented(options: Array, current: int, on_pick: Callable) -> PanelC
 		var b := Button.new()
 		b.text = str(options[i])
 		b.focus_mode = Control.FOCUS_NONE
-		var on := i == current
-		var sb := box(PINK_PRESSED if on else Color(0, 0, 0, 0), Color(0, 0, 0, 0), 6, 0, 3)
-		sb.content_margin_left = 12
-		sb.content_margin_right = 12
-		for state in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
-			b.add_theme_stylebox_override(state, sb)
-		b.add_theme_color_override("font_color", TEXT if on else MUTED)
-		b.add_theme_color_override("font_hover_color", TEXT if on else PINK)
 		b.pressed.connect(func():
-			for j in row.get_child_count():
-				var other: Button = row.get_child(j)
-				var picked := j == i
-				var st := box(PINK_PRESSED if picked else Color(0, 0, 0, 0), Color(0, 0, 0, 0), 6, 0, 3)
-				st.content_margin_left = 12
-				st.content_margin_right = 12
-				for state in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
-					other.add_theme_stylebox_override(state, st)
-				other.add_theme_color_override("font_color", TEXT if picked else MUTED)
-				other.add_theme_color_override("font_hover_color", TEXT if picked else PINK)
+			segmented_select(p, i)
 			on_pick.call(i))
 		row.add_child(b)
+	segmented_select(p, current)
 	return p
+
+
+## Shows option `i` of a segmented switch as picked (without calling its on_pick).
+static func segmented_select(p: PanelContainer, i: int) -> void:
+	var row := p.get_child(0)
+	for j in row.get_child_count():
+		var b: Button = row.get_child(j)
+		var on := j == i
+		var st := box(PINK_PRESSED if on else Color(0, 0, 0, 0), Color(0, 0, 0, 0), 6, 0, 3)
+		st.content_margin_left = 12
+		st.content_margin_right = 12
+		for state in ["normal", "hover", "pressed", "hover_pressed", "focus"]:
+			b.add_theme_stylebox_override(state, st)
+		b.add_theme_color_override("font_color", TEXT if on else MUTED)
+		b.add_theme_color_override("font_hover_color", TEXT if on else PINK)
 
 
 ## A round filter chip that toggles on and off, tinted `color` when on.
@@ -675,6 +674,18 @@ static func _pixel_texture(icon_name: String, size: int, color: Color) -> ImageT
 				img.set_pixel(x, y, fixed[ch])
 	img.resize(size, size, Image.INTERPOLATE_NEAREST)
 	return ImageTexture.create_from_image(img)
+
+
+## A crayon drawing on a 48 x 48 sheet (SVG path bodies, e.g. a workshop drawing's "art") at
+## `size` px, in `color` with lines `width` thick (in the sheet's units), drawn at 2x.
+static func drawing(art: String, size: int, color: Color, width := 2.2) -> Texture2D:
+	var key := "drawing|%d|%d|%s|%.2f" % [hash(art), size, color.to_html(), width]
+	if _icons.has(key):
+		return _icons[key]
+	var svg := '<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48" fill="none" stroke="%s" stroke-width="%.2f" stroke-linecap="round" stroke-linejoin="round">%s</svg>' % [_hex(color), width, art]
+	var tex := _svg_texture(svg, size * 2 / 48.0)
+	_icons[key] = tex
+	return tex
 
 
 static func _svg_texture(svg: String, scale: float) -> ImageTexture:

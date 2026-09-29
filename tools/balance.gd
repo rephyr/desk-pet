@@ -53,6 +53,7 @@ func _init() -> void:
 	var rates := _dungeon(catalog, rng)
 	_sewing(catalog, rng)
 	_perks(catalog, rates)
+	_workshop(catalog)
 	quit()
 
 
@@ -402,3 +403,12 @@ func _sewing(catalog: Catalog, rng: RandomNumberGenerator) -> void:
 		print(row)
 
 
+## The shed workshop (F3): the helpers every drawing takes, and all 8 together (a pace line; tune
+## against the herd at whistle time with the pace sim).
+func _workshop(catalog: Catalog) -> void:
+	print("\nthe shed workshop: helpers per drawing (plain pets, no stars)")
+	var total := 0
+	for d in Workshop.drawings(catalog):
+		total += int(d.need)
+		print("  %-18s %6d helpers, %3d %s or up" % [d.name, int(d.need), int(d.count), d.tier])
+	print("  all %d drawings: %d helpers" % [Workshop.drawings(catalog).size(), total])

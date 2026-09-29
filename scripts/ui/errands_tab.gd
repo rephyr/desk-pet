@@ -475,7 +475,7 @@ func _rebuild_box() -> void:
 		share.add_theme_stylebox_override("normal", _primary())
 		_box.add_child(share)
 		_box.add_child(_wrapped("or tap a job's + to send %s" % ("them all" if _step < 0 else str(_step)), UiTheme.MUTED))
-	if GameState.spare_count() > STEPS_AFTER:
+	if GameState.spare_count() > STEPS_AFTER and not GameState.built("chart"):  # the chore chart: every errand, no switches
 		# busy paws: a switch per errand (the notes are full already), new pets start on the ones on
 		_box.add_child(_heading("new pets join", -1))
 		for job in GameState.open_jobs().filter(func(j): return Jobs.shared_out(j)):  # you staff the kitchen and scouting

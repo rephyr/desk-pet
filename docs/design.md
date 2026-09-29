@@ -115,6 +115,8 @@ its parts and finish together.
   new looks as tiny stickers and how many pets are inside as little shapes (the maybe-3rd one
   fainter). One box with 2-3 pets: the ritual for the best, the others "also inside" on the
   result card. Your pet's job card has a switch per tier (on: it opens them, off: saved for you).
+  With the room: boxes open one at a time while the room has space for one more pet, and all of
+  a box's pets come in (a sunset box can take the room over by a pet or two).
   Numbers in data/boxes.json are placeholders.
 - The odds are always visible in game.
 - **Opening one box** (the first hours are all about this moment, so it gets a real ritual).
@@ -187,7 +189,7 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   under the line (local day).
 - **Stars:** every pet that leaves (new homes, lost on an adventure or down the well, fed to the
   plushie machine) adds a night-sky star, never
-  explained.
+  explained. Pets who stay on for good (workshop helpers) add none.
 - **Page rewards** (built, data/book.json): each part page and the first finishes page ends with
   a gift spot; filling the page opens its reward sticker for good, a small permanent boost (coins,
   luck, automation speed or errands speed, +10% each for now). Stickers multiply with each other
@@ -464,6 +466,35 @@ economy: currency, body parts, and rewards for mechanics not designed yet. Rewar
   events; their numbers are met x0.5 danger / x1.2 coins from the first trip). Backyard places become ours too after 40 visits each, once
   next door is open. Locals only ever as traces. Nothing you find opens next door: pets past the
   edge (C2) open it from code (`GameState.open_page`), and with it the midnight box.
+- **The shed workshop (F3, look A, built):** once the old shed is ours (coloured in) and the
+  whistle is found (a popup, "new: the workshop!"), tapping the shed on the backyard map sticks a
+  workshop card on the map's top left instead of its place card ("adventure ›" swaps to the place
+  card, "workshop ›" back): 3 drawings pinned on a wooden plank, each with a little bar; the picked
+  one's needs as two meters, helpers N/M and "‹tier› or up" n/count; shelf chips (a face and how
+  many of that rarity may go); 1 / 10 / 100 / all; "not yet" / "build it!" (lit and nudging when
+  the picked one is full). All the pinned drawings fill at once; you tap "build it!"; the next
+  drawing is pinned in that spot and the built thing stands on the backyard map as a crayon
+  drawing. Helpers are **pets only**, the plain pets the new homes stall may take (never
+  favourites, your active pet, new parts, holo and better, pets away); they **stay on for good**
+  (leave the collection, no star). Pets below the tier only go in while there's room for the ones
+  that meet it, so a drawing can always be finished. Your pet talks: a line per drawing when you
+  pick it, "hi helpers!"-style cheers, "that's everyone! let's build it!", "hmm, we need some
+  fancier helpers." The 8 drawings (data/workshop.json, the mockup's numbers, tune later), each
+  takes one chore away: **the bell rope** (40, 5 rare+) trips you sent welcome themselves back
+  (not the one you're watching on the trail), their postcards pop up one at a time when you're on
+  the map (their news waits with them: your pet talks about the trip on the card); **the toy
+  shelf** (60, 10 epic+) a play that ends starts again, same toy, same length ("again!" by its
+  clock; tap the playing toy for a last round, then the spot is free for a new toy);
+  **the weather vane** (120, 20 epic+) a trip waiting at a plain choice (no option risky at that
+  place) takes your last pick for that event at that place (never the trip you're watching; its
+  own picks don't count as yours); **the chore chart** (250, 40 epic+) every errand has "new pets
+  join here" (the switches go away); **the garden spade** (500, 5 legendary+) twinkling rummage
+  spots are dug through by themselves; **the sewing basket** (1000, 10 legendary+) toys not being
+  played with lose 0.1 wear an hour (stitched once a minute; also while closed, up to 12 h); **the treat banner** (2000,
+  25 legendary+) on the trail a treat is tossed whenever one's ready; **the letterbox** (5000, 60
+  legendary+) postcards wait in it (a count on it, at most 30, not saved) until you tap it. Manual
+  on purpose, never a drawing: the school bell, reel banking, the newest globe's lever, ripping
+  boxes yourself, risky trip choices. With all 8 built the shed opens its place card again.
 - Scale: 1 pet → a few with gear → 10 → hundreds → 100k+.
 - **Open:** raids (all pets as one force against a boss) as a later type.
 
@@ -600,14 +631,18 @@ see the memory note on the automation tab for the plan.
   the cheapest next spot among the ticked jobs (1 a check, the wagon adds more), never spending
   under **set aside** (− / +, 250k to start), and puts the best resting pets on empty spots. Parties
   come first: empty ones get a leader and enough resting pets stay free to go with them before the
-  machines and tables take the rest; a new party goes to an open place that has none, and is only
+  machines and tables take the rest; a new party goes to an open place that has none (never a
+  dungeon or a risky place that isn't ours yet: pets get lost only where you send them), and is only
   hauled home while someone is free to lead it and go. Tools: a sharper pencil
   (checks faster), a bigger wagon (hauls more). It keeps checking while the game is closed as long
   as the stool lets it, after that time's income. The side card says what it did "since you
-  looked".
+  looked". With the herd, the pets it puts to work can be counts (a crowd of
+  thousands), and next door's places count as party places too, except the risky ones until
+  they're ours (next door adds no machines or tables yet).
 - **Lore and caps:** machines and tables are old ones left in places you've taken: each open map
   page adds how many exist (`spot.exist`, placeholders: backyard 60 / 20, beyond 600 / 200);
-  parties one per open place. Buying by hand stops at the cap too (the +1 button is gone); a save
+  parties one per party place (open places without dungeons and risky places that aren't ours;
+  `GameState.party_places`). Buying by hand stops at the cap too (the +1 button is gone); a save
   with more keeps them. **Prices flatten** past `flat_at` (each spot grows by `grow_late` instead),
   so thousands of workers are possible.
 - **The little school (C2/F3, built, look A: the classroom):** a **school** page next to your pet |

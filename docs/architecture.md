@@ -162,6 +162,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `split_open` (workers open N boxes, not N pets), `best_first`, and `fix_retired` (lucky boxes).
   `Catalog.parts_in` and `box_rank` are cached (catalog data never changes after loading);
   box workers open at most `GameState.WORKER_BOXES_MAX` boxes at once.
+  With the room (the herd), `GameState.open_boxes` opens box by box while the room has space for
+  one more pet: a box's pets all come in (a sunset box can take the room over by a pet or two), the
+  rest wait on the pile; callers count what opened from the pile, not from `count`.
   `GameState.shop_boxes / stash_boxes / box_is_new / boxes_bought / boxes_greeted`.
 - `Collection` owns the pets, the active pet and the book counts (`part:<slot>:<id>`,
   `finish:<body>:<finish>`). Pets are **cards** (whole `Pet`s in `pets`) or **the herd** (`herd`:
@@ -247,7 +250,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:
   `WorkerCard` / `WorkerSpot`, `GameState.put_workers` / `buy_spots` / `teach_others`; the whistle page: `Clipboard`,
   `TodoRow`, `Tick`, `TinyCrowd`, rules in `Automation.whistle_plan` / `exist` / `checks`, applied by
-  `GameState._whistle_checks`, caps via `GameState.spot_room`; the school page: `SchoolView`, rules in
+  `GameState._whistle_checks`, caps via `GameState.spot_room`; parties only go by themselves to
+  `GameState.party_places()`, no dungeons and no risky place until it's ours, which also sets the
+  parties cap; the school page: `SchoolView`, rules in
   `School`, state in `GameState.school`, `GameState.school_boost()` is the `school` source of the
   automation and errands boosts; `HerdPicker` is the shelves + 1 / 10 / 100 / all the edge and the
   school share; pages are strings: `pet`, `workers`, `whistle`, `school`); the adventures tab's
@@ -480,6 +485,33 @@ the orders' start line.
 
 Save v38 (built as v26 in the wish lane) adds `wish` (the wishing jar; older saves start with
 nothing wished for, `Wish.clean` drops unknown looks and clamps jars to 8,800).
+Save v39 (built as v27 in the workshop lane) adds the shed workshop (F3): top-level `workshop` `{ pinned: [ids, one per spot, "" when
+empty], prog: { id: { sent, qual } }, built: [ids], helpers, vane: { "place:event": option } }`
+(`Workshop` in scripts/idle, pure rules: `fresh`, `clean`, `useful`, `take`, `build` / `finish`,
+`vane_pick`; data/workshop.json); older saves get `Workshop.fresh` (the first 3 pinned) from
+`Workshop.clean` in `load_game` (no migration step). Toys'
+`playing` entries gain `play` (the play length id, `Toys.play`) and `again` (default true; false
+after a tap on the playing toy, `Toys.flip_again` / `GameState.toy_again`), so `Toys.ending` can
+hand them again; `Toys.mend` is the sewing basket. Unlock earn key `ours: <place>` (`GameState._earned`,
+`is_ours`); unlock `workshop` opens `feature:workshop` with `open: feature:whistle`.
+`Collection.leave(counts, uids, false)` (the new `star` flag) takes helpers off with no star and no `pets_left`.
+GameState: `workshop_open / workshop_shown / built(id) / helpers_can_go / send_helpers` (through
+`homes_pick`, off errands and machines first) `/ build_drawing / debug_build`, signal
+`workshop_changed(built_id)`; the chores: `_ring_bell` (every second: done non-auto runs except
+`watching` go through `collect_run`, their postcard dicts wait in `postcards`, not saved,
+`letterbox_keep` at most; each postcard dict carries its `news` and `announce` lines, which
+`AdventuresTab._show_postcard` hands back to your pet), `_vane` (in `_advance_runs`; `answer_event` remembers your picks in
+`workshop.vane`), `_finish_plays` (the shelf, also at load; saves when it hands one again), `_workshop_chores`
+(spade: `rummage` on ready spots; basket: `Toys.mend` once a minute via `_mend_acc`, so
+`toys_changed` doesn't fire every second, plus the closed time at load), `job_joins` true for every errand
+with the chart. `watching` is the run on the trail (AdventuresTab `_watch`, not saved). UI:
+`WorkshopCard` (the card, with inner `Paper` and `Meter`), `AdventuresTab` (shed tap with the
+workshop shown, the pills, bell postcards one at a time, `_open_letterbox`), `MapView._draw_built`
+(built things at their `at`, a pop when just built, the letterbox count and its `letterbox` hotspot,
+`letter_picked`), `TrailView` (the banner tosses treats), `ErrandsTab` (no join switches with the
+chart), `UiTheme.drawing(art, size, color, width)` (a 48 px crayon sheet), `NewHomesStall.face_for`.
+Dev steps `helpers <drawing> <n> [qual]`, `build <drawing>`, `expect built <id>`, `expect postcards
+<n>`; `visit` now also calls `check_unlocks`. Flow: workshop.
 
 ## Testing
 

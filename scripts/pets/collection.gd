@@ -196,7 +196,7 @@ func lose_plain(key: String, n: int) -> int:
 ## Pets leave for new homes: `counts` (count key -> how many) come off the herd and `uids` are
 ## cards. Each one adds a star (a count's stars take the looks of the stand-ins that would have
 ## come next, and those looks never come back). Returns how many left. The active pet never leaves.
-## `star` false: they stay on for good somewhere (landing holders): no star, and no pets_left.
+## `star` false: they stay on for good somewhere (landing holders, workshop helpers): no star, and no pets_left.
 func leave(counts: Dictionary, uids: Array, star := true) -> int:
 	var n := 0
 	var gone: Array[String] = []

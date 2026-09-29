@@ -177,6 +177,12 @@ func _refresh_jar() -> void:
 
 ## A face for the "from" row: the shelf's newest card, else one from its count.
 func _face() -> Pet:
+	return face_for(rarity)
+
+
+## A face for a shelf (a rarity): its newest plain card, else one from its count (the workshop's
+## shelf chips use it too).
+static func face_for(rarity: String) -> Pet:
 	if rarity == "":
 		return null
 	var c := GameState.collection

@@ -7,7 +7,8 @@ extends Control
 ## ("map" on each location), and the drawing zooms to fit whatever has been found so far.
 ## A page can be drawn on night paper ("paper": "night") and laid out as next door's street
 ## ("layout": "street", drawn by StreetPage). Places that are ours (see Ours) are coloured in with
-## your pet's own colour, with a little flag.
+## your pet's own colour, with a little flag. Things built in the shed workshop (Workshop) stand
+## around the backyard as crayon drawings; the letterbox shows how many postcards wait in it.
 
 signal place_picked(location_id: String)
 signal lead_picked(location_id: String)  # a spotted place you can say yes to
@@ -17,12 +18,15 @@ signal page_changed(page_id: String)
 
 const EDGE_ID := "edge"  # the signpost's id among the map's spots (and `selected` when it's picked)
 const SHEET_TILT := 2.2  # degrees the page tucked under the edge leans
+signal letter_picked  # the letterbox (with postcards in it) was tapped
 
 const UNIT := 150.0  # px per map unit when there's plenty of room
 const MARGIN := 70.0
 const HIT := 34.0  # px around a doodle that counts as clicking it
 const COLOUR_MS := 1100.0  # how long colouring a place in takes
 const BACK_SHOWN := 4  # little pets drawn for the trips back waiting by home (more share one tag)
+const DRAWING_UNIT := 92.0  # the map zoom a workshop drawing's "size" is for (px per map unit)
+const POP_MS := 550.0  # a thing just built pops up
 # colours from the player's theme (set in _init; the map redraws when the look changes)
 var PAPER := UiTheme.PAPER
 var GRAIN := UiTheme.DOT
@@ -56,6 +60,8 @@ var _torn := false  # this page ends at the edge: the paper stops short with a t
 var _scribbles := []  # [points, colour] in the tucked page's own space, see _sheet_scribbles
 var _scribble_key := ""
 var _anchor := []  # map points the fit keeps room for though nothing's drawn there (the finished edge)
+var _popping := {}  # workshop drawing id -> msec it was built (it pops up on the map)
+var _letterbox := Control.new()  # over the letterbox while postcards wait in it (for test flows to click)
 
 
 func _init() -> void:
@@ -67,6 +73,14 @@ func _init() -> void:
 	add_child(_page_tabs)
 	resized.connect(refresh)
 	GameState.adventures_changed.connect(refresh)
+	GameState.workshop_changed.connect(func(id: String):
+		if id != "":
+			_popping[id] = Time.get_ticks_msec()
+		queue_redraw())
+	_letterbox.name = "letterbox"
+	_letterbox.mouse_filter = MOUSE_FILTER_IGNORE
+	_letterbox.visible = false
+	add_child(_letterbox)
 	GameState.collection.active_changed.connect(func(_p): queue_redraw())
 	GameState.edge_changed.connect(refresh)
 
@@ -123,6 +137,12 @@ func _process(delta: float) -> void:
 		return
 	if not GameState.unshown_ours.is_empty():
 		_start_colouring()
+	_place_letterbox()
+	if not _popping.is_empty():
+		for id in _popping.keys():
+			if Time.get_ticks_msec() - int(_popping[id]) > POP_MS * 1.5:
+				_popping.erase(id)
+		queue_redraw()
 	if not _colouring.is_empty():
 		_forget_coloured()
 		queue_redraw()  # a place that just became ours is being coloured in
@@ -324,12 +344,16 @@ func _place_hotspots() -> void:
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var over := _node_at(event.position)
-		var id: String = over.id if not over.is_empty() else ""
+		var id: String = over.id if not over.is_empty() else ("letterbox" if _letter_at(event.position) else "")
 		if id != _hover:
 			_hover = id
 			mouse_default_cursor_shape = CURSOR_POINTING_HAND if id != "" else CURSOR_ARROW
 			queue_redraw()
 	elif event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if _letter_at(event.position):
+			letter_picked.emit()
+			accept_event()
+			return
 		var node := _node_at(event.position)
 		if node.is_empty():
 			return
@@ -404,6 +428,7 @@ func _draw() -> void:
 	for edge in _edges:
 		_dotted(_screen(by_id[edge.from].pos), _screen(by_id[edge.to].pos), DIM if edge.faint else PEACH, hash(edge.from + edge.to))
 	if _street.is_empty():
+		_draw_built()
 		for node in _nodes:
 			_draw_node(node)
 	_draw_trips()
@@ -695,6 +720,69 @@ func _street_walker(run: RunState, gate: Dictionary) -> Vector2:
 			else:
 				t = clampf((run.step + within) / maxf(1.0, run.events.size()), 0.0, 1.0)
 	return _street.at + StreetPage.along(way, t) * k
+
+
+## Whether the backyard is showing (where the shed workshop's things stand).
+func _is_backyard() -> bool:
+	return page == str(Catalog.shared().location("shed").get("page", "backyard"))
+
+
+## Where a built workshop drawing stands on the map, and how big it's drawn (px).
+func _built_rect(d: Dictionary) -> Rect2:
+	var at: Array = d.get("at", [0, 0])
+	var px := 48.0 * float(d.get("size", 0.5)) * clampf(_scale / DRAWING_UNIT, 0.7, 1.4)
+	var c := _screen(Vector2(float(at[0]), float(at[1])))
+	return Rect2(c - Vector2(px, px) / 2.0, Vector2(px, px))
+
+
+## The things built in the shed workshop, crayon drawings around the backyard (a new one pops up).
+func _draw_built() -> void:
+	if not _is_backyard():
+		return
+	var catalog := Catalog.shared()
+	for id: String in GameState.workshop.built:
+		var d := Workshop.drawing(catalog, id)
+		if d.is_empty():
+			continue
+		var r := _built_rect(d)
+		# one raster at its resting size (zoom in 4 px steps), scaled into the popping rect: no new
+		# texture every frame
+		var px := maxi(8, int(snappedf(r.size.x, 4.0)))
+		if _popping.has(id):
+			var t := clampf((Time.get_ticks_msec() - int(_popping[id])) / POP_MS, 0.0, 1.0)
+			var k := 0.3 + 0.7 * t + sin(t * PI) * 0.25
+			var bottom := Vector2(r.get_center().x, r.end.y)
+			r = Rect2(bottom - Vector2(r.size.x * k / 2.0, r.size.y * k), r.size * k)
+			for i in 3:
+				draw_circle(r.get_center(), (r.size.x * 0.9 - i * 6.0) * (1.0 - t * 0.5), Color(YELLOW, 0.05 + i * 0.03) * Color(1, 1, 1, 1.0 - t))
+		draw_texture_rect(UiTheme.drawing(str(d.art), px, LILAC, 3.4), r, false)
+	var waiting := GameState.postcards.size()
+	if GameState.built("letter") and waiting > 0:
+		var r := _built_rect(Workshop.drawing(catalog, "letter"))
+		var tag := str(waiting)
+		var w := maxf(18.0, _note_font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x + 10.0)
+		var at := Vector2(r.position.x - w + 2.0, r.position.y + 4.0)  # on its left: the basket is on its right
+		draw_style_box(UiTheme.box(PINK, PAPER, 999, 2, 0), Rect2(at - Vector2(0, 9), Vector2(w, 18)))
+		draw_string(_note_font, at + Vector2((w - _note_font.get_string_size(tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x) / 2.0, 4), tag, HORIZONTAL_ALIGNMENT_LEFT, -1, 12, UiTheme.PAGE)
+
+
+## Whether a tap here is on the letterbox while postcards wait in it.
+func _letter_at(point: Vector2) -> bool:
+	if not _is_backyard() or not GameState.built("letter") or GameState.postcards.is_empty():
+		return false
+	return _built_rect(Workshop.drawing(Catalog.shared(), "letter")).grow(10.0).has_point(point)
+
+
+## The letterbox's hotspot (for test flows) follows it while postcards wait.
+func _place_letterbox() -> void:
+	var on := _street.is_empty() and _is_backyard() and GameState.built("letter") and not GameState.postcards.is_empty()
+	if on:
+		var r := _built_rect(Workshop.drawing(Catalog.shared(), "letter"))
+		_letterbox.position = r.position
+		_letterbox.size = r.size
+	if on != _letterbox.visible:
+		_letterbox.visible = on
+		queue_redraw()
 
 
 ## Your active pet's own crayon colour (places that are ours are coloured in with it).

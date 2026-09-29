@@ -623,6 +623,8 @@
 		"machine_toy": ["another one! the workbench can make them better!", "a spare! we can stick them together!"],
 		"toy_play": ["playtime!! see you later!", "wheee! i'll be careful with it! mostly.", "just me and my toy now ♪"],
 		"toy_busy": ["do not disturb me! i'm playing!", "shh! we're busy!", "five more minutes!!", "not now! it's my turn!"],
+		"toy_again": ["and again after this one! ♪", "one more round after this!"],
+		"toy_last": ["ok! last round, then it goes back on the shelf.", "after this one it can have a nap."],
 		"toy_done": ["all done playing! it was the best.", "that was fun! the toy needs a little nap now."],
 		"toys": ["my toys! i love every single one.", "which one should i play with next?"],
 		"toys_none": ["no toys yet! they come out of the capsule machine ♪"],

@@ -20,6 +20,7 @@ extends Node
 ##                         | gifts <n> (presents in the pocket)
 ##                         | ours <place> | not-ours <place>
 ##                         | lights <place> <n> (lights still on behind a next-door place)
+##                         | built <drawing> | postcards <n> (waiting: the bell rope, the letterbox)
 ##   shot <name>           a screenshot of the game, from inside it (works while it's off-screen)
 ##   say "<text>"          your pet says it (for testing the bubble)
 ##   answer                every adventure waiting at an event takes its first choice
@@ -51,6 +52,7 @@ extends Node
 ##   workers <job> <n>     n more spots for a job, for free (up to what's out there), with resting
 ##                         pets put on them
 ##   manage <n>            the whistle checks on everyone n times right now (your pet managing)
+##   others <job>          your pet has taught the other pets that job (the workers page), for free
 ##   xp <n>                you have exactly n xp
 ##   gear <id> [levels]    levels of a gear upgrade (data/gear.json), for free
 ##   book <page> [left]    every sticker on that collection book page (data/book.json) is found but
@@ -62,7 +64,6 @@ extends Node
 ##   dress <slot>=<id> ... [finish=<id>]   your active pet gets these parts (and finish), e.g.
 ##                         dress body=bunny eyes=cyclops finish=holo (for knacks, data/knacks.json)
 ##   tiers all | off       every box tier in the shop, map pages or not (for the 3-tier fits check)
-##   others <job>          your pet has taught the other pets that job (the workers page), for free
 ##   herd <rarity> <finish> <n>  n plain pets straight into the herd (fast: for thousands or millions)
 ##   room <level>          the room is at that upgrade level (data/herd.json "room")
 ##   fill-room             plain commons into the herd until the room is exactly full
@@ -133,6 +134,9 @@ extends Node
 ##   keep <line> <pick|none>  the sorting card's keep line (1 = the first) keeps that, e.g. trait:zoomy
 ##   wish <slot> <id> [n]  wishes for that part (found if it wasn't), with n pets already in its jar
 ##   wish-shelf <rarity>   picks that shelf on the wishing jar (the chip per rarity)
+##   helpers <drawing> <n> [qual]  n helpers on a pinned workshop drawing for free (qual of them at
+##                         its tier or up; default all), no pets needed (data/workshop.json)
+##   build <drawing>       a pinned workshop drawing is built for free (the next one is pinned)
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -244,6 +248,8 @@ func _step(w: PackedStringArray) -> String:
 				if run.status == RunState.Status.WAITING:
 					var catalog := Catalog.shared()
 					GameState.answer_event(run, AdventureRunner.allowed_options(run.current_event(catalog), run.party, catalog.location(run.location_id))[0])
+		"walk":  # every trip walks on to its next stop (or home), from any tab
+			GameState.debug_finish_runs()
 		"pets":
 			GameState.debug_give_pets(int(w[1]))
 		"find":
@@ -568,6 +574,7 @@ func _step(w: PackedStringArray) -> String:
 			if Catalog.shared().location(w[1]).is_empty():
 				return "unknown place %s" % w[1]
 			GameState.add_visits(w[1], int(w[2]) if w.size() > 2 else 1)
+			GameState.check_unlocks()  # a place that's ours now can open things (the workshop)
 			GameState.adventures_changed.emit()
 			GameState.changed.emit()
 		"dungeon":  # the rope find at the well: the dungeon opens
@@ -780,6 +787,17 @@ func _step(w: PackedStringArray) -> String:
 			if not GameState.wish_shelves().has(w[1]):
 				return "no %s pets can go" % w[1]
 			home.full_game().collection.wish_jar.pick_shelf(w[1])
+		"helpers":  # helpers <drawing> <n> [qual]: helpers on a pinned drawing, for free
+			var ws := GameState.workshop
+			if not w[1] in Workshop.pinned(ws):
+				return "%s isn't pinned in the workshop" % w[1]
+			var p: Dictionary = ws.prog[w[1]]
+			p.sent = int(p.sent) + int(w[2])
+			p.qual = int(p.qual) + (int(w[3]) if w.size() > 3 else int(w[2]))
+			GameState.workshop_changed.emit("")
+		"build":  # build <drawing>: a pinned drawing is built, for free
+			if not GameState.debug_build(w[1]):
+				return "%s isn't pinned in the workshop" % w[1]
 		"quit":
 			_finish()
 		_:
@@ -865,6 +883,10 @@ func _expect(w: PackedStringArray) -> String:
 		"lights":
 			var left := GameState.lights_left(w[2])
 			return "" if left == int(w[3]) else "%d lights on behind %s" % [left, w[2]]
+		"built":
+			return "" if GameState.built(w[2]) else "%s isn't built" % w[2]
+		"postcards":
+			return "" if GameState.postcards.size() == int(w[2]) else "%d postcards waiting" % GameState.postcards.size()
 		"fits":
 			# nothing on screen needs more room than the window has (it would spill past the edge)
 			var game: Control = get_parent().full_game()

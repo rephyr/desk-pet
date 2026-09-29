@@ -6,7 +6,7 @@ extends Control
 ## open again, and several in a row come one after another. A full collection book page's reward
 ## sticker (GameState.sticker_opened) comes the same way.
 
-signal go(tab_id: String, unlock_id: String)
+signal go(tab_id: String, opens: Array)
 signal shown  # a card popped up
 
 var can_show: Callable  # () -> bool: whether the full game is on screen
@@ -96,7 +96,7 @@ func _show(entry: Dictionary) -> void:
 	if tab != "":
 		_buttons.add_child(UiTheme.button("show me", func():
 			_close()
-			go.emit(tab, str(entry.get("id", "")))))
+			go.emit(tab, Array(entry.get("opens", [])))))
 	var lovely := UiTheme.button("lovely", _close)
 	lovely.icon = UiTheme.icon("heart", 14)
 	lovely.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT

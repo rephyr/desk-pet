@@ -116,11 +116,18 @@ func _init() -> void:
 			GameState.whistle_seen())
 
 
-## An unlock popup's "show me" brought you here: the whistle's and the school's land on their page.
-func show_unlock(id: String) -> void:
-	if id == Automation.WHISTLE or id == "school":
-		_page = id
+## An unlock popup's "show me" brought you here (`opens` is what the unlock opened): the
+## whistle's and the school's land on their page.
+func show_unlock(opens: Array) -> void:
+	var page := ""
+	if ("feature:" + Automation.WHISTLE) in opens:
+		page = Automation.WHISTLE
+	elif "feature:school" in opens:
+		page = "school"
+	if page != "":
+		_page = page
 		_dirty = true
+		speak()
 
 
 ## The your pet | workers | whistle | school switch for the pages there are now.
@@ -229,7 +236,7 @@ func _process(_delta: float) -> void:
 	if _page == "workers" or _page == "whistle":  # changes every time a box worker opens a box: only the workers pages show it
 		key += "|%d" % GameState.resting_count()
 	key += "|%s|%s|%d|%d" % [str(a.get("whistle", {}).get("ticks", {})), str(a.get("whistle", {}).get("keep", -1)),
-		GameState.open_locations().size(), GameState.open_pages().size()]
+		GameState.party_places().size(), GameState.open_pages().size()]
 	if _page == "whistle":
 		key += "|%s" % str(GameState.whistle_since)
 	for j in jobs:
@@ -875,7 +882,7 @@ class TodoRow extends HBoxContainer:
 		var left := GameState.spot_room(id)
 		if spot.has("per_place"):
 			sub.add_child(UiTheme.label("of", UiTheme.MUTED, UiTheme.SMALL))
-			var places := GameState.open_locations().size()
+			var places := GameState.party_places().size()
 			sub.add_child(UiTheme.label("%s %s" % [UiTheme.num(places), "place" if places == 1 else "places"], color, UiTheme.SMALL))
 		else:
 			sub.add_child(UiTheme.label("home,", UiTheme.MUTED, UiTheme.SMALL))

@@ -34,9 +34,10 @@
 - **Flattened prices:** past `flat_at` each spot grows by `grow_late`. `Jobs.tool_cost` is
   piecewise with geometric sums for big buys (a plain loop for up to 64 levels, so small buys cost
   exactly what they did); "as many as you can afford" is a binary search (`Automation.affordable`).
-- **"show me" lands on the whistle page:** UnlockPopup's `go` signal now carries the unlock id
-  (`go(tab_id, unlock_id)`), `ExpandedView.show_tab(tab_id, unlock_id := "")` calls the tab's
-  `show_unlock(id)` if it has one, and `AutomationTab.show_unlock("whistle")` picks page 3. Dismissing
+- **"show me" lands on the whistle page:** UnlockPopup's `go` signal now carries what the unlock
+  opens (`go(tab_id, opens: Array)`), `ExpandedView.show_tab(tab_id, opens := [])` calls the tab's
+  `show_unlock(opens)` if it has one, and `AutomationTab.show_unlock` picks page 3 when
+  "feature:whistle" is in it (then says the whistle line). Dismissing
   the popup ("lovely") leaves the page alone.
 - **Offline:** the checks run inside `_work_for_automation`, after the workers' income for that
   time, for the stool's away hours (same as the workers).

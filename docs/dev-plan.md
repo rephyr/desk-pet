@@ -45,7 +45,7 @@ Built (see CLAUDE.md "Where we left off"):
 - **Merged in lanes/merge (2026-09-29, goes to test once the merge passes):** X4 tests, A1 pace
   sim, PRICES (save v25), B2 boost plumbing + D1 knacks, B1 box tiers + the small picks (save
   v26), B3 the whistle (save v27), C1 the bookcase + the herd + C3 new homes (save v28), the round 2
-  mockups, later lanes (see each step), F3 the wishing jar (save v38).
+  mockups, later lanes (see each step), F3 the wishing jar (save v38), F3 the shed workshop (save v39).
 - Tools: tests/test_core.gd, tools/play.py flows, tools/balance.gd, tools/pace.gd (A1),
   tools/machine_pace.gd.
 
@@ -56,7 +56,7 @@ lane and verified there, **not merged yet**: A5 sunset globe
 (`lanes/globes`), E2 next door (`lanes/nextdoor`), C2 past the edge + the school (`lanes/edge`),
 E1 the dungeon (`lanes/dungeon`), F1 the plushie machine (`lanes/plushie`), care A/E/C
 (`lanes/care`), room upgrades / the dollhouse (`lanes/house`), E3 the sewing room + the perk
-wall (`lanes/sewing`), F3 the shed workshop (`lanes/workshop`),
+wall (`lanes/sewing`),
 round 3 mockups (`lanes/mockups2`).
 
 Known small open items: the "new: the bag!" popup can land on the trip postcard; balance note (a
@@ -551,7 +551,7 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
 - **Watch out:** only ONE thing may hand out parts from pets (parts flood, see the scrapyard
   note): the machine gives stuffing, not parts back.
 
-### F3. Pets as currency, spent everywhere  (DECIDED; wish jar BUILT, merged as save v38; shed workshop BUILDING in lane workshop)
+### F3. Pets as currency, spent everywhere  (DECIDED; wish jar BUILT, merged as save v38; shed workshop BUILT, merged as save v39)
 - **Emilia:** pets are a stepping stone: spent on automation, dungeons, adventures, scouting,
   tech, science, to earn the real currency that moves you on.
 - **Emilia picked (2026-09-29): the wish list, then the shed workshop, then held landings** (no
@@ -576,6 +576,13 @@ huge scrapyard crew floods the bag); the sunny tree's node labels overlap at thi
   fill at once; you tap "build it!".** Chores that are manual on purpose stay manual (the weather
   vane only answers plain trip choices; the school bell and reel banking stay yours). The 8
   drawings from the mockup table to start (tune later).
+- **Built (lane workshop, merged as save v39, notes in docs/plans/SHOP-done.md):** the workshop
+  card on the backyard map (unlock `workshop`: `ours: shed` + the whistle), 8 drawings (bell rope,
+  toy shelf, weather vane on plain choices only, chore chart, garden spade, sewing basket, treat
+  banner, letterbox), helpers leave with no star. The merge also brought the lane's review fixes:
+  `GameState.party_places()` (the whistle's and bought parties never go into dungeons or risky
+  places that aren't ours), unlock popups' "show me" hands the tab what the unlock opens.
+  Next: tune the needs against the herd at whistle time (pace sim).
 - **Held landings:** see E1. Stars only for pets that leave or are lost (helpers and holders stay).
 
 ---

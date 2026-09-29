@@ -3,7 +3,9 @@ extends RefCounted
 ## Capsule toys' rules (data/toys.json): rolling one out of a capsule, what a toy's boost is worth,
 ## playing with toys (the boost only works while your pet plays), wear, fixing, combining spares
 ## into levels and sacrificing them for a special finish. Works on the toys' state from the save:
-##   { owned: { "snail:holo": { level, spares, wear } }, playing: [ { key, until, wear } ] }
+##   { owned: { "snail:holo": { level, spares, wear } }, playing: [ { key, until, wear, play, again } ] }
+## (`play` is the play length's id, so the toy shelf can hand the same play again, `again` false
+## when you tapped it to go back on the shelf after this one; v27 on)
 ## Every toy you own is an edition (toy + finish), keyed "toy id:finish id".
 
 ## A toy's bonus is a boost kind (data/boosts.json) or "all" (the kinds marked "all" there).
@@ -186,8 +188,51 @@ static func play(state: Dictionary, catalog: Catalog, edition: String, play_id: 
 		return false
 	var e: Dictionary = state.owned[edition]
 	var sturdy := maxf(0.2, 1.0 - float(data(catalog).sturdier) * (int(e.level) - 1))
-	state.playing.append({ "key": edition, "until": now + float(info.minutes) * 60.0, "wear": float(info.wear) * sturdy })
+	state.playing.append({ "key": edition, "until": now + float(info.minutes) * 60.0, "wear": float(info.wear) * sturdy, "play": play_id, "again": true })
 	return true
+
+
+## The plays whose time is up at `now`, as [{ key, play }] (call before finish_plays): what the toy
+## shelf hands your pet again. Plays from before v27 don't know their length and aren't in it, and
+## ones you tapped to go back on the shelf aren't either.
+static func ending(state: Dictionary, now: float) -> Array:
+	var out: Array = []
+	for p in state.playing:
+		if float(p.until) <= now and str(p.get("play", "")) != "" and bool(p.get("again", true)):
+			out.append({ "key": str(p.key), "play": str(p.play) })
+	return out
+
+
+## Flips whether a toy being played with is handed again when its play ends (the toy shelf).
+## Returns the new setting (false when it isn't being played with).
+static func flip_again(state: Dictionary, edition: String, now: float) -> bool:
+	for p in state.playing:
+		if p.key == edition and float(p.until) > now:
+			p.again = not bool(p.get("again", true))
+			return p.again
+	return false
+
+
+## Whether the toy shelf would hand this play again when it ends (false when it isn't being played).
+static func again(state: Dictionary, edition: String) -> bool:
+	for p in state.playing:
+		if p.key == edition:
+			return bool(p.get("again", true)) and str(p.get("play", "")) != ""
+	return false
+
+
+## Toys resting on the shelf (not being played with) mend a little: `amount` less wear each.
+## Returns whether any toy mended.
+static func mend(state: Dictionary, amount: float, now: float) -> bool:
+	if amount <= 0.0:
+		return false
+	var any := false
+	for k in state.owned:
+		var e: Dictionary = state.owned[k]
+		if float(e.wear) > 0.0 and not playing(state, k, now):
+			e.wear = maxf(0.0, float(e.wear) - amount)
+			any = true
+	return any
 
 
 ## Ends plays whose time is up: the toy wears a little and goes back on the shelf. Returns the

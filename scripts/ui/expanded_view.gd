@@ -195,7 +195,7 @@ func show_start() -> void:
 		_: show_tab("machine")
 
 
-func show_tab(tab_id: String, unlock_id := "") -> void:
+func show_tab(tab_id: String, opens: Array = []) -> void:
 	if tab_id == "book" or tab_id.begins_with("book:"):  # the collectibles' book, open on a reward
 		# sticker's page ("book:<page id>"), or the newest one's
 		show_tab("collection")
@@ -214,8 +214,8 @@ func show_tab(tab_id: String, unlock_id := "") -> void:
 	for n in _tabs:
 		_tabs[n].visible = n == tab_id
 	spine.set_current(tab_id)
-	if unlock_id != "" and _tabs[tab_id].has_method("show_unlock"):  # an unlock's "show me": the tab can open on it
-		_tabs[tab_id].show_unlock(unlock_id)
+	if not opens.is_empty() and _tabs[tab_id].has_method("show_unlock"):  # an unlock's "show me": the tab can open on what it opened
+		_tabs[tab_id].show_unlock(opens)
 	if page != "" and _tabs[tab_id].has_method("show_named_page"):
 		_tabs[tab_id].show_named_page(page)
 	# tabs with something of their own to say say it when they open; the rest get a general line
