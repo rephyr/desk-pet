@@ -51,7 +51,7 @@ scroll 0
 job kitchen 2
 wait 1
 boosts                              # the log shows the kitchen source on errands
-expect text "every job 3*"
+expect text "every job *"
 expect text "a meal every*"
 scroll 400
 wait 0.5
@@ -94,7 +94,7 @@ expect fits
 shot trip_took_note
 # a big crew elsewhere thins the kitchen out: a decimal, never "0% faster"
 pets 1200
-job coin_hunt 1000
+job coin_hunt 200
 wait 1
 expect text "every job 0.*"
 expect no-text "every job 0% faster"

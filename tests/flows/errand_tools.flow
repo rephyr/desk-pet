@@ -13,7 +13,7 @@ shot popup
 click "show me"
 expect tab errands
 wait 1
-expect text "lv 0. at lv 25: x1.25 coins"
+expect text "lv 0. at lv 25: x1.1 coins"
 expect fits
 shot jobs_start
 click "upgrades"
@@ -34,7 +34,7 @@ click "show me"
 wait 1
 pets 3
 wait 1
-expect text "lv 10. at lv 25: x1.25 coins"
+expect text "lv 10. at lv 25: x1.1 coins"
 expect fits
 shot jobs_lemonade
 click "upgrades"

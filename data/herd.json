@@ -11,10 +11,10 @@
 	"room": {
 		"start": 500, "cozy_at": 0.9, "old_save_margin": 0.1,
 		"steps": [
-			{ "id": "plank", "name": "a second plank", "cap": 750, "capsules": 500 },
-			{ "id": "bunks", "name": "bunk beds", "cap": 1100, "capsules": 900 },
-			{ "id": "loft", "name": "a loft", "cap": 1700, "capsules": 1620 },
-			{ "id": "attic", "name": "the attic", "cap": 2500, "capsules": 2920 },
+			{ "id": "plank", "name": "a second plank", "cap": 750, "capsules": 12500 },
+			{ "id": "bunks", "name": "bunk beds", "cap": 1100, "capsules": 17500 },
+			{ "id": "loft", "name": "a loft", "cap": 1700, "capsules": 30000 },
+			{ "id": "attic", "name": "the attic", "cap": 2500, "capsules": 40000 },
 			{ "id": "three", "name": "beds three high", "cap": 5000, "wisps": 60 },
 			{ "id": "hammocks", "name": "hammocks", "cap": 10000, "wisps": 240 },
 			{ "id": "drawers", "name": "pets in the drawers", "cap": 20000, "wisps": 960 },

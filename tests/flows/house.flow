@@ -80,7 +80,7 @@ room 1
 coins 0
 click RoomPill#1
 wait 0.5
-click "900"
+click "build it"
 wait text "more room costs*"
 expect fits
 shot poor

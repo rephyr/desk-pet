@@ -7,6 +7,6 @@
 		{ "id": "happy", "name": "happy", "stat": "mood", "above": 70, "kind": "luck", "x": 1.1 }
 	],
 	"snack": { "capsules": 3, "food": 30, "mood": 5, "full_at": 99 },
-	"pat": { "mood": 8, "every": 30 },
+	"pat": { "mood": 8, "every": 300 },
 	"paws": { "hold": 4, "hold_waits": 10, "hop": 1.1, "stint": [20, 40], "reach_until": 0.3, "shake_from": 0.55, "tap_every": 0.4 }
 }
