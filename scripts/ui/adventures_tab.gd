@@ -19,6 +19,8 @@ var _picker := PanelContainer.new()
 var _place_title := UiTheme.title("", 18)
 var _place_note := UiTheme.label("", UiTheme.GOLD, UiTheme.SMALL + 1)
 var _facts := HFlowContainer.new()
+var _lights := Control.new()  # next door: the little windows of the house behind the place, lit ones still to go
+var _stuck: Tilted  # holds the place card on the map (it moves to the left on the street when the garden is on the right)
 var _odds := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL)
 ## Why you'd send more than one pet, in plain words (shown once parties are open)
 var _why := UiTheme.label("more friends bring home more, and tricky bits get easier. but more friends can get hurt.", UiTheme.LILAC, UiTheme.SMALL)
@@ -82,12 +84,9 @@ func _init() -> void:
 	_build_picker()
 	_picker.visible = false
 	# the card sticks onto the map's top right, a little crooked
-	var stuck := Tilted.new(_picker, 1.0)
-	stuck.set_anchors_preset(PRESET_TOP_RIGHT)
-	stuck.grow_horizontal = GROW_DIRECTION_BEGIN
-	stuck.offset_right = -14
-	stuck.offset_top = 40
-	area.add_child(stuck)
+	_stuck = Tilted.new(_picker, 1.0)
+	_stick_card(false)
+	area.add_child(_stuck)
 	area.add_child(_postcard)  # over the map and the place card
 	_main.add_child(_runs_column())
 
@@ -163,8 +162,31 @@ func pick_place(location_id: String) -> void:
 	_choose_place(location_id)
 
 
+## The place card sticks onto the map's top right, a little crooked; on next door's street it goes
+## top left when the garden you picked is on the right, so it doesn't cover it.
+func _stick_card(left: bool) -> void:
+	if left:
+		_stuck.set_anchors_preset(PRESET_TOP_LEFT)
+		_stuck.grow_horizontal = GROW_DIRECTION_END
+		_stuck.offset_left = 12
+		_stuck.offset_right = 12
+		_stuck.offset_top = 52
+		_stuck.degrees = -1.0
+	else:
+		_stuck.set_anchors_preset(PRESET_TOP_RIGHT)
+		_stuck.grow_horizontal = GROW_DIRECTION_BEGIN
+		_stuck.offset_left = -14
+		_stuck.offset_right = -14
+		_stuck.offset_top = 40
+		_stuck.degrees = 1.0
+	_stuck.reset_size()
+
+
 ## A place on the map was tapped: stick its card onto the map to pick who goes.
 func _choose_place(location_id: String) -> void:
+	var location := Catalog.shared().location(location_id)
+	var street := str(Catalog.shared().page_info(str(location.get("page", ""))).get("layout", "")) == "street"
+	_stick_card(street and not StreetPage.in_fence(location) and int(location.get("map", {}).get("x", 0)) >= 2)
 	_location_id = location_id
 	_map.selected = location_id
 	_map.queue_redraw()
@@ -203,6 +225,8 @@ func _build_picker() -> void:
 	_picker.add_child(col)
 	col.add_child(_place_title)
 	col.add_child(_place_note)
+	_lights.draw.connect(_draw_lights)
+	col.add_child(_lights)
 	_facts.add_theme_constant_override("h_separation", 5)
 	_facts.add_theme_constant_override("v_separation", 5)
 	col.add_child(_facts)
@@ -459,6 +483,11 @@ func _refresh_send() -> void:
 	_place_title.text = d.name
 	_place_note.text = str(d.get("map", {}).get("note", ""))
 	_place_note.visible = _place_note.text != ""
+	var ours := GameState.is_ours(_location_id)
+	var lights := Ours.lights(d)
+	_lights.visible = lights > 0 and not ours
+	_lights.custom_minimum_size = Vector2(lights * (LIGHT + 5.0) + 4.0, LIGHT * 1.25 + 4.0)
+	_lights.queue_redraw()
 	var pets := _picked_pets()
 	var most := _max_party()
 	_why.visible = most > 1
@@ -478,6 +507,12 @@ func _refresh_send() -> void:
 		brings.tooltip_text = "machine bits: they fix up the capsule machine"
 		(brings.find_child("Amount", true, false) as Label).add_theme_font_size_override("font_size", UiTheme.SMALL)
 		_facts.add_child(brings)
+	if d.get("risky", false) and not ours:
+		_facts.add_child(UiTheme.tag("risky", UiTheme.PINK))
+	if ours:
+		var more := UiTheme.chip("coin", "×%s" % str(snappedf(float(catalog.ours.get("loot", 1.0)), 0.01)), UiTheme.CYAN)
+		(more.find_child("Amount", true, false) as Label).add_theme_font_size_override("font_size", UiTheme.SMALL)
+		_facts.add_child(more)
 	if most == 1:
 		_picked_label.text = "%d of 1" % pets.size()
 	elif most <= Chooser.SMALL_PARTY:
@@ -498,9 +533,10 @@ func _refresh_send() -> void:
 			_odds.text = "about %s there and back. they'll ask you along the way." % time
 		_:
 			# trial runs are slow for big swarms: only redo them when the picks change
-			if key != _estimate_key:
-				_estimate_key = key
-				_estimate = AdventureRunner.estimate_return(_location_id, pets, catalog, 30, packed, knacks)
+			var est_key := key + ":" + str(ours)
+			if est_key != _estimate_key:
+				_estimate_key = est_key
+				_estimate = AdventureRunner.estimate_return(_location_id, pets, catalog, 30, packed, knacks, ours)
 			_odds.text = "about %s there and back. about %d%% come home." % [time, roundi(_estimate * 100.0)]
 
 
@@ -512,6 +548,17 @@ func _trip_key(packed: Dictionary) -> String:
 		boosts.append(str(GameState.boost(kind)))
 	return "%s:%s:%s:%s:%s:%d" % [_location_id, ",".join(_picked.keys()), str(packed), GameState.collection.active_uid,
 		",".join(boosts), GameState.knack_version]
+
+
+const LIGHT := 14.0  # a window on the place card
+
+
+## The house's windows on the place card: lit ones first, the dark ones after (one per visit).
+func _draw_lights() -> void:
+	var d := Catalog.shared().location(_location_id)
+	var on := GameState.lights_left(_location_id)
+	for i in Ours.lights(d):
+		StreetPage.window(_lights, Vector2(2.0 + i * (LIGHT + 5.0), 2.0 + LIGHT * 0.25), LIGHT, i < on)
 
 
 func _rebuild_runs() -> void:
@@ -587,6 +634,7 @@ func _rebuild_runs() -> void:
 			RunState.Status.DONE:
 				col.add_child(_wrapped(AdventureRunner.summary(run), UiTheme.TEXT))
 				var back := UiTheme.button("welcome back", _collect.bind(run))
+				back.name = "welcome_" + run.location_id  # for test flows (click name:welcome_<place>)
 				back.icon = UiTheme.icon("heart", 14)
 				back.icon_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 				back.add_theme_constant_override("icon_max_width", 14)

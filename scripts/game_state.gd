@@ -24,12 +24,13 @@ signal room_full  # you tried to open a box but the room is full (it waits on th
 signal homes_paid(boxes: int)  # pets left for new homes and their points filled this many boxes
 signal gifts_changed  # a present came into the pocket or one was opened (see Gifts)
 signal globe_arrived(id: String)  # a new machine globe came home (a pet brought its find), see Machine
+signal page_opened(page_id: String)  # a map page was opened by the game's code (open_page)
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
 ## Headless tests set this before making a GameState: it starts empty and never loads or saves
 ## (a test turns saving on with its own save_path).
 static var testing := false
-const SAVE_VERSION := 30
+const SAVE_VERSION := 31
 const WORKER_BOXES_MAX := 2000  # box workers open at most this many boxes in one go (every pet is rolled)
 const OFFLINE_CAP := 12.0 * 3600.0
 const FRAME_GAP := 5.0  # a frame this long means the computer slept: counts as closed (no care drain)
@@ -61,6 +62,8 @@ var rumours: Array[String] = []  # heard, and waiting for you to decide whether 
 var visited := {}
 ## Places a pet spotted on a trip, waiting for you: location id -> { by, from }
 var spotted := {}
+var visits := {}  # location id -> trips welcomed back from there (next door's lights go out one a visit, see Ours)
+var unshown_ours := {}  # location id -> true: it became ours and the map hasn't coloured it in yet (MapView, then ours_shown; not saved)
 var spot_tries := {}  # location id -> trips that could have spotted it but didn't (the safety net)
 var finds := {}  # special items pets have brought home, see data/unlocks.json
 var packs_by_hand := 0  # packs you opened yourself (some unlocks wait for enough)
@@ -754,17 +757,46 @@ func check_unlocks() -> void:
 	for entry in catalog.unlock_list:
 		if entry.opens.all(func(o): return is_unlocked(o)) or not _earned(entry.earn):
 			continue
-		for o in entry.opens:
-			unlocks[o] = true
-			_opened(str(o))
-		if str(entry.get("pet_job", "")) != "":
-			_gift_pet(str(entry.pet_job))
-		if str(entry.get("announce", "")) != "":
-			announcements.append(entry.announce)
-		unlocked.emit(entry)
-		_milestone(str(entry.id))
+		_open_entry(entry)
+
+
+## Opens an unlock: what it opens, its pet, your pet's news, its popup (the unlocked signal).
+func _open_entry(entry: Dictionary) -> void:
+	for o in entry.opens:
+		unlocks[o] = true
+		_opened(str(o))
+	if str(entry.get("pet_job", "")) != "":
+		_gift_pet(str(entry.pet_job))
+	if str(entry.get("announce", "")) != "":
+		announcements.append(entry.announce)
+	unlocked.emit(entry)
+	_milestone(str(entry.id))
+	adventures_changed.emit()
+	changed.emit()
+
+
+## Opens a map page from the game's code: the hook for pages nothing you find opens by itself
+## (next door: "earn": { "called": true } in data/unlocks.json, opened by pets past the edge).
+## Its unlock pops up and your pet tells you, as if it had been earned; a page with no unlock of
+## its own just opens. Returns false if it was open already (or there's no such page).
+func open_page(page_id: String) -> bool:
+	if catalog.page_info(page_id).is_empty() or page_open(page_id):
+		return false
+	var entry := UnlockRules.opening(catalog.unlock_list, "page:" + page_id)
+	if entry.is_empty():
+		unlocks["page:" + page_id] = true
 		adventures_changed.emit()
 		changed.emit()
+	else:
+		_open_entry(entry)
+	if page_id == Ours.opens_with(catalog):
+		# places visited often enough already are ours now: the map colours them in next time you look
+		for location in catalog.locations:
+			if is_ours(location.id) and not location.get("ours_at_start", false):
+				unshown_ours[location.id] = true
+	page_opened.emit(page_id)
+	save_game()
+	return true
 
 
 ## Something just opened: the whistle is your pet's managing job, known from the moment it's found.
@@ -775,6 +807,8 @@ func _opened(id: String) -> void:
 
 
 func _earned(earn: Dictionary) -> bool:
+	if earn.get("called", false):
+		return false  # only the game's code opens it (open_page)
 	if earn.has("find") and not finds.has(earn.find):
 		return false
 	if earn.get("first", "") == "part" and not parts_ever:
@@ -858,6 +892,48 @@ func open_locations() -> Array[Dictionary]:
 		if location_open(location):
 			out.append(location)
 	return out
+
+
+## Whether next door is open, so places can become ours (see Ours).
+func next_door_open() -> bool:
+	return page_open(Ours.opens_with(catalog))
+
+
+## Trips welcomed back from a place.
+func visits_at(location_id: String) -> int:
+	return int(visits.get(location_id, 0))
+
+
+## Lights still on in the house behind a next-door place (0 once it's ours).
+func lights_left(location_id: String) -> int:
+	return Ours.lights_left(catalog.location(location_id), visits_at(location_id))
+
+
+## Whether a place is ours: coloured in by your pet, safer, pays a bit more, no locals (see Ours).
+func is_ours(location_id: String) -> bool:
+	return Ours.is_ours(catalog, catalog.location(location_id), visits_at(location_id), next_door_open())
+
+
+## The map has started colouring in a place that just became ours (see unshown_ours).
+func ours_shown(location_id: String) -> void:
+	unshown_ours.erase(location_id)
+
+
+## Counts `n` more visits to a place. One light goes out each (next door); when the last goes out,
+## or a backyard place has had its many visits, the place becomes ours: your pet tells you and the
+## map colours it in. Returns "ours" if it just became ours, "dark" if a light went out, else "".
+func add_visits(location_id: String, n := 1) -> String:
+	var location := catalog.location(location_id)
+	if location.is_empty() or n <= 0:
+		return ""
+	var was_ours := is_ours(location_id)
+	var lit := lights_left(location_id)
+	visits[location_id] = visits_at(location_id) + n
+	if not was_ours and is_ours(location_id):
+		unshown_ours[location_id] = true
+		announcements.append(Ours.say(catalog, "say_ours", location))
+		return "ours"
+	return "dark" if next_door_open() and lights_left(location_id) < lit else ""
 
 
 ## You decided to go where a rumour said: it opens what the rumour was about.
@@ -970,6 +1046,8 @@ func debug_new_game() -> void:
 	_worker_of.clear()
 	_worker_speed.clear()
 	visited.clear()
+	visits.clear()
+	unshown_ours.clear()
 	saved_boxes.clear()
 	reserve_capsules = default_reserve()
 	boxes_bought.clear()
@@ -2832,6 +2910,8 @@ func debug_lock_all() -> void:
 	finds.clear()
 	spotted.clear()
 	spot_tries.clear()
+	visits.clear()
+	unshown_ours.clear()
 	adventures_changed.emit()
 	changed.emit()
 	save_game()
@@ -2919,7 +2999,7 @@ func send_on_adventure(location_id: String, pets: Array[Pet], by_you := true) ->
 	# every trip packs the gear you have when it sets off (yours, your pet's and the workers' parties;
 	# never dungeons, see Gear.for_trip)
 	var run := AdventureRunner.start(location_id, going, Time.get_unix_time_from_system(), _rng.randi(), catalog, finds, machine.bought,
-		Gear.for_trip(catalog, gear, location), trip_knacks(going), workers_total())
+		Gear.for_trip(catalog, gear, location), trip_knacks(going), workers_total(), is_ours(location_id))
 	# auto parties (your pet's, the workers') never take a note: skip the looking around for them
 	if by_you and scout_notes > 0 and Jobs.takes_note(catalog, location, by_you, scout_notes,
 			Intel.left_to_find(location, _place_known, not Rumours.hearable(catalog, heard, is_open).is_empty(), catalog)):
@@ -2962,6 +3042,10 @@ func collect_run(run: RunState) -> Dictionary:
 	_rest_changed()
 	trips_done += 1
 	var location := catalog.location(run.location_id)
+	# a visit (somebody made it home): one of next door's lights goes out (your pet whispers about it
+	# on trips you sent)
+	if run.party.size() > 0 and add_visits(run.location_id) == "dark" and not run.auto:
+		announcements.append(Ours.say(catalog, "say_dark", location))
 	var photo: Array[Dictionary] = []
 	for uid: String in run.party.stats:  # everyone who set out, in order
 		var pet := collection.get_pet(uid)
@@ -3077,7 +3161,7 @@ func _zoom_runs(delta: float) -> void:
 func trail_pickup(run: RunState, kind: String, bonus := 1.0) -> Dictionary:
 	if not run in runs or run.status == RunState.Status.DONE:
 		return {}
-	var location := catalog.location(run.location_id)
+	var location := AdventureRunner.place(run, catalog)
 	var paws := (1.0 + Gear.value(catalog, run.gear, "pickups")) * run.knack("pickups")  # sticky paws (and knacks): worth more
 	match kind:
 		"coins":
@@ -3963,6 +4047,7 @@ func save_game() -> void:
 		"boxes_bought": boxes_bought,
 		"boxes_greeted": boxes_greeted.keys(),
 		"visited": visited.keys(),
+		"visits": visits,
 		"buying_on": buying_on,
 		"pinned": pinned,
 		"rummaged": rummaged,
@@ -4109,6 +4194,12 @@ func _load_save() -> bool:
 		for location in catalog.locations:
 			if location_open(location):
 				visited[location.id] = true
+	visits.clear()
+	unshown_ours.clear()
+	var saved_visits: Dictionary = data.get("visits", {})
+	for id in saved_visits:
+		if not catalog.location(str(id)).is_empty():
+			visits[str(id)] = maxi(0, int(saved_visits[id]))
 	saved_boxes.clear()
 	for id in data.get("saved_boxes", []):
 		saved_boxes[str(id)] = true
@@ -4350,6 +4441,10 @@ func _migrate(data: Dictionary) -> Dictionary:
 	# on load (built as v25 in the care lane)
 	# v30 added machine globes (machine.globes, machine.greeted): load_game gives an older save just
 	# the first globe, already seen (built as v24 in the globes lane)
+	if version < 31 and not data.has("visits"):
+		# v31 counts visits per place (next door's lights, places becoming ours): every place
+		# already visited counts once (built as v24 in the nextdoor lane)
+		data.visits = Ours.visits_from(data.get("visited", []))
 	if version < 7:
 		# v7: dungeon places open one rumour at a time; saves that had the dungeons keep them all
 		var had: Array = data.get("unlocks", [])

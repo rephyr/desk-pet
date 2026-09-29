@@ -1,5 +1,5 @@
 {
-	"_note": "Everything past the basics is opened through adventures. Each unlock has 'earn': every condition must be met ('find': a special item a pet brought home from a trip, see 'finds' and the events that give them; 'first': the first of something, 'part' or 'toy'; 'trips': adventures welcomed back; 'machine': a node on the machine's tree is fixed; 'packs_opened': packs you opened yourself; 'open': another unlock id that must be open already, e.g. 'feature:parts'; 'taught': a job your pet has been taught in the automation tab (data/automation.json); 'job_level': { job id: level } an errand's level, see data/errands.json). 'show' is how it looks until then: 'locked' (a tab with a padlock and the 'hint') or 'hidden' (not there at all). 'opens' is what it turns on: 'tab:<name>', 'feature:<id>' (errands, packs = the automation tab's open boxes job, auto_adventures = its run adventures job, shopping = your pet buys more boxes when the pile runs out, parties, whistle = your pet manages the workers) 'page:<id>' (a map page) or 'job:<id>' (an errand, see its 'needs'); new_homes = the new homes stall on the pets tab, sorting = its sorting rule card. More earn conditions: 'room': 'full' (the room has been full once), 'homes_by_hand': pets sent to new homes from the stall. 'quiet': true opens it without the popup card (your pet just says the 'announce' line). 'pet_job': a pet comes with it and starts on that errand. 'announce' is what your active pet says when it opens. 'popup' is the card that pops up then: its 'title', a line of 'text' on what it does, and 'go', the tab its show me button opens (none: just lovely).",
+	"_note": "Everything past the basics is opened through adventures. Each unlock has 'earn': every condition must be met ('find': a special item a pet brought home from a trip, see 'finds' and the events that give them; 'first': the first of something, 'part' or 'toy'; 'trips': adventures welcomed back; 'machine': a node on the machine's tree is fixed; 'packs_opened': packs you opened yourself; 'open': another unlock id that must be open already, e.g. 'feature:parts'; 'taught': a job your pet has been taught in the automation tab (data/automation.json); 'job_level': { job id: level } an errand's level, see data/errands.json; 'called': true, only the game's code opens it, see GameState.open_page). 'show' is how it looks until then: 'locked' (a tab with a padlock and the 'hint') or 'hidden' (not there at all). 'opens' is what it turns on: 'tab:<name>', 'feature:<id>' (errands, packs = the automation tab's open boxes job, auto_adventures = its run adventures job, shopping = your pet buys more boxes when the pile runs out, parties, whistle = your pet manages the workers) 'page:<id>' (a map page) or 'job:<id>' (an errand, see its 'needs'); new_homes = the new homes stall on the pets tab, sorting = its sorting rule card. More earn conditions: 'room': 'full' (the room has been full once), 'homes_by_hand': pets sent to new homes from the stall. 'quiet': true opens it without the popup card (your pet just says the 'announce' line). 'pet_job': a pet comes with it and starts on that errand. 'announce' is what your active pet says when it opens. 'popup' is the card that pops up then: its 'title', a line of 'text' on what it does, and 'go', the tab its show me button opens (none: just lovely). PAGES are the map's pages, in order: 'paper': 'night' draws it on night paper, 'layout': 'street' draws next door's row of gardens (StreetPage), 'ours_after' is how many visits until a place on it becomes ours (only once next door is open, see data/adventures.json 'ours').",
 	"unlocks": [
 		{ "id": "boxes", "opens": ["tab:boxes"], "show": "locked", "hint": "something's rusted shut in the capsule machine…",
 			"popup": { "title": "new: boxes!", "text": "boxes have pets inside! buy them with coins and rip them open. your pile of boxes lives here too.", "go": "boxes" },
@@ -34,6 +34,9 @@
 		{ "id": "beyond", "opens": ["page:beyond"], "show": "hidden",
 			"popup": { "title": "new: beyond the fence!", "text": "a scrap of a map came out of the capsule machine! someone drew what's past the fence. there's a whole new page on the map!", "go": "adventures" },
 			"earn": { "find": "intel_fence" }, "announce": "a map of past the fence! there's so much out there. let's go see all of it!" },
+		{ "id": "next_door", "opens": ["page:next_door"], "show": "hidden",
+			"popup": { "title": "new: next door!", "text": "past the edge of the fence there's a whole row of gardens, and all their lights are on. there's a new page on the map!", "go": "adventures" },
+			"earn": { "called": true }, "announce": "there are gardens next door! let's tiptoe over and have a look." },
 		{ "id": "parts", "opens": ["feature:parts"], "show": "hidden",
 			"popup": { "title": "new: parts!", "text": "pets can bring body parts home from adventures now. on the workbench you can sew them onto your pet. every part rolls its own little bonus!", "go": "adventures" },
 			"earn": { "trips": 40 }, "announce": "i found an ear on the path! a spare one. can i wear it?" },
@@ -76,7 +79,8 @@
 		{ "id": "sunset_globe", "name": "a sunset globe" }
 	],
 	"pages": [
-		{ "id": "backyard", "name": "the backyard", "start": true },
-		{ "id": "beyond", "name": "beyond the fence" }
+		{ "id": "backyard", "name": "the backyard", "start": true, "ours_after": 40 },
+		{ "id": "beyond", "name": "beyond the fence" },
+		{ "id": "next_door", "name": "next door", "paper": "night", "layout": "street" }
 	]
 }

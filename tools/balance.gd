@@ -49,6 +49,7 @@ func _init() -> void:
 	_spots(catalog)
 	_gifts(catalog)
 	_globes(catalog)
+	_ours(catalog, rng)
 	quit()
 
 
@@ -272,3 +273,30 @@ static func _num(n: float) -> String:
 		if n >= u[0]:
 			return "%.1f%s" % [n / u[0], u[1]]
 	return "%.1f" % n
+
+
+## Next door (E2): a party of commons at each garden by the rules, before and after the place is
+## ours (safer, pays more, no locals).
+func _ours(catalog: Catalog, rng: RandomNumberGenerator) -> void:
+	const RUNS := 300
+	var roller := PetRoller.new(catalog, rng)
+	var party: Array[Pet] = []
+	for i in 20:
+		party.append(roller.roll("starter", "common"))
+	print("\nnext door, 20 commons by the rules, %d trips each" % RUNS)
+	print("%-11s %6s %10s %10s %8s %8s" % ["place", "ours", "coins", "per min", "home", "boxes"])
+	for location in catalog.locations:
+		if location.page != "next_door":
+			continue
+		for ours in ([true] if location.get("ours_at_start", false) else [false, true]):  # ours from the start: never met otherwise
+			var coins := 0.0
+			var home := 0.0
+			var boxes := 0.0
+			for t in RUNS:
+				var run := AdventureRunner.start(location.id, party, 0.0, t, catalog, {}, {}, {}, {}, 0, ours)
+				AdventureRunner.resolve(run, PolicyChooser.new(), INF, catalog)
+				coins += Rewards.total(run.loot, "coins")
+				boxes += Rewards.total(run.loot, "box")
+				home += run.party.size() / float(party.size())
+			print("%-11s %6s %10.0f %10.0f %7.0f%% %8.2f" % [location.id, "yes" if ours else "no", coins / RUNS,
+				coins / RUNS / float(location.minutes), 100.0 * home / RUNS, boxes / RUNS])

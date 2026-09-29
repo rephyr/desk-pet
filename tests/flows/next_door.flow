@@ -1,0 +1,114 @@
+# Next door (E2, look A: the street). Nothing opens it by itself: the game's code does
+# (GameState.open_page, the "open" step), popup and all. Then the street: their gate and path are
+# ours from the start, the greenhouse's house has 5 lights that go out one a visit, and at the last
+# one your pet colours it in (flag on the roof, x1.2 on its card). The doghouse is risky. A trip
+# walks in through the gate; the midnight box turns up in the shop; the backyard's places become
+# ours too after lots of visits.
+from rich
+view full
+pets 12
+tab boxes
+wait 1
+expect no-text "midnight box"
+tab adventures
+wait 0.5
+click "‹ map"  # the save has a trip out at the garden path: back to the map
+wait 0.5
+expect no-text "next door"
+unlock page:beyond
+open next_door
+wait popup
+expect text "new: next door!"
+expect fits
+shot popup
+click "lovely"
+wait 0.5
+click "next door"
+wait 1
+expect ours their_gate
+expect ours their_path
+expect not-ours greenhouse
+expect fits
+shot street
+unlock location:greenhouse
+unlock location:their_pond
+place greenhouse
+wait 0.5
+expect lights greenhouse 5
+expect fits
+shot greenhouse_card
+visit greenhouse 4
+place greenhouse
+wait 0.5
+expect lights greenhouse 1
+expect not-ours greenhouse
+shot one_light
+click "not yet"
+visit greenhouse 1
+wait 0.2
+shot colouring_in
+expect ours greenhouse
+expect lights greenhouse 0
+wait 1.5
+shot coloured_in
+place greenhouse
+wait 0.5
+expect text "×1.2"
+expect fits
+shot ours_card
+unlock location:porch
+unlock location:doghouse
+place doghouse
+wait 0.5
+expect text "risky"
+expect fits
+shot doghouse_card
+click "not yet"
+send greenhouse 1
+wait 1
+expect fits
+shot trail
+click "‹ map"
+wait 1.5
+expect fits
+shot walking
+tab home  # your pet tells you its news (next door, the greenhouse)
+wait 0.5
+send their_pond 1  # a real trip to their pond, all the way home: one light goes out
+click "‹ map"
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+wait 0.5
+click name:welcome_their_pond
+wait 0.5
+expect lights their_pond 4
+expect text "shh... the house behind their pond*"
+shot lights_out
+click "lovely"
+wait 0.5
+tab boxes
+wait 2
+expect text "midnight box"
+expect text "new!"
+expect fits
+shot midnight_box
+tab adventures
+wait 0.5
+click "the backyard"
+unlock location:meadow
+visit meadow 39
+expect not-ours meadow
+visit meadow 1
+expect ours meadow
+wait 2
+expect fits
+shot backyard_ours

@@ -28,15 +28,17 @@ const HOME_OPTION := {
 ## `fixed` is the capsule machine's fixed nodes (node id -> levels), for events that wait on one.
 ## `gear` is the gear the trip packs (Gear.for_trip) and `knacks` what knacks do for it
 ## (GameState.trip_knacks): both are kept on the run for the whole trip.
+## `ours`: the place is ours (see Ours): safer, pays a bit more, and the locals don't turn up.
 ## `workers` is how many workers you have (the automation tab), for events that wait for them.
-static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: int, catalog: Catalog, found := {}, fixed := {}, gear := {}, knacks := {}, workers := 0) -> RunState:
+static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: int, catalog: Catalog, found := {}, fixed := {}, gear := {}, knacks := {}, workers := 0, ours := false) -> RunState:
 	var location := catalog.location(location_id)
 	var s := RunState.new()
 	s.location_id = location_id
 	s.party = Party.make(pets, catalog)
 	s.chooser = Chooser.kind_for(pets.size())
 	s.rng_seed = rng_seed
-	s.events = pick_events(location, rng_seed, found, catalog, fixed, workers)
+	s.ours = ours
+	s.events = pick_events(location, rng_seed, found, catalog, fixed, workers, ours)
 	s.started = now
 	s.gear = gear
 	s.knacks = knacks
@@ -46,8 +48,9 @@ static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: i
 
 
 ## The events a trip will meet: a place's fixed list, or a draw from its pool (weighted, no
-## repeats), so trips to the same place go differently.
-static func pick_events(location: Dictionary, rng_seed: int, found := {}, catalog: Catalog = null, fixed := {}, workers := 0) -> Array[String]:
+## repeats), so trips to the same place go differently. On an `ours` trip the locals' trace
+## events ("local": true) don't turn up.
+static func pick_events(location: Dictionary, rng_seed: int, found := {}, catalog: Catalog = null, fixed := {}, workers := 0, ours := false) -> Array[String]:
 	var out: Array[String] = []
 	# a find's event stops once it's found, one with "after" waits until that find is home, one
 	# with "after_machine" until that node on the capsule machine's tree is fixed, and one with
@@ -59,6 +62,8 @@ static func pick_events(location: Dictionary, rng_seed: int, found := {}, catalo
 		if e.has("after_machine") and int(fixed.get(str(e.after_machine), 0)) <= 0:
 			return false
 		if workers < int(e.get("after_workers", 0)):
+			return false
+		if ours and e.get("local", false):
 			return false
 		return not found.has(str(e.get("find", ""))) and (not e.has("after") or found.has(str(e.after)))
 	if not location.has("pool"):
@@ -102,7 +107,17 @@ static func gap(location: Dictionary, party: Party, events: int, walk := 0.0) ->
 
 ## A run's gap between events, with the boots it packed (RunState.walk).
 static func run_gap(state: RunState, catalog: Catalog) -> float:
-	return gap(catalog.location(state.location_id), state.party, state.events.size(), state.walk)
+	return gap(catalog.location(state.location_id), state.party, state.events.size(), state.walk)  # ours doesn't change the walk
+
+
+## The place a run is at, as the run meets it: an ours place is safer and pays more (Ours.place).
+## Worked out once per run (RunState.met).
+static func place(state: RunState, catalog: Catalog) -> Dictionary:
+	if not state.ours:
+		return catalog.location(state.location_id)
+	if state.met.is_empty():
+		state.met = Ours.place(catalog, catalog.location(state.location_id), true)
+	return state.met
 
 
 ## About how long a party would take, for showing before sending (`walk` from its gear).
@@ -115,7 +130,7 @@ static func duration(location: Dictionary, party: Party, walk := 0.0) -> float:
 ## (a finish treat with "after" waits for that find).
 static func resolve(state: RunState, chooser: Chooser, now: float, catalog: Catalog, found := {}) -> Array[Dictionary]:
 	var added: Array[Dictionary] = []
-	var location := catalog.location(state.location_id)
+	var location := place(state, catalog)
 	while state.status != RunState.Status.DONE and now >= state.next_at:
 		if state.step >= state.events.size() or state.party.size() == 0:
 			if state.party.size() == 0:
@@ -245,7 +260,7 @@ static func risky(option: Dictionary, location: Dictionary) -> bool:
 
 ## Plays one option of an event on the run and returns what happened.
 static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog) -> Dictionary:
-	var location := catalog.location(state.location_id)
+	var location := place(state, catalog)
 	var option: Dictionary = options_of(event, location)[pick]
 	var party := state.party
 	# each event has its own dice, so when it's resolved doesn't change how it goes
@@ -344,13 +359,14 @@ static func summary(state: RunState) -> String:
 
 
 ## Roughly what share of these pets come home if the default option is taken at every event,
-## from a few quick trial runs. For showing before sending (with the gear and knacks they'd pack).
-static func estimate_return(location_id: String, pets: Array[Pet], catalog: Catalog, trials := 30, gear := {}, knacks := {}) -> float:
+## from a few quick trial runs. For showing before sending (with the gear and knacks they'd pack,
+## and whether the place is `ours`).
+static func estimate_return(location_id: String, pets: Array[Pet], catalog: Catalog, trials := 30, gear := {}, knacks := {}, ours := false) -> float:
 	if pets.is_empty():
 		return 1.0
 	var home := 0.0
 	for t in trials:
-		var s := start(location_id, pets, 0.0, t, catalog, {}, {}, gear, knacks)
+		var s := start(location_id, pets, 0.0, t, catalog, {}, {}, gear, knacks, 0, ours)
 		resolve(s, PolicyChooser.new(), INF, catalog)
 		home += s.party.size()
 	return home / (trials * pets.size())
