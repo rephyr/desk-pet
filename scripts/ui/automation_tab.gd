@@ -401,6 +401,8 @@ static func rate_line(job: Dictionary) -> String:
 			var pile := "a box on your pile" if boxes == 1 else "%s boxes on your pile" % UiTheme.num(boxes)
 			return "squish! " + pile if GameState.room_is_full() else pile
 		"army":
+			if GameState.dungeon_running() and GameState.dungeon.run.has("room"):
+				return "in %s" % str(GameState.sew_room(int(GameState.dungeon.run.room)).name)
 			if GameState.dungeon_running():
 				return "down to floor %d" % int(GameState.dungeon.run.get("target", GameState.dungeon.target))
 			return "waiting by the well" if int(GameState.army().sent) == 0 else "back up the rope"

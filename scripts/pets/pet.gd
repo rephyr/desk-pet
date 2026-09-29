@@ -70,7 +70,7 @@ static func from_dict(d: Dictionary, catalog: Catalog = Catalog.shared()) -> Pet
 	p.pulled_at = int(d.get("pulled_at", 0))
 	p.fav = bool(d.get("fav", false))
 	p.new_part = bool(d.get("new_part", false))
-	var saved_buttons = d.get("buttons", {})  # v24: the plushie machine's buttons
+	var saved_buttons = d.get("buttons", {})  # v34: the plushie machine's buttons
 	if saved_buttons is Dictionary:
 		for slot in saved_buttons:
 			var n := clampi(int(saved_buttons[slot]), 0, Plushie.max_buttons(catalog))

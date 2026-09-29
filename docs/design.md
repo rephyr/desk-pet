@@ -173,7 +173,8 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   side column beside the bookcase (no popup; your pet mentions it). Tap a plank to pick that shelf
   (dashed pink border), tap it again to open it; the stall takes 1 / 10 / 100 / all of the shelf's
   plain pets (normal before shiny, resting before working, counts before the oldest cards; never
-  favourites, the active pet, new parts, holo and better, pets away). Points per rarity (common 1,
+  favourites, the active pet, new parts, pets with buttons, holo and better, pets away, the dungeon's
+  army (cards and its herd pets), the plushie machine's keeper). Points per rarity (common 1,
   uncommon 2, rare 5, epic 12, legendary 20, mythic 40; data/new_homes.json) fill a box jar, 25 = a
   sunny box (the starter box) on your pile. Every take your pet says "they'll have a
   big garden!", always those words. An opened shelf takes the whole width (the stall steps aside).
@@ -184,7 +185,8 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   = they leave at once (points, stars; the reveal still shows them), work = they start where "new
   pets join here" is on, or on every open errand. "sorted today N" on the card and on each plank
   under the line (local day).
-- **Stars:** every pet that leaves (new homes, lost on an adventure) adds a night-sky star, never
+- **Stars:** every pet that leaves (new homes, lost on an adventure or down the well, fed to the
+  plushie machine) adds a night-sky star, never
   explained.
 - **Page rewards** (built, data/book.json): each part page and the first finishes page ends with
   a gift spot; filling the page opens its reward sticker for good, a small permanent boost (coins,
@@ -342,7 +344,8 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   perfection (1 + 0.1 per keeper button, placeholder). Wisps buy nudges (60, x1.3), holds (400,
   x2.5) and a wild 6th reel for one pet (250 x rarity step; its button goes straight onto the part
   you pick with ‹ ›). A failed try costs only the fed pets and held buttons; the keeper is safe
-  (it stays home: no adventures and no dungeon army while it's the keeper). Banked reels stay banked for
+  (it stays home: it can't go on adventures or down the well in the dungeon's army while it's the
+  keeper, and a pet in the army can't be the keeper). Banked reels stay banked for
   the fed pet across a keeper swap.
   Your pet cheers every spin. Pets don't play it for you yet. Numbers in data/plushie.json.
   **The broken machine and its tree (Emilia, built):** the machine is an old broken one you fix
@@ -668,13 +671,86 @@ All opt-in, with odds shown before confirming:
     0.4 of its strength can't be passed. Pets that don't come back become stars, never named.
   - **Wisps (the darker currency, candy floss coral):** each cleared floor pays 0.01 x 1.15^floor
     x pets SENT (at most the entrance), never per pet lost. Lit landings are the progress bar.
-    Nothing spends wisps yet (widening the entrance is the first buy, later).
+    The plushie machine spends them (nudges, holds, the wild reel); the perks on the well wall
+    (below) spend them too, the widened entrance first.
   - **Firsts:** floor 10 gives the first dungeon part (an epic) and your pet learns "lead the
     army" (automation: it takes the same army down again whenever it's home, while the game runs);
     floor 20 gives a tiny key (E3's), fully hidden until found. While parts aren't open yet
     (40 trips), floor 10's part waits: it's given on the first clear after parts open, and its
     glint on the well only shows once parts are open.
   - Gear never works in the dungeon; the power boost (your active pet's power knacks) does.
+  - **The perk tree on the well wall (look A, on the walls; well-additions mockup):** coral things
+    hang on nails down the left lane of the well's soil, one per landing, joined by a coral thread
+    (solid down to the last one bought, dashed chalk after). The bow on the well's left roof post is
+    the entrance and the first buy. A chain: a thing can be bought once the one above has a level;
+    unbought ones are dashed outlines (the next buyable one brighter); nails deeper than the army
+    has been stay fully hidden. Tapping a nail puts its card where "last time" sits (the thing,
+    level pips, what it does now → next as numbers, "hang it up" / "one more" with its wisps price,
+    "all done!" at its max, no button while the one above isn't bought; ✕ brings "last time" back).
+    Only wisps buy perks. The chain (data/perks.json, `Perks`; all numbers placeholders): the
+    entrance (fits 300 → 4.8k), the little flag (floor 3, front row power), the dinner bell (6, the
+    herd's power: everyone walking behind), the spool (10, lanterns: wisps from the well and the
+    sewing room), the nightlight (13, power in the cellar), the lunchbox (17, pets/sec: box opening),
+    the woolly scarf (20, power on the stairs and in the sewing rooms), the pinwheel (24, front row
+    20 → 22 → 24 cards), the music box (28, while you're away: your pet leading the army keeps
+    taking it down for 1/2/4/8 hours of closed time, real runs, wisps only), the paper star (33, army
+    power, shared with knacks), the thimble (36, +1/+2 plushie holds) and the ribbon (40, +1/+2
+    nudges per pet that hops in), the last two hidden until the plushie machine opens. Once every
+    link has a level, 2 endless tips hang at the bottom: the lucky coin (coins) and the rattle
+    (pets/sec), +4% a level, each level x3 the price. Multipliers go through the boost plumbing
+    (source "perks"; coins and power are shared kinds). Voice: a new nail after a run, a buy.
+  - **Held landings (F3, look A: crowds on the walls):** every 10th landing the army has cleared
+    can be held by a crowd of plain pets sent by shelf (the new homes stall's rules: never
+    favourites, your pet, the army's pets, holo and better; pets on errands and machines come off
+    them). It takes 500 / 2k / 8k for landings 10 / 20 / 30, then x3 each (data/dungeon.json
+    "hold"). On the well: around the rope at 10, propping the door at 20 (it swings open once it's
+    held), sitting on the stairs at 30+ (a held landing's guard is gone: not drawn, and a run walking past
+    it doesn't fight it), with a coral count pill
+    right of the shaft ('N' when held, a dashed 'N/M' while it fills, a dashed '0/500' on an empty
+    landing; just under the landing once the sewing room's door is there, clear of it, with the
+    next floor's feeling word stepping down under it). Tapping a crowd or pill puts
+    the hold card where "last time" sits: "landing N" + ✕ (+ a coral pennant once held), the crowd,
+    how many, "holding the door"; while it fills a meter, a ‹ n › per shelf that has pets that may go
+    (steps of need / 20) and "hold on tight!". Once a landing is fully held the orders card gets
+    "start from ‹the top | landing N›": the army pops out there and the floors above are skipped (no
+    fights, no losses, no lanterns, no time; "go down to floor" can't go above it; a skipped floor's
+    first thing waits for a run that walks it). Holders stay on for good: no night-sky star (stars
+    are only for pets that leave or are lost). Voice: hold_send, hold_full, dungeon_go_from.
+
+## The sewing room (E3, off the well's floor 20)
+
+- **Built (look A: the door on the column, well-additions mockup):** once the tiny key from floor 20
+  is found, a little pink arched door with a coral knob is cut through the right wall of floor 20
+  (nothing shows before). Tapping it slides the column sideways; its header reads "‹ the sewing
+  room" (‹ slides back). data/sewing.json, `Sewing`.
+  - **Rooms:** 9 fixed rooms (the button tin, the pin cushion, the thread maze, the ribbon drawer,
+    the thimble tower, the pattern book, the needle case, the big scissors, the sewing basket), each
+    ONE fight for the dungeon's army (its cards, herd, entrance and "who goes first") against the
+    well's floor maths at the room's floor (21 to 33), shown as a feeling word. Only the rooms cleared
+    and the next one show (a dot each). Cleared rooms can be done again for wisps (a coral pennant
+    instead of the feeling word).
+  - **The chalk lock:** 3-5 chalk drawings on a board: part pictures (bunny ears, a halo, horns, a
+    crown, headphones, sparkly eyes...), trait icons, finish swatches, rarity circles in their tier's
+    colour. A drawing fills in solid when a pet in the front row (the army's best 20 cards; your pet
+    with the flag leads and doesn't count) matches it; matching front-row cards get a chalk tick.
+    Tapping a dashed drawing: your pet says where it comes from. "in we go!" only works when every
+    drawing is filled. No words on the board.
+  - **A run** takes 60 s (the army stands at the door on floor 20); losses as a well floor (stars,
+    never mentioned); a room below 0.4 of its strength isn't cleared and pays nothing; a clear pays
+    wisps like a well floor at the room's floor.
+    While the sewing room is open on screen, your pet leading the army (automation) waits at home
+    instead of taking it down the well again, so there's a turn for a room. The automation card says
+    "in ‹room›" while the army is in one; the room's own button only says "on the way…" for its run.
+  - **Firsts:** the button tin teaches **keep lines** (a popup), the ribbon drawer and the needle
+    case add one more each (3 in all). The sewing basket (the last room) brings the working plushie
+    machine, which sews one free button onto your active pet.
+  - **Rolled rooms** after that, forever: a name and picture in turn, one floor stronger each, a
+    **button lock** first ("a pet with N buttons", N grows) and marks picked by the room's number.
+  - **Keep lines** (on the sorting card, hidden until earned): "keep ‹zoomy ones›", "keep ‹halos›",
+    "keep ‹nothing›". Picks: every trait and the knack parts from the rooms the book has seen. A new
+    plain pet from a box that matches stays a card (never sorted away, never folded into the herd,
+    never taken by the stall); each line keeps its newest 50 ("n/50"), the oldest past that becomes
+    plain again. Lines work with the rule on or off. Changing a line lets its old pets go.
 
 ## Economy (first numbers, to be tuned)
 

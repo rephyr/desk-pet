@@ -1,0 +1,126 @@
+# E3 the sewing room (look A: the door on the column, the column slides sideways): nothing on floor
+# 20 until the tiny key is found, then a little pink door. Tap it: "‹ the sewing room", the button
+# tin with its chalk lock (dashed marks; a tap has your pet say where one comes from). Cards that
+# match fill the marks in and get chalk ticks on the front row; in we go! The first clear teaches
+# keep lines on the sorting card. The last room opens the plushie machine (a free button), then
+# rolled rooms with button locks go on forever. Everything stays inside the window.
+from rich
+view full
+herd common normal 3000
+herd uncommon normal 900
+herd rare normal 200
+unlock page:beyond
+unlock location:well
+unlock feature:new_homes
+unlock feature:sorting
+dungeon
+wait popup
+click "lovely"
+deep 20
+wait popup                           # past floor 10: your pet can lead the army
+click "lovely"
+card body=fox rarity=epic 6
+card body=bear rarity=uncommon 6
+tab adventures
+page adventures 2
+wait 1
+army best
+army-herd common 150
+army-herd rare 100
+wait 1
+expect text "the old well"
+expect no-text "the sewing room"     # the key and its door stay hidden until found
+expect fits
+shot no_door
+find little_key
+wait 1
+expect fits
+shot door
+click SewDoor#1
+wait 1
+expect text "the sewing room"
+expect text "the button tin"
+expect text "in we go!"
+expect fits
+shot locked
+click ChalkMark#1                    # the bunny ears are dashed: where do they come from?
+wait 0.5
+expect text "bunny ears come on rare pets*"
+expect fits
+shot hint
+card body=bunny rarity=rare finish=shiny 2
+army best
+wait 1
+expect fits
+shot ready
+in
+wait 1
+expect text "on the way…"
+expect fits
+shot running
+down-done
+wait popup                           # the first clear: keep lines
+expect text "new: keep lines!"
+expect fits
+shot keep_popup
+click "show me"
+wait 1
+expect tab collection
+expect text "keep"
+expect text "nothing"
+keep 1 trait:zoomy
+wait 1
+expect text "zoomy ones"
+expect fits
+shot keep_lines
+# back in the sewing room, the last time card knows the room
+tab adventures
+page adventures 2
+wait 1
+expect text "went to"
+expect fits
+shot tin_cleared
+# the last room: it opens the plushie machine and sews a button onto your pet
+sewn 8
+wait 1
+sew-room 9
+card accessory=horns body=dragon finish=glitch rarity=mythic trait=lucky
+card body=dragon rarity=mythic finish=prismatic trait=brave 19
+army best
+wait 1
+expect text "the sewing basket"
+expect fits
+shot basket
+in
+down-done
+wait popup
+expect text "new: the plushie machine!"
+expect fits
+shot plushie
+click "lovely"
+wait 1
+tab adventures
+page adventures 2
+wait 1
+sew-room 10                          # rolled rooms from here on: a button lock first
+wait 1
+expect fits
+shot rolled
+# the army down the well while the sewing room shows: the room's button isn't "on the way…"
+down
+wait 1
+expect text "in we go!"
+expect fits
+shot well_run_rooms
+down-done
+wait 1
+expect fits
+shot well_home_rooms
+# three keep lines by now (rooms 1, 4 and 7): they all fit on the sorting card
+tab collection
+wait 1
+keep 2 part:body:bunny
+wait 1
+expect text "bunny ears"
+expect fits
+shot keep_three

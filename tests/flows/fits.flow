@@ -85,3 +85,26 @@ buy wild
 spin
 expect fits
 shot plushie
+dungeon                             # the sewing room: the door on floor 20, the rooms pane, a rolled room
+wait popup
+click "lovely"
+deep 20
+wait popup
+click "lovely"
+find little_key
+tab adventures
+page adventures 2
+wait 1
+army best
+army-herd common 20
+wait 1
+expect fits
+door
+wait 1
+expect text "the button tin"
+expect fits
+sewn 12
+sew-room 13
+wait 1
+expect fits
+shot sewing

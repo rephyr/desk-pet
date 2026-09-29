@@ -20,6 +20,7 @@ var picked := false:
 		picked = value
 		queue_redraw()
 var _hover := false
+var _today_n: Label  # the "sorted today" number (updated in place, the plank is not rebuilt for it)
 
 
 ## `narrow`: the stall's side column is there (fewer standing, a smaller mound).
@@ -113,7 +114,9 @@ func _init(p_rarity: String, index: int, narrow := false) -> void:
 		stand.add_child(_on_plank(mound))
 	stand.add_child(UiTheme.spacer())
 	if sorted:
-		stand.add_child(_sorted_tag())
+		_today_n = UiTheme.label(UiTheme.num(GameState.sorted_today()), UiTheme.LILAC, UiTheme.SMALL - 1)
+		stand.add_child(_sorted_tag(_today_n))
+		GameState.changed.connect(_refresh_today)
 	var shiny := c.shiny_of(rarity)
 	if shiny > 0:
 		var sh := UiTheme.label("✦ " + ExpandedView._thousands(shiny), UiTheme.GOLD, UiTheme.SMALL)
@@ -129,7 +132,7 @@ func _init(p_rarity: String, index: int, narrow := false) -> void:
 
 
 ## "sorted today 1,204": a dashed tag on shelves under the sorting rule's line.
-static func _sorted_tag() -> Control:
+static func _sorted_tag(number: Label) -> Control:
 	var p := PanelContainer.new()
 	var sb := StitchBox.new()
 	sb.bg_color = UiTheme.DEEP
@@ -146,9 +149,15 @@ static func _sorted_tag() -> Control:
 	row.add_theme_constant_override("separation", 4)
 	row.mouse_filter = MOUSE_FILTER_IGNORE
 	row.add_child(UiTheme.label("sorted today", UiTheme.MUTED, UiTheme.SMALL - 1))
-	row.add_child(UiTheme.label(UiTheme.num(GameState.sorted_today()), UiTheme.LILAC, UiTheme.SMALL - 1))
+	row.add_child(number)
 	p.add_child(row)
 	return p
+
+
+func _refresh_today() -> void:
+	var text := UiTheme.num(GameState.sorted_today())
+	if _today_n.text != text:
+		_today_n.text = text
 
 
 ## Stands a picture on the plank: its feet just above the plank's board.

@@ -187,6 +187,8 @@ static func work_summary(pet: Pet, log: Dictionary, rng: RandomNumberGenerator, 
 		bits.append("%d box%s" % [log.boxes, "es" if int(log.boxes) > 1 else ""])
 	if int(log.get("packs", 0)) > 0:
 		bits.append("%d pack%s opened" % [log.packs, "s" if int(log.packs) > 1 else ""])
+	if int(log.get("wisps", 0)) > 0:
+		bits.append("%d wisps" % int(log.wisps))
 	if bits.is_empty():
 		return ""
 	var text := "while you were busy: " + ", ".join(bits)

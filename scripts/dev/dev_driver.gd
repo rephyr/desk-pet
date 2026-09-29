@@ -103,6 +103,8 @@ extends Node
 ##   down-done             the army's run is over now: it comes home
 ##   deep <n>              the army has been down to floor n before (bands and orders open up)
 ##   wisps <n>             you have exactly n wisps
+##   perk <id> [level]     a wisps perk on the well wall at that level (1 if left out), for free
+##   buy-perk <id>         buys a perk's next level with wisps, like its card's button (fails if it can't)
 ##   open-plushie          a pet brings home the plushie machine (its real unlock: the popup, the free button)
 ##   buttons <slot>=<n> ...  your active pet's parts get that many buttons (the plushie machine's)
 ##   hopper <rarity> <n>   n pets of that rarity from the herd go into the plushie machine's hopper
@@ -115,6 +117,20 @@ extends Node
 ##   buy <nudge | hold | wild>  buys one with wisps at the plushie machine
 ##   keeper <next | prev>  the plushie machine's next or previous keeper
 ##   part <slot:id[@n]> [count]  parts in your bag (slot:id@n: a part with n buttons on it)
+##   door                  the dungeon page's column slides over to the sewing room (like tapping its door)
+##   sew-room <n>          the sewing room shows room n (1 = the button tin; only rooms that show)
+##   sewn <n>              the first n rooms of the sewing room are cleared, with their real firsts
+##   in                    the army goes into the room shown (fails if it can't)
+##   holders <landing> <rarity> <n>  n pets of that rarity go and hold that landing, like the hold
+##                         card's button (fails if none could go)
+##   hold-pick <rarity> <n>  the open hold card's stepper for that shelf shows n (as far as it may go)
+##   hold-scroll <px>      the open hold card's shelf list scrolls to px (fails if it can't go that far)
+##   hold-scrolled <px>    fails unless the open hold card's shelf list is still scrolled to px
+##   start <landing>       the orders start from that landing (0: the top; fails if it isn't fully held
+##                         or the army is out)
+##   card <k>=<v> ... [n]  n new card pets (1 if left out) with these parts, trait, finish and rarity, e.g.
+##                         card body=bunny rarity=rare finish=shiny trait=zoomy (they aren't in the book)
+##   keep <line> <pick|none>  the sorting card's keep line (1 = the first) keeps that, e.g. trait:zoomy
 ##   quit                  done (it also quits at the end of the file)
 ## Every step is written to play.log in the profile's folder; a failed step takes a "fail" shot
 ## and stops the run, and the game quits with 1 (0 when everything passed).
@@ -396,7 +412,7 @@ func _step(w: PackedStringArray) -> String:
 				if kv[0] == "finish":
 					if GameState.catalog.finish(kv[1]).id != kv[1]:
 						return "unknown finish %s" % kv[1]
-					pet.finish = kv[1]
+					GameState.collection.set_finish(pet, kv[1])
 				elif not kv[0] in Catalog.SLOTS or GameState.catalog.part(kv[0], kv[1]).is_empty():
 					return "unknown part %s" % pair
 				else:
@@ -594,6 +610,13 @@ func _step(w: PackedStringArray) -> String:
 			GameState.wisps = int(w[1])
 			GameState.dungeon_changed.emit()
 			GameState.changed.emit()
+		"perk":  # perk <id> [level]: a wisps perk at that level, for free
+			if Perks.perk(GameState.catalog, w[1]).is_empty():
+				return "unknown perk %s" % w[1]
+			GameState.debug_perk(w[1], int(w[2]) if w.size() > 2 else 1)
+		"buy-perk":  # buy-perk <id>: with wisps
+			if not GameState.buy_perk(w[1]):
+				return "couldn't buy the perk %s" % w[1]
 		"open-plushie":  # the plushie machine comes home: its real unlock (popup, free button)
 			GameState.grant({ "find:plushie_machine": 1 })
 		"buttons":  # buttons body=2 eyes=5: your active pet's buttons
@@ -664,6 +687,86 @@ func _step(w: PackedStringArray) -> String:
 		"keeper":  # keeper next | prev
 			if not GameState.plushie_swap(1 if w[1] == "next" else -1):
 				return "can't swap the keeper now"
+		"door":  # the column slides over to the sewing room
+			home.full_game().show_tab("adventures")
+			home.full_game().adventures.show_page(2)
+			var view: DungeonView = home.full_game().adventures.dungeon_view
+			view.show_rooms(true)
+			if not view.in_rooms():
+				return "the sewing room isn't open"
+		"sew-room":  # sew-room <n>: the room shown
+			var view: DungeonView = home.full_game().adventures.dungeon_view
+			var i := int(w[1]) - 1
+			if i < 0 or i >= Sewing.shown(GameState.sewing):
+				return "room %s doesn't show" % w[1]
+			view.rooms().room = i
+			view.rooms().room_changed.emit()
+		"sewn":  # sewn <n>: the first n rooms are cleared
+			GameState.debug_sewn(int(w[1]))
+		"holders":  # holders <landing> <rarity> <n>: they go and hold that landing (for good)
+			if not GameState.catalog.tiers.any(func(t): return t.id == w[2]):
+				return "unknown rarity %s" % w[2]
+			if GameState.send_holders(int(w[1]), w[2], int(w[3])) <= 0:
+				return "no %s pets could hold landing %s" % [w[2], w[1]]
+		"hold-pick":  # hold-pick <rarity> <n>: the open hold card's stepper
+			var view: DungeonView = home.full_game().adventures.dungeon_view
+			if not view.hold_pick(w[1], int(w[2])):
+				return "no hold card with a %s stepper open" % w[1]
+		"hold-scroll", "hold-scrolled":  # the open hold card's shelf list: scroll it / check it's still there
+			var view: DungeonView = home.full_game().adventures.dungeon_view
+			var list := view.hold_list()
+			if list == null:
+				return "no hold card with a shelf list open"
+			if w[0] == "hold-scroll":
+				list.scroll_vertical = int(w[1])
+			if list.scroll_vertical != int(w[1]):
+				return "the hold card's list is at %d, not %s" % [list.scroll_vertical, w[1]]
+		"start":  # start <landing>: the orders start from there
+			if not GameState.set_start(int(w[1])):
+				return "landing %s isn't held (or the army is out)" % w[1]
+		"in":  # the army goes into the room shown
+			var view: DungeonView = home.full_game().adventures.dungeon_view
+			if not GameState.send_to_room(view.rooms().room):
+				return "the army couldn't go into room %d" % (view.rooms().room + 1)
+		"card":  # card body=bunny rarity=rare finish=shiny trait=zoomy [n]
+			var n := 1
+			var fields := {}
+			for pair in w.slice(1):
+				if pair.is_valid_int():
+					n = int(pair)
+					continue
+				var kv := pair.split("=")
+				if kv.size() != 2:
+					return "card wants key=value, not %s" % pair
+				fields[kv[0]] = kv[1]
+			var made: Array[Pet] = []
+			for i in n:
+				var pet := GameState._roller.roll("starter", str(fields.get("rarity", "")))
+				for k in fields:
+					match k:
+						"rarity":
+							pass
+						"finish":
+							if GameState.catalog.finish(fields[k]).id != fields[k]:
+								return "unknown finish %s" % fields[k]
+							pet.finish = fields[k]
+						"trait":
+							if not GameState.catalog.traits.any(func(t): return t.id == fields[k]):
+								return "unknown trait %s" % fields[k]
+							if not fields[k] in pet.traits:
+								pet.traits.append(fields[k])
+						_:
+							if not k in Catalog.SLOTS or GameState.catalog.part(k, fields[k]).is_empty():
+								return "unknown part %s=%s" % [k, fields[k]]
+							pet.parts[k] = fields[k]
+				made.append(pet)
+			GameState.collection.add(made)
+			for pet in made:
+				pet.new_part = false  # like any other card (it may fold if plain)
+			GameState.changed.emit()
+		"keep":  # keep <line> <pick|none>
+			if not GameState.set_keep_line(int(w[1]) - 1, "" if w[2] == "none" else w[2]):
+				return "can't set keep line %s to %s" % [w[1], w[2]]
 		"quit":
 			_finish()
 		_:

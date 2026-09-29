@@ -4,7 +4,8 @@ extends RefCounted
 ## part and each body+finish combo has been pulled).
 ## Pets come in two kinds (see Herd, data/herd.json):
 ##   CARDS, whole Pet records in `pets`: favourites, the active pet, holo or better, a pet that
-##   brought a part new to the book, a pet with buttons (the plushie machine), pets something needs whole right now (`busy`: away on an
+##   brought a part new to the book, a pet with buttons (the plushie machine), a pet a keep line keeps (the
+##   sorting card, see Sewing), pets something needs whole right now (`busy`: away on an
 ##   adventure, a good pull waiting to be seen, leading a party), and each shelf's newest
 ##   keep_cards plain pets.
 ##   THE HERD, `herd`: every other plain pet, folded into a count per rarity x finish. When a shelf
@@ -37,10 +38,13 @@ var fallen: Array[String] = []
 var fallen_n := 0  # every pet that ever left: a star each
 ## count key -> the first stand-in number not handed out yet (a lost stand-in's look never comes back)
 var stand_next := {}
+## uid -> true: plain cards the sorting card's keep lines keep (GameState, from homes.kept): always cards
+var keep_uids := {}
 
 var _by_uid := {}
 var _next_id := 1
 var _seen := {}  # book key -> times pulled, see part_key() / finish_key()
+var _finishes_seen := {}  # finish id -> true once any pet with it was pulled (from the finish: keys)
 var _total := 0
 var _of_rarity := {}  # rarity -> pets (cards and herd)
 var _shiny_of := {}  # rarity -> shiny pets (cards and herd)
@@ -51,7 +55,7 @@ var _herd_total := 0
 var _plain_cards: Array[Pet] = []
 var _plain_finish := {}  # finish id -> plain (Herd.plain, worked out once per finish)
 
-const LEAVE_FACES := 16  # stand-in looks worked out for the stars of a count leaving (then cycled)
+const LEAVE_FACES := 16  # stand-in looks worked out for the stars of a count going (then cycled)
 
 
 static func part_key(slot: String, id: String) -> String:
@@ -180,10 +184,20 @@ func remove(uids: Array[String]) -> void:
 		herd_changed.emit(from_herd)
 
 
+## Takes `n` pets out of a count for good all at once (the dungeon's army lost them), a star each.
+## Returns how many left (at most what the count has).
+func lose_plain(key: String, n: int) -> int:
+	n = _herd_to_stars(key, n)
+	if n > 0:
+		herd_changed.emit([key])
+	return n
+
+
 ## Pets leave for new homes: `counts` (count key -> how many) come off the herd and `uids` are
 ## cards. Each one adds a star (a count's stars take the looks of the stand-ins that would have
 ## come next, and those looks never come back). Returns how many left. The active pet never leaves.
-func leave(counts: Dictionary, uids: Array) -> int:
+## `star` false: they stay on for good somewhere (landing holders): no star, and no pets_left.
+func leave(counts: Dictionary, uids: Array, star := true) -> int:
 	var n := 0
 	var gone: Array[String] = []
 	var drop := {}
@@ -195,7 +209,8 @@ func leave(counts: Dictionary, uids: Array) -> int:
 		drop[uid] = pet
 		_by_uid.erase(uid)
 		_tally(pet.rarity, pet.finish, -1)
-		_star(str(pet.parts.palette))
+		if star:
+			_star(str(pet.parts.palette))
 		gone.append(uid)
 		n += 1
 	if not drop.is_empty():
@@ -215,33 +230,24 @@ func leave(counts: Dictionary, uids: Array) -> int:
 					plain.append(pet)
 			_plain_cards = plain
 	var keys := []
-	var keep := int(_catalog().herd.get("fallen_keep", 16384))
 	for key in counts:
 		var k := str(key)
-		var take := mini(int(counts[key]), herd_count(k))
+		var take := _herd_to_stars(k, int(counts[key])) if star else _herd_away(k, int(counts[key]))
 		if take <= 0:
 			continue
-		_herd_less(k, take)
-		var start := int(stand_next.get(k, 0))
-		var palettes: Array[String] = []  # a few faces, cycled for the rest of the stars
-		for i in mini(take, LEAVE_FACES):
-			var face := Herd.stand_in(_catalog(), Herd.uid(k, start + i))
-			palettes.append(str(face.parts.palette) if face else "")
-		stand_next[k] = start + take
-		var named := mini(take, maxi(0, keep - fallen.size()))
-		for i in named:
-			fallen.append(palettes[i % palettes.size()])
-		fallen_n += take
 		keys.append(k)
 		n += take
 	if n == 0:
 		return 0
-	pets_left.emit(n)
+	if star:
+		pets_left.emit(n)
 	if not gone.is_empty():
 		pets_removed.emit(gone)
 	if not keys.is_empty():
 		herd_changed.emit(keys)
 	return n
+
+
 ## Takes up to `n` pets off a count for good (past the edge, into the school). Their looks never come
 ## back as stand-ins. Returns [how many, palettes of up to `keep` of them] (for scribbles and stars).
 func take_plain(key: String, n: int, keep := 0) -> Array:
@@ -273,21 +279,20 @@ func add_stars(palettes: Array, n: int) -> void:
 	stars_added.emit(n)
 
 
-## Takes `n` pets out of a count for good all at once (the dungeon's army lost them), a star each.
-## Returns how many left (at most what the count has).
-func lose_plain(key: String, n: int) -> int:
-	n = mini(n, int(herd.get(key, 0)))
-	if n <= 0:
-		return 0
-	var palettes: Array[String] = []  # a few faces' colours for the stars, taken round and round
-	for uid in stand_in_uids(key, mini(n, 16)):
-		var face := Herd.stand_in(_catalog(), uid)
-		palettes.append(str(face.parts.palette) if face else "")
-	_herd_less(key, n)
-	stand_next[key] = int(stand_next.get(key, 0)) + n
-	_stars(palettes, n)
-	herd_changed.emit([key])
-	return n
+## Changes a card's finish (the dev `dress` step) and keeps the room count and the cards that may
+## fold right.
+func set_finish(pet: Pet, finish: String) -> void:
+	if pet.finish == finish:
+		return
+	_tally(pet.rarity, pet.finish, -1)
+	pet.finish = finish
+	_tally(pet.rarity, pet.finish, 1)
+	var plain := _is_plain(finish)
+	if plain and not _plain_cards.has(pet):
+		_plain_cards.append(pet)
+	elif not plain:
+		_plain_cards.erase(pet)
+	pet_changed.emit(pet)
 
 
 ## A card by its uid, or a stand-in for a pet from a count ("h:common:normal:3", while that count
@@ -337,9 +342,14 @@ func seen_keys() -> Array:
 	return _seen.keys()
 
 
+## Whether any pet with this finish was ever pulled (the book has it).
+func finish_seen(finish: String) -> bool:
+	return _finishes_seen.has(finish)
+
+
 ## Whether a pet always stays a card, whatever else happens.
 func always_card(pet: Pet) -> bool:
-	return pet.fav or pet.new_part or not pet.buttons.is_empty() or pet.uid == active_uid or not _is_plain(pet.finish)
+	return pet.fav or pet.new_part or not pet.buttons.is_empty() or pet.uid == active_uid or not _is_plain(pet.finish) or keep_uids.has(pet.uid)
 
 
 ## Folds the oldest plain cards of every shelf that has more than keep_cards of them that may fold.
@@ -462,6 +472,7 @@ func load_from(d: Dictionary) -> void:
 	_plain_cards.clear()
 	_by_uid.clear()
 	_seen.clear()
+	_finishes_seen.clear()
 	herd.clear()
 	for raw in d.get("pets", []):
 		var pet := Pet.from_dict(raw)
@@ -476,6 +487,8 @@ func load_from(d: Dictionary) -> void:
 	_next_id = int(d.get("next_id", pets.size() + 1))
 	for key in d.get("seen", {}):
 		_seen[key] = int(d.seen[key])
+		if str(key).begins_with("finish:"):
+			_finishes_seen[str(key).get_slice(":", 2)] = true
 	fallen.clear()
 	var keep := int(_catalog().herd.get("fallen_keep", 16384))
 	var saved_fallen = d.get("fallen", [])  # untyped: a broken save's odd value is dropped, not a crash
@@ -517,6 +530,8 @@ func _catalog() -> Catalog:
 
 func _see(key: String) -> void:
 	_seen[key] = _seen.get(key, 0) + 1
+	if key.begins_with("finish:"):
+		_finishes_seen[key.get_slice(":", 2)] = true
 
 
 func _tally(rarity: String, finish: String, n: int) -> void:
@@ -542,6 +557,33 @@ func _star(palette: String) -> void:
 	fallen_n += 1
 	if fallen.size() < int(_catalog().herd.get("fallen_keep", 16384)):
 		fallen.append(palette)
+
+
+## Takes up to `n` pets off a count for good, a star each (the stars take the looks of the stand-ins
+## that would have come next, and those looks never come back). Returns how many came off.
+func _herd_to_stars(key: String, n: int) -> int:
+	n = mini(n, herd_count(key))
+	if n <= 0:
+		return 0
+	var palettes: Array[String] = []  # a few faces' colours for the stars, taken round and round
+	for uid in stand_in_uids(key, mini(n, LEAVE_FACES)):
+		var face := Herd.stand_in(_catalog(), uid)
+		palettes.append(str(face.parts.palette) if face else "")
+	_herd_less(key, n)
+	stand_next[key] = int(stand_next.get(key, 0)) + n
+	_stars(palettes, n)
+	return n
+
+
+## Takes up to `n` pets off a count for good with no star (they stay on somewhere); their looks go
+## with them. Returns how many came off.
+func _herd_away(key: String, n: int) -> int:
+	n = mini(n, herd_count(key))
+	if n <= 0:
+		return 0
+	_herd_less(key, n)
+	stand_next[key] = int(stand_next.get(key, 0)) + n
+	return n
 
 
 ## `n` stars at once, their colours taken round and round `palettes` (only up to fallen_keep kept).

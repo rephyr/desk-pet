@@ -208,11 +208,12 @@ func _rebuild_if_visible() -> void:
 		_rebuild()
 
 
-## What the pets page's new homes part depends on (the planks show the rule's line).
+## What the pets page's new homes part depends on (the planks show the rule's line; their
+## "sorted today" number updates itself).
 func _homes_state() -> String:
 	if not GameState.homes_open():
 		return ""
-	return "%s|%s|%s" % [str(GameState.homes.rule), str(GameState.feature_on("sorting")), str(GameState.sorted_today())]
+	return "%s|%s" % [str(GameState.homes.rule), str(GameState.feature_on("sorting"))]
 
 
 ## The shelf the stall takes from: the one picked, else the lowest rarity you have.

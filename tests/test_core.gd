@@ -69,6 +69,13 @@ func _init() -> void:
 	_test_dungeon(catalog)
 	_test_plushie(catalog)
 	_test_plushie_game(catalog)
+	_test_sewing(catalog)
+	_test_sewing_game(catalog)
+	_test_perks(catalog)
+	_test_perks_game(catalog)
+	_test_held(catalog)
+	_test_held_game(catalog)
+	_test_merged_lanes(catalog)
 	var result := "ALL PASSED" if _failures == 0 else "%d FAILED" % _failures
 	if not _skipped.is_empty():
 		result += ", BUT SKIPPED " + ", ".join(_skipped)
@@ -915,7 +922,7 @@ func _test_unlocks(catalog: Catalog) -> void:
 		_check(entry.show in ["locked", "hidden"], "unlock %s is shown locked or hidden" % entry.id)
 		for o in entry.opens:
 			var bits := str(o).split(":")
-			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "whistle", "new_homes", "sorting", "edge", "school", "dungeon", "lead_army", "plushie"]) or (bits[0] == "page" and bits[1] in page_ids) \
+			var ok: bool = (bits[0] == "tab" and bits[1] in tabs) or (bits[0] == "feature" and bits[1] in ["errands", "packs", "shopping", "parties", "parties_5", "parties_10", "toys", "parts", "auto_adventures", "whistle", "new_homes", "sorting", "edge", "school", "dungeon", "lead_army", "plushie", "sewing", "keep_lines"]) or (bits[0] == "page" and bits[1] in page_ids) \
 				or (bits[0] == "job" and catalog.jobs.any(func(j): return str(j.get("needs", "")) == o))
 			_check(ok, "unlock %s opens something real (%s)" % [entry.id, o])
 		if entry.earn.has("find"):
@@ -2929,6 +2936,14 @@ func _test_new_homes(catalog: Catalog) -> void:
 	var went := c.add(newcomers, sorter)
 	_check(went.size() == 1 and c.count() == before + 1 and c.get_pet(went[0].uid) == null, "a sorted pet never joins the collection")
 	_check(c.times_seen(Collection.finish_key(went[0].parts.body, went[0].finish)) >= 1, "the book still counts a pet that went to a new home")
+	_check(c.finish_seen("normal") and not c.finish_seen("prismatic"), "the book knows which finishes it has had")
+	# a finish changed by hand (the dev dress step) keeps the room and the folding right
+	var plain_before := c.plain_count()
+	var dressed := c.get_pet(cards[0].uid)
+	c.set_finish(dressed, "holo")
+	_check(c.plain_count() == plain_before - 1 and not c._plain_cards.has(dressed), "a pet dressed holo leaves the room count and never folds")
+	c.set_finish(dressed, "normal")
+	_check(c.plain_count() == plain_before and c._plain_cards.has(dressed), "dressed back plain it counts again (and may fold)")
 
 
 ## New homes in the game: an old save moves over (sharing on -> every errand's switch on, a full
@@ -4254,6 +4269,76 @@ func _test_plushie_game(catalog: Catalog) -> void:
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
 
 
+## The dungeon, the plushie machine and new homes together: a v23 save loads at the newest version
+## with all three moved over; a pet is in one place at a time (the keeper is never sent, never in the
+## army; the stall never takes the army's cards or herd pets).
+func _test_merged_lanes(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped the merged lanes: it needs a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var pets := []
+	for i in 12:
+		var p := _plain_pet(catalog, "common" if i < 6 else "rare", "normal", 300 + i)
+		p.uid = str(i + 1)
+		pets.append(p.to_dict())
+	var old := { "version": 23, "coins": 1000, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(),
+		"unlocks": ["page:beyond", "location:well", "location:cellar", "feature:parts", "feature:errands", "tab:errands",
+			"tab:automation", "tab:inventory"],
+		"jobs_auto": true, "room": 0,
+		"collection": { "pets": pets, "herd": { "common:normal": 600 }, "active": "1", "next_id": 13, "seen": {} },
+		"jobs": { "coin_hunt": { "crew": [], "herd": { "common:normal": 50 }, "fill": 0.0 } } }
+	SaveFile.write(path, old)
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	var c: Collection = gs.collection
+	var newest: int = load("res://scripts/game_state.gd").SAVE_VERSION
+	_check(newest == 37, "the save chain ends at v37 (herd + new homes 28, dungeon 33, plushie 34, the sewing room 35, perks 36, held landings 37)")
+	_check("cellar" in gs.dungeon.bands, "v33: an old save's open cellar is a dungeon band")
+	_check(not gs.plushie_open() and gs.wisps == 0 and gs.plushie.hopper.is_empty(), "v34: an empty plushie machine and no wisps")
+	_check(gs.job_joins("coin_hunt"), "v28: sharing on -> new pets join the errand")
+	_check(not gs.room_is_full(), "v28: an old save gets room for its pets (%d / %d)" % [c.plain_count(), gs.room_cap()])
+	gs.save_game()
+	_check(int(SaveFile.read(path).get("version", 0)) == newest, "it saves at the newest version")
+	# the keeper stays home: never sendable, never in the army
+	gs.grant({ "find:deep_rope": 1, "find:plushie_machine": 1 })
+	_check(gs.dungeon_open() and gs.plushie_open(), "the dungeon and the plushie machine open")
+	var keeper_pet: Pet = null
+	for pet in gs.plushie_keepers():
+		if pet.uid != c.active_uid and int(pet.uid) > 6:  # a rare card, strong enough for the front row
+			keeper_pet = pet
+			break
+	while gs.plushie_keeper() != keeper_pet and gs.plushie_swap(1):
+		pass
+	var keeper: String = gs._plushie_keeper_uid()
+	_check(keeper == keeper_pet.uid, "a rare card is the keeper (%s)" % keeper)
+	_check(not gs.sendable_pets().any(func(p): return p.uid == keeper), "the keeper can't be sent on an adventure")
+	gs.army_best()
+	_check(not gs.army().cards.any(func(p): return p.uid == keeper) and not gs.army_choices().any(func(p): return p.uid == keeper),
+		"army best never picks the keeper")
+	_check(not gs.set_army_card(keeper, true), "nor can it be put in the army by hand")
+	var soldier: String = gs.army().cards[0].uid
+	_check(not gs.plushie_keepers().any(func(p): return p.uid == soldier), "a pet in the army can't become the keeper")
+	# the stall never takes the army's cards or herd pets
+	gs.set_army_herd("common", 100)
+	var army_herd: int = Herd.total(gs.army_herd_keys())
+	_check(army_herd == 100, "100 commons from the herd in the army (%d)" % army_herd)
+	var every: Dictionary = gs.homes_pick("common")
+	_check(not every.cards.any(func(u): return u in gs.dungeon.cards or u == keeper), "the stall never picks army cards or the keeper")
+	var herd_before: int = c.herd_count("common:normal")
+	gs.send_home("common", -1)
+	_check(c.herd_count("common:normal") == army_herd and herd_before - army_herd > 0,
+		"all: every common goes but the army's (%d left)" % c.herd_count("common:normal"))
+	_check(Herd.total(gs.army_herd_keys()) == army_herd, "the army still has its herd pets")
+	_check(gs.send_army(), "and the army can still go down")
+	gs.free()
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+
 func _check(ok: bool, what: String) -> void:
 	_checks += 1
 	if not ok:
@@ -4886,6 +4971,592 @@ func _test_dungeon_game(catalog: Catalog) -> void:
 	_check(gs2.dungeon_running() and gs2.wisps == gs.wisps and int(gs2.dungeon.deep) == 20 and gs2.dungeon.cards.size() == gs.dungeon.cards.size(),
 		"the dungeon comes back from the save")
 	gs.free()
+	gs2.free()
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+
+## E3 the sewing room (Sewing, data/sewing.json): fixed rooms and rolled ones (the same every time,
+## a button lock first, more marks and buttons deeper), what each mark matches, the lock looks at the
+## front row only, the rooms shown, keep lines (how many, what they pick, the cap), a room run.
+func _test_sewing(catalog: Catalog) -> void:
+	var d: Dictionary = catalog.sewing
+	var fixed := Sewing.fixed_count(catalog)
+	_check(fixed >= 8 and fixed <= 10, "the sewing room has 8-10 fixed rooms (%d)" % fixed)
+	var parts_ok := true
+	for i in fixed + 30:
+		var r := Sewing.room(catalog, i)
+		_check(r.marks.size() >= 3 and r.marks.size() <= 5, "room %d has 3-5 marks (%d)" % [i, r.marks.size()])
+		for mark in r.marks:
+			var p := str(mark).split(":")
+			var real := false
+			match p[0]:
+				"part": real = p.size() == 3 and not catalog.part(p[1], p[2]).is_empty()
+				"trait": real = catalog.traits.any(func(t): return t.id == p[1])
+				"finish": real = catalog.finish(p[1]).id == p[1]
+				"tier": real = catalog.tiers.any(func(t): return t.id == p[1])
+				"buttons": real = int(p[1]) >= 1 and int(p[1]) <= Plushie.max_buttons(catalog) * Catalog.SLOTS.size()
+			parts_ok = parts_ok and real
+			if not real:
+				_check(false, "room %d's mark %s is real" % [i, mark])
+		if i > 0:
+			_check(Sewing.strength(catalog, r) > Sewing.strength(catalog, Sewing.room(catalog, i - 1)) or r.rolled != Sewing.room(catalog, i - 1).rolled,
+				"room %d is stronger than the one before" % i)
+	_check(parts_ok, "every room's marks are real parts, traits, finishes, tiers or buttons")
+	var names := ["the button tin", "the pin cushion", "the thread maze", "the ribbon drawer", "the big scissors"]
+	_check(names.all(func(n): return range(fixed).any(func(i): return Sewing.room(catalog, i).name == n)), "the rooms from the picks are there")
+	_check(str(Sewing.room(catalog, fixed - 1).first.get("find", "")) == "plushie_machine", "the last room gives the plushie machine")
+	var rolled := Sewing.room(catalog, fixed)
+	_check(rolled.rolled and str(rolled.marks[0]).begins_with("buttons:"), "past the fixed rooms they're rolled, a button lock first (%s)" % [rolled.marks])
+	_check(Sewing.room(catalog, fixed + 3) == Sewing.room(catalog, fixed + 3), "a rolled room is the same every time")
+	var deep := Sewing.room(catalog, fixed + 40)
+	_check(int(deep.marks[0].split(":")[1]) > int(rolled.marks[0].split(":")[1]) and deep.marks.size() > rolled.marks.size(),
+		"deeper rolled rooms want more buttons and more marks (%s)" % [deep.marks])
+	_check(Sewing.room(catalog, fixed).floor > Sewing.room(catalog, fixed - 1).floor, "rolled rooms keep getting stronger")
+
+	# marks: parts, traits, exact finishes and tiers, buttons
+	var pet := _plain_pet(catalog, "rare", "shiny", 9)
+	pet.parts.body = "bunny"
+	pet.traits.assign(["zoomy"])
+	_check(Sewing.mark_matches("part:body:bunny", pet) and Sewing.mark_matches("trait:zoomy", pet) and Sewing.mark_matches("finish:shiny", pet)
+		and Sewing.mark_matches("tier:rare", pet), "a shiny rare zoomy bunny matches its marks")
+	_check(not Sewing.mark_matches("finish:holo", pet) and not Sewing.mark_matches("tier:epic", pet) and not Sewing.mark_matches("trait:lazy", pet)
+		and not Sewing.mark_matches("part:accessory:halo", pet), "and nothing else (finishes and tiers are exact)")
+	_check(not Sewing.mark_matches("buttons:1", pet), "no buttons, no button lock")
+	pet.buttons = { "body": 2, "eyes": 1 }
+	_check(Sewing.mark_matches("buttons:3", pet) and not Sewing.mark_matches("buttons:4", pet), "a button lock counts every button on the pet")
+	var other := _plain_pet(catalog, "epic", "normal", 10)
+	other.parts.body = "cat"
+	other.traits.clear()
+	var tin := Sewing.room(catalog, 0)
+	_check(Sewing.marks_on(tin, [other]) == [false, false, false] and not Sewing.unlocked(tin, [other]), "the tin is locked for a plain epic cat")
+	_check(Sewing.unlocked(tin, [other, pet]) and Sewing.ticks(tin, [other, pet]) == [false, true], "a matching front row pet fills every mark and gets a tick")
+	_check(Sewing.shown(Sewing.fresh()) == 1 and Sewing.shown({ "cleared": 3 }) == 4, "only the rooms cleared and the next one show")
+	_check(Sewing.clean({ "cleared": "x" }).cleared == 0 and Sewing.clean(null).cleared == 0 and Sewing.clean({ "cleared": -4 }).cleared == 0, "junk loads as a fresh sewing room")
+
+	# keep lines: one from the tin, one more from rooms 4 and 7, capped
+	_check(Sewing.keep_lines(catalog, 0) == 0 and Sewing.keep_lines(catalog, 1) == 1 and Sewing.keep_lines(catalog, 4) == 2
+		and Sewing.keep_lines(catalog, 7) == 3 and Sewing.keep_lines(catalog, 50) == 3, "keep lines: 1 at the tin, then 2 and 3")
+	var opts := Sewing.keep_options(catalog, { "part:accessory:halo": true, "part:body:blob": true })
+	_check(opts[0] == "" and "trait:zoomy" in opts and "part:accessory:halo" in opts and not "part:accessory:horns" in opts and not "part:body:blob" in opts,
+		"keep lines pick nothing, a trait, or a knack part the book has seen (%s)" % [opts])
+	_check(Sewing.keep_word(catalog, "trait:zoomy") == "zoomy ones" and Sewing.keep_word(catalog, "part:accessory:halo") == "halos"
+		and Sewing.keep_word(catalog, "") == "nothing", "keep lines read keep ‹zoomy ones›, keep ‹halos›")
+	var kept := {}
+	var dropped: Array = []
+	for i in Sewing.keep_cap(catalog) + 3:
+		dropped.append_array(Sewing.keep(catalog, kept, "trait:zoomy", str(i)))
+	_check(kept["trait:zoomy"].size() == Sewing.keep_cap(catalog) and dropped == ["0", "1", "2"] and kept["trait:zoomy"].back() == str(Sewing.keep_cap(catalog) + 2),
+		"a keep line keeps the newest %d, the oldest drop off" % Sewing.keep_cap(catalog))
+
+	# a room run: one fight, a clear pays, a room too strong pays nothing, losses are capped
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 5
+	var strong := Sewing.simulate(catalog, _army(20, 1.0e6, 280, 1.0e5), tin, {}, rng)
+	_check(strong.why == "target" and strong.floors.size() == 1 and bool(strong.floors[0].cleared) and Dungeon.run_pay(strong) == Sewing.pay(catalog, tin, 300, 0),
+		"a strong army clears the room and brings its wisps (%d)" % Dungeon.run_pay(strong))
+	_check(int(strong.floors[0].f) == int(d.door_floor), "a room run stands at the door on floor %d" % int(d.door_floor))
+	var weak := Sewing.simulate(catalog, _army(20, 1.0, 280, 1.0), tin, {}, rng)
+	var lost := Dungeon.run_lost(weak)
+	var lost_n: int = lost[0].size() + Herd.total(lost[1])
+	_check(weak.why == "stuck" and Dungeon.run_pay(weak) == 0, "a weak army doesn't clear the room and brings nothing")
+	_check(lost_n > 0 and lost_n <= ceili(300 * float(catalog.dungeon.losses.max_share)) + 1, "it loses some, never more than the cap (%d)" % lost_n)
+	var run := { "floors": strong.floors, "room": 0, "door": 20, "seconds": 60.0 }
+	_check(is_equal_approx(Dungeon.run_seconds(catalog, run), 60.0) and is_equal_approx(Dungeon.run_floor(catalog, run, 30.0), 20.0),
+		"a room run takes its own time, at the door")
+
+
+## The sewing room in the game (GameState): hidden until the key, locked rooms can't be entered, a run
+## keeps the army busy and pays, the firsts (keep lines, the plushie machine) come once, keep lines
+## keep matching pets from boxes as cards (capped, the stall and the rule never take them), rolled
+## rooms after the last, and it all comes back from the save (a v34 save loads with none of it).
+func _test_sewing_game(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped the sewing room in the game: it needs a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var pets := []
+	for i in 12:
+		var p := _plain_pet(catalog, "epic", "holo", 300 + i)  # holo: they stay cards
+		p.uid = str(i + 1)
+		p.parts.body = "cat"
+		p.traits.clear()
+		pets.append(p.to_dict())
+	var old := { "version": 34, "coins": 1000, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(),
+		"unlocks": ["page:beyond", "location:well", "feature:dungeon", "feature:new_homes", "feature:sorting", "feature:parts"],
+		"finds": ["deep_rope"],
+		"collection": { "pets": pets, "active": "1", "next_id": 13, "seen": {}, "herd": { "common:normal": 400 }, "herd_ever": true },
+		"dungeon": { "deep": 12, "bands": ["well", "cellar"] }, "room": 30 }
+	SaveFile.write(path, old)
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	_check(gs.sewing.cleared == 0 and not gs.sewing_open() and not gs.finds.has("little_key"), "a v34 save loads with no sewing room (and no key before floor 20)")
+	_check(gs.homes.rule.lines.is_empty() and gs.homes.kept.is_empty(), "and no keep lines")
+	gs.grant({ "find:little_key": 1 })
+	_check(gs.sewing_open(), "the tiny key opens the sewing room's door")
+	gs.army_best()
+	gs.set_army_herd("common", 100)
+	_check(not gs.sew_can_go(0) and not gs.send_to_room(0), "the button tin's chalk lock keeps a front row of plain epic cats out")
+	_check(not gs.sew_can_go(1), "the next room doesn't even show yet")
+	var front: Array = gs.sew_front()
+	front[0].parts.body = "bunny"
+	front[1].finish = "shiny"
+	front[2].rarity = "rare"
+	_check(gs.sew_marks(0) == [true, true, true] and gs.sew_can_go(0), "a bunny, a shiny one and a rare one fill the tin's marks")
+	var busy_uid: String = front[3].uid
+	_check(gs.send_to_room(0) and gs.dungeon_running() and gs.dungeon.run.room == 0, "in we go: the army's in the button tin")
+	_check(not gs.resting_cards().any(func(p): return p.uid == busy_uid) and not gs.send_army(), "its pets are busy, and nobody else goes down meanwhile")
+	var herd0: int = gs.collection.herd_count("common:normal")
+	gs.dungeon.run.at = 0.0
+	gs.dungeon.run.floors = [{ "f": 20, "cleared": true, "lost_cards": [busy_uid], "lost_herd": { "common:normal": 3 }, "pay": 7 }]
+	var wisps0: int = gs.wisps
+	gs._dungeon_tick()
+	_check(not gs.dungeon_running() and gs.wisps == wisps0 + 7 and gs.sewing.cleared == 1, "back from the tin: its wisps paid, one room cleared")
+	_check(gs.collection.get_pet(busy_uid) == null and gs.collection.herd_count("common:normal") == herd0 - 3, "the ones that didn't come back are gone")
+	_check(gs.dungeon.last.get("room", -1) == 0 and gs.feature_on("keep_lines") and gs.keep_line_count() == 1, "the last time card knows the room; keep lines open")
+	_check(gs.sew_can_go(0) and Sewing.shown(gs.sewing) == 2, "the tin can be done again, and the pin cushion shows")
+	# a replay gives no firsts; a room too strong isn't cleared
+	gs.send_to_room(0)
+	gs.dungeon.run.at = 0.0
+	gs._dungeon_tick()
+	_check(gs.sewing.cleared == 1, "doing the tin again doesn't count as a new room")
+	# your pet leading the army waits at home while the sewing room is open on screen
+	gs.automation.taught["army"] = true
+	gs.automation.task = "army"
+	gs.army_held = true
+	gs._dungeon_tick()
+	_check(not gs.dungeon_running() and gs.sew_can_go(0), "leading the army waits while the sewing room shows")
+	gs.army_held = false
+	gs._dungeon_tick()
+	_check(gs.dungeon_running() and not gs.dungeon.run.has("room"), "and takes it down the well again once it's closed")
+	gs.dungeon.run.at = 0.0
+	gs.automation.task = ""
+	gs._dungeon_tick()
+	gs.debug_sewn(0)
+	# keep lines: matching pets from boxes stay cards past keep_cards, capped, never sorted or taken
+	gs.set_rule("on", true)
+	gs.set_rule("below", "rare")
+	gs.set_rule("keep", "holo")
+	_check(gs.set_keep_line(0, "trait:zoomy") and not gs.set_keep_line(1, "trait:lazy"), "one keep line so far")
+	gs.bag["starter"] = 400
+	var pulled: Array = gs.open_boxes("starter", 400, "common")
+	var zoomy := pulled.filter(func(p): return "zoomy" in p.traits and Herd.plain(catalog, p.finish))
+	var cap := Sewing.keep_cap(catalog)
+	var kept_now := zoomy.slice(maxi(0, zoomy.size() - cap))
+	_check(zoomy.size() > cap, "enough zoomy commons to fill the line (%d)" % zoomy.size())
+	_check(kept_now.all(func(p): return gs.collection.get_pet(p.uid) != null and gs.collection.keep_uids.has(p.uid)), "the newest zoomy ones stay cards")
+	_check(gs.kept_count("trait:zoomy") == cap and not zoomy.slice(0, zoomy.size() - cap).any(func(p): return gs.collection.keep_uids.has(p.uid)),
+		"only the newest %d: the oldest ones became plain again" % cap)
+	_check(pulled.filter(func(p): return gs.collection.get_pet(p.uid) != null and not p.new_part and Herd.plain(catalog, p.finish) and not "zoomy" in p.traits).is_empty(),
+		"the rule still sorts every other common away")
+	var plan: Dictionary = gs.homes_pick("common")
+	_check(not plan.cards.any(func(uid): return gs.collection.keep_uids.has(uid)), "the stall never takes a kept pet")
+	gs.set_rule("on", false)
+	var more: Array = gs.open_boxes("starter", 0, "common")
+	gs.bag["starter"] = 40
+	more = gs.open_boxes("starter", 40, "common")
+	var zoomy2 := more.filter(func(p): return "zoomy" in p.traits and Herd.plain(catalog, p.finish))
+	_check(zoomy2.all(func(p): return gs.collection.keep_uids.has(p.uid)), "keep lines keep with the rule off too")
+	gs.set_keep_line(0, "")
+	_check(gs.collection.keep_uids.is_empty() and gs.homes.kept.is_empty(), "changing a line lets its pets go")
+	gs.set_keep_line(0, "trait:zoomy")
+	# the last room: the plushie machine and a free button; then rolled rooms
+	var active: Pet = gs.collection.active()
+	var buttons0 := Plushie.total(active)
+	gs.debug_sewn(Sewing.fixed_count(catalog))
+	_check(gs.plushie_open() and Plushie.total(active) == buttons0 + 1, "the last room opens the plushie machine and sews a button onto your pet")
+	_check(gs.keep_line_count() == 3, "three keep lines by then")
+	var next: Dictionary = gs.sew_room(int(gs.sewing.cleared))
+	_check(next.rolled and str(next.marks[0]).begins_with("buttons:"), "the room after the last is rolled, with a button lock")
+	# a round trip: the sewing room, keep lines and a room run out
+	gs.set_keep_line(2, "trait:lazy")
+	gs.debug_sewn(0)
+	gs.dungeon.run = { "at": Time.get_unix_time_from_system(), "floors": [{ "f": 20, "cleared": true, "lost_cards": [], "lost_herd": {}, "pay": 1 }],
+		"why": "target", "turned": 0, "cards": [], "herd": {}, "sent": 1, "target": 5, "room": 3, "door": 20, "seconds": 60.0 }
+	gs.save_game()
+	var gs2: Node = load("res://scripts/game_state.gd").new()
+	_check(gs2.sewing.cleared == gs.sewing.cleared and gs2.sewing_open(), "the sewing room comes back from the save")
+	_check(gs2.keep_lines() == gs.keep_lines() and gs2.kept_count("trait:zoomy") == gs.kept_count("trait:zoomy")
+		and gs2.collection.keep_uids.size() == gs.collection.keep_uids.size(), "keep lines and their pets come back (%s)" % [gs2.keep_lines()])
+	_check(gs2.dungeon_running() and int(gs2.dungeon.run.room) == 3 and gs2.dungeon_left() > 50.0, "a room run out comes back too")
+	gs2.free()
+	# a save from before that had been past floor 20 has the key (the door shows)
+	var older := old.duplicate(true)
+	older.dungeon = { "deep": 21, "bands": ["well", "cellar", "below"] }
+	SaveFile.write(path, older)
+	var gs3: Node = load("res://scripts/game_state.gd").new()
+	_check(gs3.finds.has("little_key") and gs3.sewing_open(), "a v34 save past floor 20 gets the key and its door")
+	gs3.free()
+	gs.free()
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+
+## The wisps perk tree on the well wall (Perks, data/perks.json): nails show by depth and needs,
+## a chain (each needs the one above), prices and the cap, values, buying, the tips once the chain
+## is done, boost parts and counts, a save made safe; the army's perks in the dungeon's maths.
+func _test_perks(catalog: Catalog) -> void:
+	var yes := func(_id): return true
+	var no := func(_id): return false
+	var st := {}
+	_check(Perks.shown(catalog, st, 0, yes) == ["entrance"], "at the top only the bow shows (%s)" % [Perks.shown(catalog, st, 0, yes)])
+	_check(Perks.shown(catalog, st, 12, yes) == ["entrance", "flag", "bell", "spool"], "down to floor 12: the nails to floor 10 (%s)" % [Perks.shown(catalog, st, 12, yes)])
+	var deep_no := Perks.shown(catalog, st, 60, no)
+	_check(not "thimble" in deep_no and not "ribbon" in deep_no and "star" in deep_no, "the plushie perks stay hidden until the machine opens")
+	_check("thimble" in Perks.shown(catalog, st, 60, yes) and "ribbon" in Perks.shown(catalog, st, 60, yes), "and show once it has")
+	# the chain
+	_check(Perks.available(catalog, st, "entrance", 0, yes) and not Perks.available(catalog, st, "flag", 12, yes), "the bow first; the flag waits for it")
+	_check(not Perks.available(catalog, st, "flag", 1, yes), "a hidden nail can't be bought")
+	_check(Perks.buy(catalog, st, "entrance", 50, 12, yes) == -1 and Perks.level(st, "entrance") == 0, "not enough wisps: nothing")
+	_check(Perks.buy(catalog, st, "flag", 99999, 12, yes) == -1, "the flag can't be bought before the bow")
+	var cost := Perks.buy(catalog, st, "entrance", 99999, 12, yes)
+	_check(cost == 100 and Perks.level(st, "entrance") == 1, "the bow's first level costs 100 wisps (%d)" % cost)
+	_check(Perks.available(catalog, st, "flag", 12, yes) and not Perks.available(catalog, st, "spool", 12, yes), "now the flag can be bought, the spool still waits for the bell")
+	_check(Dungeon.entrance(catalog, 0) == 300 and Dungeon.entrance(catalog, 1) == 600 and Dungeon.entrance(catalog, 4) == 4800, "the entrance fits 300, then 600 .. 4.8k")
+	_check(Perks.price(catalog, st, "entrance") == 600, "each level costs more")
+	st.entrance = 4
+	_check(Perks.maxed(catalog, st, "entrance") and Perks.price(catalog, st, "entrance") == -1 and Perks.buy(catalog, st, "entrance", 1 << 40, 12, yes) == -1,
+		"a maxed link can't be bought again")
+	st.flag = 2
+	_check(is_equal_approx(Perks.value(catalog, st, "flag"), 1.4), "the flag at level 2 is x1.40")
+	var front := Perks.parts(catalog, st, "front")
+	_check(front.size() == 1 and front[0].source == "perks" and is_equal_approx(float(front[0].x), 1.4), "its boost part: perks flag x1.40")
+	_check(Perks.parts(catalog, st, "power").is_empty(), "nothing on power until the paper star")
+	# counts
+	_check(is_equal_approx(Perks.count(catalog, st, "front_row"), 20.0), "the front row is 20 without the pinwheel")
+	st.pinwheel = 1
+	_check(is_equal_approx(Perks.count(catalog, st, "front_row"), 22.0), "the pinwheel makes it 22")
+	_check(is_equal_approx(Perks.count(catalog, st, "holds"), 0.0) and is_equal_approx(Perks.count(catalog, st, "nope"), 0.0), "counts with nothing bought, or no link: 0")
+	# one source of truth: the base lives in data/dungeon.json, the links add on top
+	var front_was = catalog.dungeon.front_row
+	var start_was = catalog.dungeon.entrance.start
+	catalog.dungeon.front_row = 30
+	catalog.dungeon.entrance.start = 500
+	_check(is_equal_approx(Perks.count(catalog, st, "front_row"), 32.0) and Dungeon.entrance(catalog, 0) == 500 and Dungeon.entrance(catalog, 1) == 800,
+		"tuning dungeon.json front_row / entrance.start moves the counts (%d, %d)" % [int(Perks.count(catalog, st, "front_row")), Dungeon.entrance(catalog, 1)])
+	_check(is_equal_approx(Perks.card_value(catalog, Perks.perk(catalog, "pinwheel"), 2), 34.0), "the pinwheel's card shows the whole front row")
+	catalog.dungeon.front_row = front_was
+	catalog.dungeon.entrance.start = start_was
+	# the tips: once every link has a level
+	_check(not Perks.chain_done(catalog, st) and not "coin" in Perks.shown(catalog, st, 60, yes), "the tips wait for the chain")
+	_check(not Perks.available(catalog, st, "coin", 60, yes), "and can't be bought before")
+	for p in Perks.chain(catalog):
+		st[str(p.id)] = maxi(1, Perks.level(st, str(p.id)))
+	_check(Perks.chain_done(catalog, st) and Perks.shown(catalog, st, 60, yes).slice(-2) == ["coin", "rattle"], "every link bought once: the lucky coin and the rattle hang at the bottom")
+	var tip0 := Perks.price(catalog, st, "coin")
+	_check(Perks.buy(catalog, st, "coin", tip0, 60, yes) == tip0 and Perks.price(catalog, st, "coin") == tip0 * 3, "a tip's next level costs x3 (%d)" % tip0)
+	st.coin = 3
+	_check(is_equal_approx(Perks.value(catalog, st, "coin"), 1.12) and is_equal_approx(float(Perks.parts(catalog, st, "coins")[0].x), 1.12), "the lucky coin gives +4% a level")
+	st.rattle = 2
+	var pets := Perks.parts(catalog, st, "pets")
+	_check(pets.size() == 2 and is_equal_approx(Boosts.total(pets), 1.25 * 1.08), "the lunchbox and the rattle both speed pets/sec (%.3f)" % Boosts.total(pets))
+	st.coin = 200
+	_check(Perks.price(catalog, st, "coin") == int(float(catalog.perks.price_max)) and not Perks.maxed(catalog, st, "coin"), "a tip never costs more than the cap, and never ends")
+	# a save made safe
+	var clean := Perks.clean(catalog, { "entrance": 99, "flag": 0, "nope": 3, "coin": 12, "bell": "x" })
+	_check(clean == { "entrance": 4, "coin": 12 }, "clean: links clamped to their max, tips any level, unknown and empty ones dropped (%s)" % [clean])
+	for kind in ["front", "herd_power", "cellar", "stairs", "lanterns", "pets", "power", "coins"]:
+		_check(Boosts.is_kind(catalog, kind), "boost kind %s is in data/boosts.json" % kind)
+	for p in Perks.chain(catalog):
+		_check(p.has("kind") != p.has("count"), "%s does a boost kind or a count, not both" % p.id)
+		_check(p.price.size() == p.steps.size() - 1, "%s has a price for every level" % p.id)
+		_check(not p.has("kind") or Boosts.is_kind(catalog, str(p.kind)), "%s's kind is a boost kind" % p.id)
+		_check(not p.has("coins") and not p.has("coin_price"), "%s has no coin price" % p.id)
+	var floors := Perks.chain(catalog).map(func(p): return int(p.floor))
+	var sorted := floors.duplicate()
+	sorted.sort()
+	_check(floors == sorted and floors[0] == 0, "the chain goes down the well, the bow on top")
+
+	# the army's perks in the dungeon's maths
+	var a := _army(30, 10.0, 100, 5.0)
+	var base_rope := Dungeon.army_power(catalog, a, "rope")
+	var base_door := Dungeon.army_power(catalog, a, "door")
+	a.front_x = 2.0
+	_check(is_equal_approx(Dungeon.army_power(catalog, a, "rope"), base_rope * 2.0), "front_x doubles the front row")
+	a.front_x = 1.0
+	a.behind_x = 2.0
+	_check(is_equal_approx(Dungeon.army_power(catalog, a, "rope"), base_rope) and is_equal_approx(Dungeon.army_power(catalog, a, "door"), base_rope + (base_door - base_rope) * 2.0),
+		"behind_x only counts for the ones walking behind")
+	a.behind_x = 1.0
+	a.band_x = { "doors": 1.5, "stairs": 3.0, "room": 3.0 }
+	_check(is_equal_approx(Dungeon.army_power(catalog, a, "rope"), base_rope) and is_equal_approx(Dungeon.army_power(catalog, a, "knock"), base_door * 1.5)
+		and is_equal_approx(Dungeon.army_power(catalog, a, "guard"), base_door * 3.0) and is_equal_approx(Dungeon.army_power(catalog, a, "room"), base_door * 3.0),
+		"band_x: the cellar's floors, the stairs and the sewing rooms")
+	a.band_x = {}
+	a.front_n = 22
+	_check(is_equal_approx(Dungeon.army_power(catalog, a, "rope"), base_rope * 22.0 / 20.0), "front_n 22: two more cards fight on the rope")
+	_check(Dungeon.pay(catalog, 12, 300, 0, 2.0) == roundi(Dungeon.pay(catalog, 12, 300, 0) * 2.0) or absi(Dungeon.pay(catalog, 12, 300, 0, 2.0) - 2 * Dungeon.pay(catalog, 12, 300, 0)) <= 1,
+		"pay_x (lanterns) multiplies a floor's pay")
+	_check(Dungeon.pay(catalog, 12, 1000, 1) > Dungeon.pay(catalog, 12, 1000, 0), "a wider entrance pays for more pets")
+
+
+func _test_perks_game(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped the perks in the game: it needs a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var pets := []
+	for i in 30:
+		var p := _plain_pet(catalog, "epic", "holo", 500 + i)  # holo: they stay cards
+		p.uid = str(i + 1)
+		pets.append(p.to_dict())
+	var auto := Automation.fresh()
+	auto.taught["army"] = true
+	var old := { "version": 35, "coins": 1000, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(),
+		"unlocks": ["page:beyond", "location:well", "feature:dungeon", "feature:lead_army", "tab:automation", "feature:parts"],
+		"finds": ["deep_rope"], "automation": auto, "wisps": 100000,
+		"collection": { "pets": pets, "active": "1", "next_id": 31, "seen": {}, "herd": { "common:normal": 3000 }, "herd_ever": true },
+		"dungeon": { "deep": 12, "bands": ["well", "cellar"], "entrance": 2, "target": 5, "firsts": { "10": true } }, "room": 40 }
+	SaveFile.write(path, old)
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	_check(gs.perk_level("entrance") == 2 and not gs.dungeon.has("entrance"), "v35 -> v36: the entrance's level moved into the perks")
+	_check(int(gs.army().entrance) == 1200, "and still fits 1.2k (%d)" % int(gs.army().entrance))
+	_check(gs.perks_shown() == ["entrance", "flag", "bell", "spool"], "the nails down to floor 12 show (%s)" % [gs.perks_shown()])
+	# buying
+	gs.army_best()
+	gs.set_army_herd("common", 3000)
+	var rules0: Dictionary = gs.army_rules()
+	var power0 := Dungeon.army_power(catalog, rules0, "rope")
+	var w0: int = gs.wisps
+	_check(not gs.buy_perk("bell"), "the bell waits for the flag")
+	_check(gs.buy_perk("flag") and gs.wisps == w0 - 150 and gs.perk_level("flag") == 1, "the flag: 150 wisps")
+	_check(is_equal_approx(gs.boost("front"), 1.2) and gs.boost_parts("front")[0].source == "perks", "the front row's boost comes from the perks")
+	_check(is_equal_approx(Dungeon.army_power(catalog, gs.army_rules(), "rope"), power0 * 1.2), "and makes the army stronger on the rope")
+	gs.wisps = 10
+	_check(not gs.buy_perk("flag") and gs.perk_level("flag") == 1, "not enough wisps: nothing")
+	gs.wisps = 100000
+	# the lanterns pay more
+	gs.debug_perk("spool", 5)
+	_check(is_equal_approx(gs.boost("lanterns"), 2.5), "the spool at its max: lanterns x2.5")
+	gs.send_army()
+	var paid := 0
+	for fl in gs.dungeon.run.floors:
+		paid += int(fl.pay)
+	var plain := 0
+	for fl in gs.dungeon.run.floors:
+		if fl.cleared:
+			plain += Dungeon.pay(catalog, int(fl.f), int(gs.dungeon.run.sent), 2)
+	_check(paid > 0 and absi(paid - roundi(plain * 2.5)) <= gs.dungeon.run.floors.size(), "a run's floors pay x2.5 (%d vs %d)" % [paid, plain])
+	gs.dungeon.run = {}
+	gs._rest_changed()
+	# the pinwheel: 22 cards in front
+	gs.dungeon.deep = 40
+	gs.debug_perk("pinwheel", 1)
+	gs.army_best()
+	_check(gs.front_row_size() == 22 and gs.army().cards.size() == 22 and gs.sew_front().size() == 22, "the pinwheel: army best takes 22 cards (%d)" % gs.army().cards.size())
+	# the plushie perks: hidden until the machine opens, then holds and nudges
+	for id in ["bell", "nightlight", "lunchbox", "scarf", "musicbox", "star"]:
+		gs.debug_perk(id, 1)
+	_check(not "thimble" in gs.perks_shown() and not "coin" in gs.perks_shown(), "no plushie perks, no tips, before the plushie machine")
+	gs.grant({ "find:plushie_machine": 1 })
+	_check("thimble" in gs.perks_shown() and "ribbon" in gs.perks_shown(), "the plushie machine opens: the thimble and the ribbon hang there")
+	var holds0 := Plushie.holds_max(catalog, gs.plushie, gs.perk_holds())
+	_check(gs.buy_perk("thimble") and Plushie.holds_max(catalog, gs.plushie, gs.perk_holds()) == holds0 + 1, "the thimble: one more hold")
+	_check(gs.buy_perk("ribbon") and gs.perk_nudges() == 1, "the ribbon: a nudge more per pet")
+	var st := Plushie.fresh()
+	st.hopper = [_plain_pet(catalog, "common", "normal", 9).to_dict()]
+	Plushie.next_pet(catalog, st, gs.collection.active(), gs.perk_nudges())
+	_check(int(st.nudges) == 1, "a plain pet hopping in brings the ribbon's nudge (%d)" % int(st.nudges))
+	_check(gs.perks_shown().slice(-2) == ["coin", "rattle"], "the chain is done: the tips hang at the bottom")
+	_check(gs.buy_perk("rattle") and is_equal_approx(gs.boost("pets"), 1.25 * 1.04), "the lunchbox and the rattle: pets/sec x%.3f" % gs.boost("pets"))
+	_check(is_equal_approx(gs.boost("power"), 1.25 * Boosts.total(Knacks.parts(catalog, gs.collection.active(), "power", gs.knack_gate))), "the paper star shares the army power boost with knacks")
+	gs.save_game()
+	var saved: Dictionary = SaveFile.read(path)
+	_check(int(saved.version) == 37 and saved.perks.get("thimble", 0) == 1 and not saved.dungeon.has("entrance"), "it saves at v37 with the perks")
+	gs.free()
+	# the music box: your pet kept leading the army while the game was closed
+	var away := saved.duplicate(true)
+	away.dungeon.run = {}
+	away.dungeon.target = 10
+	away.dungeon.home_at = 90
+	away.automation.task = "army"
+	away.wisps = 0
+	away.perks.musicbox = 0
+	away.perks.erase("musicbox")
+	away.saved_at = Time.get_unix_time_from_system() - 2 * 3600
+	SaveFile.write(path, away)
+	var gs0: Node = load("res://scripts/game_state.gd").new()
+	var none: int = gs0.wisps
+	gs0.free()
+	_check(none == 0, "no music box: nothing happened while the game was closed (%d)" % none)
+	# (the chain needs every link for the tips: the music box at level 2 is 2 hours)
+	away.perks.musicbox = 2
+	SaveFile.write(path, away)
+	var gs2: Node = load("res://scripts/game_state.gd").new()
+	var one_run := Dungeon.run_seconds(catalog, { "floors": range(10) })
+	_check(gs2.wisps > 0 and int(gs2.idle_log.get("wisps", 0)) > 0, "the music box: wisps from runs while away (%d)" % gs2.wisps)
+	_check(gs2.dungeon_news.get("got", 0) > 0, "and your pet has news about them")
+	var herd_left: int = gs2.collection.herd_count("common:normal")
+	_check(herd_left < 3000, "real runs: some pets didn't come back (%d left)" % herd_left)
+	_check(gs2.wisps > 10 * Dungeon.pay(catalog, 1, 1, 2), "several runs' worth (%d, a run takes %d s)" % [gs2.wisps, int(one_run)])
+	# the cap is data (perks.json away_runs_max) and a save with no saved_at plays nothing
+	var cap_was = gs2.catalog.perks.get("away_runs_max", 500)
+	gs2.dungeon.run = {}
+	gs2.wisps = 0
+	gs2.catalog.perks.away_runs_max = 1
+	gs2._army_while_away(Time.get_unix_time_from_system() - 3600, Time.get_unix_time_from_system())
+	_check(gs2.dungeon_running() and gs2.wisps == 0, "away_runs_max 1: one run sent, none worked out (%d)" % gs2.wisps)
+	gs2.catalog.perks.away_runs_max = cap_was
+	gs2.dungeon.run = {}
+	_check(gs2._army_while_away(0.0, Time.get_unix_time_from_system()) == 0 and not gs2.dungeon_running(), "no saved_at: no runs dated 1970")
+	gs2.free()
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+
+## Held landings (Dungeon hold_*, data/dungeon.json "hold"): what each landing needs and what its crowd
+## holds, the spots down to the deepest floor, where the orders can start, a run from a held landing
+## (the floors above it: no fights, no losses, no lanterns, no time), a saved state made safe.
+func _test_held(catalog: Catalog) -> void:
+	var needs := [10, 20, 30, 40, 50].map(func(f): return Dungeon.hold_need(catalog, f))
+	_check(needs == [500, 2000, 8000, 24000, 72000], "landings need 500 / 2k / 8k, then x3 (%s)" % [needs])
+	_check(Dungeon.hold_need(catalog, 15) == 0 and Dungeon.hold_need(catalog, 0) == 0, "only every 10th landing can be held")
+	var what := [10, 20, 30, 60].map(func(f): return Dungeon.hold_what(catalog, f))
+	_check(what == ["the rope", "the door", "the stairs", "the stairs"], "they hold the rope, the door, the stairs (%s)" % [what])
+	var st := Dungeon.fresh(catalog)
+	_check(st.held.is_empty() and int(st.start) == 0, "a new dungeon holds nothing and starts at the top")
+	st.deep = 9
+	_check(Dungeon.hold_spots(catalog, st).is_empty(), "no spots before floor 10 is cleared")
+	st.deep = 32
+	_check(Dungeon.hold_spots(catalog, st) == [10, 20, 30], "spots down to the deepest floor (%s)" % [Dungeon.hold_spots(catalog, st)])
+	st.held = { "10": { "common:normal": 500 }, "20": { "common:normal": 1999 }, "30": { "common:normal": 7000, "uncommon:normal": 1000 } }
+	_check(Dungeon.starts(catalog, st) == [0, 10, 30] and Dungeon.is_held(catalog, st, 30) and not Dungeon.is_held(catalog, st, 20),
+		"the orders can start at the top or a fully held landing (%s)" % [Dungeon.starts(catalog, st)])
+	# a run from landing 20 to floor 25
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 7
+	var army := _army(20, 1.0e4, 280, 1.0e3)
+	var run := Dungeon.simulate(catalog, army, { "target": 25, "start": 20, "home_at": 90 }, rng)
+	var fs: Array = run.floors.map(func(fl): return int(fl.f))
+	_check(fs == [21, 22, 23, 24, 25], "a run from landing 20 walks floors 21 to 25 only (%s)" % [fs])
+	var pay := 0
+	for f in range(21, 26):
+		pay += Dungeon.pay(catalog, f, 300, 0)
+	_check(Dungeon.run_pay(run) == pay, "and pays only for those (%d vs %d)" % [Dungeon.run_pay(run), pay])
+	run.start = 20
+	_check(is_equal_approx(Dungeon.run_seconds(catalog, run), 5.0 * float(catalog.dungeon.seconds_per_floor)), "it takes 5 floors of time")
+	_check(is_equal_approx(Dungeon.run_floor(catalog, run, 0.0), 20.0) and is_equal_approx(Dungeon.run_floor(catalog, run, 1.0e6), 25.0),
+		"the army pops out at landing 20 and walks down to 25")
+	var weak := Dungeon.simulate(catalog, _army(20, 1.0, 0, 0.0), { "target": 25, "start": 20, "home_at": 90 }, rng)
+	_check(weak.why == "stuck" and weak.floors.size() == 1 and int(weak.floors[0].f) == 21, "a weak army from landing 20 gets stuck on 21, not on 1")
+	var odd := Dungeon.simulate(catalog, army, { "target": 5, "start": 20, "home_at": 90 }, rng)
+	_check(not odd.floors.is_empty() and int(odd.floors.back().f) == 5, "a start below the target is ignored (never an empty run)")
+	# a fully held stairs landing has no guard, in the fight too
+	_check(is_equal_approx(Dungeon.strength(catalog, 30, true), Dungeon.strength(catalog, 30) / 2.0), "a held guard landing loses its guard's x2")
+	_check(Dungeon.held_landings(catalog, st) == [10, 30] and Dungeon.kind_at(catalog, 30, [10, 30]) == "stairs"
+		and Dungeon.kind_at(catalog, 30, []) == "guard", "held landings: 10 and 30, and 30 fights as plain stairs")
+	var edge := _army(20, 1.0, 0, 0.0)
+	var lo := 0.0
+	var hi := 1.0e7
+	for i in 60:  # an army just strong enough for floor 30 without its guard, not with it
+		var mid := (lo + hi) / 2.0
+		edge = _army(20, mid, 0, 0.0)
+		var r := Dungeon.simulate(catalog, edge, { "target": 30, "start": 29, "home_at": 100, "held": [30] }, rng)
+		if r.why == "stuck":
+			lo = mid
+		else:
+			hi = mid
+	edge = _army(20, hi * 1.2, 0, 0.0)
+	var with_held := Dungeon.simulate(catalog, edge, { "target": 30, "start": 29, "home_at": 100, "held": [30] }, rng)
+	var no_held := Dungeon.simulate(catalog, edge, { "target": 30, "start": 29, "home_at": 100 }, rng)
+	_check(with_held.why != "stuck" and no_held.why == "stuck", "an army walking past held landing 30 fights no guard (%s / %s)" % [with_held.why, no_held.why])
+	# a saved state made safe
+	var clean := Dungeon.clean(catalog, { "deep": 25, "target": 3, "start": 20,
+		"held": { "10": { "common:normal": 900 }, "20": { "common:normal": 2000 }, "15": { "common:normal": 5 }, "x": 3,
+			"30": { "common:normal": 8000 }, "40": "no" } })
+	_check(clean.held.keys() == ["10", "20", "30"] and Dungeon.held_n(clean, 10) == 500, "bad landings go, too many holders are cut to the need (%s)" % [clean.held])
+	_check(int(clean.start) == 20 and int(clean.target) == 21, "a held start stays and the target is below it")
+	var past := Dungeon.clean(catalog, { "deep": 25, "start": 30, "held": { "30": { "common:normal": 8000 } } })
+	_check(int(past.start) == 0, "a start past the deepest floor goes back to the top")
+	var half := Dungeon.clean(catalog, { "deep": 25, "start": 20, "held": { "20": { "common:normal": 10 } } })
+	_check(int(half.start) == 0, "a start at a landing that isn't fully held goes back to the top")
+
+
+func _test_held_game(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped held landings in the game: it needs a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var pets := []
+	for i in 30:
+		var p := _plain_pet(catalog, "epic", "holo", 700 + i)  # holo: they stay cards, never holders
+		p.uid = str(i + 1)
+		pets.append(p.to_dict())
+	for i in 4:
+		var p := _plain_pet(catalog, "common", "normal", 800 + i)
+		p.uid = str(31 + i)
+		p.fav = i == 0  # a favourite never goes
+		pets.append(p.to_dict())
+	var old := { "version": 36, "coins": 1000, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(),
+		"unlocks": ["page:beyond", "location:well", "feature:dungeon", "feature:parts", "feature:errands", "tab:errands"],
+		"finds": ["deep_rope"], "wisps": 0,
+		"collection": { "pets": pets, "active": "1", "next_id": 35, "seen": {}, "herd": { "common:normal": 12000, "uncommon:normal": 3000 }, "herd_ever": true },
+		"dungeon": { "deep": 32, "bands": ["well", "cellar", "below"], "target": 5, "firsts": { "10": true, "20": true } }, "room": 60 }
+	SaveFile.write(path, old)
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	_check(gs.dungeon.held.is_empty() and int(gs.dungeon.start) == 0, "v36 -> v37: nothing held, the orders start at the top")
+	_check(gs.hold_spots() == [10, 20, 30], "landings 10, 20 and 30 can be held (%s)" % [gs.hold_spots()])
+	# the army's pets never go
+	gs.army_best()
+	gs.set_army_herd("common", 280)
+	var army_n := int(gs.army_herd_keys().get("common:normal", 0))
+	var stars: int = gs.collection.fallen_n
+	var commons: int = gs.collection.herd_count("common:normal")
+	_check(gs.hold_can_go(10, "common") == 500 and gs.hold_can_go(10, "epic") == 0, "at most what the landing needs, never holo cards")
+	gs.put_on_job("coin_hunt", 100)
+	var went: int = gs.send_holders(10, "common", 200)
+	_check(went == 200 and Dungeon.held_n(gs.dungeon, 10) == 200 and gs.collection.herd_count("common:normal") == commons - 200,
+		"200 commons hold landing 10 (%d)" % went)
+	_check(gs.collection.fallen_n == stars, "holders stay on for good: no night-sky star")
+	_check(int(gs.army_herd_keys().get("common:normal", 0)) == army_n, "the army keeps its pets")
+	went = gs.send_holders(10, "common", 100000)
+	_check(went == 300 and Dungeon.is_held(catalog, gs.dungeon, 10) and gs.send_holders(10, "common", 5) == 0, "it stops at the landing's need (%d)" % went)
+	_check(gs.collection.get_pet("31") != null and gs.collection.get_pet("1") != null, "favourites and your pet never go")
+	_check(Dungeon.starts(catalog, gs.dungeon) == [0, 10], "landing 10 is a start now")
+	gs.dungeon.held["10"] = { "common:normal": 600 }  # (never happens: a crowd over its need)
+	var before: int = gs.collection.herd_count("common:normal")
+	_check(gs.send_holders(10, "common", 5) == 0 and gs.collection.herd_count("common:normal") == before and gs.hold_room(10) == 0,
+		"a landing over its need takes nobody (not the whole shelf)")
+	gs.dungeon.held["10"] = { "common:normal": 500 }
+	_check(not gs.set_start(20) and int(gs.dungeon.start) == 0, "set_start: not a landing that isn't held")
+	# the start stepper
+	gs.set_order("start", 1)
+	_check(int(gs.dungeon.start) == 10 and int(gs.dungeon.target) == 11, "start from landing 10: the target moves to 11 (%d)" % int(gs.dungeon.target))
+	gs.set_order("start", 1)
+	_check(int(gs.dungeon.start) == 10, "no further: 20 isn't held")
+	gs.set_order("target", -5)
+	_check(int(gs.dungeon.target) == 11, "the target never goes above the floor under the start")
+	gs.send_holders(20, "common", 2000)
+	gs.send_holders(30, "common", 8000)
+	gs.send_holders(30, "uncommon", 8000)
+	_check(Dungeon.is_held(catalog, gs.dungeon, 20) and Dungeon.is_held(catalog, gs.dungeon, 30), "20 and 30 held with commons and uncommons (%d, %d)" % [Dungeon.held_n(gs.dungeon, 20), Dungeon.held_n(gs.dungeon, 30)])
+	gs.set_order("start", 5)
+	_check(int(gs.dungeon.start) == 30 and int(gs.dungeon.target) == 31, "the stepper goes on to landing 30")
+	# a run from landing 30
+	_check(gs.send_army() and int(gs.dungeon.run.start) == 30, "the army goes from landing 30")
+	_check(not gs.set_start(10) and int(gs.dungeon.start) == 30, "set_start: not while the army is out")
+	_check(gs.dungeon.run.floors.all(func(fl): return int(fl.f) > 30), "no floors above it in the run")
+	_check(gs.dungeon_floor_now() >= 30.0, "it's down at landing 30 straight away (%.1f)" % gs.dungeon_floor_now())
+	gs.dungeon.run.at = 0.0
+	gs._dungeon_tick()
+	_check(int(gs.dungeon.last.floor) >= 30, "last time says how far they got (%d)" % int(gs.dungeon.last.floor))
+	gs.save_game()
+	var saved: Dictionary = SaveFile.read(path)
+	_check(int(saved.version) == 37 and saved.dungeon.held.has("30") and int(saved.dungeon.start) == 30, "it saves at v37 with the held landings")
+	gs.free()
+	var gs2: Node = load("res://scripts/game_state.gd").new()
+	_check(Dungeon.starts(catalog, gs2.dungeon) == [0, 10, 20, 30] and int(gs2.dungeon.start) == 30, "and they come back from the save")
 	gs2.free()
 	for f in [path, path + ".bak", path + ".tmp"]:
 		if FileAccess.file_exists(f):

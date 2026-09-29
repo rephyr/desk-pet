@@ -6,7 +6,9 @@ extends RefCounted
 ##   { points: toward the next box, by_hand: pets you sent from the stall ever, sorted: pets the
 ##     rule sorted ever, room_was_full: the room has been full at least once (the stall opens),
 ##     rule: { on, below: rarity id, to: "homes" | "work" | "school", keep: finish id },
-##     today: { day: "YYYY-MM-DD", n: pets the rule sorted that day } }
+##     today: { day: "YYYY-MM-DD", n: pets the rule sorted that day },
+##     rule.lines: [keep line picks, "" for nothing] (the sorting card's keep lines, see Sewing),
+##     kept: { pick: [uids a keep line keeps as cards, the oldest first] } }
 ## GameState keeps the state, takes the pets out of the collection and hands out the boxes.
 
 const TO := ["homes", "work", "school"]  # school: only once it's open (GameState.rule_destinations)
@@ -15,8 +17,8 @@ const TO := ["homes", "work", "school"]  # school: only once it's open (GameStat
 static func fresh(catalog: Catalog) -> Dictionary:
 	var d: Dictionary = catalog.new_homes.get("rule_default", {})
 	return { "points": 0, "by_hand": 0, "sorted": 0, "room_was_full": false,
-		"rule": { "on": false, "below": str(d.get("below", "rare")), "to": str(d.get("to", "homes")), "keep": str(d.get("keep", "holo")) },
-		"today": { "day": "", "n": 0 } }
+		"rule": { "on": false, "below": str(d.get("below", "rare")), "to": str(d.get("to", "homes")), "keep": str(d.get("keep", "holo")), "lines": [] },
+		"today": { "day": "", "n": 0 }, "kept": {} }
 
 
 ## A saved state, checked: unknown rarities or finishes fall back to the defaults.
@@ -37,6 +39,16 @@ static func clean(catalog: Catalog, raw) -> Dictionary:
 			out.rule.to = str(rule.to)
 		if catalog.finish(str(rule.get("keep", ""))).id == str(rule.get("keep", "")):
 			out.rule.keep = str(rule.keep)
+		var lines = rule.get("lines", [])
+		if lines is Array:
+			for pick in lines.slice(0, 16):
+				out.rule.lines.append(str(pick) if Sewing.keep_valid(catalog, str(pick)) else "")
+	var kept = raw.get("kept", {})
+	if kept is Dictionary:
+		for pick in kept:
+			if str(pick) != "" and str(pick) in out.rule.lines and kept[pick] is Array:
+				var uids: Array = kept[pick].map(func(uid): return str(uid))
+				out.kept[str(pick)] = uids.slice(maxi(0, uids.size() - Sewing.keep_cap(catalog)))
 	var today = raw.get("today", {})
 	if today is Dictionary:
 		out.today = { "day": str(today.get("day", "")), "n": maxi(0, int(_num(today.get("n", 0)))) }

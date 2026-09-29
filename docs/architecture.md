@@ -11,7 +11,7 @@ scripts/pets/        pet rules and pet visuals (Pet, PetRoller, Collection, Knac
 scripts/adventure/   adventure rules: runs, events, parties, rewards, rumours, the pet's voice
 scripts/idle/        errands (Jobs) and automation (Automation): pure rules for idle jobs, see data/errands.json, data/automation.json
 scripts/machine/     the capsule machine (Machine) and capsule toys (Toys): pure rules, see data/machine.json, data/toys.json
-scripts/dungeon/     the old well's dungeon (Dungeon): floors, power, a whole run worked out at once, pay; pure rules, see data/dungeon.json
+scripts/dungeon/     the old well's dungeon (Dungeon): floors, power, a whole run worked out at once, pay; the sewing room (Sewing): rooms, chalk locks, keep lines; the wisps perks on the well wall (Perks); pure rules, see data/dungeon.json, data/sewing.json, data/perks.json
 scripts/dev/         debug-only: launch flags, test profiles, scripted test flows (DevDriver)
 scripts/game_state   the player's progress + saving (autoload "GameState")
 scripts/ui/          screens and widgets; they read GameState and call its functions
@@ -238,7 +238,8 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   automation and errands boosts; `HerdPicker` is the shelves + 1 / 10 / 100 / all the edge and the
   school share; pages are strings: `pet`, `workers`, `whistle`, `school`); the adventures tab's
   dungeon page is `DungeonView` (`WellColumn` draws the well's cross-section, `FrontRow` the front
-  row; rules in `Dungeon`, state in `GameState.dungeon` and `GameState.wisps`), `InventoryTab`
+  row; rules in `Dungeon`, state in `GameState.dungeon` and `GameState.wisps`; the sewing room: `SewDoor` on
+  the column, `SewingRoom` slid in beside it with `ChalkMark`s, rules in `Sewing`), `InventoryTab`
   (the bag and sewing) and `SettingsTab` (general and video pages).
   Tabs can be locked or hidden until something opens them (`data/unlocks.json`).
 - The full game is laid out at 920x600 (`home.gd` `EXPANDED_SIZE`) and scaled to the chosen
@@ -398,6 +399,70 @@ Wisps are one purse (`GameState.wisps`, saved since v33): the dungeon's floors a
 misses both pay in through `grant_wisps` (`grant({ "wisps": n })` too). The keeper stays home: not
 sendable, never in the army (`army_choices`, `set_army_card`), and an army pet can't be the keeper
 (`plushie_keepers` skips `_out()`).
+`GameState.homes_rule_changed` fires when the sorting rule changes: the sorting card rebuilds its
+steppers on it (and on new pets, or a new place to send them), the "sorted today" numbers on the card
+and the planks update in place on `changed` (the pets page never rebuilds for them).
+`Collection.finish_seen(id)` is what the keep stepper offers from; `set_finish` (the dev `dress`
+step) keeps the room count right; `_herd_to_stars` is the one "a count's pets become stars" path
+(`leave`, `lose_plain`).
+
+Save v35 (E3, built as v27 in the sewing lane) adds the sewing room: top-level `sewing` `{ cleared }` (`Sewing`, data/sewing.json),
+`new_homes.rule.lines` ([keep line picks, "" = nothing]) and `new_homes.kept` ({ pick: [uids, oldest
+first] }); a room run is the dungeon's `run` with `room`, `door`, `seconds` (so its pets are busy through
+`_out()` like any run) and `dungeon.last.room`. Nothing moves; an older save already past floor 20 gets
+the key (`finds.little_key`). `Dungeon._fight` is the one fight (a well floor, or a room through
+`Dungeon.simulate_room`); `run_seconds` / `run_floor` read a room run's own time and door.
+`GameState.send_to_room(i)` / `_finish_room_run` / `sew_can_go` / `sew_marks` / `sew_front` (the army's
+best front_row cards) / `sew_hint(mark)` (like `bit_hint`) / `debug_sewn(n)`; unlock earn key `sewing`
+(rooms cleared). Keep lines: `keep_lines()` / `set_keep_line(i, pick)` / `kept_count`; `_sorter` is valid
+when the rule is on OR a keep line picks something, `_sort_pet` asks `_keep_new` first;
+`Collection.keep_uids` (rebuilt from `homes.kept` by `_keep_lines_changed`) counts in `always_card`, so
+kept pets never fold and the stall never takes them.
+
+Save v36 (built as v28 in the sewing lane) adds the wisps perk tree: top-level `perks` `{ perk id: level }`
+(`Perks`, data/perks.json; only levels > 0, links clamped to their max, tips any level). The
+migration moves `dungeon.entrance` (a level) into `perks.entrance`; `Dungeon.fresh/clean` no longer
+keep it. Count links ADD their steps to a base: `Perks.count_base` (entrance / front_row from data/dungeon.json
+`entrance.start` / `front_row`, the rest 0), `Perks.count` / `count_at`, `Perks.card_value` (the nail
+card's whole number); `Dungeon.entrance(catalog, level)` = `count_at("entrance", level)`. An army for the rules can
+carry `front_n` / `front_x` / `behind_x` / `band_x` ({ rope | doors | stairs | room: x }), orders
+`pay_x`; `GameState._army_rules` fills them from `boost("front" | "herd_power" | "cellar" | "stairs")`,
+`send_army` / `send_to_room` pass `pay_x = boost("lanterns")`. `boost_parts` appends `Perks.parts`
+(source "perks"). Counts: `front_row_size()` (army_best, sew_front, FrontRow), `perk_holds()` /
+`perk_nudges()` (passed to `Plushie.holds_max / can_hold / toggle_hold / next_pet` as extras; the shop's
+hold price still counts bought holds only), `perk_away_hours()` (`_army_while_away` on load: finishes
+the run that was out and sends the same army again back to back from the save time, up to
+perks.json `away_runs_max` runs, each quiet (`send_army(true)` / `_finish_dungeon_run(true)`: no
+signals, save, refold or unlock check; `_home_again()` does those once after), nothing for a save
+with no `saved_at`; wisps into `idle_log.wisps` and `dungeon_news`). `boost("pets")` speeds box opening
+(`_open_in_background`, `PackJob`'s rest, the workers' box tables). `GameState.perks_shown()` /
+`perk_available` / `perk_price` / `buy_perk` / `debug_perk`, the pages rebuild on
+`dungeon_changed`. UI: `PerkNail` (a Button; `PerkNail.texture(thing, look, px)` renders the SVG
+things) placed by `WellColumn` (lane x 40, `nail_at`, `_thread`, tips under the last floor drawn,
+`nail_pressed(id)`); `DungeonView.pick_nail(id)` / `_nail_card` in the side column. The well panel
+is 236 wide (the column's middle at 0.55), the page's gaps 10, FrontRow's gap 3, the picker's 5.
+
+Save v37 (built as v29 in the sewing lane) adds held landings: `dungeon.held` `{ "10": { count key: n } }`
+and `dungeon.start` (0 or a fully held landing). `Dungeon.hold_every / hold_need / hold_what / held_n /
+is_held / hold_spots / starts / held_landings / kind_at / hold_int` (data/dungeon.json `hold`: need,
+faces, card_faces, looks...); a fully held guard landing has no guard in the rules either
+(`strength(catalog, f, held)`, `simulate` takes `orders.held`, `floor_words` uses them); `Dungeon.clean` drops landings that aren't
+every 10th, clamps each crowd to its need and puts `start` back to 0 unless it's in `starts()`, the
+target at least start + 1. `Dungeon.simulate` takes `orders.start`: the loop begins at start + 1, so
+skipped floors are never in `floors` (no pay, no losses); a run keeps `start`, and `run_seconds` /
+`run_floor` count only walked floors (the army is drawn from the landing). `GameState.hold_spots()`,
+`hold_room(f)` (what it still needs, never below 0), `hold_can_go(f, rarity)` (`homes_pick`, capped at
+`hold_room`; the dungeon page keys its rebuilds on it, so a growing herd doesn't rebuild it), `send_holders(f, rarity, n)` (off
+places like `send_home`, `Collection.leave(counts, uids, false)`: no star, no `pets_left`, their
+stand-in looks go), `hold_faces(f, n)` (stand-in Pets for the crowd), `set_start(f)` (checks `starts()`, clamps the target, saves; `set_order("start", ±1)` uses it);
+`send_army` passes the start (so the music box and your pet leading the army start there too);
+`_finish_dungeon_run` counts a run from a landing as at least that deep and gives firsts only for
+walked floors. `Mound` takes Pets as faces too, and mirrors flipped sprites with a transform (a
+negative-width rect drew them a sprite's width to the right). UI: `HoldSpot` (a Button with a custom
+`_has_point`: the crowd and the pill) placed by `WellColumn._place_holds` (`hold_pressed(f)`,
+`set_hold_picked`, `hold_spot(f)`); `DungeonView.pick_hold(f)` / `_hold_card` (its shelf list keeps its scroll across rebuilds) /
+`hold_pick` / `hold_list` (flows) and
+the orders' start line.
 
 ## Testing
 

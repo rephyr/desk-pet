@@ -1,0 +1,151 @@
+# The wisps perk tree on the well wall (look A, on the walls): coral things on nails down the left
+# lane of the well, joined by a coral thread (solid down to the last one bought, dashed chalk after).
+# At the top only the bow on the roof post shows: the entrance, the first buy. Deeper nails show once
+# the army has been that deep; each thing needs the one above. Tapping a nail puts its card where
+# "last time" sits (✕ brings it back). The plushie perks wait for the plushie machine; once every
+# link is bought the lucky coin and the rattle hang at the bottom. Everything stays inside the window.
+from rich
+view full
+herd common normal 3000
+herd uncommon normal 900
+herd rare normal 200
+unlock page:beyond
+unlock location:well
+dungeon
+wait popup
+click "lovely"
+card body=fox rarity=epic 6
+tab adventures
+page adventures 2
+wait 1
+army best
+army-herd common 280
+wait 1
+expect text "the old well"
+expect fits
+shot bow                             # only the bow on the roof post
+click PerkNail#1
+wait 0.5
+expect text "the entrance"
+expect text "hang it up"
+expect text "fits"
+expect fits
+shot entrance_short                  # not enough wisps yet: the button is there but off
+wisps 200
+wait 0.5
+expect fits
+shot entrance_card
+click "hang it up"
+wait 1
+expect text "one more"
+expect text "/ 600"                  # the entrance fits 600 now
+expect fits
+shot bought
+army-herd common 580
+wait 0.5
+expect text "600"
+orders 5 30
+down
+down-done
+wait 1
+deep 12
+wait popup                           # past floor 10: your pet can lead the army
+click "lovely"
+tab adventures
+page adventures 2
+wait 1
+click "✕"
+wait 0.5
+expect text "last time"              # the card goes, last time is back
+expect fits
+shot nails_10                        # the flag, the bell and the spool; the nightlight stays hidden
+wisps 5000
+click PerkNail#2                     # the little flag
+wait 0.5
+expect text "the little flag"
+click "hang it up"
+wait 1
+expect text "one more"
+expect fits
+shot flag_bought                     # the thread is coral to the flag, dashed after
+click PerkNail#4                     # the spool: the bell above it isn't bought yet
+wait 0.5
+expect text "the spool"
+expect no-text "hang it up"
+expect no-text "one more"
+expect fits
+shot spool_waits
+deep 40
+perk bell 1
+perk spool 2
+perk nightlight 1
+perk lunchbox 1
+perk scarf 1
+perk pinwheel 1
+perk musicbox 1
+wait 1
+click PerkNail#10                    # the paper star
+wait 0.5
+expect text "the paper star"
+expect fits
+shot chain                           # no thimble or ribbon before the plushie machine
+open-plushie
+wait popup
+click "lovely"
+tab adventures
+page adventures 2
+wait 1
+army best
+wait 1
+expect fits
+shot pinwheel                        # 22 cards in the front row
+click PerkNail#8                     # the pinwheel's card shows the whole front row
+wait 0.5
+expect text "22 cards"
+expect text "24 cards"
+click "✕"
+wait 0.5
+perk star 1
+wisps 200000
+buy-perk thimble
+wait 0.5
+click PerkNail#12                    # the ribbon
+wait 0.5
+expect text "the ribbon"
+expect text "hang it up"
+expect fits
+shot plushie_perks
+click "hang it up"
+wait 1
+expect fits
+shot tips                            # the chain is done: the lucky coin and the rattle
+click PerkNail#13                    # the lucky coin
+wait 0.5
+expect text "the lucky coin"
+expect text "lv 0"
+click "one more"
+wait 0.5
+expect text "lv 1"
+expect text "one more"
+expect fits
+shot tip_card
+boosts
+perk flag 5
+click PerkNail#2
+wait 0.5
+expect text "all done!"
+expect fits
+shot maxed
+click PerkNail#10                    # the paper star (in view when the well comes back)
+wait 0.5
+expect text "the paper star"
+shot star_picked
+tab home                             # away and back: the card and its pink ring are gone
+wait 0.5
+tab adventures
+page adventures 2
+wait 1
+expect text "last time"
+expect no-text "all done!"
+expect fits
+shot back_again

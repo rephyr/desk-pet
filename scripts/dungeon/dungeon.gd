@@ -9,9 +9,14 @@ extends RefCounted
 ##     target: go down to this floor, home_at: come home when this % are gone, first: who goes first
 ##     (a line of data "first", once earned), cards: [uids in the army], herd: { rarity: pets from the
 ##     herd }, run: {} or the run that's out (see send), last: {} or { floor, got, back } of the last
-##     run, firsts: { floor: true } (what a floor gives the first time is given), entrance: level }
+##     run (a sewing room run has room: its number, door, seconds; see Sewing), firsts: { floor: true }
+##     (what a floor gives the first time is given), held: { "10": { count key: n } } (the crowds holding
+##     landings, see hold_need), start: the landing the orders start from (0: the top, or a fully held
+##     landing) }. The entrance's width is a wisps perk (Perks).
 ## An ARMY for the rules: { cards: [{ uid, power, rank }] best first, herd: { count key: { n, power,
-## rank } }, luck: the knock doors' chance, boost: the power boost }. Gear never counts here.
+## rank } }, luck: the knock doors' chance, boost: the power boost, and from the perks (all optional):
+## front_n: cards in the front row, front_x: the front row's cards x, behind_x: pets walking behind x,
+## band_x: { band kind (rope, doors, stairs) or "room": x } }. Gear never counts here.
 
 
 static func data(catalog: Catalog) -> Dictionary:
@@ -22,7 +27,7 @@ static func fresh(catalog: Catalog) -> Dictionary:
 	var d := data(catalog)
 	return { "deep": 0, "bands": [str(d.bands[0].id)], "target": mini(int(d.get("target_ahead", 5)), int(d.bands[0].get("to", 10))),
 		"home_at": int(d.get("home_at_start", 30)), "first": str(d.first.lines[0]), "cards": [], "herd": {}, "run": {},
-		"last": {}, "firsts": {}, "entrance": 0 }
+		"last": {}, "firsts": {}, "held": {}, "start": 0 }
 
 
 ## A saved state made safe: unknown bands and lines dropped, numbers in range (cards and herd picks
@@ -57,12 +62,115 @@ static func clean(catalog: Catalog, raw) -> Dictionary:
 	var last = raw.get("last", {})
 	if last is Dictionary and last.has("floor"):
 		out.last = { "floor": int(last.floor), "got": int(last.get("got", 0)), "back": int(last.get("back", 0)) }
+		if last.has("room"):  # a sewing room run (its room's number)
+			out.last.room = maxi(0, int(last.room))
 	var firsts = raw.get("firsts", {})
 	if firsts is Dictionary:
 		for f in firsts:
 			out.firsts[str(f)] = true
-	out.entrance = maxi(0, int(raw.get("entrance", 0)))
+	# the crowds holding landings: only real landings (every 10th), counts made safe, at most the need
+	var held = raw.get("held", {})
+	if held is Dictionary:
+		var every := hold_every(catalog)
+		for key in held:
+			var f := int(str(key)) if str(key).is_valid_int() else 0
+			if f <= 0 or f % every != 0:
+				continue
+			var counts := Herd.clean_counts(catalog, held[key])
+			var over := Herd.total(counts) - hold_need(catalog, f)
+			var keys := counts.keys()
+			keys.sort()
+			for k in keys:
+				if over <= 0:
+					break
+				var cut := mini(over, int(counts[k]))
+				Herd.take(counts, k, cut)
+				over -= cut
+			if Herd.total(counts) > 0:
+				out.held[str(f)] = counts
+	out.start = int(raw.get("start", 0))
+	if not out.start in starts(catalog, out):
+		out.start = 0
+	out.target = clampi(maxi(out.target, out.start + 1), 1, target_max(catalog, out))
 	return out
+
+
+# ---- held landings: crowds holding every 10th landing (data "hold") -----------------------
+
+static func _hold(catalog: Catalog) -> Dictionary:
+	return data(catalog).get("hold", {})
+
+
+## A whole number from data "hold" (faces, card_faces, looks...), `fallback` when it isn't there.
+static func hold_int(catalog: Catalog, key: String, fallback: int) -> int:
+	return int(_hold(catalog).get(key, fallback))
+
+
+## Every how many floors a landing can be held.
+static func hold_every(catalog: Catalog) -> int:
+	return maxi(1, int(_hold(catalog).get("every", 10)))
+
+
+## How many pets it takes to hold landing `f` (0 if it isn't a landing that can be held): the list for
+## the first few, then the last one x grow each step after.
+static func hold_need(catalog: Catalog, f: int) -> int:
+	var every := hold_every(catalog)
+	if f <= 0 or f % every != 0:
+		return 0
+	var need: Array = _hold(catalog).get("need", [500])
+	var i := f / every - 1
+	if i < need.size():
+		return int(need[i])
+	return roundi(float(need.back()) * pow(float(_hold(catalog).get("grow", 3)), i - need.size() + 1))
+
+
+## What the crowd on landing `f` holds: the rope, the door or the stairs (by its band's kind).
+static func hold_what(catalog: Catalog, f: int) -> String:
+	return str(_hold(catalog).get("what", {}).get(str(band_of(catalog, f).kind), "the stairs"))
+
+
+## How many pets hold landing `f` now.
+static func held_n(state: Dictionary, f: int) -> int:
+	return Herd.total(state.get("held", {}).get(str(f), {}))
+
+
+## Whether landing `f` is fully held (the army can start there).
+static func is_held(catalog: Catalog, state: Dictionary, f: int) -> bool:
+	var need := hold_need(catalog, f)
+	return need > 0 and held_n(state, f) >= need
+
+
+## The landings a crowd could hold: every 10th, down to the deepest floor the army has cleared.
+static func hold_spots(catalog: Catalog, state: Dictionary) -> Array[int]:
+	var out: Array[int] = []
+	var every := hold_every(catalog)
+	var f := every
+	while f <= int(state.get("deep", 0)):
+		out.append(f)
+		f += every
+	return out
+
+
+## Where the orders can start from: the top (0), and every fully held landing.
+static func starts(catalog: Catalog, state: Dictionary) -> Array[int]:
+	var out: Array[int] = [0]
+	out.append_array(held_landings(catalog, state))
+	return out
+
+
+## The fully held landings (their guards are gone: see strength).
+static func held_landings(catalog: Catalog, state: Dictionary) -> Array[int]:
+	var out: Array[int] = []
+	for f in hold_spots(catalog, state):
+		if is_held(catalog, state, f):
+			out.append(f)
+	return out
+
+
+## The kind a floor fights as: a fully held guard landing is plain stairs (its guard is gone).
+static func kind_at(catalog: Catalog, f: int, held: Array) -> String:
+	var kind := floor_kind(catalog, f)
+	return "stairs" if kind == "guard" and f in held else kind
 
 
 # ---- the well: bands and floors ---------------------------------------------------
@@ -101,10 +209,11 @@ static func floor_kind(catalog: Catalog, f: int) -> String:
 	return "door"
 
 
-## A floor's strength (never shown as a number: see word()).
-static func strength(catalog: Catalog, f: int) -> float:
+## A floor's strength (never shown as a number: see word()). `held`: the landing is fully held, so a
+## guard floor's guard is gone (no guard_x).
+static func strength(catalog: Catalog, f: int, held := false) -> float:
 	var s: Dictionary = data(catalog).strength
-	var x := float(band_of(catalog, f).get("guard_x", 1.0)) if floor_kind(catalog, f) == "guard" else 1.0
+	var x := float(band_of(catalog, f).get("guard_x", 1.0)) if floor_kind(catalog, f) == "guard" and not held else 1.0
 	return float(s.base) * pow(float(s.grow), f) * x
 
 
@@ -138,15 +247,21 @@ static func first_earned(catalog: Catalog, state: Dictionary) -> bool:
 	return int(state.get("deep", 0)) >= int(data(catalog).first.get("earn_floor", 11))
 
 
-## How many pets fit through the entrance at once.
-static func entrance(catalog: Catalog, _level: int) -> int:
-	return int(data(catalog).entrance.start)  # widening it is the first wisp buy (later)
+## How many pets fit through the entrance at once, at its level (widening it is the first wisps perk).
+static func entrance(catalog: Catalog, level: int) -> int:
+	return int(Perks.count_at(catalog, "entrance", level))
 
 
-## What clearing a floor pays: base x grow^floor x pets sent (at most the entrance), at least 1.
-static func pay(catalog: Catalog, f: int, sent: int, level: int) -> int:
+## What clearing a floor pays: base x grow^floor x pets sent (at most the entrance) x pay_x (the
+## lanterns boost), at least 1.
+static func pay(catalog: Catalog, f: int, sent: int, level: int, pay_x := 1.0) -> int:
 	var p: Dictionary = data(catalog).pay
-	return maxi(1, roundi(float(p.base) * pow(float(p.grow), f) * mini(sent, entrance(catalog, level))))
+	return maxi(1, roundi(float(p.base) * pow(float(p.grow), f) * mini(sent, entrance(catalog, level)) * pay_x))
+
+
+## How many cards fight in the front row for an army (the pinwheel perk makes it more).
+static func front_n(catalog: Catalog, army: Dictionary) -> int:
+	return int(army.get("front_n", Perks.count_at(catalog, "front_row", 0)))
 
 
 ## The feeling word for a floor from the army's power over its strength: [word, heat].
@@ -185,16 +300,28 @@ static func army_power(catalog: Catalog, army: Dictionary, kind: String) -> floa
 	var herd := {}
 	for k in army.get("herd", {}):
 		herd[k] = int(army.herd[k].n)
-	return _power(catalog, army.get("cards", []), {}, herd, {}, army.get("herd", {}), kind, float(army.get("boost", 1.0)))
+	return _power(catalog, army.get("cards", []), {}, herd, {}, army.get("herd", {}), kind, army)
+
+
+## The band kind a floor kind is in ("room" for the sewing room's rooms), for the army's band_x.
+static func band_kind(kind: String) -> String:
+	match kind:
+		"rope": return "rope"
+		"door", "tiny", "knock": return "doors"
+		"stairs", "guard": return "stairs"
+	return kind
 
 
 ## Rope floors: only the front row fights. Tiny doors: only pets rare enough get through (the best
-## of them in front). Everyone else walking behind counts herd_x, injured pets injured_x.
+## of them in front). Everyone else walking behind counts herd_x, injured pets injured_x. The army's
+## perks: front_x on the front row, behind_x on everyone behind, band_x by where they are.
 static func _power(catalog: Catalog, cards: Array, hurt: Dictionary, herd: Dictionary, herd_hurt: Dictionary, info: Dictionary,
-		kind: String, boost: float) -> float:
+		kind: String, army: Dictionary) -> float:
 	var d := data(catalog)
-	var front_n := int(d.get("front_row", 20))
-	var hx := float(d.get("herd_x", 0.5))
+	var boost := float(army.get("boost", 1.0)) * float(army.get("band_x", {}).get(band_kind(kind), 1.0))
+	var in_row := front_n(catalog, army)
+	var fx := float(army.get("front_x", 1.0))
+	var hx := float(d.get("herd_x", 0.5)) * float(army.get("behind_x", 1.0))
 	var ix := float(d.get("injured_x", 0.5))
 	var need := _tiny_rank(catalog) if kind == "tiny" else -1
 	var sum := 0.0
@@ -203,8 +330,8 @@ static func _power(catalog: Catalog, cards: Array, hurt: Dictionary, herd: Dicti
 		if int(c.rank) < need:
 			continue
 		var p := float(c.power) * (ix if hurt.has(c.uid) else 1.0)
-		if in_front < front_n:
-			sum += p
+		if in_front < in_row:
+			sum += p * fx
 			in_front += 1
 		elif kind != "rope":
 			sum += p * hx
@@ -227,15 +354,16 @@ static func _tiny_rank(catalog: Catalog) -> int:
 
 # ---- a run -----------------------------------------------------------------------
 
-## Works a whole run out when the army sets off, floor by floor. `orders`: { target, home_at (a
+## Works a whole run out when the army sets off, floor by floor. `orders`: { target, start (the held
+## landing it starts from, 0 the top: the floors above it are skipped, no fights and no pay), held
+## (the fully held landings: a held guard floor has no guard), home_at (a
 ## percent), first (a line of data "first", or "" before it's earned: injured first, then anyone),
-## entrance (its level) }. Returns { floors: [{ f, cleared, lost_cards: [uids], lost_herd:
+## entrance (its level), pay_x (the lanterns boost) }. Returns { floors: [{ f, cleared, lost_cards: [uids], lost_herd:
 ## { key: n }, pay }], why: target | home | stuck | knock | gone, turned: the floor they turned back
 ## at (0 if none) }. A knock door that isn't answered sends them home (no losses, no pay for it); a
 ## floor too strong to pass takes its losses and pays nothing. Pay never looks at losses.
 static func simulate(catalog: Catalog, army: Dictionary, orders: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
 	var d := data(catalog)
-	var l: Dictionary = d.losses
 	var cards: Array = army.get("cards", []).duplicate()
 	var info: Dictionary = army.get("herd", {})
 	var herd := {}
@@ -246,31 +374,26 @@ static func simulate(catalog: Catalog, army: Dictionary, orders: Dictionary, rng
 	var herd_hurt := {}
 	var sent := cards.size() + Herd.total(herd)
 	var limit := maxi(1, ceili(sent * float(orders.get("home_at", 30)) / 100.0))
-	var boost := float(army.get("boost", 1.0))
 	var first := str(orders.get("first", ""))
 	var lost_n := 0
 	var floors: Array = []
 	var why := "target"
 	var turned := 0
-	var f := 0
+	var f := clampi(int(orders.get("start", 0)), 0, maxi(0, int(orders.get("target", 1)) - 1))
+	var held: Array = orders.get("held", [])
 	while f < int(orders.get("target", 1)) and sent > 0:
 		f += 1
-		var kind := floor_kind(catalog, f)
+		var kind := kind_at(catalog, f, held)
 		if kind == "knock" and rng.randf() >= float(army.get("luck", 0.5)):
 			why = "knock"
 			turned = f
 			break
-		var ratio := _power(catalog, cards, hurt, herd, herd_hurt, info, kind, boost) / strength(catalog, f)
-		var alive := cards.size() + Herd.total(herd)
-		# some get hurt (they fight at half strength from now on), some don't come back
-		var fresh := alive - hurt.size() - Herd.total(herd_hurt)
-		_injure(_round(fresh * minf(float(l.max_share), float(l.injure) / maxf(ratio, 0.01)), rng), cards, hurt, herd, herd_hurt, rng)
-		var n_lost := mini(alive, _round(alive * minf(float(l.max_share), float(l.lose) / maxf(ratio * ratio, 0.0001)), rng))
-		var gone := _take(n_lost, first, cards, hurt, herd, herd_hurt, int(d.get("front_row", 20)), rng)
-		lost_n += n_lost
+		var ratio := _power(catalog, cards, hurt, herd, herd_hurt, info, kind, army) / strength(catalog, f, f in held)
+		var gone := _fight(catalog, ratio, first, cards, hurt, herd, herd_hurt, rng, front_n(catalog, army))
+		lost_n += gone[0].size() + Herd.total(gone[1])
 		var cleared := ratio >= float(d.get("stuck", 0.4))
 		floors.append({ "f": f, "cleared": cleared, "lost_cards": gone[0], "lost_herd": gone[1],
-			"pay": pay(catalog, f, sent, int(orders.get("entrance", 0))) if cleared else 0 })
+			"pay": pay(catalog, f, sent, int(orders.get("entrance", 0)), float(orders.get("pay_x", 1.0))) if cleared else 0 })
 		if not cleared:
 			why = "stuck"
 			turned = f
@@ -282,6 +405,41 @@ static func simulate(catalog: Catalog, army: Dictionary, orders: Dictionary, rng
 			why = "home"
 			break
 	return { "floors": floors, "why": why, "turned": turned }
+
+
+## One fight at `ratio` (the army's power over what it's up against): some get hurt (they fight at
+## injured_x from now on), some don't come back, by who goes first. The army's pools change in place.
+## Returns [lost card uids, { count key: n }].
+static func _fight(catalog: Catalog, ratio: float, first: String, cards: Array, hurt: Dictionary, herd: Dictionary,
+		herd_hurt: Dictionary, rng: RandomNumberGenerator, front := -1) -> Array:
+	var d := data(catalog)
+	var l: Dictionary = d.losses
+	var alive := cards.size() + Herd.total(herd)
+	var fresh := alive - hurt.size() - Herd.total(herd_hurt)
+	_injure(_round(fresh * minf(float(l.max_share), float(l.injure) / maxf(ratio, 0.01)), rng), cards, hurt, herd, herd_hurt, rng)
+	var n_lost := mini(alive, _round(alive * minf(float(l.max_share), float(l.lose) / maxf(ratio * ratio, 0.0001)), rng))
+	return _take(n_lost, first, cards, hurt, herd, herd_hurt, front if front >= 0 else int(Perks.count_at(catalog, "front_row", 0)), rng)
+
+
+## A room of the sewing room (see Sewing): one fight against `strength` where everyone fights (no
+## rope, no tiny doors). A clear (at least the stuck ratio) pays `pay`. The run stands at `door`
+## (the well floor the rooms are off) the whole time. Returns the usual run shape, one entry.
+static func simulate_room(catalog: Catalog, army: Dictionary, strength: float, pay: int, door: int, first: String,
+		rng: RandomNumberGenerator) -> Dictionary:
+	var d := data(catalog)
+	var cards: Array = army.get("cards", []).duplicate()
+	var info: Dictionary = army.get("herd", {})
+	var herd := {}
+	for k in info:
+		if int(info[k].n) > 0:
+			herd[k] = int(info[k].n)
+	if cards.size() + Herd.total(herd) <= 0:
+		return { "floors": [], "why": "gone", "turned": 0 }
+	var ratio := _power(catalog, cards, {}, herd, {}, info, "room", army) / maxf(strength, 0.001)
+	var gone := _fight(catalog, ratio, first, cards, {}, herd, {}, rng, front_n(catalog, army))
+	var cleared := ratio >= float(d.get("stuck", 0.4))
+	return { "floors": [{ "f": door, "cleared": cleared, "lost_cards": gone[0], "lost_herd": gone[1], "pay": pay if cleared else 0 }],
+		"why": "target" if cleared else "stuck", "turned": 0 }
 
 
 ## The deepest floor a run cleared (0 if none).
@@ -312,17 +470,25 @@ static func run_lost(run: Dictionary) -> Array:
 	return [cards, herd]
 
 
-## How long a run takes: a floor at a time, and back from a floor they turned at.
+## How long a run takes: a floor at a time, and back from a floor they turned at. A run from a held
+## landing takes only the floors it walked (the skipped ones take no time).
 static func run_seconds(catalog: Catalog, run: Dictionary) -> float:
-	var floors := maxi(1, run.get("floors", []).size() + (1 if int(run.get("turned", 0)) > 0 and run.get("floors", []).size() < int(run.turned) else 0))
+	if run.has("seconds"):  # a sewing room run takes its own time
+		return float(run.seconds)
+	var walked: int = run.get("floors", []).size()
+	var start := int(run.get("start", 0))
+	var floors := maxi(1, walked + (1 if int(run.get("turned", 0)) > 0 and start + walked < int(run.turned) else 0))
 	return floors * float(data(catalog).get("seconds_per_floor", 20))
 
 
 ## Where the army is now (floors from the top, 0 at the well mouth), `seconds` after it set off.
 static func run_floor(catalog: Catalog, run: Dictionary, seconds: float) -> float:
+	if run.has("room"):  # in the sewing room: the army stands at its door the whole time
+		return float(run.get("door", data(catalog).get("door_floor", 20)))
 	var per := float(data(catalog).get("seconds_per_floor", 20))
-	var deepest := float(maxi(int(run.get("turned", 0)), run.get("floors", []).size()))
-	return clampf(seconds / per, 0.0, deepest)
+	var start := float(run.get("start", 0))  # from a held landing: it pops out there
+	var deepest := maxf(float(run.get("turned", 0)), start + run.get("floors", []).size())
+	return clampf(start + seconds / per, start, deepest)
 
 
 static func _round(x: float, rng: RandomNumberGenerator) -> int:
@@ -347,7 +513,7 @@ static func _injure(n: int, cards: Array, hurt: Dictionary, herd: Dictionary, he
 
 ## Takes `n` pets out of the army, by who goes first. Returns [lost card uids, { key: n }].
 static func _take(n: int, first: String, cards: Array, hurt: Dictionary, herd: Dictionary, herd_hurt: Dictionary,
-		front_n: int, rng: RandomNumberGenerator) -> Array:
+		row_n: int, rng: RandomNumberGenerator) -> Array:
 	var lost_cards: Array = []
 	var lost_herd := {}
 	if n <= 0:
@@ -365,7 +531,7 @@ static func _take(n: int, first: String, cards: Array, hurt: Dictionary, herd: D
 			order.append([[], herd])
 			order.append([cards, {}])
 		"the front row":
-			order.append([cards.slice(0, front_n), {}])
+			order.append([cards.slice(0, row_n), {}])
 			order.append([cards, herd])
 		_:
 			order.append([cards, herd])
