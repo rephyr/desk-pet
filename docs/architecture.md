@@ -158,6 +158,18 @@ pile). `Settings.paws` (0..2, settings.json) picks how much shows. For tests a `
 in stage mode (`stage` = a Control, with a `StageSource` of pretend window rects) inside the game
 window: the headless tests do that, and so does the dev-only `DeskStage` (DevDriver `desk on`).
 Neither `DesktopPet`, `QuietPaws` nor `PawsView` names an autoload, so the headless tests can load them.
+Presents: `Gifts` (scripts/pets/gifts.gd, pure rules, data/gifts.json) moves the clock
+`{ next_at, pocket }` on unix time only (`tick`), so open and closed pay the same;
+`GameState._tick_gifts` runs every second and once at the end of loading, and only while the boxes
+tab is open. `GameState.open_gift` rolls when opened (`Gifts.roll`), grants the boxes of
+`newest_box_id()` and a toy like the machine does (`Toys.roll` + `Toys.add`), emits `gifts_changed`.
+`QuietPaws` has a `DIG` pose and `worn` (priority hold > dig > wait > stint; `step`'s
+`window_edge` says it isn't on the screen's bottom); `DesktopPet.tap()` opens the worn present
+instead of a pat (`QuietPaws.popped`), and `PawsView.draw_present` draws the present (also the home
+tab's, in theme colours). `PetView.top()` is where the top of the pet's art is (for things on its head), from
+`PetLook.top_row()` (worked out from the Image when the picture is built, asked for lazily).
+`HomeTab.busy()` holds unlock popups while a present opens (like `MachineTab.busy()`), and
+`MachineTab.show_toy` is the toy prize card both the machine and presents use.
 
 ## Saving
 
@@ -181,6 +193,8 @@ Save v23 adds `scout_notes` (older saves start with 0); runs save the scout note
 (`RunState.scout`). The new jobs' crews and tool levels ride in the existing `jobs` / `errand_tools`.
 Save v24 adds `stickers` (book page ids; older saves start with none and get the stickers of
 already-full pages, with their popups, right after loading).
+Save v25 adds `gifts` ({ next_at, pocket }; nothing to convert: older saves with the boxes tab
+open start the present clock on load, the first 3 h later).
 
 ## Testing
 

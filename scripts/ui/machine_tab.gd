@@ -162,6 +162,23 @@ static func _sound(key: String) -> Dictionary:
 	return Sfx.sound("machine", key)
 
 
+## A capsule toy on a prize card: its picture, big, with "new!" if it's one you didn't have, its
+## sound, and your pet saying so (the machine's capsules and presents, see GameState.open_gift).
+static func show_toy(owner: Node, popup: PrizePopup, toy: Dictionary) -> void:
+	var catalog := Catalog.shared()
+	var info := Toys.toy(catalog, toy.id)
+	var fin := Toys.finish(catalog, toy.finish)
+	var special: bool = toy.finish != "normal"
+	var tier := str(info.get("tier", "common"))
+	var color := UiTheme.LILAC if special else MachineStage._tier_color(tier)
+	var title := ("%s %s!" % [fin.name, info.name]) if special else "%s!" % info.name
+	var owned: Dictionary = GameState.toys.owned.get(Toys.key(toy.id, toy.finish), {})
+	var sub := "a new toy!" if toy.new else "one more for the workbench (%d spare)" % int(owned.get("spares", 0))
+	popup.show_prize(ToyView.new(toy.id, toy.finish, 7), title, sub, str(fin.name) if special else tier, color, toy.new)
+	Sfx.play(owner, _sound("jackpot" if special or tier in ["rare", "secret"] else "prize"), 0.0 if special else 3.0)
+	PetBubble.say_line(owner, "machine_toy_new" if toy.new else "machine_toy")
+
+
 ## One upgrade you can work on, next to the machine: its icon, name, what it gives, what it costs
 ## (coins and bits). Tap to buy it when you can.
 class NodeCard extends Button:
@@ -620,18 +637,7 @@ class MachineStage extends Control:
 
 	## A toy out of a capsule: its picture, big, with "new!" if it's one you didn't have.
 	func _show_toy(toy: Dictionary) -> void:
-		var catalog := Catalog.shared()
-		var info := Toys.toy(catalog, toy.id)
-		var fin := Toys.finish(catalog, toy.finish)
-		var special: bool = toy.finish != "normal"
-		var tier := str(info.get("tier", "common"))
-		var color := UiTheme.LILAC if special else _tier_color(tier)
-		var title := ("%s %s!" % [fin.name, info.name]) if special else "%s!" % info.name
-		var owned: Dictionary = GameState.toys.owned.get(Toys.key(toy.id, toy.finish), {})
-		var sub := "a new toy!" if toy.new else "one more for the workbench (%d spare)" % int(owned.get("spares", 0))
-		_popup.show_prize(ToyView.new(toy.id, toy.finish, 7), title, sub, str(fin.name) if special else tier, color, toy.new)
-		Sfx.play(self, MachineTab._sound("jackpot" if special or tier in ["rare", "secret"] else "prize"), 0.0 if special else 3.0)
-		PetBubble.say_line(self, "machine_toy_new" if toy.new else "machine_toy")
+		MachineTab.show_toy(self, _popup, toy)
 
 	static func _tier_color(tier: String) -> Color:
 		match tier:

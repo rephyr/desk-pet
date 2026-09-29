@@ -95,7 +95,7 @@ func _build_views() -> void:
 		return _expanded.tutorial_target() if _expanded_mode else _compact.expand_button
 	_panel.add_child(guide)
 	var popup := UnlockPopup.new()  # something new opened up: a card over the full game
-	popup.can_show = func() -> bool: return _expanded_mode and not _expanded.machine.busy() and not _expanded.boxes.is_revealing()
+	popup.can_show = func() -> bool: return _expanded_mode and not _expanded.machine.busy() and not _expanded.home.busy() and not _expanded.boxes.is_revealing()
 	popup.go.connect(func(tab_id): _expanded.show_tab(tab_id))
 	_panel.add_child(popup)
 	_compact.expand_requested.connect(_set_expanded.bind(true))

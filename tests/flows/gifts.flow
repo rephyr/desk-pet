@@ -1,0 +1,78 @@
+# Presents (data/gifts.json, Gifts): one every 3 h of wall clock into a pocket of 3, from when the
+# boxes tab opens (pile_full has it, so the clock starts on load). Your pet holds one in its paws on
+# the home tab; tap: shake, pop, the box flies to the pile (a toy capsule shows its card). Out on your
+# windows it digs one up on a window edge and wears it on its head until you tap it.
+from pile_full
+paws everything              # the profile keeps its settings between runs
+task none                    # your pet sits on its spot (the pile holds still)
+view full
+tab home
+wait 1
+expect fits
+expect gifts 0
+gift-clock 2.9
+expect gifts 0               # not yet: 3 h a present
+gift-clock 0.2
+expect gifts 1
+wait 1
+shot home_present
+gift-clock 20
+expect gifts 3               # the pocket holds 3, however long it's been
+wait 1
+shot home_three
+expect fits
+expect pile starter 30
+gift-roll one
+home gift
+shot home_shake
+shot home_pop
+wait 1
+expect gifts 2
+expect pile starter 31
+shot home_opened
+gift-roll toy
+home gift
+wait 1
+shot home_toy
+expect gifts 1
+expect pile starter 32
+expect fits
+wait popup                   # your first toy opens the workbench: its card waits for the toy's
+click "lovely*"
+task none
+gift 2
+desk on                       # it drops in, lands on the window and digs straight away
+wait dig
+wait 0.6
+shot desk_dig
+wait worn
+wait 1
+shot desk_worn
+desk good
+wait 1
+shot desk_hold                # a good pull held up over the present on its head
+wait 4
+gift-roll two
+desk tap
+shot desk_pop
+expect gifts 1
+expect pile starter 34
+wait 2
+shot desk_after               # no dig for a while after a tap
+paws off
+gift 1
+wait 3
+shot desk_off                 # off: no digging, the present waits on the home tab
+desk off
+paws everything
+expect fits
+view full
+tab home
+task boxes                   # busy with the pile: the present waits on the floor by its spot
+gift 3
+wait 4
+shot home_busy
+wait 3
+shot home_busy_rest           # still on the floor while it rests between packs
+task none
+expect fits

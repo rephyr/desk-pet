@@ -45,7 +45,21 @@ func _init() -> void:
 				coins / TRIPS / minutes, parts / TRIPS, boxes / TRIPS, 100.0 * lost / TRIPS])
 	_errands(catalog, rng)
 	_rummage(catalog)
+	_gifts(catalog)
 	quit()
+
+
+## Presents (data/gifts.json), every one opened as it comes: the most they bring a day. They're a
+## little extra, never the way to get boxes.
+func _gifts(catalog: Catalog) -> void:
+	var cfg: Dictionary = catalog.gifts
+	var per_day := Gifts.per_day(cfg)
+	var boxes := per_day * (1.0 + float(cfg.two_boxes))
+	var price := float(catalog.box("starter").price)
+	print("\npresents, one every %.1f h, a pocket of %d" % [Gifts.every(cfg) / 3600.0, Gifts.cap(cfg)])
+	print("%.1f presents a day at most: %.1f boxes (%.0f coins of starter boxes), %.1f toy capsules once toys are open"
+		% [per_day, boxes, boxes * price, per_day * float(cfg.toy)])
+	print("away a whole day: %d presents waiting (the pocket), %.1f boxes" % [Gifts.cap(cfg), Gifts.cap(cfg) * (1.0 + float(cfg.two_boxes))])
 
 
 ## Rummaging in your pet's room, tapping every spot as soon as it's ready: the most it can bring.

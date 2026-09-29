@@ -8,9 +8,12 @@ extends RefCounted
 ##   0 off         nothing, the pet just walks around
 ##   1 big things  a good pull held over its head (HOLD), a foot tap while an adventure waits (WAIT)
 ##   2 everything  the big things, plus the boxes routine (BOXES) and the tiny crank machine (MACHINE)
-## Tuning in data/care.json "paws".
+## Presents (Gifts): at big things and everything, with a present in the pocket, it digs one up on
+## a window edge (DIG) and wears it on its head (`worn`) until you tap it (the desktop pet then
+## opens it instead of a pat, and `popped` shows what came out). Priority: hold > dig > wait > stint.
+## Tuning in data/care.json "paws" and data/gifts.json.
 
-enum Pose { NONE, BOXES, MACHINE, HOLD, WAIT }
+enum Pose { NONE, BOXES, MACHINE, HOLD, WAIT, DIG }
 enum Phase { REACH, HOLD, SHAKE }  # the boxes routine: faces the pile, holds a pack, shakes it
 
 const OFF := 0
@@ -32,8 +35,14 @@ var stint_left := 0.0  # seconds of standing still at work left (0: not at work)
 var wants_still := false  # the desktop pet should stand still (a stint or a hold)
 var just_ended := false  # a stint just ended: the desktop pet should walk again (it clears this)
 var time := 0.0
+var worn := false  # a present on its head, dug up, waiting for a tap
+var dig_left := 0.0  # seconds of digging left (DIG)
+var pop := 0.0  # 1 right after a present on its head was opened, fading
+var pop_toy := false  # what hopped out of it was a toy capsule (else a box)
 
 var _cfg: Dictionary
+var _gift_cfg: Dictionary
+var _dig_wait := 0.0  # seconds until it may dig up the next present
 var _pulls: Array[Dictionary] = []  # { pet, age } good pulls to hold up, oldest first
 var _hold_left := 0.0  # > 0 while the front pull is held up
 var _stint_room := false  # the edge had room for the pile or the machine when the stint began
@@ -45,6 +54,7 @@ var _delta := 0.016  # this frame's
 func _init(state: Node = null) -> void:
 	gs = state if state != null else Engine.get_main_loop().root.get_node_or_null("GameState")
 	_cfg = gs.catalog.care.get("paws", {})
+	_gift_cfg = gs.catalog.gifts
 	_hop_time = float(_cfg.get("hop", 1.1))
 	gs.opened_in_background.connect(opened)
 	gs.pet_cranked.connect(cranked)
@@ -56,11 +66,15 @@ func cfg(key: String, fallback: Variant) -> Variant:
 
 ## One frame. `grounded`: standing or walking on an edge (not falling, not being dragged).
 ## `stopped`: standing still. `room`: the edge is wide enough for the pile or the machine.
-## `level`: Settings.paws.
-func step(delta: float, grounded: bool, stopped: bool, room: bool, level: int) -> void:
+## `level`: Settings.paws. `window_edge`: it's on a window's top edge (not the screen's bottom).
+func step(delta: float, grounded: bool, stopped: bool, room: bool, level: int, window_edge := false) -> void:
 	time += delta
 	_delta = delta
 	_level = level
+	pop = move_toward(pop, 0.0, delta / maxf(0.1, float(_gift_cfg.get("pop", 1.2))))
+	_dig_wait = maxf(0.0, _dig_wait - delta)
+	if worn and gs.gifts_waiting() <= 0:
+		worn = false  # opened on the home tab: it just isn't there any more
 	puff = move_toward(puff, 0.0, delta * 2.0)
 	bounce = move_toward(bounce, 0.0, delta * 1.6)
 	dust = move_toward(dust, 0.0, delta * 3.3)
@@ -74,6 +88,8 @@ func step(delta: float, grounded: bool, stopped: bool, room: bool, level: int) -
 	if level <= OFF:
 		_pulls.clear()
 		_hold_left = 0.0
+		worn = false  # the present waits on the home tab
+		dig_left = 0.0
 		_end_stint()
 		_set_pose(Pose.NONE)
 		return
@@ -85,6 +101,7 @@ func step(delta: float, grounded: bool, stopped: bool, room: bool, level: int) -
 	while not _pulls.is_empty() and _hold_left <= 0.0 and float(_pulls[0].age) > float(cfg("hold_waits", 10.0)):
 		_pulls.pop_front()
 	if not grounded:
+		dig_left = 0.0  # a dig cut short starts over wherever it lands
 		_end_stint()  # dragged or falling: no poses (a hold waits for the landing)
 		just_ended = false  # it lands wherever it lands, and may start again there
 		_hold_left = 0.0  # an interrupted hold starts over on landing, if it hasn't waited too long
@@ -103,6 +120,10 @@ func step(delta: float, grounded: bool, stopped: bool, room: bool, level: int) -
 			_pulls.pop_front()
 			held = null
 			wants_still = stint_left > 0.0
+		return
+
+	if dig_left > 0.0 or can_dig(stopped, window_edge):
+		_dig()
 		return
 
 	var kind := _stint_kind(room if stint_left <= 0.0 else _stint_room)
@@ -173,6 +194,51 @@ func _tap() -> void:
 	if fmod(time, every) < _delta:  # the foot comes down on every beat
 		squash = 0.2
 		dust = 1.0
+
+
+## Whether it would start digging up a present here: one's waiting, none on its head yet, it's
+## standing still on a window edge, and the last one was opened a while ago.
+func can_dig(stopped: bool, window_edge: bool) -> bool:
+	return _level >= BIG and not worn and stopped and window_edge and _dig_wait <= 0.0 and gs.gifts_waiting() > 0
+
+
+## Digging: a squash on every beat (the view sprays dirt); when it's done the present lands on its head.
+func _dig() -> void:
+	if dig_left <= 0.0:
+		dig_left = dig_time()
+	dig_left -= _delta
+	wants_still = true
+	_set_pose(Pose.DIG)
+	if fmod(time, 0.3) < _delta:
+		squash = 0.25
+	if dig_left <= 0.0:
+		dig_left = 0.0
+		worn = true
+		squash = 0.5
+		wants_still = stint_left > 0.0
+		_set_pose(Pose.NONE)
+
+
+func dig_time() -> float:
+	return maxf(0.1, float(_gift_cfg.get("dig", 1.6)))
+
+
+## How far along the dig is, 0 to 1 (0 when it isn't digging).
+func dig_progress() -> float:
+	return 1.0 - dig_left / dig_time() if pose == Pose.DIG else 0.0
+
+
+## The present on its head was opened (GameState.open_gift's result): a puff, and what came out
+## hops up over its head. It waits a while before digging up the next one.
+func popped(result: Dictionary) -> void:
+	worn = false
+	if result.is_empty():
+		return
+	pop = 1.0
+	puff = 1.0
+	squash = 0.6
+	pop_toy = not (result.get("toy", {}) as Dictionary).is_empty()
+	_dig_wait = float(_gift_cfg.get("dig_again", 30))
 
 
 func _set_pose(p: Pose) -> void:

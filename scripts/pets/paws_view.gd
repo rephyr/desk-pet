@@ -1,8 +1,9 @@
 class_name PawsView
 extends Node2D
 ## Draws the props for quiet paws (QuietPaws) round the desktop pet, at its size: the pile of packs
-## and the pack in its paws, the pop, the tiny capsule machine, the sparkles round a good pull and
-## the dust of a foot tap. Two of these sit on the desktop pet, one behind it (`front` false: the
+## and the pack in its paws, the pop, the tiny capsule machine, the sparkles round a good pull, the
+## dust of a foot tap, and presents (the dirt it digs one up from, the present on its head, what
+## hops out when you tap it). Two of these sit on the desktop pet, one behind it (`front` false: the
 ## pile, the machine) and one in front (the pack in its paws, the puff, sparkles, dust). The origin
 ## is at the pet's feet. Drawn in the corner panel's units (PetAtWork, a pet at 3 px per art
 ## pixel), scaled up to the desktop pet's pixel size. Like the desktop pet's hearts it keeps its
@@ -22,6 +23,10 @@ const CYAN := Color("8be9fd")
 const MINT := Color("8fe8c0")
 const FOIL := Color("6b4fa0")
 const FOIL_LIGHT := Color("8e6fd0")
+const PAPER_LIGHT := Color("ffb3dd")  # a present's lid
+const DIRT := Color("a57c5c")
+const DIRT_LIGHT := Color("d9b08c")
+const PRESENT_H := 15.0  # a present's height, bow and all, in its own pixels (see draw_present)
 
 var paws: QuietPaws
 var front := false
@@ -29,6 +34,7 @@ var pixel := 4
 var side := 1  # which side of the pet the pile or machine stands on
 var facing := 1
 var held_at := Vector2.ZERO  # where the held pet's feet are (for the sparkles)
+var head := Vector2.ZERO  # where a present on its head stands: the top of the pet's art (DesktopPet sets it every frame)
 
 
 func _init(p_paws: QuietPaws = null, p_front := false) -> void:
@@ -58,6 +64,11 @@ func unit() -> float:
 	return pixel / 3.0
 
 
+## Screen pixels per pixel of a present (whole pixels, so it stays crisp): 3 at the usual size.
+static func present_zoom(pet_pixel: int) -> float:
+	return maxf(1.0, roundf(pet_pixel * 0.75))
+
+
 func _draw() -> void:
 	if paws == null:
 		return
@@ -83,11 +94,65 @@ func _draw() -> void:
 				var foot := Vector2(facing * 12.0 * k, -2.0 * k - rise)
 				draw_rect(Rect2(foot + Vector2(facing * 2.0 * k, 0), Vector2(k * 2.0, k * 2.0)), c)
 				draw_rect(Rect2(foot + Vector2(facing * 6.0 * k, -3.0 * k), Vector2(k * 2.0, k * 2.0)), c)
+		QuietPaws.Pose.DIG:
+			_dig(k)
+	if front and paws.worn:
+		draw_present(self, head, sin(paws.time * 3.0) * 0.04, present_zoom(pixel))
+	if front and paws.pop > 0.0:
+		_pop(k)
 	if front and paws.puff > 0.0:
 		for i in 6:
 			var a := TAU * i / 6.0
 			var r := ((1.0 - paws.puff) * 26.0 + 6.0) * k
 			draw_circle(Vector2(0, -22.0 * k) + Vector2(cos(a), sin(a)) * r, 3.0 * k * paws.puff, Color(LILAC, paws.puff))
+
+
+## Digging up a present (in front): dirt flung out behind it, and the present rising out of a
+## little heap in front of its paws near the end.
+func _dig(k: float) -> void:
+	var t := paws.dig_progress()
+	if not front:
+		return
+	for i in 9:  # flung out behind it, over its back
+		var ph := fmod(paws.time * 2.4 + i / 9.0, 1.0)
+		var at := Vector2(-facing * (6.0 + ph * (32.0 + (i % 3) * 6.0)), -6.0 - sin(ph * PI) * (18.0 + (i % 2) * 8.0)) * k
+		draw_rect(Rect2(at.round(), Vector2(3.0, 3.0) * k), Color(DIRT if i % 2 == 0 else DIRT_LIGHT, 1.0 - ph * 0.5))
+	var heap := Vector2(facing * 15.0, 0.0) * k
+	draw_rect(Rect2(heap + Vector2(-8.0, -3.0) * k, Vector2(16.0, 3.0) * k), DIRT)
+	draw_rect(Rect2(heap + Vector2(-5.0, -6.0) * k, Vector2(10.0, 3.0) * k), DIRT_LIGHT)
+	if t > 0.6:
+		var rise := (t - 0.6) / 0.4
+		var z := present_zoom(pixel)
+		draw_set_transform(heap + Vector2(0, -2.0 * k), 0.0, Vector2(z, z * rise))
+		draw_present(self, Vector2.ZERO, 0.0, 1.0, PINK, PINK_SEAM, LILAC, PAPER_LIGHT, false)
+		draw_set_transform(Vector2.ZERO)
+
+
+## What came out of the present on its head: a tiny pack or a capsule, hopping up and fading.
+func _pop(k: float) -> void:
+	var t := 1.0 - paws.pop
+	if t < 0.5:  # bits of wrapping paper burst off where the present was
+		for i in 8:
+			var ang := TAU * i / 8.0 + 0.3
+			var bit := head + Vector2(0, -7.0 * k) + Vector2(cos(ang), sin(ang) * 0.7) * (4.0 + t * 44.0) * k
+			draw_rect(Rect2(bit.round(), Vector2(3.0, 3.0) * k), Color(PINK if i % 2 == 0 else LILAC, 1.0 - t * 2.0))
+	var at := head + Vector2(0, -8.0 - sin(minf(t * 1.6, 1.0) * PI * 0.5) * 22.0) * k
+	var a := minf(1.0, paws.pop * 2.0)
+	if paws.pop_toy:
+		var r := 5.0 * k
+		draw_circle(at, r, Color(CYAN, a))
+		var low := PackedVector2Array()
+		for i in 9:
+			var ang := PI * i / 8.0
+			low.append(at + Vector2(cos(ang), sin(ang)) * r)
+		draw_colored_polygon(low, Color(Color.WHITE, a))
+		draw_line(at - Vector2(r, 0), at + Vector2(r, 0), Color(DEEP, a * 0.6), maxf(1.0, k * 0.8))
+	else:
+		var tilt := sin(t * 9.0) * 0.2
+		draw_pack(self, at, tilt, k * 1.4, false, PINK, a)
+		draw_set_transform(at, tilt, Vector2(k * 1.4, k * 1.4))
+		draw_rect(Rect2(-6, -8, 12, 16), Color(LILAC, a), false, 1.0)  # so it shows on a dark desktop
+		draw_set_transform(Vector2.ZERO)
 
 
 ## The pack in its paws: held, then shaken.
@@ -110,17 +175,41 @@ func _sparkles(k: float) -> void:
 
 ## A tiny card pack, like the big one you rip open yourself (12 x 16 at `zoom` 1), drawn on `on`
 ## centred at `at`, with a `mark` in the middle. Also the corner panel's pile (PetAtWork).
-static func draw_pack(on: CanvasItem, at: Vector2, tilt: float, zoom := 1.0, empty := false, mark := PINK) -> void:
+static func draw_pack(on: CanvasItem, at: Vector2, tilt: float, zoom := 1.0, empty := false, mark := PINK, alpha := 1.0) -> void:
 	on.draw_set_transform(at, tilt, Vector2(zoom, zoom))
 	if empty:
 		# a dotted outline where the packs will be once there are coins for them
 		on.draw_rect(Rect2(-6, -8, 12, 16), Color(FOIL_LIGHT, 0.35), false, 1.0)
 		on.draw_set_transform(Vector2.ZERO)
 		return
-	on.draw_rect(Rect2(-6, -8, 12, 16), FOIL)
-	on.draw_rect(Rect2(-6, -8, 12, 3), FOIL_LIGHT)
-	on.draw_rect(Rect2(-2, -1, 4, 3), mark)
+	on.draw_rect(Rect2(-6, -8, 12, 16), Color(FOIL, alpha))
+	on.draw_rect(Rect2(-6, -8, 12, 3), Color(FOIL_LIGHT, alpha))
+	on.draw_rect(Rect2(-2, -1, 4, 3), Color(mark, alpha))
 	on.draw_set_transform(Vector2.ZERO)
+
+
+## A wrapped present (12 wide, PRESENT_H tall with its bow, at `zoom` 1), standing on `at` (its
+## bottom middle): paper, a lid, a ribbon down the middle and a bow on top. Also the home tab's
+## (it passes its own theme colours). `own_transform` false: drawn in the transform already set.
+static func draw_present(on: CanvasItem, at: Vector2, tilt: float, zoom := 1.0, paper := PINK, shade := PINK_SEAM,
+		ribbon := LILAC, lid := PAPER_LIGHT, own_transform := true) -> void:
+	if own_transform:
+		on.draw_set_transform(at, tilt, Vector2(zoom, zoom))
+	var knot := ribbon.darkened(0.3)
+	on.draw_rect(Rect2(-6, -10, 12, 10), paper)  # the box
+	on.draw_rect(Rect2(3, -10, 3, 10), shade)  # its shady side
+	on.draw_rect(Rect2(-6, -1, 12, 1), shade)
+	on.draw_rect(Rect2(-7, -12, 14, 3), lid)  # the lid, sticking out a pixel
+	on.draw_rect(Rect2(3, -12, 4, 3), paper)
+	on.draw_rect(Rect2(-7, -10, 14, 1), shade)
+	on.draw_rect(Rect2(-1, -12, 2, 12), ribbon)  # the ribbon
+	on.draw_rect(Rect2(-5, -15, 4, 3), ribbon)  # the bow's two loops and its knot
+	on.draw_rect(Rect2(1, -15, 4, 3), ribbon)
+	on.draw_rect(Rect2(-4, -14, 2, 1), knot)
+	on.draw_rect(Rect2(2, -14, 2, 1), knot)
+	on.draw_rect(Rect2(-1, -14, 2, 2), knot)
+	if own_transform:
+		on.draw_set_transform(Vector2.ZERO)
 
 
 ## A tiny capsule machine, like the one your pet brought home: a glass globe on a body, a chute,

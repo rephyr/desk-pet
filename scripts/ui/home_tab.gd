@@ -11,6 +11,9 @@ extends Control
 ## Around the room are spots it can rummage through (RummageSpot, data/rummage.json): they twinkle
 ## when something's in there, and tapping one sends your pet over to dig it out. Tap a few and it
 ## goes through them in turn.
+## Presents (Gifts): while one's waiting your pet holds it wrapped in its paws (on the floor by its
+## spot while it's busy, more stacked small beside it). Tap: a shake, a pop, the boxes fly to the
+## pile; a toy capsule shows its prize card.
 
 signal go(tab_name: String)  # a note was tapped: show that tab
 signal open_box(box_id: String)
@@ -22,6 +25,9 @@ const DIG_WALK := 260.0  # px per second: it hurries over to rummage
 const DIG_HOP := 0.35  # seconds to hop in (and out)
 const DIG_TIME := 1.3  # seconds of rummaging
 const FLOAT_TIME := 1.4
+const GIFT_SHAKE := 0.4  # seconds a present shakes before it pops open
+const GIFT_FLY := 0.6  # seconds a box from a present takes to fly to the pile
+const GIFT_ZOOM := 3.0  # screen pixels per pixel of a present (2 for the small ones beside it)
 
 var _pet := PetPortrait.new(6, true)
 var _name := UiTheme.title("", 18)
@@ -47,6 +53,14 @@ var _dig_phase := ""  # walk, in, dig, out, back
 var _dig_t := 0.0
 var _dig_feet := Vector2.ZERO  # where your pet's feet are while it's off its spot
 var _floaters: Array[Dictionary] = []  # { text, at, age, color }: what it found, floating up
+var _gift_spot := Control.new()  # over the presents on the floor, for taps
+var _gift_shake := 0.0  # > 0 while a present shakes before it opens
+var _gift_at := Vector2.ZERO  # where the present being opened is (its bottom middle)
+var _gift_from_paws := false  # the one being opened was in its paws (its paws stay empty till it pops)
+var _gift_puff := 0.0  # 1 right after a present pops, fading
+var _gift_time := 0.0
+var _flying: Array[Dictionary] = []  # { from, age, box }: boxes out of a present, flying to the pile
+var _prize := MachineTab.PrizePopup.new()  # a toy out of a present
 
 
 func _init() -> void:
@@ -67,6 +81,9 @@ func _init() -> void:
 			return  # busy rummaging
 		if _work.tap():
 			return  # seen it! the good pull goes to the collection
+		if _gift_in_paws():
+			tap_gift()
+			return
 		GameState.pat()
 		_pet.view.squash = 0.6
 		PetBubble.say_line(self, "pat"))
@@ -85,6 +102,13 @@ func _init() -> void:
 	add_child(_held)
 	_front.draw.connect(_draw_front)
 	add_child(_front)
+	_gift_spot.mouse_filter = MOUSE_FILTER_STOP
+	_gift_spot.mouse_default_cursor_shape = CURSOR_POINTING_HAND
+	_gift_spot.visible = false
+	_gift_spot.gui_input.connect(func(event: InputEvent):
+		if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+			tap_gift())
+	add_child(_gift_spot)
 
 	# the card on the floor: name, food and mood, feed and pat
 	_card.add_theme_stylebox_override("panel", UiTheme.sticker(UiTheme.LILAC_SEAM, 12, UiTheme.RAISED, 12))
@@ -124,11 +148,13 @@ func _init() -> void:
 	var tilts := { "adventures": -2.0, "boxes": 1.5, "parts": 2.0, "map": -1.5 }
 	for n in ["adventures", "boxes", "parts", "map"]:
 		_notes.add_child(Tilted.new(_note(n), tilts[n]))
+	add_child(_prize)  # a toy out of a present: over everything in the room
 
 	resized.connect(_layout)
 	GameState.changed.connect(func(): _dirty = true)
 	GameState.adventures_changed.connect(func(): _dirty = true)
 	GameState.collection.active_changed.connect(func(_p): _dirty = true)
+	GameState.gifts_changed.connect(func(): _dirty = true)
 	visibility_changed.connect(func():
 		if is_visible_in_tree():
 			_refresh()
@@ -145,6 +171,7 @@ func _process(delta: float) -> void:
 		f.age += delta
 	_floaters = _floaters.filter(func(f): return f.age < FLOAT_TIME)
 	_step_work(delta)
+	_step_gifts(delta)
 
 
 # ---- your pet opening the pile ------------------------------------------------------
@@ -256,11 +283,149 @@ func _draw_front() -> void:
 			var twinkle := 3.0 + 3.0 * absf(sin(_work.time * 5.0 + i))
 			_front.draw_line(at - Vector2(twinkle, 0), at + Vector2(twinkle, 0), UiTheme.GOLD, 2.0)
 			_front.draw_line(at - Vector2(0, twinkle), at + Vector2(0, twinkle), UiTheme.GOLD, 2.0)
+	_draw_gifts_front()
 	for f in _floaters:
 		var c: Color = f.color
 		c.a = 1.0 - maxf(0.0, f.age - FLOAT_TIME * 0.5) / (FLOAT_TIME * 0.5)
 		var w := UiTheme.DISPLAY_FONT.get_string_size(f.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18).x
 		_front.draw_string(UiTheme.DISPLAY_FONT, f.at + Vector2(-w / 2.0, -maxf(0.0, f.age) * 36.0), f.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, c)
+
+
+# ---- presents ------------------------------------------------------------------
+
+## Whether your pet is holding a present in its paws: one's waiting and it's sitting on its spot
+## (not off at the pile, rummaging or holding up a good pull).
+func _gift_in_paws() -> bool:
+	if _gift_shake > 0.0 and _gift_from_paws:
+		return false
+	return GameState.gifts_waiting() - (1 if _gift_shake > 0.0 else 0) > 0 and _sitting()
+
+
+## Your pet is on its spot with its paws free (not working the pile, even resting between packs,
+## rummaging or showing a pull).
+func _sitting() -> bool:
+	return _dig == null and _work.job == PackJob.Job.SIT and not _work.walking and _work.held == null \
+		and not GameState.can_auto_open()
+
+
+## Where your pet's feet really are on its spot (a little higher on the cushion).
+func _pet_feet() -> Vector2:
+	return _feet() - Vector2(0, 10.0 if GameState.finds.has("cushion") else 0.0)
+
+
+## The present in its paws: in front of its tummy, on the side it faces (its bottom middle).
+func _paws_gift_at() -> Vector2:
+	return Vector2(_work.x + _work.facing * 22.0, _pet_feet().y - 8.0)
+
+
+## The presents on the floor by its spot: [bottom middle, zoom] for each (the first is the
+## big one when it isn't in its paws, the rest are small, stacked beside it).
+func _floor_gifts() -> Array:
+	var n := GameState.gifts_waiting() - (1 if _gift_shake > 0.0 else 0)
+	var big := not _sitting()  # busy: the present it would hold waits big on the floor
+	if _gift_in_paws():
+		n -= 1
+	var out := []
+	var base := _feet() + Vector2(-100, 22)
+	var slots := [Vector2.ZERO, Vector2(-30, 0), Vector2(-15, -30)] if not big else [Vector2.ZERO, Vector2(-40, 0), Vector2(-24, -30)]
+	var skip := 1 if _gift_shake > 0.0 and not _gift_from_paws else 0  # the one shaking open keeps its spot
+	for i in range(skip, mini(n + skip, 3)):
+		out.append([base + slots[i], GIFT_ZOOM if big and i == 0 else 2.0])
+	return out
+
+
+## A present is opening or its toy card is up (unlock popups wait for it, like at the machine).
+func busy() -> bool:
+	return is_visible_in_tree() and (_gift_shake > 0.0 or _prize.visible)
+
+
+## You tapped a present (the one in its paws, or on the floor): it shakes, then pops open.
+func tap_gift() -> void:
+	if _gift_shake > 0.0 or GameState.gifts_waiting() <= 0:
+		return
+	var lying := _floor_gifts()
+	_gift_from_paws = _gift_in_paws() or lying.is_empty()
+	_gift_at = _paws_gift_at() if _gift_from_paws else lying[0][0]
+	_gift_shake = GIFT_SHAKE
+	_pet.view.squash = 0.4
+	_dirty = true
+
+
+func _step_gifts(delta: float) -> void:
+	_gift_time += delta
+	_gift_puff = move_toward(_gift_puff, 0.0, delta * 2.0)
+	for f in _flying:
+		f.age += delta
+	_flying = _flying.filter(func(f): return f.age < GIFT_FLY)
+	if _gift_shake > 0.0:
+		_gift_shake -= delta
+		if _gift_shake <= 0.0:
+			_gift_shake = 0.0
+			_open_gift()
+	# taps on the floor presents
+	var lying := _floor_gifts()
+	_gift_spot.visible = not lying.is_empty()
+	if _gift_spot.visible:
+		var r := Rect2(lying[0][0], Vector2.ZERO)
+		for g in lying:
+			var w: float = 7.0 * float(g[1])
+			r = r.merge(Rect2(g[0] - Vector2(w, PawsView.PRESENT_H * float(g[1])), Vector2(w * 2.0, PawsView.PRESENT_H * float(g[1]))))
+		_gift_spot.position = r.position - Vector2(4, 4)
+		_gift_spot.size = r.size + Vector2(8, 8)
+	if _prize.visible:
+		_prize.position = Vector2(size.x * 0.5 - _prize.size.x / 2.0, maxf(12.0, _pet_feet().y - PetView.size_for(_pet.view.pixel).y - _prize.size.y - 24.0))
+
+
+## The present pops: the boxes fly to the pile, a toy shows its card.
+func _open_gift() -> void:
+	var got := GameState.open_gift()
+	if got.is_empty():
+		return
+	_gift_puff = 1.0
+	_pet.view.squash = 0.6
+	for i in int(got.boxes):
+		_flying.append({ "from": _gift_at + Vector2(i * 14.0, -20.0), "age": -0.12 * i, "box": str(got.box) })
+	var n := int(got.boxes)
+	_floaters.append({ "text": "+%d box%s" % [n, "es" if n > 1 else ""], "at": _pile_spot() + Vector2(0, -96), "age": 0.0, "color": UiTheme.PINK })
+	if not (got.toy as Dictionary).is_empty():
+		MachineTab.show_toy(self, _prize, got.toy)
+	_dirty = true
+
+
+## A present: its paper, lid, ribbon and bow in the page's colours.
+func _present(on: CanvasItem, at: Vector2, zoom: float, tilt := 0.0) -> void:
+	PawsView.draw_present(on, at.round(), tilt, zoom, UiTheme.PINK, UiTheme.PINK_SEAM, UiTheme.LILAC, UiTheme.PINK.lerp(UiTheme.TEXT, 0.35))
+
+
+## Presents on the floor by your pet's spot (under the pet and its props).
+func _draw_gifts_floor() -> void:
+	for g in _floor_gifts():
+		_present(self, g[0], g[1])
+
+
+## Over your pet: the present in its paws (a small wobble now and then), the one shaking open, the
+## pop, and boxes flying to the pile.
+func _draw_gifts_front() -> void:
+	if _gift_in_paws():
+		var wobble := sin(_gift_time * 14.0) * 0.08 if fmod(_gift_time, 4.0) < 0.6 else 0.0
+		_present(_front, _paws_gift_at(), GIFT_ZOOM, wobble)
+	if _gift_shake > 0.0:
+		var t := _gift_time * 50.0
+		_present(_front, _gift_at + Vector2(sin(t) * 3.0, 0), GIFT_ZOOM, sin(t * 0.8) * 0.18)
+	if _gift_puff > 0.0:
+		var center := _gift_at - Vector2(0, PawsView.PRESENT_H * GIFT_ZOOM * 0.5)
+		_front.draw_arc(center, 14.0 + (1.0 - _gift_puff) * 56.0, 0.0, TAU, 32, Color(UiTheme.GOLD, _gift_puff), 4.0 * _gift_puff, true)
+	var to := _pile_spot() - Vector2(0, 60)
+	for f in _flying:
+		if f.age < 0.0:
+			continue
+		var t: float = f.age / GIFT_FLY
+		var at: Vector2 = (f.from as Vector2).lerp(to, t) - Vector2(0, sin(t * PI) * 70.0)
+		var tex := PackArt.texture(Catalog.shared().box(f.box).get("art", {}), 30)
+		var pack := Vector2(30, 39)
+		_front.draw_set_transform(at, t * TAU * 0.5)
+		_front.draw_texture_rect(tex, Rect2(-pack / 2.0, pack), false)
+		_front.draw_set_transform(Vector2.ZERO)
 
 
 # ---- rummaging ------------------------------------------------------------------
@@ -457,6 +622,7 @@ func _draw() -> void:
 			draw_line(Vector2(x, c.get_center().y), Vector2(x + 4, c.get_center().y), UiTheme.PINK, 2.0)
 			x += 8
 	_draw_pile()
+	_draw_gifts_floor()
 	var basket := Vector2(size.x * 0.8, floor_y + (size.y - floor_y) * 0.62)
 	if GameState.finds.has("basket"):
 		_draw_basket(basket)

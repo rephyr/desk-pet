@@ -154,6 +154,19 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   and the foot tap) / everything (default), shown once the tutorial's done or your pet knows a
   job. It only changes what's drawn: the background opening opens exactly the same packs at
   every level, and it never touches the boxes switch or your pet's job.
+- **Presents** (built, care C, `Gifts`, data/gifts.json): one every 3 h of wall clock, open or
+  closed alike (only the clock counts, so closing never pays better), into a pocket of 3; no
+  streak, no calendar. Hidden until the boxes tab opens; the first comes 3 h after that. Opened,
+  a present holds a box of your newest tier (`GameState.newest_box_id`), sometimes (1 in 5) two,
+  and once toys are open sometimes (1 in 5) a toy capsule as well. Never bits, never a pet. Home
+  tab: your pet holds it wrapped in its paws (pink paper, lilac bow, a wobble now and then); while
+  it's busy with the pile or rummaging the present waits on the floor by its spot; more stack
+  small beside it (no number). Tap: a shake, a gold pop, the box flies to the pile ("+1 box"); a
+  toy shows the machine's prize card (unlock cards wait for it). Out on your windows (big things
+  and everything): standing on a window edge (not the bottom of the screen) it digs a present up
+  (1.6 s, dirt flying) and wears it on its head until you tap it; the tap opens it instead of a
+  pat (a paper burst, a tiny pack or capsule hops up); 30 s later it may dig up the next. At off
+  it doesn't dig: the presents wait on the home tab. Order: hold, dig, foot tap, job, walking.
 - Needs (food, mood) are opportunities, not threats (built, data/care.json, `Care`): they only
   go down while the game is open (the full game, the corner panel or your pet out on the
   desktop), never while it's closed, and never below 20. Above 70 food is a **full tummy**

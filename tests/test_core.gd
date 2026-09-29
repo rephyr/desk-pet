@@ -39,6 +39,7 @@ func _init() -> void:
 	_test_knacks(catalog)
 	_test_care(catalog)
 	_test_paws(catalog)
+	_test_gifts(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
 
@@ -531,6 +532,8 @@ func _test_grafting(catalog: Catalog) -> void:
 	var plain := PetLook.texture_for(look.parts, false, []).get_image()
 	var stitched := PetLook.texture_for(look.parts, false, ["eyes"]).get_image()
 	_check(plain.get_data() != stitched.get_data(), "sewn parts show stitch marks")
+	var top := PetLook.top_row(look.parts)
+	_check(top > 0 and top < PetLook.H and plain.get_used_rect().position.y == top, "the top of a pet's art is its first row with anything in it")
 	look.sewn.assign(["eyes", "body"])
 	_check(Pet.from_dict(JSON.parse_string(JSON.stringify(look.to_dict())), catalog).sewn == look.sewn, "stitches survive a save")
 
@@ -1753,6 +1756,192 @@ func _test_paws(catalog: Catalog) -> void:
 	_check(QuietPaws.has_something(fresh), "and once adventures are open (after the tutorial)")
 	fresh.free()
 	gs.free()
+
+
+## Presents (Gifts, data/gifts.json): one every 3 h of wall clock, a pocket of 3, from when the
+## boxes tab opens; a box of the newest tier, sometimes 2, sometimes a toy as well; never bits or a
+## pet. Out on your windows the pet digs one up and wears it until you tap it.
+func _test_gifts(catalog: Catalog) -> void:
+	var cfg: Dictionary = catalog.gifts
+	_check(float(cfg.every) == 10800.0 and int(cfg.pocket) == 3 and float(cfg.first_after) == 10800.0,
+		"gifts.json: one every 3 h, a pocket of 3, the first 3 h after the boxes tab opens")
+	var h := 3600.0
+	var t0 := 1_000_000.0
+	# the clock
+	var st := Gifts.fresh()
+	_check(Gifts.tick(st, cfg, t0, false) == 0 and Gifts.tick(st, cfg, t0 + 50.0 * h, false) == 0 and float(st.next_at) == 0.0,
+		"nothing before the boxes tab opens, not even the clock starting")
+	Gifts.tick(st, cfg, t0, true)
+	_check(is_equal_approx(float(st.next_at), t0 + 3.0 * h) and int(st.pocket) == 0, "the boxes tab opens: the clock starts, the first in 3 h")
+	Gifts.tick(st, cfg, t0 + 2.99 * h, true)
+	_check(int(st.pocket) == 0, "nothing at 2.99 h")
+	_check(Gifts.tick(st, cfg, t0 + 3.0 * h, true) == 1 and int(st.pocket) == 1, "one at 3 h")
+	Gifts.tick(st, cfg, t0 + 100.0 * h, true)
+	_check(int(st.pocket) == 3, "the pocket stops at 3 however long it's been (%d)" % st.pocket)
+	st.pocket = 2  # one taken out
+	Gifts.tick(st, cfg, t0 + 102.9 * h, true)
+	_check(int(st.pocket) == 2, "the next doesn't come before 3 h after one was taken out")
+	Gifts.tick(st, cfg, t0 + 103.0 * h, true)
+	_check(int(st.pocket) == 3, "and comes 3 h after")
+	var back := { "next_at": t0 + 500.0 * h, "pocket": 0 }
+	Gifts.tick(back, cfg, t0, true)
+	_check(float(back.next_at) <= t0 + 3.0 * h, "a clock set backwards never holds a present back more than 3 h")
+	Gifts.tick(back, cfg, t0 + 3.0 * h, true)
+	_check(int(back.pocket) == 1, "and one comes on time after it")
+	# open or closed pays the same
+	var open_st := { "next_at": t0 + 3.0 * h, "pocket": 0 }
+	for i in 36000:
+		Gifts.tick(open_st, cfg, t0 + i + 1.0, true)
+	var closed_st := { "next_at": t0 + 3.0 * h, "pocket": 0 }
+	Gifts.tick(closed_st, cfg, t0 + 36000.0, true)
+	_check(open_st == closed_st and int(closed_st.pocket) == 3, "10 h open in 1 s ticks == 10 h closed (%s vs %s)" % [open_st, closed_st])
+	var clean := Gifts.clean({ "next_at": -5, "pocket": 99 }, cfg)
+	_check(float(clean.next_at) == 0.0 and int(clean.pocket) == 3, "a saved pocket is kept to 0..3")
+	_check(is_equal_approx(Gifts.per_day(cfg), 8.0), "8 presents a day at most")
+
+	# GameState: opening presents
+	var GS: GDScript = load("res://scripts/game_state.gd")
+	GS.testing = true
+	var gs: Node = GS.new()
+	gs.tutorial = "done"
+	_check(not gs.gifts_open(), "a new game has no presents (the boxes tab is closed)")
+	gs._tick_gifts(Time.get_unix_time_from_system())
+	_check(float(gs.gifts.next_at) == 0.0 and gs.gifts_waiting() == 0, "the clock waits for the boxes tab")
+	gs.unlocks["tab:boxes"] = true
+	gs._tick_gifts(Time.get_unix_time_from_system())
+	_check(float(gs.gifts.next_at) > 0.0 and gs.gifts_waiting() == 0, "the boxes tab open: the clock starts")
+	_check(gs.newest_box_id() == "starter" and not catalog.box(gs.newest_box_id()).is_empty(), "newest_box_id is a real box (starter until box tiers)")
+	_check(gs.open_gift().is_empty(), "an empty pocket opens nothing")
+	var pets_before: int = gs.collection.pets.size()
+	var bits_before: Dictionary = gs.bits.duplicate()
+	var boxes := 0
+	var twos := 0
+	var toys_seen := 0
+	for i in 500:
+		gs.gifts.pocket = 1
+		var got: Dictionary = gs.open_gift()
+		boxes += int(got.boxes)
+		twos += 1 if int(got.boxes) == 2 else 0
+		toys_seen += 0 if (got.toy as Dictionary).is_empty() else 1
+		if got.box != gs.newest_box_id():
+			_check(false, "a present holds the newest box (%s)" % got.box)
+			break
+	_check(gs.in_bag("starter") == boxes and gs.gifts_waiting() == 0, "the boxes land on the pile (%d)" % boxes)
+	_check(gs.collection.pets.size() == pets_before and gs.bits == bits_before, "500 presents: never a pet, never bits")
+	_check(toys_seen == 0 and gs.toys.owned.is_empty(), "no toy capsules before toys are open")
+	_check(twos > 60 and twos < 140, "2 boxes about 1 in 5 (%d of 500)" % twos)
+	gs.unlocks["feature:toys"] = true
+	var toy_count := 0
+	for i in 500:
+		gs.gifts.pocket = 1
+		toy_count += 0 if (gs.open_gift().toy as Dictionary).is_empty() else 1
+	_check(toy_count > 60 and toy_count < 140 and not gs.toys.owned.is_empty(), "toys open: a toy capsule as well about 1 in 5 (%d of 500)" % toy_count)
+	_check(gs.collection.pets.size() == pets_before and gs.bits == bits_before, "still never a pet or bits with toys")
+	gs.gifts.pocket = 1
+	gs.debug_gift_roll = "toy"
+	var toy_gift: Dictionary = gs.open_gift()
+	_check(int(toy_gift.boxes) == 1 and not (toy_gift.toy as Dictionary).is_empty(), "a toy comes with a box, not instead of it")
+	gs.debug_set_gifts(9)
+	_check(gs.gifts_waiting() == 3, "the dev step keeps the pocket to 3")
+	# the save
+	DirAccess.make_dir_recursive_absolute(ProjectSettings.globalize_path("user://profiles/test-core/"))
+	var path := "user://profiles/test-core/gifts_save.json"
+	gs.save_path = path
+	gs._can_save = true
+	gs.gifts = { "next_at": Time.get_unix_time_from_system() + 2.0 * h, "pocket": 1 }
+	gs.save_game()
+	var gs2: Node = GS.new()
+	gs2.save_path = path
+	gs2.load_game()
+	_check(gs2.gifts_waiting() == 1 and absf(float(gs2.gifts.next_at) - float(gs.gifts.next_at)) < 1.0, "the pocket and the clock survive a save")
+	var data := SaveFile.read(path)
+	_check(int(data.version) == GS.SAVE_VERSION and data.has("gifts"), "the save has gifts (v%d)" % data.version)
+	# closed for 10 h: the same as open
+	data.gifts = { "next_at": float(data.saved_at) + 3.0 * h, "pocket": 0 }
+	data.saved_at = float(data.saved_at) - 10.0 * h
+	data.gifts.next_at = float(data.saved_at) + 3.0 * h
+	SaveFile.write(path, data)
+	var gs3: Node = GS.new()
+	gs3.save_path = path
+	gs3.load_game()
+	_check(gs3.gifts_waiting() == 3, "10 h closed fills the pocket (%d)" % gs3.gifts_waiting())
+	# an older save (v24) with the boxes tab open: the clock starts on load
+	data.version = 24
+	data.erase("gifts")
+	SaveFile.write(path, data)
+	var gs4: Node = GS.new()
+	gs4.save_path = path
+	gs4.load_game()
+	_check(gs4.gifts_waiting() == 0 and float(gs4.gifts.next_at) > Time.get_unix_time_from_system() + 2.9 * h,
+		"a v24 save loads with a fresh clock (the first in 3 h)")
+	for f in [path, path + ".bak"]:
+		DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+	# quiet paws: digging one up
+	gs.gifts.pocket = 1
+	var paws := QuietPaws.new(gs)
+	paws.step(0.1, true, true, true, 2, false)
+	_check(paws.pose != QuietPaws.Pose.DIG, "no dig on the bottom of the screen")
+	paws.step(0.1, true, true, true, 0, true)
+	_check(paws.pose != QuietPaws.Pose.DIG and not paws.worn, "no dig at off")
+	paws.step(0.1, true, false, true, 1, true)
+	_check(paws.pose != QuietPaws.Pose.DIG, "no dig mid-walk")
+	paws.step(0.1, true, true, true, 1, true)
+	_check(paws.pose == QuietPaws.Pose.DIG and paws.wants_still, "big things, standing on a window edge with a present: it digs")
+	for i in 20:
+		paws.step(0.1, true, true, true, 1, true)
+	_check(paws.worn and paws.pose != QuietPaws.Pose.DIG, "after 1.6 s it wears the present")
+	var roller := PetRoller.new(catalog)
+	paws.show_off(roller.roll("starter", "rare"))
+	paws.step(0.1, true, true, true, 1, true)
+	_check(paws.pose == QuietPaws.Pose.HOLD and paws.worn, "a good pull is held up with the present still on")
+	var beat := QuietPaws.new(gs)
+	beat.show_off(roller.roll("starter", "rare"))
+	beat.step(0.1, true, true, true, 2, true)
+	_check(beat.pose == QuietPaws.Pose.HOLD, "a good pull beats a dig")
+	gs.gifts.pocket = 0
+	paws.step(0.1, true, true, true, 1, true)
+	_check(not paws.worn, "the pocket emptied on the home tab: the present on its head is gone")
+	var cut := QuietPaws.new(gs)
+	gs.gifts.pocket = 1
+	cut.step(0.1, true, true, true, 2, true)
+	cut.step(0.1, false, false, true, 2, true)
+	_check(cut.pose == QuietPaws.Pose.NONE and cut.dig_left == 0.0 and not cut.worn, "picked up mid-dig: the dig stops")
+	# the desktop pet: a tap opens the present instead of a pat
+	var stage := Control.new()
+	stage.size = Vector2(920, 600)
+	var src := StageSource.new()
+	src.windows = [Rect2(100, 300, 500, 300)]
+	var dp := DesktopPet.new()
+	dp.source = src
+	dp.stage = stage
+	dp.paws = QuietPaws.new(gs)
+	dp.paws_level = 1
+	stage.add_child(dp)
+	dp._ready()
+	dp.drop_at(Vector2(260, 200))
+	var frames := 0
+	while not dp.paws.worn and frames < 400:
+		dp._process(0.05)
+		frames += 1
+	_check(dp.paws.worn and is_equal_approx(dp.position.y, 300.0), "the desktop pet lands on the window and digs the present up")
+	var r0: Rect2 = dp._body_rect()
+	_check(r0.size.y > PetView.size_for(4).y + PawsView.PRESENT_H * 3.0, "the present on its head is part of what you can tap")
+	gs.happiness = 40.0
+	gs._pat_at = -INF
+	var in_bag: int = gs.in_bag("starter")
+	dp.tap()
+	_check(gs.gifts_waiting() == 0 and gs.in_bag("starter") > in_bag and gs.happiness == 40.0 and not dp.paws.worn and dp.paws.pop > 0.0,
+		"a tap while it wears one opens the present (not a pat)")
+	dp.tap()
+	_check(gs.happiness > 40.0, "a tap without one is a pat")
+	gs.gifts.pocket = 1
+	for i in 100:
+		dp._process(0.05)
+	_check(not dp.paws.worn and dp.paws.pose != QuietPaws.Pose.DIG, "it waits a while after a tap before digging up the next")
+	stage.free()
+	for n in [gs, gs2, gs3, gs4]:
+		n.free()
 
 
 func _check(ok: bool, what: String) -> void:

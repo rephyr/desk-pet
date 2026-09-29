@@ -20,12 +20,13 @@ signal pet_cranked(result: Dictionary)  # your pet's own little machine gave a c
 signal gear_changed  # a gear upgrade was bought with xp (the adventures' upgrades page)
 signal sticker_opened(page_id: String)  # a collection book page filled up: its reward sticker opened (see Book)
 signal knacks_changed  # a knack gate may have opened (an unlock, a machine fix, the tutorial moved on)
+signal gifts_changed  # a present came into the pocket or one was opened (see Gifts)
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
 ## Headless tests set this before making a GameState: it starts empty and never loads or saves
 ## (a test turns saving on with its own save_path).
 static var testing := false
-const SAVE_VERSION := 24
+const SAVE_VERSION := 25
 const OFFLINE_CAP := 12.0 * 3600.0
 const FRAME_GAP := 5.0  # a frame this long means the computer slept: counts as closed (no care drain)
 const FIRST_PET_BOX := "starter"
@@ -110,6 +111,9 @@ var machine := { "pulls": 0, "lit": 0, "bought": {} }
 var fever_until := 0.0  # unix time the machine's fever ends (not saved: it's ten seconds)
 ## Capsule toys you own and the ones your pet is playing with, see Toys and data/toys.json
 var toys := Toys.fresh()
+## Presents, one every few hours of wall clock (see Gifts and data/gifts.json): { next_at, pocket }
+var gifts := Gifts.fresh()
+var debug_gift_roll := ""  # debug builds: the next present holds "one" box, "two" or a "toy" as well
 var bits := {}  # machine bits pets bring home from adventures: bit id (gear, spring, bolt, glass) -> how many
 ## What your pet does for you (the automation tab), see Automation and data/automation.json
 var automation := Automation.fresh()
@@ -214,6 +218,7 @@ func _process(delta: float) -> void:
 		_advance_runs()
 		_work_jobs(Time.get_unix_time_from_system())
 		_work_automation(Time.get_unix_time_from_system())
+		_tick_gifts(Time.get_unix_time_from_system())
 		var ended := Toys.finish_plays(toys, Time.get_unix_time_from_system())
 		if not ended.is_empty():
 			toys_changed.emit()
@@ -566,6 +571,7 @@ func debug_new_game() -> void:
 	fever_until = 0.0
 	toys = Toys.fresh()
 	_knacks_changed()
+	gifts = Gifts.fresh()
 	bits = {}
 	automation = Automation.fresh()
 	_auto_at = 0.0
@@ -1978,6 +1984,74 @@ func debug_finish_runs() -> void:
 	changed.emit()
 
 
+# ---- presents ---------------------------------------------------------------
+
+## The box a present holds: the newest tier of box you can get. (Merge note: box tiers live in
+## another branch; this one helper is what they swap for the newest open tier.)
+func newest_box_id() -> String:
+	return FIRST_PET_BOX
+
+
+## Presents in the pocket, waiting for you to open them.
+func gifts_waiting() -> int:
+	return int(gifts.pocket)
+
+
+## Whether presents come yet: from when the boxes tab opens (hidden until then).
+func gifts_open() -> bool:
+	return tab_open("boxes")
+
+
+## Moves the present clock on to `now` (every second while open, and once on load for the time
+## closed: the same either way). `save`: save when one came in.
+func _tick_gifts(now: float, save := true) -> void:
+	var started := float(gifts.next_at) > 0.0
+	var added := Gifts.tick(gifts, catalog.gifts, now, gifts_open())
+	if added > 0 or started != (float(gifts.next_at) > 0.0):
+		gifts_changed.emit()
+		if save:
+			save_game()
+
+
+## Opens a present from the pocket: it's rolled now, so the box is your newest tier today. Boxes go
+## on your pile; a toy capsule goes into your toys, the way the machine gives one. Never bits, never
+## a pet. Returns { box, boxes, toy: { id, finish, new } or {} }, or {} when the pocket is empty.
+func open_gift() -> Dictionary:
+	if gifts_waiting() <= 0:
+		return {}
+	gifts.pocket = gifts_waiting() - 1
+	var toys_open := _machine_gives("toy")
+	var got := Gifts.roll(catalog.gifts, _rng, toys_open)
+	if debug_gift_roll != "" and OS.is_debug_build():
+		got = { "boxes": 2 if debug_gift_roll == "two" else 1, "toy": debug_gift_roll == "toy" and toys_open }
+		debug_gift_roll = ""
+	var box := newest_box_id()
+	var toy := {}
+	if got.toy:
+		var t := Toys.roll(catalog, _rng, boost("luck"))
+		toy = { "id": t.id, "finish": t.finish, "new": Toys.add(toys, t.id, t.finish) }
+		toys_changed.emit()
+	grant({ "box:" + box: int(got.boxes) })  # checks unlocks (a first toy) and emits changed
+	gifts_changed.emit()
+	save_game()
+	return { "box": box, "boxes": int(got.boxes), "toy": toy }
+
+
+## Debug: n presents in the pocket now (up to the pocket's size), the clock started.
+func debug_set_gifts(n: int) -> void:
+	gifts.pocket = clampi(n, 0, Gifts.cap(catalog.gifts))
+	if float(gifts.next_at) <= 0.0:
+		gifts.next_at = Time.get_unix_time_from_system() + Gifts.every(catalog.gifts)
+	gifts_changed.emit()
+
+
+## Debug: the present clock moves `hours` on (to check the step and the pocket's size).
+func debug_gift_clock(hours: float) -> void:
+	if float(gifts.next_at) > 0.0:
+		gifts.next_at = float(gifts.next_at) - hours * 3600.0
+	_tick_gifts(Time.get_unix_time_from_system())
+
+
 # ---- care -----------------------------------------------------------------
 
 ## Coins a snack (the feed button) costs now: data/care.json "snack" capsules at what a plain capsule
@@ -2601,6 +2675,7 @@ func save_game() -> void:
 		"rummaged": rummaged,
 		"machine": machine,
 		"toys": toys,
+		"gifts": gifts,
 		"bits": bits,
 		"started_at": started_at,
 		"milestones": milestones,
@@ -2759,6 +2834,7 @@ func _load_save() -> bool:
 		if p is Dictionary and toys.owned.has(str(p.get("key", ""))):
 			toys.playing.append({ "key": str(p.key), "until": float(p.get("until", 0.0)), "wear": float(p.get("wear", 0.0)) })
 	Toys.finish_plays(toys, Time.get_unix_time_from_system())  # plays that ended while the game was closed
+	gifts = Gifts.clean(data.get("gifts", {}), catalog.gifts)  # v25: older saves start the clock below
 	_knacks_changed()
 	if from_version >= 15 and from_version < 20:
 		_regate()
@@ -2785,6 +2861,8 @@ func _load_save() -> bool:
 		_hold_saves = false
 		_save_held = false
 	_auto_at = Time.get_unix_time_from_system()
+	# presents came while the game was closed, the same as if it had been open (only the clock counts)
+	_tick_gifts(Time.get_unix_time_from_system(), false)
 
 	return true
 
@@ -2881,6 +2959,7 @@ func _migrate(data: Dictionary) -> Dictionary:
 			a.taught["boxes"] = true
 			a.task = "boxes" if bool(data.get("packs_on", true)) else ""
 			data.automation = a
+	# v25 added presents (gifts): nothing to convert; saves with the boxes tab open start the clock on load
 	if version < 7:
 		# v7: dungeon places open one rumour at a time; saves that had the dungeons keep them all
 		var had: Array = data.get("unlocks", [])

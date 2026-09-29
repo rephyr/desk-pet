@@ -13,8 +13,10 @@ extends Node
 ##   key <name>            a key press: space, escape, enter
 ##   wait <seconds>        or: wait ritual | wait popup | wait text "..." | wait tutorial <step> | wait event
 ##                         | wait packing <p> (your pet's background opening is between p and p + 0.1)
+##                         | wait dig (the desktop pet is digging up a present) | wait worn (it wears one)
 ##   expect <what>         tutorial <step> | tab <id> | text "..." | no-text "..." | pile <box> <n>
 ##                         | fits (the full game fits its window) | setting <key> <value> (Settings)
+##                         | gifts <n> (presents in the pocket)
 ##   shot <name>           a screenshot of the game, from inside it (works while it's off-screen)
 ##   say "<text>"          your pet says it (for testing the bubble)
 ##   answer                every adventure waiting at an event takes its first choice
@@ -51,9 +53,14 @@ extends Node
 ##   dress <slot>=<id> ... [finish=<id>]   your active pet gets these parts (and finish), e.g.
 ##                         dress body=bunny eyes=cyclops finish=holo (for knacks, data/knacks.json)
 ##   paws <off|big|everything>   the "out on your windows" setting (quiet paws)
-##   desk on | off | good  a pretend desktop over the game with your pet out on it (DeskStage), or
-##                         gone again; good: a rolled rare pet goes to it as if your pet had just
-##                         opened it in the background (it isn't added to your pets)
+##   desk on | off | good | tap   a pretend desktop over the game with your pet out on it (DeskStage),
+##                         or gone again; good: a rolled rare pet goes to it as if your pet had just
+##                         opened it in the background (it isn't added to your pets); tap: a click
+##                         on the desktop pet (opens the present on its head, or a pat)
+##   gift <n>              n presents in the pocket now (up to its size; starts the present clock)
+##   gift-clock <hours>    the present clock moves that many hours on (data/gifts.json)
+##   gift-roll one|two|toy what the next present holds (1 box, 2 boxes, or 1 box and a toy)
+##   home gift             taps the present on the home tab (in your pet's paws or on the floor)
 ##   give-box <id> <n>     n boxes of that kind on the pile
 ##   finish-trips          every adventure that's walking arrives now (and waits for you)
 ##   quit                  done (it also quits at the end of the file)
@@ -322,8 +329,25 @@ func _step(w: PackedStringArray) -> String:
 						return "no desk (desk on first)"
 					var roller := PetRoller.new(GameState.catalog)
 					_desk.pet.paws.show_off(roller.roll("starter", "rare"))
+				"tap":
+					if _desk == null:
+						return "no desk (desk on first)"
+					_desk.pet.tap()
 				_:
-					return "desk takes: on | off | good"
+					return "desk takes: on | off | good | tap"
+		"gift":  # gift <n>: n presents in the pocket now
+			GameState.debug_set_gifts(int(w[1]))
+		"gift-clock":  # gift-clock <hours>: the present clock moves on
+			GameState.debug_gift_clock(float(w[1]))
+		"gift-roll":  # gift-roll one|two|toy: what the next present holds
+			if not w[1] in ["one", "two", "toy"]:
+				return "gift-roll takes: one | two | toy"
+			GameState.debug_gift_roll = w[1]
+		"home":  # home gift: taps the present on the home tab
+			var tabs := _all(HomeTab)
+			if w.size() < 2 or w[1] != "gift" or tabs.is_empty():
+				return "home takes: gift (on the full game)"
+			tabs[0].tap_gift()
 		"give-box":  # give-box <id> <n>: n boxes of that kind on the pile
 			if GameState.catalog.box(w[1]).is_empty():
 				return "unknown box %s" % w[1]
@@ -358,6 +382,11 @@ func _wait(w: PackedStringArray) -> String:
 			until = func():
 				var at := GameState.background_packing()
 				return at >= p and at < p + 0.1
+		"dig", "worn":  # the desktop pet digging up a present, or wearing one
+			if _desk == null:
+				return "no desk (desk on first)"
+			var paws: QuietPaws = _desk.pet.paws
+			until = func(): return paws.pose == QuietPaws.Pose.DIG if w[1] == "dig" else paws.worn
 		"event":  # an adventure stopped at an event (trips are slow: this waits longer)
 			until = func(): return GameState.runs.any(func(r): return r.status == RunState.Status.WAITING)
 			limit = 180.0
@@ -386,6 +415,8 @@ func _expect(w: PackedStringArray) -> String:
 		"pile":
 			var have := GameState.in_bag(w[2])
 			return "" if have == int(w[3]) else "%d on the pile" % have
+		"gifts":  # gifts <n>: presents in the pocket
+			return "" if GameState.gifts_waiting() == int(w[2]) else "%d presents" % GameState.gifts_waiting()
 		"setting":  # setting <key> <value>: a Settings value, as text
 			var have := str(Settings.get(w[2]))
 			return "" if have == w[3] else "%s is %s" % [w[2], have]

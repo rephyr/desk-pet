@@ -4,7 +4,8 @@ extends Node2D
 ## along the top edges of other windows (and the bottom of the screen).
 ## Quiet paws (QuietPaws, PawsView): now and then it stands still on an edge and acts out its job
 ## with poses only (Settings.paws picks how much), holds up a good pull, or taps its foot facing
-## the corner panel while an adventure waits.
+## the corner panel while an adventure waits. With a present waiting it digs one up on a window
+## edge and wears it on its head; a tap then opens the present instead of a pat.
 ## For testing, `stage` can be a Control in the game window instead of the overlay (DeskStage):
 ## its size, mouse and clicks are used, and nothing goes onto the real desktop.
 
@@ -255,7 +256,10 @@ func _subtract(spans: Array[Vector2], a: float, b: float) -> Array[Vector2]:
 
 func _body_rect() -> Rect2:
 	var s := _size()
-	return Rect2(position - Vector2(s.x / 2.0, s.y + pixel * 2), Vector2(s.x, s.y + pixel * 2))
+	var up := s.y + pixel * 2
+	if paws != null and paws.worn:
+		up += PawsView.PRESENT_H * PawsView.present_zoom(pixel)  # the present on its head is tappable too
+	return Rect2(position - Vector2(s.x / 2.0, up), Vector2(s.x, up))
 
 
 ## Only the pet catches clicks; everything else on the overlay clicks through.
@@ -292,7 +296,7 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		elif not event.pressed and _state == State.DRAG:
 			if not _moved:
-				_pat()
+				tap()
 			_vel = Vector2.ZERO
 			_state = State.FALL
 			get_viewport().set_input_as_handled()
@@ -310,7 +314,8 @@ func _step_paws(delta: float) -> void:
 	# the side with more room (where the props go) must fit the biggest prop, as it's drawn
 	var free: float = maxf(seg.y - position.x, position.x - seg.x) if seg != null else 0.0
 	var room: bool = seg != null and free >= PawsView.widest() * pixel / 3.0
-	paws.step(delta, grounded and seg != null, _state == State.IDLE, room, level())
+	var window_edge: bool = seg != null and seg.z < _area().y - 2.0  # not the bottom of the screen
+	paws.step(delta, grounded and seg != null, _state == State.IDLE, room, level(), window_edge)
 	var working := paws.stint_left > 0.0
 	if working and not _working and seg != null:
 		_side = 1 if seg.y - position.x >= position.x - seg.x else -1  # the side with more room
@@ -334,7 +339,8 @@ func _step_paws(delta: float) -> void:
 		var k := pixel / 3.0
 		if paws.pose == QuietPaws.Pose.HOLD:
 			var bob := roundf(sin(paws.time * 4.0) * 2.0 * k)
-			_held.position = _snap + Vector2(0, -_size().y + 4.0 * k + bob).round()
+			var over := _present_h() if paws.worn else 0.0  # held up over the present on its head
+			_held.position = _snap + Vector2(0, -_size().y + 4.0 * k + bob - over).round()
 			_held.facing = _dir
 			_held.modulate.a = 1.0
 			_held.walking = false
@@ -350,8 +356,9 @@ func _step_paws(delta: float) -> void:
 	_front.side = _side
 	_front.facing = _dir
 	_front.held_at = _held.position - _snap  # the views sit at _snap too
+	_front.head = Vector2(0, _sprite.top() + pixel)  # nestled between its ears (views and sprite both sit at _snap)
 	# the props only change while there's a pose or a puff; one more redraw clears the last frame
-	var shown := paws.pose != QuietPaws.Pose.NONE or paws.puff > 0.0
+	var shown := paws.pose != QuietPaws.Pose.NONE or paws.puff > 0.0 or paws.worn or paws.pop > 0.0
 	if shown or _props_shown:
 		_back.queue_redraw()
 		_front.queue_redraw()
@@ -369,6 +376,20 @@ func level() -> int:
 ## Which way it's facing (1 right, -1 left), for tests.
 func facing() -> int:
 	return _dir
+
+
+## A present's height on its head, in screen pixels.
+func _present_h() -> float:
+	return PawsView.PRESENT_H * PawsView.present_zoom(pixel)
+
+
+## A click on the pet (not a drag): opens the present on its head, or else it's a pat.
+func tap() -> void:
+	if paws.worn and paws.gs.gifts_waiting() > 0:
+		paws.popped(paws.gs.open_gift())
+		_sprite.squash = 0.6
+		return
+	_pat()
 
 
 func _pat() -> void:
