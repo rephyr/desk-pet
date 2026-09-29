@@ -28,7 +28,7 @@ var scout := {}  # the scout note it took when it set off ({} if none, see Jobs.
 var scouted: bool:  # it took a scout note: better odds of spotting places and hearing rumours
 	get:
 		return not scout.is_empty()
-var knacks := {}  # knack kind -> multiplier this trip set off with (GameState.trip_knacks: trip, tough, safe, spots, finds, pickups, treats, loot); missing = x1
+var knacks := {}  # knack kind -> multiplier this trip set off with (GameState.trip_knacks: the kinds marked "trip" in data/boosts.json); missing = x1
 var walk := 0.0  # share of the walking the gear's comfy boots and "trip" knacks take off (worked out once, not saved)
 
 

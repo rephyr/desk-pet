@@ -1,0 +1,11 @@
+{
+	"_note": "Presents (scripts/pets/gifts.gd): one every 'every' seconds of wall clock, open or closed (it only reads the unix time, so closing the game never pays better), into a pocket of 'pocket' at most. Nothing starts until the boxes tab opens; then the first comes 'first_after' seconds later. While the pocket is full the clock waits, so taking one out starts a fresh 'every'. No streak, no calendar. A present is rolled when you open it: always 1 box of your newest tier (GameState.newest_box_id), a second with 'two_boxes' chance, and a toy capsule as well with 'toy' chance (once toys are open). Never bits, never a pet. Out on your windows (QuietPaws, at big things and everything) your pet digs a present up on a window edge: 'dig' seconds of digging, then it wears it on its head until you tap it; after a tap it waits 'dig_again' seconds before digging up the next. 'pop': seconds what came out hops up over its head and fades.",
+	"every": 10800,
+	"first_after": 10800,
+	"pocket": 3,
+	"two_boxes": 0.2,
+	"toy": 0.2,
+	"dig": 1.6,
+	"dig_again": 30,
+	"pop": 1.2
+}

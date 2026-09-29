@@ -1,8 +1,9 @@
 class_name Book
 extends RefCounted
 ## The collection book's reward stickers (data/book.json): filling a page opens its sticker for
-## good, a small permanent boost of one kind (coins, luck, automation, errands). Pure rules; the
-## stickers you've opened are a list of page ids kept in the save (GameState.stickers).
+## good, a small permanent boost of one kind (coins, luck, automation, errands; a Boosts part, see
+## GameState.boost_parts). Pure rules; the stickers you've opened are a list of page ids kept in
+## the save (GameState.stickers).
 ## A page is a part slot's page ("slot") or one body's finishes page ("finishes_of").
 ## A look only counts on its page once the first box it comes out of is in the shop (`rank` = the
 ## best box rank in the shop, GameState.book_rank; ALL counts every look): midnight looks can't

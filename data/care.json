@@ -1,0 +1,12 @@
+{
+	"_note": "Care (scripts/pets/care.gd): your active pet's food and mood. They only go down while the game is open (the full game, the corner panel or your pet out on the desktop), never while it's closed, and never below 'floor' (so the bars never look empty). 'drain_hours': hours to go from full to the floor. Above a buff's line ('above', strictly) it gives a boost part { source 'care', id, x } on its 'kind' (data/boosts.json), so a fed, happy pet earns a little more; under the line there's just no bonus, never a sad pet. Buffs only count while the game is open too: time closed (and the computer asleep) works without them, so errands and cranking caught up on load earn no care bonus. Each bar's small mark sits at its buff's 'above'. The kitchen errand keeps food up to its 'meal_upto' (70, never above the full tummy line), so the kitchen alone never gives a buff. A 'snack' (the feed button) costs 'capsules' of the machine's plain capsules (x Machine.coin_value, so it grows with the machine) and gives 'food' and 'mood'; a pet at 'full_at' food or more takes no snack. A pat gives 'mood', at most once every 'every' seconds (a pat in between is still a pat, just no mood). 'paws' (scripts/pets/quiet_paws.gd): your pet out on your windows acting out its job with poses only. 'hold': seconds a good pull is held over its head; 'hold_waits': how long a good pull waits for it to land (falling, dragged) before it's let go; 'hop': seconds an ordinary new pet takes to hop off; 'stint': seconds it stands at work before it walks again (random between the two); 'reach_until' / 'shake_from': where in the background opening (0 to 1) it stops facing the pile and holds the pack, and starts shaking it; 'tap_every': seconds per beat of the foot tap. A stint only starts where the side of the edge with more room fits the biggest prop as drawn (PawsView.widest()).",
+	"floor": 20,
+	"drain_hours": { "food": 4, "mood": 6 },
+	"buffs": [
+		{ "id": "full_tummy", "name": "full tummy", "stat": "food", "above": 70, "kind": "coins", "x": 1.2 },
+		{ "id": "happy", "name": "happy", "stat": "mood", "above": 70, "kind": "luck", "x": 1.1 }
+	],
+	"snack": { "capsules": 3, "food": 30, "mood": 5, "full_at": 99 },
+	"pat": { "mood": 8, "every": 30 },
+	"paws": { "hold": 4, "hold_waits": 10, "hop": 1.1, "stint": [20, 40], "reach_until": 0.3, "shake_from": 0.55, "tap_every": 0.4 }
+}

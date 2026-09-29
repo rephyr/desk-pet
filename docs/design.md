@@ -189,15 +189,54 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
 - **Page rewards** (built, data/book.json): each part page and the first finishes page ends with
   a gift spot; filling the page opens its reward sticker for good, a small permanent boost (coins,
   luck, automation speed or errands speed, +10% each for now). Stickers multiply with each other
-  and with toys (toys x1.25 x book x1.10 = x1.375). **Open:** stickers for the other bodies'
+  and with toys and knacks (toys x1.25 x book x1.10 = x1.375): each is a `book` part of its boost
+  kind, so the blanket (automation) also speeds your pet's box opening on screen. **Open:**
+  stickers for the other bodies'
   finishes pages.
 - **Open:** more completion rewards (per page, per body, per finish set).
 
 ## Care (active side)
 
 - The desktop pet: walks on your windows, reacts to pats, can be parked at home.
-- Needs (hunger, mood) are opportunities, not threats: caring gives temporary buffs
-  (e.g. well fed = +50% coins for 2 hours).
+- **Quiet paws** (built, care E, `QuietPaws`, data/care.json `paws`): out on your windows your
+  pet keeps doing its one job in place, with poses only, no text. Boxes job: now and then it
+  stops on an edge with room for the biggest prop for a 20-40 s stint beside a tiny pile of 3 packs;
+  its pose follows the background opening (faces the pile, holds a pack, shakes it), a puff when
+  one opens and an ordinary pet hops off over the pile. Crank job: the same stint beside a tiny
+  capsule machine whose handle turns with the crank and which hops on each capsule. A good pull
+  opened in the background: it stops (even mid-walk) and holds the pet over its head with
+  sparkles for 4 s (after landing if it's falling or dragged; let go after 10 s); it still waits
+  for the home screen. An adventure you sent waiting (a question or a postcard): it faces the
+  corner panel and taps a foot, before any job stint. Order: hold, foot tap, job, walking.
+  Setting (general page, "your pet at work"): **out on your windows** off / big things (the hold
+  and the foot tap) / everything (default), shown once the tutorial's done or your pet knows a
+  job. It only changes what's drawn: the background opening opens exactly the same packs at
+  every level, and it never touches the boxes switch or your pet's job.
+- **Presents** (built, care C, `Gifts`, data/gifts.json): one every 3 h of wall clock, open or
+  closed alike (only the clock counts, so closing never pays better), into a pocket of 3; no
+  streak, no calendar. Hidden until the boxes tab opens; the first comes 3 h after that. Opened,
+  a present holds a box of your newest tier (`GameState.newest_box_id`), sometimes (1 in 5) two,
+  and once toys are open sometimes (1 in 5) a toy capsule as well. Never bits, never a pet. Home
+  tab: your pet holds it wrapped in its paws (pink paper, lilac bow, a wobble now and then); while
+  it's busy with the pile or rummaging the present waits on the floor by its spot; more stack
+  small beside it (no number). Tap: a shake, a gold pop, the box flies to the pile ("+1 box"); a
+  toy shows the machine's prize card (unlock cards wait for it). Out on your windows (big things
+  and everything): standing on a window edge (not the bottom of the screen) it digs a present up
+  (1.6 s, dirt flying) and wears it on its head until you tap it; the tap opens it instead of a
+  pat (a paper burst, a tiny pack or capsule hops up); 30 s later it may dig up the next. At off
+  it doesn't dig: the presents wait on the home tab. Order: hold, dig, foot tap, job, walking.
+- Needs (food, mood) are opportunities, not threats (built, data/care.json, `Care`): they only
+  go down while the game is open (the full game, the corner panel or your pet out on the
+  desktop), never while it's closed, and never below 20. Above 70 food is a **full tummy**
+  (coins x1.2) and above 70 mood is **happy** (luck x1.1), both boost parts of the source
+  `care` (so the boost receipt shows them). The buffs only count while the game is open too:
+  errands and cranking caught up for time closed (or the computer asleep) earn no care bonus.
+  The kitchen errand keeps food up to 70, the small mark on the bars (each bar's mark is its
+  buff's line), so only your own snacks go past it. Lit bars get a brighter fill and a tiny
+  sparkle (tooltip: the buff's name). An empty bowl is just no bonus, never a sad pet. A snack
+  (feed) costs 3 capsules (x `Machine.coin_value`, so it grows with the machine): +30 food,
+  +5 mood; at 99 food it takes no snack. Pats are free: +8 mood, at most once every 30 s (a pat
+  in between is still a pat, just no mood).
 - Activities for when you're focused on the game: junkyard digging for parts, trading with NPCs,
   crafting. **Open:** exact list and order.
 - Desktop events while the pet is out: finding coins on window edges, catching falling things,
@@ -252,14 +291,14 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   (coins, xp, luck, capsule speed, fever, toy drops, adventure loot, errand speed, automation
   speed: your pet's crank and box opening and the workers' jobs, not adventures).
   Each thing boosting a kind is a part (toys, book stickers, your active pet's knacks, the kitchen
-  on errand speed) and
+  on errand speed, care: a full tummy on coins and a happy pet on luck) and
   parts from different sources MULTIPLY. Gear stays inside adventures (not a shared kind).
   **The receipt:** once coins have a boost, a dashed cyan "x1.51" tag sits by the coin pill (the
   coins total; hidden before). Tap it: a dark torn receipt "our boosts" prints out of a slot under
   it (260 x 320, date and time, a header per kind with its total, dotted-leader lines per thing
   doing it, "thank you, come again ♪" and a barcode). Shared boosts only (toys by edition name,
   "holo acorn"; the book's stickers, "a paint set"; your active pet's badges, "big ears + one big
-  eye"; the kitchen). More lines grow it down to the page bottom, then they scroll. Tap the tag again
+  eye"; the kitchen; "full tummy", "happy"). More lines grow it down to the page bottom, then they scroll. Tap the tag again
   (or switch tabs) to fold it. Numbers read "x1.25" ("x12.5", "x1.2k" later).
   **"Why so much?" tapes:** where coins land, boosts inside one system get a pink washi tape that
   opens a small torn slip: where the number started, one line per multiplier (lines at x1 left
@@ -416,9 +455,13 @@ Nobody is ever lost on an errand, and errands never bring rare parts or new plac
     burst, never the stream. Tools: a bigger jar, a wider slot.
   - **Kitchen:** brings nothing, every other job works faster: 0.3 x cooks / (cooks + 2) (1 cook
     +10%, 2 +15%, 4 +20%, 10 +25%, never past 30%), capped at what those cooks would add on a real
-    job ((1 + cooks / others)^crew_power − 1), so it never beats one. Each full meter is a meal for
+    job ((1 + cooks / others)^crew_power − 1), so it never beats one. It's a part of the errand
+    speed boost, so it multiplies with the tools' speed ((1 + tools) x (1 + kitchen)) and never
+    speeds the kitchen itself. Each full meter is a meal for
     your pet (+10 food, +2 mood), but only up to 70 (`meal_upto`, `Jobs.feed`): the kitchen keeps
-    it from going hungry, filling it up is still yours to do. No tools, no level. The note says
+    it from going hungry, filling it up is still yours to do (70 is the full tummy line, so the
+    kitchen alone never gives that buff; while the game is closed food stays put and the meals
+    made meanwhile top it up to 70 from there). No tools, no level. The note says
     "every job 12% faster"; with a big crew elsewhere it keeps one decimal ("0.4%") and never
     says "0% faster" (`Jobs.faster_words`).
   - **Scouting:** each full meter is a scout note (hold 2, a map case holds more; a full hold stops
@@ -520,7 +563,8 @@ All opt-in, with odds shown before confirming:
 
 ## Economy (first numbers, to be tuned)
 
-- Coins: passive trickle while running, a bigger share from adventures and active play.
+- Coins: the capsule machine (active), errands (idle, also while closed) and adventures. No
+  passive trickle any more (care A): a full tummy multiplies coins instead.
 - Starter box cost around a few minutes of active play.
 - Idle cap: about 24 h of rewards.
 

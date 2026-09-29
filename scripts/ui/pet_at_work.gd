@@ -8,8 +8,6 @@ extends Control
 ## aside (GameState.can_auto_open). Tapping it otherwise pats it.
 
 const PIXEL := 3
-const FOIL := Color("6b4fa0")
-const FOIL_LIGHT := Color("8e6fd0")
 
 var view := PetView.new()  # your pet
 var _held := PetView.new()  # the pet that just came out of a pack
@@ -119,7 +117,7 @@ func _draw() -> void:
 	if not GameState.knows_job("boxes"):
 		return  # your pet hasn't learned to open boxes yet
 	for i in 3:
-		_draw_pack(Vector2(_pile_x() + (i - 1) * 7.0, _floor() - 8.0 - i * 3.0), (i - 1) * 0.15, self, not stocked)
+		PawsView.draw_pack(self, Vector2(_pile_x() + (i - 1) * 7.0, _floor() - 8.0 - i * 3.0), (i - 1) * 0.15, 1.0, not stocked, UiTheme.PINK)
 
 
 
@@ -127,7 +125,7 @@ func _draw() -> void:
 func _draw_front() -> void:
 	if _work.pack_in_paws:
 		var wiggle := sin(_work.time * 30.0) * 0.25 if _work.job == PackJob.Job.SHAKE else 0.0
-		_draw_pack(Vector2(_work.x + view.facing * 10.0, _floor() - 14.0), wiggle, _front)
+		PawsView.draw_pack(_front, Vector2(_work.x + view.facing * 10.0, _floor() - 14.0), wiggle, 1.0, false, UiTheme.PINK)
 	if _work.puff > 0.0:
 		for i in 6:
 			var a := TAU * i / 6.0
@@ -141,17 +139,3 @@ func _draw_front() -> void:
 			var twinkle := 2.0 + 2.0 * absf(sin(_work.time * 5.0 + i))
 			_front.draw_line(at - Vector2(twinkle, 0), at + Vector2(twinkle, 0), Color("ffe08a"), 1.5)
 			_front.draw_line(at - Vector2(0, twinkle), at + Vector2(0, twinkle), Color("ffe08a"), 1.5)
-
-
-## A tiny card pack, like the big one you rip open yourself.
-func _draw_pack(at: Vector2, tilt: float, on: CanvasItem, empty := false) -> void:
-	on.draw_set_transform(at, tilt, Vector2.ONE)
-	if empty:
-		# a dotted outline where the packs will be once there are coins for them
-		on.draw_rect(Rect2(-6, -8, 12, 16), Color(FOIL_LIGHT, 0.35), false, 1.0)
-		on.draw_set_transform(Vector2.ZERO)
-		return
-	on.draw_rect(Rect2(-6, -8, 12, 16), FOIL)
-	on.draw_rect(Rect2(-6, -8, 12, 3), FOIL_LIGHT)
-	on.draw_rect(Rect2(-2, -1, 4, 3), UiTheme.PINK)
-	on.draw_set_transform(Vector2.ZERO)

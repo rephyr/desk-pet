@@ -1,7 +1,8 @@
 class_name Boosts
 extends RefCounted
 ## Boosts: how much one kind ("coins", "luck", "speed", ... see data/boosts.json) is multiplied right
-## now, and by what. Every source (toys now; the book, knacks, the kitchen later) gives parts
+## now, and by what. Every source (data/boosts.json "sources": toys, the book's stickers, your active
+## pet's knacks, the kitchen's cooks) gives parts
 ##   { "source": "toys", "id": "acorn:holo", "x": 1.14 }
 ## and the total is every part's x multiplied together, so boosts from different sources multiply.
 ## This is only the kind table and the arithmetic: GameState.boost_parts gathers the parts from each
@@ -25,6 +26,15 @@ static func kinds(catalog: Catalog) -> Array[String]:
 	var out: Array[String] = []
 	for k in catalog.boosts.kinds:
 		out.append(str(k.id))
+	return out
+
+
+## The kinds a trip packs when it sets off (marked "trip" in data/boosts.json; RunState.knacks).
+static func trip_kinds(catalog: Catalog) -> Array[String]:
+	var out: Array[String] = []
+	for k in catalog.boosts.kinds:
+		if bool(k.get("trip", false)):
+			out.append(str(k.id))
 	return out
 
 

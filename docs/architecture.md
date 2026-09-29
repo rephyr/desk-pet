@@ -30,14 +30,23 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `all_covers`), `part()` and `total()` (the product, 1.0 with none); it imports no game system.
 - `GameState.boost_parts` gathers the sources, since it holds their state: it checks the kind
   (`[]` and an error for an unknown one), then appends `Toys.parts(toys, catalog, kind, now)` (one
-  part per edition working now), `Book.parts(catalog, stickers, kind)` (one per open sticker),
-  `Knacks.parts(...)` (your active pet) and, for "errands" only, the kitchen
-  (`Boosts.part("kitchen", "kitchen", 1 + kitchen_bonus())`; `job_rate` divides it back out for
-  the kitchen itself). A new source appends its own `X.parts(...)` there, and calls
-  `_boosts_changed()` whenever its state changes (`check_book`, `_kitchen_changed`).
+  part per edition working now), `Book.parts(catalog, stickers, kind)` (one `book` part per open
+  sticker of that kind), `Knacks.parts(...)` (your active pet) and, for "errands" only, a `kitchen`
+  part (x `1 + kitchen_bonus()`, only when above 0), then `Care.parts(catalog, kind, hunger,
+  happiness)` (a `care` part per care buff on: full tummy on coins, happy on luck), in
+  data/boosts.json "sources" order. A source
+  calls `_boosts_changed()` whenever its state changes (`check_book` does); the kitchen calls
+  `_kitchen_changed()` (crews, tools, a pet's parts), which also drops the kept "errands" total.
+  `kitchen_bonus()` only reads the cooks' own speeds, never `boost()`, so there's no loop.
+- Where kinds are read: errands `job_rate` = `Jobs.rate(...)` x (1 + tools' speed) x
+  `boost("errands")`, divided by the kitchen part again for the kitchen job itself (it never
+  speeds itself); automation: `_work_for_automation` multiplies its seconds by
+  `boost("automation")` once (your pet's crank and the workers' machines and tables), the box
+  opening out of sight runs its timer x `boost("automation")`, `PackJob` shortens its breaks by it,
+  and the automation tab's crank line divides `crank_seconds` by it.
 - `boost()` is called every frame (errand meters, the machine), so totals are kept in `_boosts` and
-  cleared by `_boosts_changed()`: on `toys_changed`, a new game, a load, and the once-a-second tick
-  (plays run out). `boost_parts()` is never cached (the `boosts` dev step, the receipt).
+  cleared by `_boosts_changed()`: on `toys_changed` (also emitted when a play runs out), a book
+  sticker, a knack or knack-gate change, a new game and a load. `boost_parts()` is never cached (the `boosts` dev step, the receipt).
 - Game code only ever calls `boost()`; no source has its own multiplier call.
 - Knacks (D1) are the second source: `Knacks` (scripts/pets/knacks.gd, static, pure: a gate
   Callable goes in) works a pet's knacks out of its parts and finish; nothing is saved. `of` /
@@ -58,8 +67,9 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   off), `workers_speed` x `knack_own(.., "automation")`. The adventures tab keeps
   `trip_knacks(pets)` by a key of place, picks, gear, active pet, trip boosts and `knack_version`,
   so a big swarm isn't walked on every click. Trips pack `RunState.knacks` when they set off
-  (`GameState.trip_knacks`: boost x party share for trip, tough, safe, spots, finds, pickups,
-  treats; loot is the party share only), read with `run.knack(kind)` (1.0 when missing):
+  (`GameState.trip_knacks`: boost x party share for each kind marked `"trip": true` in
+  data/boosts.json, `Boosts.trip_kinds`: trip, tough, safe, spots, finds, pickups, treats; loot is
+  the party share only), read with `run.knack(kind)` (1.0 when missing):
   `AdventureRunner.walk_of` (boots then / trip), hurt and injured counts / tough, lost / safe,
   `Intel.roll(.., x)` lead chance x spots, trail pickups, treat zoom, extra bits and parts in
   `_boost_trip_loot`.
@@ -121,8 +131,23 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `fallen_keep`) plus `fallen_n`.
 - `Book` (scripts/pets/book.gd, pure rules, data/book.json) says which book page is full and what
   its reward sticker multiplies. `GameState.stickers` keeps the opened ones for good,
-  `check_book()` opens new ones (`sticker_opened`, shown by `UnlockPopup`), and
-  its stickers are the `book` boost source (coins, luck, errands, automation; see Boosts).
+  `check_book()` opens new ones (`sticker_opened`, shown by `UnlockPopup`) and clears the kept
+  boosts; each open sticker is a `book` part of its kind (`Book.parts`, see Boosts).
+- `Care` (scripts/pets/care.gd, pure rules, data/care.json): food (`GameState.hunger`) and mood
+  (`happiness`) as buffs. `Care.drain` lowers a stat for seconds the game is open (never below the
+  floor); `GameState._process` drains only when the frame is under `FRAME_GAP` (5 s, a longer gap
+  is the computer asleep), and `load_game` drains nothing for time closed. `Care.parts` gives the
+  `care` boost parts above a buff's line (strictly); `boost_parts` leaves them out while
+  `_loading` (time closed) or `_away` (`_without_care(work)` wraps the live sleep catch-ups in
+  `_work_jobs` / `_work_automation`), and `load_game` / `_without_care` drop the kept coins and
+  luck totals after. `GameState._check_care()` runs after every snack, pat, kitchen meal, load
+  and `debug_new_game`, and from `_process` only when `Care.crossed` says a drain tick crossed a
+  line (no per-frame allocation): when a buff turns on or off it drops the kept totals of the
+  buffs' kinds (coins, luck) and emits `changed`. `pat()` gives mood at most once every
+  care.json `pat.every` seconds (`_pat_at`, not saved). `feed()` pays `snack_price()`
+  (`Care.snack_price`: snack capsules x `Machine.coin_value`). The bars (`UiTheme.bar(color,
+  Care.line(catalog, stat))`, `UiTheme.light_bar`, `HomeTab.show_care`) draw a mark at their own
+  buff's line and light up while it's on (`CompactView._process` skips while hidden). There is no passive coin trickle.
 - `PetLook` is the placeholder art (pixel maps in code). Real art replaces `PetLook` only;
   `PetView` (draws a pet, blinking, squash, finish shader) and everything above stay the same.
 - Finish effects are one shader, `shaders/finish.gdshader`; `finishes.json` picks the mode.
@@ -146,7 +171,7 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `RunState.gear`), `ErrandsTab` (jobs: the corkboard; upgrades:
   `ErrandToolsView`, the pegboard of tools bought with coins; rules in `Jobs`, levels in
   `GameState.errand_tools`; tool and box prices are in capsules x `GameState.capsule_value()`
-  (`Jobs.tool_cost(tool, have, n, value)`, `GameState.box_price` / static `box_cost`); the kitchen speeds every other job via `GameState.kitchen_bonus()`, the `kitchen` source of the "errands" boost (its line: `Jobs.faster_words`),
+  (`Jobs.tool_cost(tool, have, n, value)`, `GameState.box_price` / static `box_cost`); the kitchen speeds every other job via `GameState.kitchen_bonus()`, a `kitchen` part of `boost("errands")` (its line: `Jobs.faster_words`),
   scouting fills `GameState.scout_notes` and `send_on_adventure` packs one onto `RunState.scout`,
   read by `Intel.roll` and `AdventureRunner`), `AutomationTab` (a card per job your pet can do, `JobScene` draws each one; rules in
   `Automation`, state in `GameState.automation`: what's taught, the one job it does, tools, the party; the workers page:
@@ -176,6 +201,29 @@ and the UI scale. The base class has plain Godot fallbacks; `HyprlandWindowSourc
 `hyprctl` (window rules can't be used because Godot sets titles after windows open, so it styles
 our windows with direct dispatches). The Windows port adds a `WindowsWindowSource` backed by a
 small GDExtension; nothing else should need to change.
+`WindowSource.home_rect()` says where the corner panel / full game window is (quiet paws faces it).
+
+`DesktopPet` (the pet out on your windows, in the overlay) owns a `QuietPaws` (scripts/pets: the
+brain; reads GameState, `step()` picks the pose NONE / BOXES / MACHINE / HOLD / WAIT and says when
+to stand still; listens to `opened_in_background` and `pet_cranked`; never opens or marks
+anything seen) and two `PawsView`s (behind and in front of the pet: pile, pack in paws, puff,
+tiny machine, sparkles, dust; own colours, and `PawsView.draw_pack` is also the corner panel's
+pile). `Settings.paws` (0..2, settings.json) picks how much shows. For tests a `DesktopPet` can run
+in stage mode (`stage` = a Control, with a `StageSource` of pretend window rects) inside the game
+window: the headless tests do that, and so does the dev-only `DeskStage` (DevDriver `desk on`).
+Neither `DesktopPet`, `QuietPaws` nor `PawsView` names an autoload, so the headless tests can load them.
+Presents: `Gifts` (scripts/pets/gifts.gd, pure rules, data/gifts.json) moves the clock
+`{ next_at, pocket }` on unix time only (`tick`), so open and closed pay the same;
+`GameState._tick_gifts` runs every second and once at the end of loading, and only while the boxes
+tab is open. `GameState.open_gift` rolls when opened (`Gifts.roll`), grants the boxes of
+`newest_box_id()` (the highest box tier in the shop) and a toy like the machine does (`Toys.roll` + `Toys.add`), emits `gifts_changed`.
+`QuietPaws` has a `DIG` pose and `worn` (priority hold > dig > wait > stint; `step`'s
+`window_edge` says it isn't on the screen's bottom); `DesktopPet.tap()` opens the worn present
+instead of a pat (`QuietPaws.popped`), and `PawsView.draw_present` draws the present (also the home
+tab's, in theme colours). `PetView.top()` is where the top of the pet's art is (for things on its head), from
+`PetLook.top_row()` (worked out from the Image when the picture is built, asked for lazily).
+`HomeTab.busy()` holds unlock popups while a present opens (like `MachineTab.busy()`), and
+`MachineTab.show_toy` is the toy prize card both the machine and presents use.
 
 ## Saving
 
@@ -237,6 +285,8 @@ openings only: `open_boxes`, the machine's pet box), `_place_new(uids)` (busy pa
 `room: "full"` / `homes_by_hand`. UI: `NewHomesStall`, `SortingCard`, the pets page's side column in
 `CollectionTab`, `Bookcase.stall_on` / `picked` (tap picks, tap again opens), `ShelfPlank` picked
 border and "sorted today" tag.
+Save v29 adds `gifts` ({ next_at, pocket }; nothing to convert: older saves with the boxes tab
+open start the present clock on load, the first 3 h later; built as v25 in its lane).
 
 ## Testing
 

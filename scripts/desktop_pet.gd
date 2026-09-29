@@ -2,6 +2,12 @@ class_name DesktopPet
 extends Node2D
 ## The pet out on the desktop. Lives inside the transparent overlay window and walks
 ## along the top edges of other windows (and the bottom of the screen).
+## Quiet paws (QuietPaws, PawsView): now and then it stands still on an edge and acts out its job
+## with poses only (Settings.paws picks how much), holds up a good pull, or taps its foot facing
+## the corner panel while an adventure waits. With a present waiting it digs one up on a window
+## edge and wears it on its head; a tap then opens the present instead of a pat.
+## For testing, `stage` can be a Control in the game window instead of the overlay (DeskStage):
+## its size, mouse and clicks are used, and nothing goes onto the real desktop.
 
 const WALK_SPEED := 60.0
 const GRAVITY := 1400.0
@@ -18,7 +24,11 @@ const HEART := [Vector2(-2, 0), Vector2(1, 0), Vector2(-3, 1), Vector2(-2, 1), V
 
 var source: WindowSource
 var overlay: Window
+var home: Window  # the corner panel / full game window (quiet paws faces it while an adventure waits)
+var stage: Control  # set instead of `overlay` to run inside a Control (tests, DeskStage)
 var pixel := 4  # screen pixels per art pixel; set before adding to the tree
+var paws: QuietPaws  # made in _ready if not set before
+var paws_level := -1  # quiet paws: -1 follows Settings.paws
 
 var _sprite := PetView.new()
 var _state := State.FALL
@@ -33,11 +43,33 @@ var _drag_offset := Vector2.ZERO
 var _moved := false
 var _hearts: Array[Vector3] = []  # (x, y, age)
 var _click_shape := PackedVector2Array([Vector2.ONE])  # last shape sent; starts as "unset"
+var _back: PawsView  # the pile or the machine, behind the pet
+var _front: PawsView  # the pack in its paws, the puff, sparkles, dust
+var _held := PetView.new()  # a good pull over its head, or a new pet hopping off
+var _side := 1  # which side of the pet its props stand on
+var _working := false
+var _home_rect := Rect2()  # where the corner panel is (read with the other windows, not every frame)
+var _snap := Vector2.ZERO  # this frame's nudge onto whole screen pixels
+var _props_shown := false  # the views drew something last frame (so they redraw once more to clear)
+var _settings: Node  # the Settings autoload (null in the headless tests)
 
 
 func _ready() -> void:
+	if paws == null:
+		paws = QuietPaws.new()
+	_back = PawsView.new(paws, false)
+	_front = PawsView.new(paws, true)
+	for v in [_back, _front]:
+		v.pixel = pixel
 	_sprite.pixel = pixel
+	_held.pixel = maxi(2, roundi(pixel * 2.0 / 3.0))
+	_held.visible = false
+	add_child(_back)
 	add_child(_sprite)
+	add_child(_held)
+	add_child(_front)
+	if is_inside_tree():
+		_settings = get_node_or_null("/root/Settings")
 	_refresh_world()
 
 
@@ -48,6 +80,15 @@ func set_pet(pet: Pet) -> void:
 ## Pet size on screen.
 func _size() -> Vector2:
 	return PetView.size_for(pixel)
+
+
+## The space it walks around in: the overlay, or the stage.
+func _area() -> Vector2:
+	return stage.size if stage else Vector2(overlay.size)
+
+
+func _mouse() -> Vector2:
+	return stage.get_local_mouse_position() if stage else overlay.get_mouse_position()
 
 
 ## Drops the pet in at a point (overlay pixels), e.g. under the mouse.
@@ -67,9 +108,13 @@ func _process(delta: float) -> void:
 		State.IDLE: _idle(delta)
 		State.WALK: _walk(delta)
 		State.FALL: _fall(delta)
-		State.DRAG: position = overlay.get_mouse_position() + _drag_offset
+		State.DRAG: position = _mouse() + _drag_offset
 
-	_sprite.position = position.round() - position  # draw on whole pixels, no shimmer while walking
+	_snap = position.round() - position  # draw on whole pixels, no shimmer while walking
+	_sprite.position = _snap
+	_back.position = _snap
+	_front.position = _snap
+	_step_paws(delta)
 	_sprite.walking = _state == State.WALK
 	_sprite.facing = _dir
 	if not _hearts.is_empty():
@@ -84,6 +129,14 @@ func _process(delta: float) -> void:
 func _idle(delta: float) -> void:
 	if not _stay_supported():
 		return
+	if paws.just_ended:  # done at work for now: off for a walk
+		paws.just_ended = false
+		_state = State.WALK
+		_dir = [-1, 1].pick_random()
+		_timer = randf_range(2.0, 7.0)
+		return
+	if paws.wants_still:
+		return  # at work (or holding up a good pull): the walk waits
 	_timer -= delta
 	if _timer <= 0.0:
 		_state = State.WALK
@@ -96,11 +149,15 @@ func _walk(delta: float) -> void:
 	if seg == null:
 		_start_fall()
 		return
+	if paws.pose == QuietPaws.Pose.HOLD:  # a good pull: stop right here and show it
+		_state = State.IDLE
+		_timer = randf_range(1.0, 3.0)
+		return
 	position.y = seg.z
 	position.x += _dir * WALK_SPEED * (pixel / 4.0) * delta
 	var half := _size().x * 0.3
 	if position.x < seg.x + half or position.x > seg.y - half:
-		if seg.z < overlay.size.y - 2 and randf() < 0.4:
+		if seg.z < _area().y - 2 and randf() < 0.4:
 			position.x += _dir * half * 2.0  # hop off the edge
 			_start_fall()
 			return
@@ -117,7 +174,7 @@ func _fall(delta: float) -> void:
 	_vel.y += GRAVITY * delta
 	position += _vel * delta
 	_vel.x = move_toward(_vel.x, 0.0, 600.0 * delta)
-	position.x = clampf(position.x, 20.0, overlay.size.x - 20.0)
+	position.x = clampf(position.x, 20.0, _area().x - 20.0)
 	# land on the first platform the feet crossed this frame
 	var best = null
 	for p in _platforms:
@@ -162,8 +219,9 @@ func _refresh_world() -> void:
 		_hidden = fullscreen
 		visible = not _hidden
 	var rects := source.get_windows(overlay)
-	var w := float(overlay.size.x)
-	var h := float(overlay.size.y)
+	_home_rect = source.home_rect(home, overlay)
+	var w := _area().x
+	var h := _area().y
 	var min_y := _size().y  # the pet has to fit above the edge
 	_platforms.clear()
 	for i in rects.size():
@@ -198,12 +256,17 @@ func _subtract(spans: Array[Vector2], a: float, b: float) -> Array[Vector2]:
 
 func _body_rect() -> Rect2:
 	var s := _size()
-	return Rect2(position - Vector2(s.x / 2.0, s.y + pixel * 2), Vector2(s.x, s.y + pixel * 2))
+	var up := s.y + pixel * 2
+	if paws != null and paws.worn:
+		up += PawsView.PRESENT_H * PawsView.present_zoom(pixel)  # the present on its head is tappable too
+	return Rect2(position - Vector2(s.x / 2.0, up), Vector2(s.x, up))
 
 
 ## Only the pet catches clicks; everything else on the overlay clicks through.
 ## Setting the shape is not free (the OS reshapes the window), so only do it when it changes.
 func _update_click_area() -> void:
+	if stage:
+		return  # inside the game window: it gets its clicks like everything else there
 	var shape: PackedVector2Array
 	if _state == State.DRAG:
 		shape = PackedVector2Array()  # the whole overlay catches the drag
@@ -218,8 +281,12 @@ func _update_click_area() -> void:
 
 
 func _input(event: InputEvent) -> void:
-	if _hidden:
+	if _hidden or not visible:
 		return
+	if stage:
+		if not stage.is_visible_in_tree():
+			return
+		event = stage.make_input_local(event)
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed and _body_rect().has_point(event.position):
 			_press_pos = event.position
@@ -229,7 +296,7 @@ func _input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		elif not event.pressed and _state == State.DRAG:
 			if not _moved:
-				_pat()
+				tap()
 			_vel = Vector2.ZERO
 			_state = State.FALL
 			get_viewport().set_input_as_handled()
@@ -238,8 +305,95 @@ func _input(event: InputEvent) -> void:
 			_moved = true
 
 
+# ---- quiet paws ----------------------------------------------------------------
+
+## Moves quiet paws on a frame and poses the pet and its props.
+func _step_paws(delta: float) -> void:
+	var grounded := _state == State.IDLE or _state == State.WALK
+	var seg = _support() if grounded else null
+	# the side with more room (where the props go) must fit the biggest prop, as it's drawn
+	var free: float = maxf(seg.y - position.x, position.x - seg.x) if seg != null else 0.0
+	var room: bool = seg != null and free >= PawsView.widest() * pixel / 3.0
+	var window_edge: bool = seg != null and seg.z < _area().y - 2.0  # not the bottom of the screen
+	paws.step(delta, grounded and seg != null, _state == State.IDLE, room, level(), window_edge)
+	var working := paws.stint_left > 0.0
+	if working and not _working and seg != null:
+		_side = 1 if seg.y - position.x >= position.x - seg.x else -1  # the side with more room
+	_working = working
+	match paws.pose:
+		QuietPaws.Pose.BOXES, QuietPaws.Pose.MACHINE:
+			_dir = _side
+		QuietPaws.Pose.WAIT:
+			var at := _home_rect
+			if at.has_area() and absf(at.get_center().x - position.x) > 2.0:
+				_dir = 1 if at.get_center().x > position.x else -1
+	if paws.squash > 0.0:
+		_sprite.squash = maxf(_sprite.squash, paws.squash)
+		paws.squash = 0.0
+	# the pet in its paws: held up over its head, or hopping off
+	var showing := paws.held != null and (paws.pose == QuietPaws.Pose.HOLD or paws.hop > 0.0)
+	if _held.pet != paws.held:
+		_held.pet = paws.held
+	_held.visible = showing
+	if showing:
+		var k := pixel / 3.0
+		if paws.pose == QuietPaws.Pose.HOLD:
+			var bob := roundf(sin(paws.time * 4.0) * 2.0 * k)
+			var over := _present_h() if paws.worn else 0.0  # held up over the present on its head
+			_held.position = _snap + Vector2(0, -_size().y + 4.0 * k + bob - over).round()
+			_held.facing = _dir
+			_held.modulate.a = 1.0
+			_held.walking = false
+		else:
+			# out of the pack in its paws, over the pile and away
+			var t := paws.hop
+			_held.facing = _side
+			_held.walking = true
+			_held.position = _snap + Vector2(_side * (14.0 + t * 90.0) * k, -absf(sin(t * PI * 2.5)) * 22.0 * k).round()
+			_held.modulate.a = 1.0 - t * t
+	_back.side = _side
+	_back.facing = _dir
+	_front.side = _side
+	_front.facing = _dir
+	_front.held_at = _held.position - _snap  # the views sit at _snap too
+	_front.head = Vector2(0, _sprite.top() + pixel)  # nestled between its ears (views and sprite both sit at _snap)
+	# the props only change while there's a pose or a puff; one more redraw clears the last frame
+	var shown := paws.pose != QuietPaws.Pose.NONE or paws.puff > 0.0 or paws.worn or paws.pop > 0.0
+	if shown or _props_shown:
+		_back.queue_redraw()
+		_front.queue_redraw()
+	_props_shown = shown
+
+
+## How much quiet paws shows: Settings.paws, unless a test set it. (The autoload is looked up once
+## in _ready, so the headless tests, which have none, can load this.)
+func level() -> int:
+	if paws_level >= 0:
+		return paws_level
+	return int(_settings.paws) if _settings else QuietPaws.EVERYTHING
+
+
+## Which way it's facing (1 right, -1 left), for tests.
+func facing() -> int:
+	return _dir
+
+
+## A present's height on its head, in screen pixels.
+func _present_h() -> float:
+	return PawsView.PRESENT_H * PawsView.present_zoom(pixel)
+
+
+## A click on the pet (not a drag): opens the present on its head, or else it's a pat.
+func tap() -> void:
+	if paws.worn and paws.gs.gifts_waiting() > 0:
+		paws.popped(paws.gs.open_gift())
+		_sprite.squash = 0.6
+		return
+	_pat()
+
+
 func _pat() -> void:
-	GameState.pat()
+	paws.gs.pat()
 	_sprite.squash = 0.6
 	_hearts.append(Vector3(randf_range(-10, 10), 0, 0))
 

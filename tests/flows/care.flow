@@ -1,0 +1,31 @@
+# Care as buffs (data/care.json): food and mood bars with a small tick at 70; above it they light up
+# (brighter fill, a tiny sparkle, the buff's name as tooltip) and give full tummy (coins x1.2) and
+# happy (luck x1.1) as `care` boost parts. A snack costs 3 capsules' worth. Home card and corner panel.
+from after_tutorial
+view full
+tab home
+wait 1
+expect fits
+care 40 40
+wait 1
+shot plain
+boosts                                # no care parts
+coins 100
+click "feed*"
+wait 1
+shot fed                              # food 70: on the tick, not lit yet
+click "feed*"
+wait 1
+shot full                             # food 100: lit, sparkle
+care 90 90
+wait 1
+shot both
+boosts                                # care full_tummy x1.200 (coins), care happy x1.100 (luck)
+view corner
+wait 1
+shot corner
+care 40 40
+wait 1
+shot corner_plain
+view full
+expect fits

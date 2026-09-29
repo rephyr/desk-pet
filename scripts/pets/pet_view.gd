@@ -33,10 +33,22 @@ var _blink := randf_range(1.0, 4.0)
 var _material := _make_material()
 var _texture: Texture2D
 var _blink_texture: Texture2D
+var _top_row := -1  # the first row of its picture with anything in it (-1: not looked up yet)
 
 
 static func size_for(pixel_size: int) -> Vector2:
 	return Vector2(PetLook.W, PetLook.H) * pixel_size
+
+
+## Where the top of its picture is right now, from its feet (negative: up), with the bob and the
+## squash (for things it wears on its head).
+func top() -> float:
+	var bob := 0.0
+	if animated:
+		bob = roundf(-absf(sin(_time * 12.0)) * pixel if walking else sin(_time * 2.0) * 0.5 * pixel)
+	if _top_row < 0:
+		_top_row = PetLook.top_row(pet.parts, pet.sewn) if pet != null else 0
+	return bob - (size_for(pixel).y - _top_row * pixel) * (1.0 - squash * 0.3)
 
 
 static func _make_material() -> ShaderMaterial:
@@ -73,6 +85,7 @@ func _refresh() -> void:
 		return
 	_texture = PetLook.texture_for(pet.parts, false, pet.sewn)
 	_blink_texture = PetLook.texture_for(pet.parts, true, pet.sewn)
+	_top_row = -1
 	var mode: int = SILHOUETTE_MODE if silhouette else int(Catalog.shared().finish(pet.finish).shader)
 	_material.set_shader_parameter("mode", mode)
 	material = _material if mode != 0 else null

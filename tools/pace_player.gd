@@ -13,7 +13,7 @@ extends RefCounted
 ##   _automation: the lines of GameState._work_for_automation (so your pet and the workers count apart,
 ##     book stickers included)
 ##   _zoom: GameState._zoom_runs (treats on the trail)
-##   _passive: the coin and hunger/happiness decay part of GameState._process
+##   _passive: the food and mood drain of GameState._process
 ## Saving is off (a scratch save path), and the game starts fresh.
 ##
 ## Styles: "steady" pulls the lever nonstop, keeps a party out, answers every event and spends
@@ -27,7 +27,7 @@ const MAX_PETS := 3000  # the sim stops buying boxes here (keeps it quick; the r
 const REBALANCE_EVERY := 300.0  # seconds between moving every errand pet round again
 const WINDOW := 600.0  # seconds per row of the coins-a-minute table
 const GATE_NODES := ["chute2"]  # machine nodes off the repair/drops branches that still count as gates
-const SOURCES := ["lever", "errands", "adventures", "auto trips", "pet crank", "workers", "rummage", "passive"]
+const SOURCES := ["lever", "errands", "adventures", "auto trips", "pet crank", "workers", "rummage"]
 
 var style := "steady"
 var treats := false  # the player also tosses every treat on its own trips (GameState.toss_treat, the pouch counts)
@@ -48,7 +48,6 @@ var _recent: Array[float] = []  # coins earned in each of the last 120 seconds (
 var _recent_i := 0
 var _fever_end := 0.0  # sim second the machine's fever ends
 var _rummage_at := {}  # spot id -> sim second it's full again
-var _coin_timer := 0.0
 var _next_pull := 0.0
 var _next_decide := 0.0
 var _next_rebalance := 0.0
@@ -133,16 +132,16 @@ func _lever() -> void:
 			_fever_end = t + (gs.fever_until - real)
 
 
-## The passive coin (GameState._process): one every COIN_INTERVAL at full care, slower when your
-## pet is hungry or sad. The player feeds and pats it now and then.
+## The care drain (GameState._process): food and mood go down while the game is open (no passive
+## coin any more). The player feeds and pats it now and then.
 func _passive() -> void:
-	gs.hunger = maxf(gs.STAT_FLOOR, gs.hunger - gs.HUNGER_DECAY)
-	gs.happiness = maxf(gs.STAT_FLOOR, gs.happiness - gs.HAPPY_DECAY)
-	_coin_timer += lerpf(0.4, 1.0, (gs.happiness + gs.hunger) / 200.0)
-	if _coin_timer >= gs.COIN_INTERVAL:
-		_coin_timer -= gs.COIN_INTERVAL
-		gs.coins += 1
-		_earn("passive", 1)
+	var food := Care.drain(catalog, "food", gs.hunger, 1.0)
+	var mood := Care.drain(catalog, "mood", gs.happiness, 1.0)
+	var crossed := Care.crossed(catalog, gs.hunger, gs.happiness, food, mood)
+	gs.hunger = food
+	gs.happiness = mood
+	if crossed:
+		gs._check_care()
 
 
 ## What GameState._work_for_automation does in a second, split so your pet's crank and the
@@ -409,10 +408,12 @@ func _care() -> void:
 	if t < _next_care:
 		return
 	_next_care = t + 60.0
-	while gs.hunger < 60.0 and gs.coins >= gs.FEED_COST:
-		gs.feed()
-		_spend_on("food", gs.FEED_COST)
+	var price: int = gs.snack_price()
+	while gs.hunger <= 70.0 and gs.feed():  # keeps it above the full tummy line
+		_spend_on("food", price)
+		price = gs.snack_price()
 	if gs.happiness < 80.0:
+		gs._pat_at = 0.0  # the pat cooldown runs on the real clock; the sim pats once a minute
 		gs.pat()
 
 

@@ -509,7 +509,7 @@ func _refresh_send() -> void:
 ## packed gear, your active pet, the boosts on trip kinds and the knack version.
 func _trip_key(packed: Dictionary) -> String:
 	var boosts: Array[String] = []
-	for kind: String in GameState.TRIP_KNACKS:
+	for kind: String in Boosts.trip_kinds(GameState.catalog):
 		boosts.append(str(GameState.boost(kind)))
 	return "%s:%s:%s:%s:%s:%d" % [_location_id, ",".join(_picked.keys()), str(packed), GameState.collection.active_uid,
 		",".join(boosts), GameState.knack_version]

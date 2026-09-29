@@ -14,7 +14,7 @@ func _init() -> void:
 	rng.seed = 1
 	var roller := PetRoller.new(catalog, rng)
 	var box_price := float(catalog.box("starter").capsules)  # at the start (a capsule worth 1 coin)
-	print("one pet (a common), %d trips each. a box costs %d. passive income is about 6 coins a minute." % [TRIPS, box_price])
+	print("one pet (a common), %d trips each. a box costs %d." % [TRIPS, box_price])
 	print("%-10s %-9s %8s %8s %8s %8s %8s" % ["place", "style", "coins", "per min", "parts", "boxes", "lost"])
 	for location in catalog.locations:
 		if not location.has("pool") and location.get("type", "") == "dungeon":
@@ -47,6 +47,7 @@ func _init() -> void:
 	_rummage(catalog)
 	_box_tiers(catalog, rng)
 	_spots(catalog)
+	_gifts(catalog)
 	quit()
 
 
@@ -106,6 +107,19 @@ func _spots(catalog: Catalog) -> void:
 		print("%-11s %10s %10s %10s %10s %10s %10s  %s" % row)
 
 
+## Presents (data/gifts.json), every one opened as it comes: the most they bring a day. They're a
+## little extra, never the way to get boxes.
+func _gifts(catalog: Catalog) -> void:
+	var cfg: Dictionary = catalog.gifts
+	var per_day := Gifts.per_day(cfg)
+	var boxes := per_day * (1.0 + float(cfg.two_boxes))
+	var price := float(catalog.box("starter").capsules)  # at the start (a capsule worth 1 coin)
+	print("\npresents, one every %.1f h, a pocket of %d" % [Gifts.every(cfg) / 3600.0, Gifts.cap(cfg)])
+	print("%.1f presents a day at most: %.1f boxes (%.0f coins of starter boxes), %.1f toy capsules once toys are open"
+		% [per_day, boxes, boxes * price, per_day * float(cfg.toy)])
+	print("away a whole day: %d presents waiting (the pocket), %.1f boxes" % [Gifts.cap(cfg), Gifts.cap(cfg) * (1.0 + float(cfg.two_boxes))])
+
+
 ## Rummaging in your pet's room, tapping every spot as soon as it's ready: the most it can bring.
 ## It should stay well under a sensible garden trip (it's something to do while trips are out).
 func _rummage(catalog: Catalog) -> void:
@@ -155,8 +169,9 @@ func _errands(catalog: Catalog, rng: RandomNumberGenerator) -> void:
 			100.0 * Jobs.kitchen_bonus(kitchen, cooks, 100, power), 100.0 * Jobs.kitchen_bonus(kitchen, cooks, 1000, power),
 			100.0 * Jobs.kitchen_bonus(kitchen, cooks, 0, power)])
 	# the kitchen's meals against your pet getting hungry (it only tops food up to meal_upto)
-	var decay := float(load("res://scripts/game_state.gd").HUNGER_DECAY) * 3600.0
-	print("kitchen meals: food an hour vs %.0f an hour lost to hunger, meals stop at %.0f" % [decay, float(kitchen.get("meal_upto", 100.0))])
+	var decay := 100.0 / float(catalog.care.drain_hours.food)
+	print("kitchen meals: food an hour vs %.0f an hour lost to hunger while open, meals stop at %.0f (full tummy above %.0f)" % [decay,
+		float(kitchen.get("meal_upto", 100.0)), float(Care.buff_of(catalog, "food").above)])
 	for cooks in [1, 3, 10]:
 		var food := Jobs.rate(kitchen, cooks, 0.95, power) * 3600.0 * float(kitchen.pay.meal)
 		print("  %2d cooks: +%.0f food an hour" % [cooks, food])

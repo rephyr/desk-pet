@@ -4,7 +4,7 @@ extends SceneTree
 ## repair tree, adventures and bits, errands (every job, its tools and goals), gear bought with xp,
 ## automation and workers. It plays through the real functions and data/, so it can be run again
 ## after most rule or data changes; but a few rules are copied into pace_player.gd and must be kept in
-## step by hand (the automation tick, treats on the trail, the passive coin and care decay, and the
+## step by hand (the automation tick, treats on the trail, the care drain, and the
 ## timestamps it moves onto its own clock: trips, fever, rummage). See pace_player.gd's header. Prints:
 ##   1. milestones: the median minute each thing first happened, and how many players got there
 ##   2. coins a minute by source every 10 minutes (and the errands job by job)

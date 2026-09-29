@@ -109,15 +109,29 @@ const OUTLINE := Color("2a1033")
 const CHEEK := Color("ff79c6")
 
 static var _cache := {}  # look key -> ImageTexture
+static var _top_rows := {}  # look key -> the first row of its picture with anything in it
 
 
 ## The pet's picture. Finish effects are not baked in (see shaders/finish.gdshader).
 ## `sewn` lists slots whose part was sewn on: they get stitch marks.
 static func texture_for(parts: Dictionary, blink := false, sewn: Array = []) -> ImageTexture:
-	var key := "%s|%s|%s|%s|%s|%s|%s" % [parts.body, parts.palette, parts.pattern, parts.eyes, parts.accessory, blink, ",".join(sewn)]
+	var key := _key(parts, blink, sewn)
 	if not _cache.has(key):
-		_cache[key] = ImageTexture.create_from_image(_build(parts, blink, sewn))
+		var img := _build(parts, blink, sewn)
+		_cache[key] = ImageTexture.create_from_image(img)
+		_top_rows[key] = img.get_used_rect().position.y
 	return _cache[key]
+
+
+## The first row of the pet's picture with anything in it (ears, a hat...), worked out once when
+## the picture is made.
+static func top_row(parts: Dictionary, sewn: Array = []) -> int:
+	texture_for(parts, false, sewn)
+	return _top_rows[_key(parts, false, sewn)]
+
+
+static func _key(parts: Dictionary, blink: bool, sewn: Array) -> String:
+	return "%s|%s|%s|%s|%s|%s|%s" % [parts.body, parts.palette, parts.pattern, parts.eyes, parts.accessory, blink, ",".join(sewn)]
 
 
 static func _build(parts: Dictionary, blink: bool, sewn: Array = []) -> Image:

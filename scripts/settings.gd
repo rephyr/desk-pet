@@ -25,6 +25,11 @@ var max_fps := 0  # frame rate cap, 0 for none
 var vsync := true
 var music_volume := 0.8  # 0 to 1: the hum under pack openings (and music later)
 var sound_volume := 0.8  # 0 to 1: everything else you hear
+## How much your pet acts out its job out on your windows (QuietPaws): 0 off, 1 big things,
+## 2 everything. Only what's drawn: it never changes what gets opened or cranked.
+const PAWS_LEVELS: Array[String] = ["off", "big things", "everything"]
+const PAWS_DEFAULT := 2
+var paws := PAWS_DEFAULT
 
 
 func _init() -> void:
@@ -40,6 +45,12 @@ func _init() -> void:
 	vsync = bool(data.get("vsync", vsync))
 	music_volume = clampf(float(data.get("music_volume", music_volume)), 0.0, 1.0)
 	sound_volume = clampf(float(data.get("sound_volume", sound_volume)), 0.0, 1.0)
+	paws = paws_from(data)
+
+
+## The quiet paws level in a settings file's data (the default when it has none).
+static func paws_from(data: Dictionary) -> int:
+	return clampi(int(data.get("paws", PAWS_DEFAULT)), 0, PAWS_LEVELS.size() - 1)
 
 
 func _ready() -> void:
@@ -78,6 +89,7 @@ func _apply_audio() -> void:
 func set_value(key: String, value: Variant) -> void:
 	set(key, value)
 	reveal_speed = clampf(reveal_speed, MIN_SPEED, MAX_SPEED)
+	paws = clampi(paws, 0, PAWS_LEVELS.size() - 1)
 	SaveFile.write(file_path, {
 		"reveal_speed": reveal_speed,
 		"skip_single_reveal": skip_single_reveal,
@@ -90,6 +102,7 @@ func set_value(key: String, value: Variant) -> void:
 		"vsync": vsync,
 		"music_volume": music_volume,
 		"sound_volume": sound_volume,
+		"paws": paws,
 	})
 	changed.emit()
 	if key in ["color_theme", "font_set", "icon_style"]:

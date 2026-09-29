@@ -375,7 +375,8 @@ static func spacer() -> Control:
 	return c
 
 
-static func bar(color: Color) -> ProgressBar:
+## A thin rounded bar. `tick` (0..100) draws a small mark at that value (the care bars' line).
+static func bar(color: Color, tick := -1.0) -> ProgressBar:
 	var b := ProgressBar.new()
 	b.show_percentage = false
 	b.custom_minimum_size = Vector2(0, 10)
@@ -383,7 +384,39 @@ static func bar(color: Color) -> ProgressBar:
 	b.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	b.add_theme_stylebox_override("background", box(DEEP, LINE, 5, 2, 0))
 	b.add_theme_stylebox_override("fill", box(color, color, 5, 2, 0))
+	b.set_meta("color", color)
+	if tick >= 0.0:
+		b.set_meta("tick", tick)
+		b.draw.connect(_bar_marks.bind(b))
 	return b
+
+
+## Lights a bar up (brighter fill, a tiny sparkle at its end) while `lit`; `tip` is its tooltip then.
+static func light_bar(b: ProgressBar, lit: bool, tip := "") -> void:
+	if bool(b.get_meta("lit", false)) == lit:
+		return
+	b.set_meta("lit", lit)
+	var color: Color = b.get_meta("color", PINK)
+	var fill := color.lightened(0.3) if lit else color
+	b.add_theme_stylebox_override("fill", box(fill, fill, 5, 2, 0))
+	b.tooltip_text = tip if lit else ""
+	b.queue_redraw()
+
+
+## Drawn over a bar: its tick mark, and the sparkle when it's lit.
+static func _bar_marks(b: ProgressBar) -> void:
+	var w := b.size.x
+	var h := b.size.y
+	var x := roundf(w * float(b.get_meta("tick")) / 100.0)
+	b.draw_rect(Rect2(x - 1.0, -2.0, 2.0, h + 4.0), Color(TEXT, 0.7))
+	if bool(b.get_meta("lit", false)):
+		var at := Vector2(clampf(w * float(b.value) / 100.0 - 4.0, 4.0, w - 4.0), h * 0.5)
+		for layer in [[8.0, 3.0, DEEP], [6.0, 1.8, GOLD]]:  # a dark rim, so it shows on a light fill
+			var pts := PackedVector2Array()
+			for i in 8:
+				var a := TAU * i / 8.0 - PI / 2.0
+				pts.append(at + Vector2(cos(a), sin(a)) * (layer[0] if i % 2 == 0 else layer[1]))
+			b.draw_colored_polygon(pts, layer[2])
 
 
 ## Dragging this control moves the whole window (used for headers).

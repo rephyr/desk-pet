@@ -22,19 +22,16 @@ signal sticker_opened(page_id: String)  # a collection book page filled up: its 
 signal knacks_changed  # a knack gate may have opened (an unlock, a machine fix, the tutorial moved on)
 signal room_full  # you tried to open a box but the room is full (it waits on the pile)
 signal homes_paid(boxes: int)  # pets left for new homes and their points filled this many boxes
+signal gifts_changed  # a present came into the pocket or one was opened (see Gifts)
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
 ## Headless tests set this before making a GameState: it starts empty and never loads or saves
 ## (a test turns saving on with its own save_path).
 static var testing := false
-const SAVE_VERSION := 28
+const SAVE_VERSION := 29
 const WORKER_BOXES_MAX := 2000  # box workers open at most this many boxes in one go (every pet is rolled)
-const STAT_FLOOR := 20.0
-const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
-const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
-const COIN_INTERVAL := 10.0  # seconds per coin at full happiness
 const OFFLINE_CAP := 12.0 * 3600.0
-const FEED_COST := 3
+const FRAME_GAP := 5.0  # a frame this long means the computer slept: counts as closed (no care drain)
 const FIRST_PET_BOX := "starter"
 const DEBUG_COINS := 1000
 const BACKGROUND_PACK_EVERY := 8.0  # seconds per pack your pet opens out of sight (its animation takes about this)
@@ -49,8 +46,8 @@ var gear := {}  # gear id -> level, bought with xp (the adventures tab's upgrade
 ## The collection book's reward stickers you've opened (page ids, see Book and data/book.json).
 ## Kept for good: the boost reads this list, not how full the page is now.
 var stickers: Array[String] = []
-var hunger := 80.0  # 100 = full
-var happiness := 80.0
+var hunger := 70.0  # food, 100 = full; starts on the tick, no buff yet (only drains while open, see Care)
+var happiness := 70.0  # mood
 var pet_out := false
 var bag := {}  # box id -> unopened boxes you own (found on adventures)
 var parts := {}  # "slot:part id" -> how many you have (found on adventures, for grafting later)
@@ -129,6 +126,9 @@ var machine := { "pulls": 0, "lit": 0, "bought": {} }
 var fever_until := 0.0  # unix time the machine's fever ends (not saved: it's ten seconds)
 ## Capsule toys you own and the ones your pet is playing with, see Toys and data/toys.json
 var toys := Toys.fresh()
+## Presents, one every few hours of wall clock (see Gifts and data/gifts.json): { next_at, pocket }
+var gifts := Gifts.fresh()
+var debug_gift_roll := ""  # debug builds: the next present holds "one" box, "two" or a "toy" as well
 var bits := {}  # machine bits pets bring home from adventures: bit id (gear, spring, bolt, glass) -> how many
 ## What your pet does for you (the automation tab), see Automation and data/automation.json
 var automation := Automation.fresh()
@@ -152,7 +152,9 @@ var tutorial := "done"
 var _roller := PetRoller.new(catalog)
 var _rng := RandomNumberGenerator.new()
 var _can_save := true  # false if the save came from a newer version of the game
-var _coin_timer := 0.0
+var _care_on: Array[String] = []  # care buffs on right now (see _check_care)
+var _away := false  # working through time the computer slept: no care buffs (see _without_care)
+var _pat_at := -INF  # when a pat last gave mood (unix seconds; data/care.json pat.every)
 var _save_timer := 0.0
 var _run_timer := 0.0
 var _pack_timer := 0.0  # your pet opening the pile out of sight, see _open_in_background()
@@ -206,6 +208,9 @@ func _init() -> void:
 	collection.pets_removed.connect(func(uids):
 		_take_off(uids)
 		_take_off_workers(uids)
+		for per: Dictionary in _knack_own.values():
+			for uid in uids:
+				per.erase(uid)
 		pinned = pinned.filter(func(uid): return not uid in uids)
 		_rest_changed())
 	collection.pets_added.connect(func(pets: Array[Pet]):
@@ -214,15 +219,15 @@ func _init() -> void:
 
 
 func _process(delta: float) -> void:
-	hunger = maxf(STAT_FLOOR, hunger - HUNGER_DECAY * delta)
-	happiness = maxf(STAT_FLOOR, happiness - HAPPY_DECAY * delta)
-
-	# happy, fed pets earn faster; an ignored one still earns a little
-	_coin_timer += delta * lerpf(0.4, 1.0, (happiness + hunger) / 200.0)
-	if _coin_timer >= COIN_INTERVAL:
-		_coin_timer -= COIN_INTERVAL
-		coins += 1
-		changed.emit()
+	# food and mood only go down while the game is open (a long frame gap is the computer asleep)
+	if delta <= FRAME_GAP:
+		var food := Care.drain(catalog, "food", hunger, delta)
+		var mood := Care.drain(catalog, "mood", happiness, delta)
+		var crossed := Care.crossed(catalog, hunger, happiness, food, mood)
+		hunger = food
+		happiness = mood
+		if crossed:
+			_check_care()
 
 	_open_in_background(delta)
 	_zoom_runs(delta)
@@ -233,7 +238,7 @@ func _process(delta: float) -> void:
 		_advance_runs()
 		_work_jobs(Time.get_unix_time_from_system())
 		_work_automation(Time.get_unix_time_from_system())
-		_boosts_changed()  # a play may have just run out
+		_tick_gifts(Time.get_unix_time_from_system())
 		var ended := Toys.finish_plays(toys, Time.get_unix_time_from_system())
 		if not ended.is_empty():
 			toys_changed.emit()
@@ -791,6 +796,7 @@ func follow_lead(location_id: String) -> void:
 		return
 	spotted.erase(location_id)
 	unlocks["location:" + location_id] = true
+	_knack_gates_changed()  # a knack kind may be gated on the place
 	adventures_changed.emit()
 	changed.emit()
 	save_game()
@@ -829,6 +835,7 @@ func follow_rumour(rumour_id: String) -> void:
 	rumours.erase(rumour_id)
 	for id in catalog.rumour(rumour_id).get("unlocks", []):
 		unlocks[id] = true
+	_knack_gates_changed()  # a knack kind may be gated on what it opened
 	adventures_changed.emit()
 	changed.emit()
 	save_game()
@@ -892,8 +899,8 @@ func debug_new_game() -> void:
 	DirAccess.copy_absolute(ProjectSettings.globalize_path(save_path), ProjectSettings.globalize_path(backup))
 	coins = 100
 	xp = 0
-	hunger = 80.0
-	happiness = 80.0
+	hunger = 70.0
+	happiness = 70.0
 	bag.clear()
 	parts.clear()
 	items.clear()
@@ -924,6 +931,7 @@ func debug_new_game() -> void:
 	fever_until = 0.0
 	toys = Toys.fresh()
 	_knacks_changed()
+	gifts = Gifts.fresh()
 	bits = {}
 	automation = Automation.fresh()
 	_auto_at = 0.0
@@ -940,6 +948,7 @@ func debug_new_game() -> void:
 	news = {}
 	collection.load_from({})
 	_start_tutorial()
+	_check_care()
 	collection.active_changed.emit(collection.active())
 	save_game()
 	new_game.emit()
@@ -956,7 +965,9 @@ func _work_jobs(until: float) -> void:
 		if gap > 5.0:  # the computer slept: time away counts like time with the game closed
 			var e: Dictionary = catalog.errands
 			gap = Jobs.offline_seconds(gap, errands_away_hours(), float(e.offline_after), OFFLINE_CAP) * boost("away")
-		_work_for(gap)
+			_without_care(_work_for.bind(gap))
+		else:
+			_work_for(gap)
 	_jobs_at = maxf(_jobs_at, until)
 
 
@@ -977,6 +988,7 @@ func _work_for(seconds: float) -> Dictionary:
 				var fed := Jobs.feed(job, hunger, happiness, int(got.loot.meal) / maxi(1, int(job.pay.meal)))
 				hunger = fed.food
 				happiness = fed.mood
+				_check_care()
 				got.loot.meal = roundi(fed.eaten)  # 0: it wasn't hungry enough, nothing to show
 			if got.loot.has("note"):  # the scouts wrote notes, as many as fit
 				got.loot.note = mini(int(got.loot.note), scout_hold() - scout_notes)
@@ -2106,7 +2118,9 @@ func _work_automation(until: float) -> void:
 		_auto_at = until
 		if gap > 5.0:  # the computer slept: counts like time with the game closed (a hitch still counts)
 			gap = maxf(Automation.away_seconds(catalog, automation, gap) * boost("away"), minf(gap, 60.0))
-		_work_for_automation(gap, true)
+			_without_care(_work_for_automation.bind(gap, true))
+		else:
+			_work_for_automation(gap, true)
 	_auto_adventures()
 	_release_saves()
 
@@ -3120,21 +3134,147 @@ func debug_finish_runs() -> void:
 	changed.emit()
 
 
+# ---- presents ---------------------------------------------------------------
+
+## The box a present holds: the newest tier in the shop (the highest box rank whose map page is
+## open), the first tier when none is.
+func newest_box_id() -> String:
+	var best := FIRST_PET_BOX
+	for b in shop_boxes():
+		if catalog.box_rank(str(b.id)) > catalog.box_rank(best):
+			best = str(b.id)
+	return best
+
+
+## Presents in the pocket, waiting for you to open them.
+func gifts_waiting() -> int:
+	return int(gifts.pocket)
+
+
+## Whether presents come yet: from when the boxes tab opens (hidden until then).
+func gifts_open() -> bool:
+	return tab_open("boxes")
+
+
+## Moves the present clock on to `now` (every second while open, and once on load for the time
+## closed: the same either way). `save`: save when one came in.
+func _tick_gifts(now: float, save := true) -> void:
+	var started := float(gifts.next_at) > 0.0
+	var added := Gifts.tick(gifts, catalog.gifts, now, gifts_open())
+	if added > 0 or started != (float(gifts.next_at) > 0.0):
+		gifts_changed.emit()
+		if save:
+			save_game()
+
+
+## Opens a present from the pocket: it's rolled now, so the box is your newest tier today. Boxes go
+## on your pile; a toy capsule goes into your toys, the way the machine gives one. Never bits, never
+## a pet. Returns { box, boxes, toy: { id, finish, new } or {} }, or {} when the pocket is empty.
+func open_gift() -> Dictionary:
+	if gifts_waiting() <= 0:
+		return {}
+	gifts.pocket = gifts_waiting() - 1
+	var toys_open := _machine_gives("toy")
+	var got := Gifts.roll(catalog.gifts, _rng, toys_open)
+	if debug_gift_roll != "" and OS.is_debug_build():
+		got = { "boxes": 2 if debug_gift_roll == "two" else 1, "toy": debug_gift_roll == "toy" and toys_open }
+		debug_gift_roll = ""
+	var box := newest_box_id()
+	var toy := {}
+	if got.toy:
+		var t := Toys.roll(catalog, _rng, boost("luck"))
+		toy = { "id": t.id, "finish": t.finish, "new": Toys.add(toys, t.id, t.finish) }
+		toys_changed.emit()
+	grant({ "box:" + box: int(got.boxes) })  # checks unlocks (a first toy) and emits changed
+	gifts_changed.emit()
+	save_game()
+	return { "box": box, "boxes": int(got.boxes), "toy": toy }
+
+
+## Debug: n presents in the pocket now (up to the pocket's size), the clock started.
+func debug_set_gifts(n: int) -> void:
+	gifts.pocket = clampi(n, 0, Gifts.cap(catalog.gifts))
+	if float(gifts.next_at) <= 0.0:
+		gifts.next_at = Time.get_unix_time_from_system() + Gifts.every(catalog.gifts)
+	gifts_changed.emit()
+
+
+## Debug: the present clock moves `hours` on (to check the step and the pocket's size).
+func debug_gift_clock(hours: float) -> void:
+	if float(gifts.next_at) > 0.0:
+		gifts.next_at = float(gifts.next_at) - hours * 3600.0
+	_tick_gifts(Time.get_unix_time_from_system())
+
+
 # ---- care -----------------------------------------------------------------
 
+## Coins a snack (the feed button) costs now: data/care.json "snack" capsules at what a plain capsule
+## is worth, so it grows with the machine.
+func snack_price() -> int:
+	return Care.snack_price(catalog, Machine.coin_value(machine, catalog))
+
+
+## Gives your pet a snack, if it has room for one and you can pay. Returns whether it ate.
 func feed() -> bool:
-	if coins < FEED_COST or hunger >= 99.0:
+	var price := snack_price()
+	var snack: Dictionary = catalog.care.get("snack", {})
+	if coins < price or hunger >= float(snack.get("full_at", 99)):
 		return false
-	coins -= FEED_COST
-	hunger = minf(100.0, hunger + 30.0)
-	happiness = minf(100.0, happiness + 5.0)
+	coins -= price
+	hunger = minf(100.0, hunger + float(snack.get("food", 30)))
+	happiness = minf(100.0, happiness + float(snack.get("mood", 5)))
+	_check_care()
 	changed.emit()
 	return true
 
 
+## A pat: mood goes up, at most once every data/care.json pat.every seconds (a pat in between is
+## still a pat, just no mood).
 func pat() -> void:
-	happiness = minf(100.0, happiness + 8.0)
+	var p: Dictionary = catalog.care.get("pat", {})
+	var now := Time.get_unix_time_from_system()
+	if now - _pat_at < float(p.get("every", 0)):
+		return
+	_pat_at = now
+	happiness = minf(100.0, happiness + float(p.get("mood", 8)))
+	_check_care()
 	changed.emit()
+
+
+## Sets food and mood (the dev step `care`), kept between the floor and 100.
+func set_care(food: float, mood: float) -> void:
+	hunger = clampf(food, Care.floor_value(catalog), 100.0)
+	happiness = clampf(mood, Care.floor_value(catalog), 100.0)
+	_check_care()
+	changed.emit()
+
+
+## Food or mood moved: when a care buff turned on or off, the boosts it's on are worked out again.
+func _check_care() -> void:
+	var now := Care.on_ids(catalog, hunger, happiness)
+	if now == _care_on:
+		return
+	_care_on = now
+	_forget_care_boosts()
+	if not _loading:
+		changed.emit()
+
+
+## The kept totals of the kinds care boosts go stale (a buff turned on or off, or time away began
+## or ended).
+func _forget_care_boosts() -> void:
+	for b in catalog.care.get("buffs", []):
+		_boosts.erase(str(b.kind))
+
+
+## Does `work` for time the computer slept without the care buffs: like food and mood, they only
+## count while the game is open (time closed is the same: boost_parts leaves them out while loading).
+func _without_care(work: Callable) -> void:
+	_away = true
+	_forget_care_boosts()
+	work.call()
+	_away = false
+	_forget_care_boosts()
 
 
 ## Whether your pet can rummage in its room yet (once you have a pet).
@@ -3320,10 +3460,9 @@ func _milestone(what: String) -> void:
 		milestones[what] = (Time.get_unix_time_from_system() - started_at) / 60.0
 
 
-## How much one boost kind (data/boosts.json: "coins", "xp", "luck", "speed", "fever", "toys",
-## "loot", "errands", "automation") is multiplied right now, every source together (1.0 when nothing is).
-## Called every frame (errand meters, the machine), so the totals are kept until a source changes
-## (_boosts_changed) and at most a second (plays run out on the once-a-second tick).
+## How much one boost kind (see data/boosts.json "kinds") is multiplied right now, every source
+## together (1.0 when nothing is). Called every frame (errand meters, the machine), so the totals are
+## kept until a source changes (_boosts_changed; a play running out emits toys_changed).
 func boost(kind: String) -> float:
 	if not _boosts.has(kind):
 		_boosts[kind] = Boosts.total(boost_parts(kind))
@@ -3333,8 +3472,8 @@ func boost(kind: String) -> float:
 ## What boosts a kind right now, one part per thing doing it: { source, id, x } (see Boosts). Every
 ## source is gathered here, since GameState holds their state; a new source appends its parts
 ## below. Sources: toys your pet is playing with and favourites, the collection book's open
-## stickers, your active pet's knacks and the kitchen's cooks (errands only). [] (and an error) for
-## a kind that isn't in data/boosts.json.
+## stickers, your active pet's knacks, the kitchen's cooks (errands only) and care's buffs (only
+## while the game is open). [] (and an error) for a kind that isn't in data/boosts.json.
 func boost_parts(kind: String) -> Array[Dictionary]:
 	if not Boosts.is_kind(catalog, kind):
 		push_error("unknown boost kind %s" % kind)
@@ -3344,8 +3483,12 @@ func boost_parts(kind: String) -> Array[Dictionary]:
 	out.append_array(Toys.parts(toys, catalog, kind, now))
 	out.append_array(Book.parts(catalog, stickers, kind))
 	out.append_array(Knacks.parts(catalog, collection.active(), kind, knack_gate))
-	if kind == "errands" and kitchen_bonus() > 0.0:
-		out.append(Boosts.part("kitchen", "kitchen", 1.0 + kitchen_bonus()))
+	if kind == "errands":
+		var cooks := kitchen_bonus()  # reads only the cooks' speeds, never boost()
+		if cooks > 0.0:
+			out.append(Boosts.part("kitchen", "kitchen", 1.0 + cooks))
+	if not (_loading or _away):  # the buffs only count while the game is open (see _without_care)
+		out.append_array(Care.parts(catalog, kind, hunger, happiness))
 	return out
 
 
@@ -3359,13 +3502,14 @@ func boost_receipt() -> Array:
 
 
 ## A receipt line's name: the toy ("holo acorn"), the book's sticker ("a paint set"), your pet's
-## badges ("big ears + one big eye"), the kitchen. A new source names its lines here.
+## badges ("big ears + one big eye"), the kitchen, a care buff ("full tummy"). A new source names its lines here.
 func _boost_line_name(part: Dictionary) -> String:
 	match str(part.source):
 		"toys": return Toys.edition_name(catalog, str(part.id))
 		"book": return str(Book.page(catalog, str(part.id)).get("name", part.id))
 		"knacks": return Knacks.part_names(catalog, str(part.id))
 		"kitchen": return "the kitchen"
+		"care": return str(Care.buff(catalog, str(part.id)).get("name", part.id))
 	return str(part.id)
 
 
@@ -3424,6 +3568,7 @@ func _knacks_changed() -> void:
 	_knack_own.clear()
 	knack_version += 1
 	_job_speed.clear()
+	_kitchen = -1.0  # the cooks' speeds hold their knacks
 	_worker_speed.clear()
 
 
@@ -3438,6 +3583,7 @@ func _knack_gates_changed() -> void:
 	knack_version += 1
 	if _knack_counting("errands") != was.errands:
 		_job_speed.clear()
+		_kitchen = -1.0
 	if _knack_counting("automation") != was.automation:
 		_worker_speed.clear()
 	knacks_changed.emit()
@@ -3481,16 +3627,12 @@ func knacks_of(pet: Pet) -> Array[Dictionary]:
 	return Knacks.of(catalog, pet, knack_gate)
 
 
-## Kinds a trip packs when it sets off (RunState.knacks).
-const TRIP_KNACKS := ["trip", "tough", "safe", "spots", "finds", "pickups", "treats", "loot"]
-
-
 ## What knacks do for a trip with these pets: your active pet's (the boost, which has the other
 ## sources too) times the party's own share, per kind; kinds at x1 are left out. `loot` is the
 ## party's share only (your active pet's loot boost is added when the trip is collected).
 func trip_knacks(pets: Array) -> Dictionary:
 	var out := {}
-	for kind: String in TRIP_KNACKS:
+	for kind: String in Boosts.trip_kinds(catalog):
 		var share := 1.0
 		if not pets.is_empty() and not _knack_counting(kind).is_empty():
 			var sum := 0.0
@@ -3778,6 +3920,7 @@ func save_game() -> void:
 		"rummaged": rummaged,
 		"machine": machine,
 		"toys": toys,
+		"gifts": gifts,
 		"bits": bits,
 		"started_at": started_at,
 		"milestones": milestones,
@@ -3793,6 +3936,7 @@ func load_game() -> bool:
 	_loading = true
 	var loaded := _load_save()
 	_loading = false
+	_forget_care_boosts()  # totals kept while loading left the care buffs out (time closed)
 	return loaded
 
 
@@ -3961,19 +4105,17 @@ func _load_save() -> bool:
 		if p is Dictionary and toys.owned.has(str(p.get("key", ""))):
 			toys.playing.append({ "key": str(p.key), "until": float(p.get("until", 0.0)), "wear": float(p.get("wear", 0.0)) })
 	Toys.finish_plays(toys, Time.get_unix_time_from_system())  # plays that ended while the game was closed
+	gifts = Gifts.clean(data.get("gifts", {}), catalog.gifts)  # v29: older saves start the clock below
 	_knacks_changed()
 	if from_version >= 15 and from_version < 20:
 		_regate()
 		if knows_job("boxes"):  # it had the cushion: opening boxes stays (now in the automation tab)
 			unlocks["feature:packs"] = true
 			unlocks["tab:automation"] = true
-	# catch up on time spent closed: coins at the slowest rate, stats to the floor at worst (before
-	# the errands catch up, so the kitchen's meals made while you were away still count)
-	var away := Time.get_unix_time_from_system() - float(data.get("saved_at", 0.0))
-	if away > 0.0:
-		coins += int(minf(away, OFFLINE_CAP) * 0.4 / COIN_INTERVAL * boost("away"))
-		hunger = maxf(STAT_FLOOR, hunger - HUNGER_DECAY * away)
-		happiness = maxf(STAT_FLOOR, happiness - HAPPY_DECAY * away)
+	# food and mood stay as they were while the game was closed (they only go down while it's open);
+	# the kitchen's meals made while you were away top them up to its line from there. The buffs
+	# don't count for time closed (boost_parts leaves them out while loading).
+	_check_care()
 	# errands kept going while the game was closed: full speed for a while, then slower
 	var e: Dictionary = catalog.errands
 	var closed := Jobs.offline_seconds(Time.get_unix_time_from_system() - float(data.get("saved_at", 0.0)),
@@ -3990,6 +4132,8 @@ func _load_save() -> bool:
 		_hold_saves = false
 		_save_held = false
 	_auto_at = Time.get_unix_time_from_system()
+	# presents came while the game was closed, the same as if it had been open (only the clock counts)
+	_tick_gifts(Time.get_unix_time_from_system(), false)
 
 	# v28: plain pets fold into the herd (old saves: crews and workers of uids become counts here)
 	_rest_changed()
@@ -4141,6 +4285,8 @@ func _migrate(data: Dictionary) -> Dictionary:
 	# into counts once everything that keeps pets busy has loaded: old crews and workers of uids turn
 	# into counts by themselves. load_game also switches every shared-out errand's "new pets join
 	# here" on where jobs_auto was on, and a room that's full already opens the stall.
+	# v29 added presents (gifts): nothing to convert; saves with the boxes tab open start the clock
+	# on load (built as v25 in the care lane)
 	if version < 7:
 		# v7: dungeon places open one rumour at a time; saves that had the dungeons keep them all
 		var had: Array = data.get("unlocks", [])

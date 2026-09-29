@@ -5,6 +5,7 @@
 from after_tutorial
 view full
 tab home
+care 50 50                          # the test save's pet is fed and happy: under the buff lines, no boost yet
 wait 1
 expect no-text "our boosts"
 expect fits
@@ -72,11 +73,14 @@ favourite bee
 favourite frog ghost
 favourite gnome
 favourite moth foil
+care 90 90                          # full tummy and happy: care's lines on the receipt too
 wait 1
 tab home
 click BoostTag#1
 wait 0.8
 expect text "our boosts"
+expect text "full tummy"
+expect text "happy"
 expect fits
 shot receipt_long
 click BoostTag#1

@@ -107,10 +107,9 @@ static func tool_sum(catalog: Catalog, state: Dictionary, job_id: String, key: S
 
 # ---- the machine job ------------------------------------------------------------------
 
-## Seconds between two cranks of your pet's machine; `x` is how much faster other things make it
-## (the book's automation stickers).
-static func crank_seconds(catalog: Catalog, state: Dictionary, x := 1.0) -> float:
-	return float(job(catalog, "machine").get("seconds", 60)) / (1.0 + tool_sum(catalog, state, "machine", "speed")) / x
+## Seconds between two cranks of your pet's machine.
+static func crank_seconds(catalog: Catalog, state: Dictionary) -> float:
+	return float(job(catalog, "machine").get("seconds", 60)) / (1.0 + tool_sum(catalog, state, "machine", "speed"))
 
 
 ## Hours your pet keeps cranking while the game is closed (the comfy stool).
@@ -119,8 +118,8 @@ static func away_hours(catalog: Catalog, state: Dictionary) -> float:
 
 
 ## Your pet cranks for `seconds`: returns how many pulls that makes (state.fill keeps the rest).
-static func crank(catalog: Catalog, state: Dictionary, seconds: float, x := 1.0) -> int:
-	var fill := float(state.get("fill", 0.0)) + maxf(0.0, seconds) / crank_seconds(catalog, state, x)
+static func crank(catalog: Catalog, state: Dictionary, seconds: float) -> int:
+	var fill := float(state.get("fill", 0.0)) + maxf(0.0, seconds) / crank_seconds(catalog, state)
 	var pulls := floori(fill)
 	state.fill = fill - pulls
 	return pulls

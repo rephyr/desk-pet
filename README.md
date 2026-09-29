@@ -6,9 +6,9 @@ packs that hatch new pets and rare variants.
 
 ## Core loop
 
-1. **Care** - hunger, happiness and health drop over time; feed, pet and check up on your
-   pet. Neglect can lead to complications you have to treat.
-2. **Earn** - coins trickle in while the game runs; pets go on adventures (risky, rewarding)
+1. **Care** - food and mood drop slowly while the game is open (never while it's closed);
+   a full tummy and a happy pet give small boosts. An empty bowl is just no bonus.
+2. **Earn** - the capsule machine and errands bring coins; pets go on adventures (risky, rewarding)
    and errands (safe idle jobs) for coins, parts and boxes.
 3. **Open packs** - coins buy packs that hatch random pets from part combinations, with
    rarities.
