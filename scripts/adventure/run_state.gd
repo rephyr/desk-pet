@@ -30,6 +30,7 @@ var scouted: bool:  # it took a scout note: better odds of spotting places and h
 		return not scout.is_empty()
 var knacks := {}  # knack kind -> multiplier this trip set off with (GameState.trip_knacks: the kinds marked "trip" in data/boosts.json); missing = x1
 var ours := false  # the place was ours when it set off (see Ours): safer, pays more, no locals
+var parts := true  # parts were open when it set off: no part loot (and no "found a part!") before that
 var met := {}  # an ours run's place with the ours danger and loot (AdventureRunner.place, worked out once, not saved)
 var walk := 0.0  # share of the walking the gear's comfy boots and "trip" knacks take off (worked out once, not saved)
 
@@ -46,7 +47,7 @@ func to_dict() -> Dictionary:
 		"location": location_id, "chooser": chooser, "party": party.to_dict(), "seed": rng_seed, "events": events, "step": step,
 		"started": started, "next_at": next_at, "status": status, "waiting_since": waiting_since,
 		"answer": answer, "log": history, "loot": loot, "went_home": went_home, "xp": xp, "auto": auto, "slot": slot,
-		"gear": gear, "saves_used": saves_used, "scout": scout, "knacks": knacks, "ours": ours,
+		"gear": gear, "saves_used": saves_used, "scout": scout, "knacks": knacks, "ours": ours, "parts_on": parts,
 	}
 
 
@@ -79,6 +80,7 @@ static func from_dict(d: Dictionary, catalog: Catalog) -> RunState:
 	s.auto = bool(d.get("auto", false))
 	s.slot = int(d.get("slot", -1))
 	s.ours = bool(d.get("ours", false))  # v31
+	s.parts = bool(d.get("parts_on", true))
 	var packed: Dictionary = d.get("gear", {})
 	for id in packed:
 		s.gear[str(id)] = int(packed[id])

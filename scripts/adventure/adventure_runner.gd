@@ -268,9 +268,11 @@ static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog
 	rng.seed = hash([state.rng_seed, state.step])
 	var ok := rng.randf() < success_chance(option, party, location, Gear.value(catalog, state.gear, "luck"))
 	var outcome: Dictionary = option.success if ok else option.get("failure", option.success)
+	# before parts are in the game an outcome's part loot stays out, and so does its "found a part!"
+	var said := str(outcome.text) if state.parts else str(outcome.get("text_no_parts", outcome.text))
 	var entry := {
 		"event": event.id, "title": event.title, "option": option.label, "success": ok,
-		"text": str(outcome.text).replace("{who}", party.who()).replace("{i}", "i" if party.size() == 1 else "we"),
+		"text": said.replace("{who}", party.who()).replace("{i}", "i" if party.size() == 1 else "we"),
 		"lost": 0, "injured": 0, "loot": {},
 	}
 	var danger := float(location.danger)
@@ -308,6 +310,8 @@ static func play(event: Dictionary, pick: int, state: RunState, catalog: Catalog
 			entry.text += " " + Gear.leaf_text(catalog)
 	# loot comes from the pets still there
 	for reward in outcome.get("rewards", []):
+		if not state.parts and str(reward.get("kind", "")) == "part":
+			continue
 		Rewards.add(entry.loot, Rewards.roll(scouted(reward, state), party, location, rng, catalog, Rewards.depth_boost(state.history.size())))
 	Rewards.add(state.loot, entry.loot)
 

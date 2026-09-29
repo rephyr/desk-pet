@@ -4690,6 +4690,7 @@ func send_on_adventure(location_id: String, pets: Array[Pet], by_you := true) ->
 	# never dungeons, see Gear.for_trip)
 	var run := AdventureRunner.start(location_id, going, Time.get_unix_time_from_system(), _rng.randi(), catalog, finds, machine.bought,
 		Gear.for_trip(catalog, gear, location), trip_knacks(going), workers_total(), is_ours(location_id))
+	run.parts = feature_on("parts")
 	# auto parties (your pet's, the workers') never take a note: skip the looking around for them
 	if by_you and scout_notes > 0 and Jobs.takes_note(catalog, location, by_you, scout_notes,
 			Intel.left_to_find(location, _place_known, not Rumours.hearable(catalog, heard, is_open).is_empty(), catalog)):
@@ -5952,6 +5953,8 @@ func _load_save() -> bool:
 	for raw in data.get("runs", []):
 		var run := RunState.from_dict(raw, catalog)
 		if run != null:
+			if not raw.has("parts_on"):  # saved before runs kept it: parts are open or not right now
+				run.parts = feature_on("parts")
 			runs.append(run)
 
 	# the dungeon before the jobs: its army's pets aren't on errands

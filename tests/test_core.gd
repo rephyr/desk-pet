@@ -1708,6 +1708,21 @@ func _test_gear(catalog: Catalog) -> void:
 			if hurt_pick < 0 and fail.has("hurt") and int(fail.get("hearts", 1)) == 1 and not fail.has("lost"):
 				hurt_event = e
 				hurt_pick = j
+	# a trip that set off before parts are in the game: the chest brings no part and doesn't say so
+	var chest: Dictionary = catalog.events.garden_chest
+	var early_ok := false
+	for t in 50:
+		var early := AdventureRunner.start("meadow", bean, 0.0, t, catalog)
+		early.parts = false
+		var said := AdventureRunner.play(chest, 0, early, catalog)
+		if said.success:
+			_check(Rewards.total(early.loot, "part") == 0 and not str(said.text).contains("part"),
+				"before parts, the chest says no part and brings none (%s)" % said.text)
+			var kept := RunState.from_dict(JSON.parse_string(JSON.stringify(early.to_dict())), catalog)
+			_check(not kept.parts, "a run from before parts stays that way through a save")
+			early_ok = true
+			break
+	_check(early_ok, "the chest opened on some early trip")
 	var leaf_checked := false
 	for t in 100:
 		var run := AdventureRunner.start("meadow", bean, 0.0, t, catalog, {}, {}, { "leaf": 1 })
