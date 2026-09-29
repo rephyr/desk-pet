@@ -1,0 +1,723 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Past The Edge</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* C2/F3: spending pets. past the edge of the beyond-the-fence page (send pets by the shelf, they
+     never come back, the next page fills with their scribbles until it opens) and the little school
+     in the automation tab (classes of spare pets stay on as teachers, every worker a bit quicker).
+     Three looks, each with both screens: the adventures tab and the automation tab. */
+  body { display: block; padding: 28px 16px 60px; }
+  .looks { display: flex; flex-direction: column; align-items: center; gap: 44px; }
+  .intro { width: 920px; max-width: 100%; }
+  .intro h1 { margin: 0 0 4px; font: var(--display-weight) 26px/1.1 var(--display); color: var(--pink); }
+  .intro p { margin: 0; color: var(--muted); font-size: 12px; }
+  .look { display: flex; flex-direction: column; gap: 10px; }
+  .look > header { display: flex; align-items: baseline; gap: 12px; width: 920px; max-width: 100%; }
+  .look > header b { font: var(--display-weight) 20px/1 var(--display); color: var(--pink); white-space: nowrap; }
+  .look > header span { color: var(--muted); font-size: 12px; }
+  .look .pair { display: flex; flex-direction: column; gap: 18px; }
+  .content { flex: 1; min-height: 0; }
+
+  /* the full tab row of this stage: squeeze the spine a little so settings still fits */
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+  .sky .fresh { animation: twinkle-in 1.4s ease-out; }
+  @keyframes twinkle-in { 0% { opacity: 0; } 30% { opacity: 1; } }
+
+  /* ---------- shared bits ---------- */
+  .page2 { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+  .bar { display: flex; align-items: center; gap: 10px; min-height: 30px; }
+  .body { display: grid; grid-template-columns: 1fr 250px; grid-template-rows: minmax(0, 1fr); gap: 14px; flex: 1; min-height: 0; }
+  .muted { color: var(--muted); }
+  .num { font-variant-numeric: tabular-nums; }
+  .ico { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.1; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+  .seg button { display: inline-flex; align-items: center; gap: 5px; }
+  .seg button .ico { width: 15px; height: 15px; }
+  .pill { margin-left: auto; display: flex; align-items: center; gap: 7px; padding: 3px 12px 3px 6px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .pill img { width: 16px; height: 18px; }
+  .pill b { font: 400 15px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+  .pill.new b { animation: bump .4s var(--ease-out); }
+  @keyframes bump { 40% { color: var(--pink); } }
+
+  /* the side card */
+  .side { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; min-height: 0; overflow: hidden; }
+  .side h2 { margin: 0; font: 400 18px/1.1 var(--display); color: var(--pink); display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .side .sec { font: 400 12px/1 var(--display); color: var(--lilac); margin-top: 2px; }
+
+  /* picking a shelf: rows (C1's shelves, one per rarity) or chips */
+  .srows { display: flex; flex-direction: column; gap: 4px; }
+  .srow { display: grid; grid-template-columns: 24px 1fr auto; align-items: center; gap: 8px; padding: 3px 8px 3px 6px; border-radius: 8px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--tc) 35%, var(--line)); cursor: pointer; }
+  .srow img { width: 16px; height: 18px; }
+  .srow span { font-size: 11px; color: var(--tc); }
+  .srow b { font: 400 14px/1 var(--display); font-variant-numeric: tabular-nums; }
+  .srow:hover { border-color: var(--pink-seam); }
+  .srow.on { border: 2px dashed var(--pink); background: color-mix(in srgb, var(--pink-pressed) 45%, var(--deep)); }
+  .chips { display: flex; gap: 5px; }
+  .chipshelf { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 5px 2px 4px; border-radius: 10px; background: var(--raised); border: 2px solid color-mix(in srgb, var(--tc) 45%, var(--line)); cursor: pointer; min-width: 0; }
+  .chipshelf img { width: 16px; height: 18px; }
+  .chipshelf b { font: 400 13px/1 var(--display); font-variant-numeric: tabular-nums; }
+  .chipshelf span { font-size: 9.5px; color: var(--tc); white-space: nowrap; }
+  .deepchips .chipshelf span { display: none; }
+  .strip .deepchips .chipshelf span { display: block; }
+  .chipshelf.on { border: 2px dashed var(--pink); transform: rotate(-2deg); }
+  .deepchips .chipshelf { background: var(--deep); }
+  .takes { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .takes .btn { padding: 5px 0; }
+  .takes .btn.all { border-color: var(--pink-seam); }
+  .meter { position: relative; height: 12px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--c, var(--lilac)) 45%, var(--line)); overflow: hidden; }
+  .meter i { position: absolute; inset: 0 auto 0 0; width: calc(var(--f) * 100%); background: var(--c, var(--lilac)); border-radius: 999px; transition: width .35s var(--ease-out); }
+  .flyer { position: absolute; width: 24px; height: 27px; z-index: 8; pointer-events: none; transition: transform .75s cubic-bezier(.5, -0.3, .6, 1), opacity .75s ease-in; }
+  .rise { position: absolute; pointer-events: none; font: 400 14px/1 var(--display); color: var(--pink); white-space: nowrap; animation: rise 1.2s var(--ease-out) forwards; z-index: 9; }
+  @keyframes rise { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, -34px); opacity: 0; } }
+
+  /* the map (as trips.html) */
+  .mapwrap { position: relative; min-height: 0; }
+  .marks { position: absolute; right: 16px; top: -2px; display: flex; gap: 4px; z-index: 3; }
+  .mark { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px 8px; border-radius: 0 0 8px 8px; background: var(--deep); border: 2px solid var(--line); border-top: 0; color: var(--muted); font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .mark.on { background: var(--raised); color: var(--pink); border-color: var(--pink-seam); padding-top: 8px; }
+  .mark .ico { width: 16px; height: 16px; }
+  .mark b { font: 400 13px/1 var(--display); color: var(--lilac); font-variant-numeric: tabular-nums; }
+  .map { position: absolute; inset: 0; border-radius: var(--r-panel); background: var(--paper); border: 2px solid var(--line); overflow: hidden; }
+  .map > svg, .sheet > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .maptitle { position: absolute; left: 10px; top: 6px; margin: 0; padding: 6px 8px 4px; border-radius: 10px; background: var(--paper); font: var(--display-weight) 20px/1 var(--display); color: var(--pink); z-index: 2; pointer-events: none; }
+  .maptitle::after { content: ""; display: block; height: 3px; margin-top: 4px; border-radius: 2px; background: var(--pink-seam); transform: rotate(-1deg); }
+  .crayon { fill: none; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+  .road { fill: none; stroke: var(--gold); stroke-width: 2.5; stroke-dasharray: 7 7; stroke-linecap: round; opacity: .55; }
+  .nm { font: var(--display-weight) 13px var(--display); text-anchor: middle; fill: var(--text); }
+  .spotnm { font: var(--display-weight) 14px var(--display); text-anchor: middle; fill: var(--pink); }
+  .picked { fill: none; stroke: var(--pink); stroke-width: 3; stroke-linecap: round; stroke-dasharray: 150 12; }
+  .scrib path { fill: none; stroke-width: 2.6; stroke-linecap: round; stroke-linejoin: round; opacity: .8; }
+  .scrib path.fresh { animation: scrib-in .6s var(--ease-out); }
+  @keyframes scrib-in { from { opacity: 0; stroke-width: 6; } }
+  .togo { font: var(--display-weight) 44px var(--display); fill: var(--pink); text-anchor: middle; paint-order: stroke; stroke: var(--paper); stroke-width: 10px; stroke-linejoin: round; }
+  .togo-s { font: 13px var(--body); fill: var(--text); text-anchor: middle; paint-order: stroke; stroke: var(--paper); stroke-width: 6px; stroke-linejoin: round; }
+  .opened { font: var(--display-weight) 22px var(--display); fill: var(--pink); text-anchor: middle; }
+  .lit { animation: lit 2.4s ease-in-out infinite; }
+  @keyframes lit { 50% { opacity: .55; } }
+
+  /* ---------- EDGE A: the page tucked under ---------- */
+  .ea-sheet { position: absolute; right: 2px; top: 30px; bottom: 8px; width: 44%; border-radius: var(--r-panel); background: var(--paper); border: 2px solid var(--line); transform: rotate(2.2deg); box-shadow: var(--lift); overflow: hidden; }
+  .ea-top { position: absolute; left: 0; top: 0; bottom: 0; width: 70%; z-index: 1; filter: drop-shadow(5px 2px 7px rgba(6, 2, 12, .65)); }
+  .ea-top > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .ea-col { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .ea-col .side { flex: none; }
+
+  /* ---------- EDGE B: its own page, the card stuck on it; trips away on the right ---------- */
+  .eb-body { grid-template-columns: 1fr 226px; }
+  .stuck { position: absolute; right: 16px; bottom: 16px; width: 250px; padding: 12px 12px 12px; display: flex; flex-direction: column; gap: 8px; transform: rotate(1deg); z-index: 2; }
+  .stuck h3 { margin: 0; font: var(--display-weight) 17px/1.1 var(--display); color: var(--pink); display: flex; align-items: center; gap: 7px; }
+  .stuck .chipshelf { padding: 4px 1px 3px; }
+  .stuck .chipshelf b { font-size: 11px; }
+  .stuck .chipshelf span { font-size: 9px; }
+  .away { display: flex; flex-direction: column; gap: 10px; min-height: 0; overflow: hidden; padding: 2px 2px 8px; }
+  .away h2 { margin: 0; font: var(--display-weight) 17px/1 var(--display); color: var(--pink); }
+  .trip { padding: 10px 12px 11px; }
+  .trip .head { display: flex; align-items: center; gap: 8px; }
+  .trip .head .crowd img { width: 16px; height: 18px; margin-right: -3px; }
+  .trip .head .crowd { display: flex; }
+  .trip .head b { display: block; font-weight: inherit; color: var(--pink); font-size: 13px; }
+  .trip .head span { display: block; font-size: 11px; color: var(--muted); }
+  .trip .tbar { margin-top: 8px; height: 8px; border-radius: 4px; background: var(--deep); border: 2px solid var(--line); overflow: hidden; }
+  .trip .tbar i { display: block; height: 100%; background: var(--lilac); border-radius: 3px; }
+  .trip .when { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 4px; }
+
+  /* ---------- EDGE C: the long road, a parade off the page ---------- */
+  .ec-left { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .ec-left .mapwrap { flex: 1; }
+  .strip { display: grid; grid-template-columns: 1.55fr 1fr; gap: 14px; align-items: center; padding: 8px 12px; }
+  .pinned { position: relative; padding: 16px 12px 12px; display: flex; flex-direction: column; gap: 8px; align-items: stretch; }
+  .pinned::before { content: ""; position: absolute; top: -6px; left: 50%; margin-left: -6px; width: 12px; height: 12px; border-radius: 50%; background: var(--pink); box-shadow: 0 2px 3px rgba(6, 2, 12, .5); z-index: 2; }
+  .pinned .sheet { position: relative; height: 300px; border-radius: 10px; background: var(--paper); border: 2px solid var(--line); overflow: hidden; transform: rotate(-1.5deg); }
+  .pinned .big { text-align: center; }
+  .pinned .big b { display: block; font: 400 34px/1 var(--display); color: var(--pink); font-variant-numeric: tabular-nums; }
+  .pinned .big span { font-size: 12px; color: var(--muted); }
+  .walkers image { image-rendering: pixelated; }
+
+  /* ---------- the little school ---------- */
+  .boost { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 6px 10px; border-radius: 10px; background: var(--deep); border: 2px solid var(--line); }
+  .boost span { font-size: 11px; color: var(--muted); }
+  .boost b { font: 400 24px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+  .boost.up b { animation: up .6s var(--ease-out); }
+  @keyframes up { 30% { color: var(--pink); transform: scale(1.15); } }
+  .classline { display: flex; align-items: baseline; justify-content: space-between; font-size: 11px; color: var(--muted); }
+  .classline b { font: 400 14px/1 var(--display); color: var(--lilac); }
+  .classline em { font-style: normal; color: var(--text); font-variant-numeric: tabular-nums; }
+  .step-up { font: 400 13px/1 var(--display); color: var(--pink); }
+  .bell { width: 100%; }
+  .bell.ready { border-color: var(--pink); color: var(--pink); box-shadow: 0 0 14px color-mix(in srgb, var(--pink) 40%, transparent); animation: ring 1.2s ease-in-out infinite; }
+  @keyframes ring { 0%, 70%, 100% { transform: none; } 78% { transform: rotate(-3deg); } 86% { transform: rotate(3deg); } }
+  .confetti { position: absolute; width: 6px; height: 6px; border-radius: 2px; pointer-events: none; z-index: 9; animation: conf 1.1s var(--ease-out) forwards; }
+  @keyframes conf { to { transform: translate(var(--dx), var(--dy)) rotate(200deg); opacity: 0; } }
+
+  /* SCHOOL A: the classroom */
+  .room { position: relative; border-radius: var(--r-panel); background: var(--paper); border: 2px solid var(--line); padding: 12px 14px 10px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .board { display: flex; align-items: center; gap: 14px; padding: 8px 16px; border-radius: 8px; background: color-mix(in srgb, var(--lilac) 7%, var(--deep)); border: 5px solid color-mix(in srgb, var(--gold) 22%, var(--lilac-seam)); box-shadow: var(--lift); }
+  .board b { font: 400 22px/1 var(--display); color: var(--text); }
+  .board .teach { width: 32px; height: 36px; margin: -4px 0 -6px -4px; }
+  .board .chalk { font: 400 20px/1 var(--display); color: var(--pink); }
+  .board svg { margin-left: auto; width: 60px; height: 30px; }
+  .desks { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(6, 1fr); grid-template-rows: repeat(4, 1fr); gap: 0 6px; }
+  .desk { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+  .desk img { position: relative; width: 32px; height: 36px; margin-bottom: -12px; z-index: 0; }
+  .desk img.in { animation: sit .5s cubic-bezier(.3, 1.6, .5, 1); }
+  @keyframes sit { from { transform: translateY(-14px) scale(.6); opacity: 0; } }
+  .desk svg { position: relative; z-index: 1; width: 62px; height: 28px; }
+  .teachers { display: flex; align-items: center; gap: 12px; padding-top: 8px; border-top: 2px dashed var(--line); }
+  .teachers > span { font: 400 13px/1 var(--display); color: var(--lilac); }
+  .tgroup { display: flex; align-items: flex-end; gap: 5px; padding: 3px 9px 3px 5px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); }
+  .tgroup .crowd { display: flex; }
+  .tgroup .crowd img { width: 16px; height: 18px; margin-right: -4px; }
+  .tgroup b { font: 400 12px/1 var(--display); color: var(--text); margin-left: 4px; }
+  .tgroup em { font-style: normal; font-size: 10px; color: var(--pink); }
+  .tgroup.fresh { animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); border-color: var(--pink-seam); }
+  @keyframes pop { 35% { transform: scale(1.2, .85) rotate(-4deg); } }
+
+  /* SCHOOL B: class photos */
+  .wall { position: relative; border-radius: var(--r-panel); background: var(--paper); border: 2px solid var(--line); padding: 18px 16px 16px; display: grid; grid-template-columns: 252px 1fr; gap: 16px; min-height: 0; overflow: hidden; }
+  .photo { position: relative; padding: 8px 8px 6px; border-radius: 4px; background: color-mix(in srgb, var(--text) 86%, var(--raised)); box-shadow: var(--lift); color: var(--deep); }
+  .photo::before { content: ""; position: absolute; top: -8px; left: 50%; width: 54px; height: 16px; margin-left: -27px; background: color-mix(in srgb, var(--lilac) 45%, transparent); transform: rotate(-4deg); }
+  .photo .pic { position: relative; border-radius: 2px; background: var(--deep); overflow: hidden; display: grid; align-content: end; justify-items: center; }
+  .photo .cap { display: flex; align-items: baseline; justify-content: space-between; gap: 4px; white-space: nowrap; padding: 5px 2px 0; font-size: 11px; color: color-mix(in srgb, var(--deep) 70%, var(--muted)); }
+  .photo .cap b { font: 400 15px/1 var(--display); color: var(--pink-pressed); }
+  .photo .cap em { font-style: normal; font: 400 13px/1 var(--display); color: var(--pink-seam); }
+  .photo.now { transform: rotate(-2deg); align-self: start; }
+  .photo.now .pic { height: 318px; grid-template-columns: repeat(5, 1fr); grid-auto-rows: 44px; padding: 10px 4px 12px; gap: 0; }
+  .photo.now .pic img { width: 32px; height: 36px; }
+  .photo.now .pic img.in { animation: sit .5s cubic-bezier(.3, 1.6, .5, 1); }
+  .photo.now .pic .bench { position: absolute; left: 8px; right: 8px; height: 4px; border-radius: 2px; background: var(--line); }
+  .olds { display: grid; grid-template-columns: 1fr 1fr; grid-auto-rows: min-content; gap: 24px 14px; align-content: start; padding-top: 6px; }
+  .photo.old .pic { height: 76px; grid-template-columns: repeat(4, 1fr); padding: 4px 4px 4px; gap: 2px 0; }
+  .photo.old .pic img { width: 16px; height: 18px; }
+  .photo.old .cap b { font-size: 12px; }
+  .photo.old .cap em { font-size: 11px; }
+  .photo.old:nth-child(odd) { transform: rotate(1.8deg); }
+  .photo.old:nth-child(even) { transform: rotate(-1.4deg); }
+  .photo.old.fresh { animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); }
+  .report { padding: 10px 12px; border-radius: 10px; background: var(--deep); border: 2px solid var(--line); display: flex; flex-direction: column; gap: 4px; }
+  .report .rl { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+  .report .rl em { font-style: normal; color: var(--pink); font-variant-numeric: tabular-nums; }
+
+  /* SCHOOL C: the school house */
+  .sc-left { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .yard { position: relative; flex: 1; min-height: 0; border-radius: var(--r-panel); background: var(--paper); border: 2px solid var(--line); overflow: hidden; }
+  .yard > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .yard .bellswing { transform-box: fill-box; transform-origin: 50% 0; }
+  .yard .bellswing.go { animation: swing .9s ease-in-out 2; }
+  @keyframes swing { 25% { transform: rotate(18deg); } 75% { transform: rotate(-18deg); } }
+  .tlist { display: flex; flex-direction: column; gap: 4px; }
+  .trow { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; padding: 3px 8px; border-radius: 6px; background: var(--deep); border: 2px solid var(--line); font-size: 11px; }
+  .trow b { font-weight: 400; color: var(--text); }
+  .trow span { color: var(--muted); font-variant-numeric: tabular-nums; }
+  .trow em { font-style: normal; color: var(--pink); }
+  .trow.fresh { animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); border-color: var(--pink-seam); }
+</style>
+</head>
+<body>
+<div class="looks">
+  <div class="intro">
+    <h1>past the edge + the little school</h1>
+    <p>C2/F3. Each look has both screens: the edge of the beyond-the-fence page (adventures tab) and the school (automation tab). Pick a shelf, send 1 / 10 / 100 / all, fill a class and ring the bell. Numbers are placeholders.</p>
+  </div>
+
+  <section class="look">
+    <header><b>Look A: the tucked page</b><span>the next page peeks out from under the map; the edge is a spot on the map, sent from the side card. The school is a classroom with desks that fill up.</span></header>
+    <div class="pair">
+      <div class="frame" data-look="A" data-kind="edge" data-say="they'll draw the rest of the map!"></div>
+      <div class="frame" data-look="A" data-kind="school" data-say="class is in! everybody sit nicely."></div>
+    </div>
+  </section>
+
+  <section class="look">
+    <header><b>Look B: the next page</b><span>the next page is its own page on the map (a tab with the number to go), sent from a card stuck on it. The school is a wall of class photos.</span></header>
+    <div class="pair">
+      <div class="frame" data-look="B" data-kind="edge" data-say="bye bye! draw it nicely!"></div>
+      <div class="frame" data-look="B" data-kind="school" data-say="say cheese! the whole class!"></div>
+    </div>
+  </section>
+
+  <section class="look">
+    <header><b>Look C: the long road</b><span>a road runs off the side of the map and pets walk it in a parade; the next page is pinned in the side column. The school is a little school house with a bell.</span></header>
+    <div class="pair">
+      <div class="frame" data-look="C" data-kind="edge" data-say="off they go! the map keeps getting longer."></div>
+      <div class="frame" data-look="C" data-kind="school" data-say="ding ding! the little school is so busy."></div>
+    </div>
+  </section>
+</div>
+
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  // the game's tabs at this stage (as in new-homes.html)
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "boxes").news = false;
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+
+  // ---------------- placeholder numbers (would live in data/*.json) ----------------
+  const TIERS = [                       // worth: how much a pet lifts a class's step
+    { id: "common",    worth: 1,  pets: ["mint-blob", "peach-cat", "lilac-cat"] },
+    { id: "uncommon",  worth: 2,  pets: ["mint-bear", "peach-bear"] },
+    { id: "rare",      worth: 5,  pets: ["sky-bunny", "midnight-bear", "lilac-blob"] },
+    { id: "epic",      worth: 12, pets: ["bubblegum-fox", "toxic-cat"] },
+    { id: "legendary", worth: 20, pets: ["gold-dragon"] },
+  ];
+  const START = { common: 2418, uncommon: 906, rare: 214, epic: 31, legendary: 3 };
+  const ARRIVE = [60, 26, 10, 3, 1];                 // what a new pet out of a box is, roughly
+  const PAGE_NEED = 500;                             // next door: ~1-2 h of this stage's pets a minute
+  const PAGE_AFTER = 25000;                          // then x50 a page
+  const SENT = 88;
+  const CLASS_SIZES = [40, 100, 220, 450, 900, 1800, 3600];   // grows like a log curve pays
+  const DONE = [                                       // classes already teaching
+    { size: 40, step: 3.0, mix: ["mint-blob", "peach-cat", "sky-bunny"] },
+    { size: 100, step: 2.6, mix: ["lilac-cat", "mint-bear", "peach-cat"] },
+    { size: 220, step: 4.1, mix: ["sky-bunny", "bubblegum-fox", "mint-bear"] },
+  ];
+  const SEATED = { common: 120, uncommon: 30, rare: 12, epic: 1, legendary: 0 };
+  const PER_MIN = 38;
+  const TINT = { "mint-blob": "#8fe8c0", "peach-cat": "#ffb59a", "lilac-cat": "#c9a0ff", "mint-bear": "#8fe8c0", "peach-bear": "#ffb59a",
+    "sky-bunny": "#8cc8ff", "midnight-bear": "#8c8cff", "lilac-blob": "#c9a0ff", "bubblegum-fox": "#ff8fc8", "toxic-cat": "#b8ff6b", "gold-dragon": "#ffe08a" };
+  const ALL = Object.keys(TINT);
+
+  const tc = id => `var(--tier-${id})`;
+  const pet = (id, cls = "") => `<img class="px ${cls}" src="../assets/pets/${id}.png" alt="">`;
+  const fmt = n => Math.round(n).toLocaleString("en");
+  const stepOf = mix => { const n = Object.values(mix).reduce((a, b) => a + b, 0); if (!n) return 0;
+    const w = TIERS.reduce((s, t) => s + (mix[t.id] || 0) * t.worth, 0) / n; return Math.round((1 + 1.4 * w) * 10) / 10; };
+  const ART = {
+    sign: `<path d="M12 21 L12 3.4"/><path d="M4 5.6 L16.6 5.6 L19.8 8.6 L16.6 11.6 L4 11.6 Z"/><path d="M7.4 14.4 L18 14.4 M8 21 L16 21" opacity=".6"/>`,
+    hedge: `<path d="M3 19 Q3.4 12 7.6 12.4 Q8.4 7.4 12 8.6 Q15.8 7.2 16.4 12.2 Q20.8 12.2 21 19 Z"/><path d="M10.6 19 Q10.6 14.6 12.8 14.6 Q14.6 14.8 14.6 19" opacity=".7"/>`,
+    road: `<path d="M5 21 Q8 15 12 13 Q17 10.6 17.6 3"/><path d="M11 21 Q13 16 16.4 14 Q21 11 20.6 3" opacity=".6"/><path d="M3 5 L5 3 L7 5" opacity=".7"/>`,
+    scrib: `<path d="M4 15 Q6 6 9 12 T14 11 Q17 5 18.6 12 Q19.4 16 15 17 Q10 18 8 15"/>`,
+    school: `<path d="M3.6 11 L12 5.6 L20.4 11"/><path d="M5.6 10 L5.6 20.4 L18.4 20.4 L18.4 10"/><path d="M10.2 20.4 L10.2 15.4 L13.8 15.4 L13.8 20.4"/><path d="M12 5.6 L12 2.6 L15 3.6 L12 4.6"/>`,
+    bell: `<path d="M6.4 16.6 Q6.6 8 12 7.6 Q17.4 8 17.6 16.6 Z"/><path d="M4.6 16.8 L19.4 16.8"/><circle cx="12" cy="19.2" r="1.6"/><path d="M12 7.6 L12 5"/>`,
+    whistle: `<path d="M3.6 10 L14 10 Q20.4 10 20.4 15.4 Q20.4 20.6 14.6 20.6 Q9.2 20.6 9.2 15.4 L9.2 13.8 L3.6 13.8 Z"/><circle cx="14.8" cy="15.4" r="2"/>`,
+    flag: `<path d="M6 21 L6 3.4"/><path d="M6 4.4 Q10 2.6 13 5 Q16 7.2 19 5.2 L19 12.4 Q16 14.4 13 12.2 Q10 9.8 6 11.6"/>`,
+  };
+  const ico = (k, cls = "ico") => `<svg class="${cls}" viewBox="0 0 24 24">${ART[k]}</svg>`;
+
+  // the frame, like mountFrame() but for several windows on one page
+  function mountInto(el, active, say) {
+    const tab = t => `<a class="tab${t.id === active ? " on" : ""}" href="${t.id}.html"><span data-icon="${t.icon}"></span>${t.label}${t.news ? `<span class="new" title="something new"></span>` : ""}</a>`;
+    el.classList.add("app");
+    el.innerHTML = `
+      <nav class="spine">
+        <svg class="sky" width="80" height="600" aria-hidden="true">${stars(60)}</svg>
+        <div class="moon" title="lilac blob, your active pet"><img class="px" src="../assets/pets/lilac-blob.png" alt="lilac blob"></div>
+        ${TABS.map(tab).join("")}
+        <div class="grow"></div>
+        ${tab({ id: "settings", label: "", icon: "settings" })}
+      </nav>
+      <main class="page dots">
+        <div class="top">
+          <div class="bubble">${say}</div>
+          <span class="chip coins"><span data-icon="coin"></span>48,210,400</span>
+          <span class="chip xp"><span data-icon="xp"></span>1,204</span>
+          <div class="winbtns"><button title="shrink">▾</button><button title="close">✕</button></div>
+        </div>
+        <div class="content"></div>
+      </main>`;
+    return el.querySelector(".content");
+  }
+
+  // ---------------- drawings ----------------
+  // scribbles: one little crayon squiggle per pet that went past the edge, never an outline
+  function scribbleSet(seed, n, w, h, pad = 10) {
+    let s = seed;
+    const r = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const out = [];
+    for (let i = 0; i < n; i++) {
+      const x = pad + r() * (w - pad * 2), y = pad + r() * (h - pad * 2);
+      let d = `M${x.toFixed(1)} ${y.toFixed(1)}`;
+      const k = 2 + Math.floor(r() * 3);
+      for (let j = 0; j < k; j++) d += ` q${(r() * 20 - 10).toFixed(1)} ${(r() * 20 - 10).toFixed(1)} ${(r() * 18 - 9).toFixed(1)} ${(r() * 18 - 9).toFixed(1)}`;
+      out.push({ d, c: TINT[ALL[Math.floor(r() * ALL.length)]] });
+    }
+    return out;
+  }
+  const scribbles = (set, n, from = n) => set.slice(0, Math.min(n, set.length)).map((p, i) => `<path d="${p.d}" stroke="${p.c}"${i >= from ? ` class="fresh"` : ""}/>`).join("");
+
+  // next door, once it opens: a row of back gardens at night, lit windows
+  const nextDoor = (w, h) => {
+    const g = [];
+    const n = 3, step = w / n;
+    for (let i = 0; i < n; i++) {
+      const x = step * i + step / 2, y = h * .62;
+      g.push(`<path class="crayon" stroke="var(--lilac)" d="M${x - 26} ${y} L${x - 26} ${y - 30} L${x} ${y - 50} L${x + 26} ${y - 30} L${x + 26} ${y}"/>`);
+      g.push(`<rect class="lit" x="${x - 16}" y="${y - 26}" width="10" height="10" rx="2" fill="var(--gold)" opacity=".85" style="animation-delay:${i * .6}s"/><rect x="${x + 6}" y="${y - 26}" width="10" height="10" rx="2" fill="none" stroke="var(--lilac-seam)" stroke-width="2"/>`);
+      g.push(`<path class="crayon" stroke="var(--mint)" stroke-width="2.4" d="M${x - step / 2 + 6} ${y + 12} L${x + step / 2 - 6} ${y + 12} M${x - step / 2 + 10} ${y + 12} L${x - step / 2 + 10} ${y - 4} M${x + step / 2 - 10} ${y + 12} L${x + step / 2 - 10} ${y - 4}" opacity=".7"/>`);
+    }
+    return g.join("");
+  };
+
+  // the beyond-the-fence page: places from data/adventures.json (page "beyond"), all open
+  const DOOD = {
+    hill: (x, y) => `<path class="crayon" stroke="var(--mint)" d="M${x - 28} ${y + 12} Q${x - 12} ${y - 14} ${x} ${y + 2} Q${x + 12} ${y - 18} ${x + 28} ${y + 12}"/><path class="crayon" stroke="var(--mint)" stroke-width="2" d="M${x - 8} ${y + 12} l3 -8 l3 8 M${x + 10} ${y + 12} l3 -7 l3 7" opacity=".7"/>`,
+    apple: (x, y) => `<path class="crayon" stroke="var(--mint)" d="M${x - 18} ${y + 14} L${x - 10} ${y - 12} L${x - 2} ${y + 14} Z M${x + 4} ${y + 14} L${x + 12} ${y - 16} L${x + 20} ${y + 14} Z"/><circle cx="${x - 10}" cy="${y + 2}" r="3" fill="var(--pink)"/><circle cx="${x + 13}" cy="${y - 2}" r="3" fill="var(--pink)"/>`,
+    well: (x, y) => `<path class="crayon" stroke="var(--lilac)" d="M${x - 14} ${y + 14} L${x - 14} ${y + 2} L${x + 14} ${y + 2} L${x + 14} ${y + 14} Z M${x - 11} ${y + 2} L${x - 11} ${y - 12} M${x + 11} ${y + 2} L${x + 11} ${y - 12} M${x - 16} ${y - 12} L${x + 16} ${y - 12}"/>`,
+    door: (x, y) => `<path class="crayon" stroke="var(--lilac)" d="M${x - 11} ${y + 14} L${x - 11} ${y - 4} Q${x} ${y - 16} ${x + 11} ${y - 4} L${x + 11} ${y + 14} Z"/><circle cx="${x + 5}" cy="${y + 4}" r="1.8" fill="var(--lilac)"/>`,
+    stairs: (x, y) => `<path class="crayon" stroke="var(--lilac)" d="M${x - 16} ${y - 10} L${x - 8} ${y - 10} L${x - 8} ${y - 2} L${x} ${y - 2} L${x} ${y + 6} L${x + 8} ${y + 6} L${x + 8} ${y + 14}"/>`,
+  };
+  function beyondPlaces(P) {
+    return P.map(([x, y, d, name]) => `${DOOD[d](x, y)}<text class="nm" x="${x}" y="${y + 34}">${name}</text>`).join("");
+  }
+  const fence = (x, y1, y2, gap) => `<path class="crayon" stroke="var(--lilac-seam)" d="M${x} ${y1} L${x} ${gap - 18} M${x} ${gap + 18} L${x} ${y2}"/>` +
+    Array.from({ length: Math.floor((y2 - y1) / 24) }, (_, i) => y1 + 10 + i * 24).filter(y => Math.abs(y - gap) > 22).map(y => `<path class="crayon" stroke="var(--lilac-seam)" stroke-width="2" d="M${x - 5} ${y + 5} L${x + 5} ${y - 3}"/>`).join("");
+  const signpost = (x, y, flip) => `<g transform="translate(${x} ${y})"><path class="crayon" stroke="var(--pink)" d="M0 26 L0 -16"/><path class="crayon" stroke="var(--pink)" stroke-width="2.6" d="${flip ? "M-2 -14 L-22 -14 L-28 -8 L-22 -2 L-2 -2" : "M2 -14 L22 -14 L28 -8 L22 -2 L2 -2"}"/></g>`;
+
+  // ---------------- one frame = one little game state ----------------
+  let SEEDS = 11;
+  function makeFrame(frame) {
+    const look = frame.dataset.look, kind = frame.dataset.kind;
+    const content = mountInto(frame, kind === "edge" ? "trips" : "automation", frame.dataset.say);
+    const S = { counts: { ...START }, pick: "common", sent: SENT, need: PAGE_NEED, opened: false,
+      cls: 3, seated: { ...SEATED }, done: DONE.map(d => ({ ...d })), fresh: -1 };
+    const cheer = frame.dataset.say;
+    const say = t => { frame.querySelector(".top .bubble").textContent = t; };
+    const tier = id => TIERS.find(t => t.id === id);
+    let seed = 99 + look.charCodeAt(0) + (kind === "edge" ? 0 : 7);
+    const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const scribSeed = SEEDS += 31;
+
+    // ---- shared pieces ----
+    const srows = () => `<div class="srows">${TIERS.map(t => `<div class="srow${t.id === S.pick ? " on" : ""}" data-shelf="${t.id}" style="--tc:${tc(t.id)}">${pet(t.pets[0])}<span>${t.id}</span><b data-count="${t.id}">${fmt(S.counts[t.id])}</b></div>`).join("")}</div>`;
+    const chips = (cls = "") => `<div class="chips ${cls}">${TIERS.map(t => `<div class="chipshelf${t.id === S.pick ? " on" : ""}" data-shelf="${t.id}" style="--tc:${tc(t.id)}">${pet(t.pets[0])}<b data-count="${t.id}">${fmt(S.counts[t.id])}</b><span>${t.id}</span></div>`).join("")}</div>`;
+    const takes = () => `<div class="takes">${[1, 10, 100, "all"].map(n => `<button class="btn${n === "all" ? " all" : ""}" data-take="${n}" ${S.counts[S.pick] ? "" : "disabled"}>${n}</button>`).join("")}</div>`;
+    const togo = () => Math.max(0, S.need - S.sent);
+    const trips = n => [["the orchard", "a party of 5", .62, "6 min left", ["mint-bear", "peach-cat", "sky-bunny"]], ["the old well", "a party of 3", .3, "11 min left", ["lilac-cat", "mint-blob"]], ["the far fields", "a party of 10", .85, "2 min left", ["peach-bear", "toxic-cat", "mint-blob"]]].slice(0, n).map(([nm, sz, f, t, c]) => `
+      <div class="trip sticker"><div class="head"><div class="crowd">${c.map(p => pet(p)).join("")}</div><div style="margin-left:6px"><b>${nm}</b><span>${sz}</span></div></div>
+      <div class="tbar"><i style="width:${f * 100}%"></i></div><div class="when"><span>on the way</span><span>${t}</span></div></div>`).join("");
+    const pagePill = () => `<div class="pill">${pet("peach-cat")}<b data-permin>${PER_MIN}</b><span>pets a minute</span></div>`;
+
+    // the next page drawing (w x h): scribbles + the number to go, or next door once it opened
+    function sheetSvg(w, h, big = true) {
+      if (S.opened) return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid slice">${nextDoor(w, h)}<text class="opened" x="${w / 2}" y="${h * .22}">next door</text></svg>`;
+      const set = scribbleSet(scribSeed, Math.min(S.need, 520), w, h);
+      const shown = Math.round(Math.min(1, S.sent / S.need) * set.length);
+      return `<svg viewBox="0 0 ${w} ${h}" preserveAspectRatio="xMidYMid slice"><g class="scrib" data-scrib>${scribbles(set, shown, S.lastShown ?? shown)}</g>
+        ${big ? `<text class="togo num" x="${w / 2}" y="${h / 2 + 8}">${fmt(togo())}</text><text class="togo-s" x="${w / 2}" y="${h / 2 + 30}">to go</text>` : ""}</svg>`;
+    }
+
+    // ---------- EDGE A: the tucked page ----------
+    function edgeA() {
+      const P = [[92, 128, "hill", "the far fields"], [176, 244, "apple", "the orchard"], [98, 360, "well", "the old well"], [232, 380, "door", "the cellar"], [246, 130, "stairs", "further down"]];
+      const W = 330, H = 470;
+      const torn = `M14 0 L${W - 26} 0 L${W - 14} 40 L${W - 30} 86 L${W - 12} 140 L${W - 26} 196 L${W - 8} 250 L${W - 24} 312 L${W - 10} 368 L${W - 28} 420 L${W - 16} ${H} L14 ${H} Q0 ${H} 0 ${H - 14} L0 14 Q0 0 14 0 Z`;
+      content.innerHTML = `<div class="page2"><div class="bar"><div class="seg"><button class="on">adventures</button><button>upgrades</button></div></div><div class="body">
+        <div class="mapwrap">
+          <div class="ea-sheet" data-target>${sheetSvg(240, 460)}</div>
+          <div class="ea-top"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMinYMid meet">
+            <path d="${torn}" fill="var(--paper)" stroke="var(--line)" stroke-width="2"/>
+            ${fence(16, 60, 460, 300)}
+            <path class="road" d="M16 300 Q60 290 98 330 M16 300 Q70 220 92 160 M98 330 Q150 300 176 276 M176 276 Q210 320 232 350 M176 276 Q200 190 240 160 M232 350 Q268 290 286 238 L318 222"/>
+            ${beyondPlaces(P)}
+            ${signpost(284, 222)}
+            <circle class="picked" cx="288" cy="220" r="30"/>
+            <text class="spotnm" x="274" y="274">the edge</text>
+          </svg><h2 class="maptitle">lilac blob's map</h2></div>
+          <div class="marks"><button class="mark">the backyard</button><button class="mark on">beyond the fence</button></div>
+        </div>
+        <div class="ea-col">
+          <div class="side sticker">
+            <h2>${ico("sign")}the edge</h2>
+            ${srows()}
+            ${takes()}
+          </div>
+          <div class="away"><h2>away</h2>${trips(1)}</div>
+        </div></div></div>`;
+    }
+
+    // ---------- EDGE B: the next page, its own page ----------
+    function edgeB() {
+      const W = 560, H = 470;
+      content.innerHTML = `<div class="page2"><div class="bar"><div class="seg"><button class="on">adventures</button><button>upgrades</button></div></div><div class="body eb-body">
+        <div class="mapwrap">
+          <div class="map" data-target>${sheetSvg(W, H)}
+            <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice" style="pointer-events:none">
+              <path class="crayon" stroke="var(--mint)" d="M6 -4 ${Array.from({ length: 11 }, () => `q20 11 0 22`).join(" ")} M6 298 ${Array.from({ length: 8 }, () => `q20 11 0 22`).join(" ")}" opacity=".85"/>
+              <path class="road" d="M0 275 Q40 268 76 282" style="opacity:.85"/>
+            </svg>
+            <h2 class="maptitle">lilac blob's map</h2>
+          </div>
+          <div class="marks"><button class="mark">the backyard</button><button class="mark">beyond the fence</button><button class="mark on">${ico("scrib")}<b data-togo>${fmt(togo())}</b></button></div>
+          <div class="stuck sticker">
+            <h3>${ico("hedge")}the gap in the hedge</h3>
+            ${chips("deepchips")}
+            ${takes()}
+          </div>
+        </div>
+        <div class="away">
+          <h2>away</h2>
+          ${trips(3)}
+        </div></div></div>`;
+    }
+
+    // ---------- EDGE C: the long road ----------
+    function edgeC() {
+      const W = 540, H = 360;
+      const P = [[110, 110, "hill", "the far fields"], [250, 196, "apple", "the orchard"], [120, 280, "well", "the old well"], [390, 290, "door", "the cellar"], [470, 200, "stairs", "further down"]];
+      const ROAD = "M392 262 Q360 196 410 160 Q460 124 580 118";
+      const walkers = Array.from({ length: 7 }, (_, i) => {
+        const p = ["peach-cat", "mint-blob", "lilac-cat", "mint-bear", "peach-cat", "sky-bunny", "mint-blob"][i];
+        return `<image href="../assets/pets/${p}.png" x="-12" y="-26" width="24" height="27"><animateMotion dur="9s" repeatCount="indefinite" begin="-${(i * 1.25).toFixed(2)}s" path="${ROAD}"/></image>`;
+      }).join("");
+      content.innerHTML = `<div class="page2"><div class="bar"><div class="seg"><button class="on">adventures</button><button>upgrades</button></div></div><div class="body">
+        <div class="ec-left">
+          <div class="mapwrap">
+            <div class="map"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid slice">
+              ${fence(22, 70, 350, 250)}
+              <path class="road" d="M22 250 Q70 250 120 262 M22 250 Q70 180 110 140 M120 262 Q190 230 250 226 M250 226 Q320 250 390 266 M250 226 Q360 200 470 226"/>
+              <path d="${ROAD}" fill="none" stroke="var(--gold)" stroke-width="16" stroke-linecap="round" opacity=".13"/>
+              <path d="${ROAD}" class="road" style="opacity:.8"/>
+              ${beyondPlaces(P)}
+              <g class="walkers">${walkers}</g>
+              <g transform="translate(420 70) rotate(4)"><rect x="-6" y="-14" width="104" height="26" rx="6" fill="var(--raised)" stroke="var(--pink-seam)" stroke-width="2"/><text x="46" y="5" text-anchor="middle" style="font: 400 14px var(--display); fill: var(--pink)">the long road</text></g>
+            </svg><h2 class="maptitle">lilac blob's map</h2></div>
+            <div class="marks"><button class="mark">the backyard</button><button class="mark on">beyond the fence</button></div>
+          </div>
+          <div class="strip sticker">${chips("deepchips")}${takes()}</div>
+        </div>
+        <div class="side sticker pinned" data-target>
+          <div class="sheet">${sheetSvg(420, 600, false)}</div>
+          <div class="big">${S.opened ? `<b>next door</b>` : `<b class="num" data-togo>${fmt(togo())}</b><span>to go</span>`}</div>
+        </div></div></div>`;
+    }
+
+    // ---------- the little school: shared ----------
+    const size = () => CLASS_SIZES[S.cls];
+    const seatedN = () => Object.values(S.seated).reduce((a, b) => a + b, 0);
+    const boostNow = () => S.done.reduce((m, d) => m * (1 + d.step / 100), 1);
+    const full = () => seatedN() >= size();
+    const schoolBar = () => `<div class="bar"><div class="seg">
+        <button>your pet</button><button>workers</button><button>${ico("whistle")}whistle</button><button class="on">${ico("school")}school</button></div>${pagePill()}</div>`;
+    const boost = () => `<div class="boost" data-boost><span>every worker</span><b>x${boostNow().toFixed(2)}</b></div>`;
+    const classLine = () => `<div class="classline"><b>class ${S.cls + 1}</b><em>${fmt(seatedN())} of ${fmt(size())}</em></div>
+      <div class="meter" style="--c:var(--pink)"><i style="--f:${Math.min(1, seatedN() / size())}"></i></div>`;
+    const stepTxt = () => seatedN() ? `+${stepOf(S.seated).toFixed(1)}%` : "";
+    const bell = () => `<button class="btn bell${full() ? " ready primary" : ""}" data-bell ${full() ? "" : "disabled"}>${ico("bell")}ring the bell</button>`;
+    // who sits in the class: pets in rough proportion to the mix
+    const faces = n => {
+      const total = seatedN(), out = [];
+      if (!total) return out;
+      [...TIERS].reverse().forEach(t => { const k = Math.max(S.seated[t.id] ? 1 : 0, Math.round(S.seated[t.id] / total * n)); for (let i = 0; i < k; i++) out.push(t.pets[(i + out.length) % t.pets.length]); });
+      return out.slice(0, n).reverse();
+    };
+
+    // ---------- SCHOOL A: the classroom ----------
+    function schoolA() {
+      const DESKS = 24, filled = Math.floor(Math.min(1, seatedN() / size()) * DESKS);
+      const who = faces(filled);
+      const deskSvg = `<svg viewBox="0 0 62 28"><path d="M4 8 L58 8 L56 14 L6 14 Z" fill="color-mix(in srgb, var(--gold) 16%, var(--raised))" stroke="var(--lilac-seam)" stroke-width="2.2" stroke-linejoin="round"/><path d="M10 14 L9 27 M52 14 L53 27" stroke="var(--lilac-seam)" stroke-width="2.4" stroke-linecap="round"/></svg>`;
+      content.innerHTML = `<div class="page2">${schoolBar()}<div class="body">
+        <div class="room">
+          <div class="board">${pet(S.done[0].mix[0], "teach")}<b>class ${S.cls + 1}</b><span class="chalk">${stepTxt()}</span>
+</div>
+          <div class="desks">${Array.from({ length: DESKS }, (_, i) => `<div class="desk">${i < filled ? pet(who[i] || "mint-blob", S.fresh === i ? "in" : "") : ""}${deskSvg}</div>`).join("")}</div>
+          <div class="teachers"><span>teachers</span>${S.done.map((d, i) => `<div class="tgroup${S.freshDone === i ? " fresh" : ""}"><div class="crowd">${d.mix.map(p => pet(p)).join("")}</div><b>${fmt(d.size)}</b><em>+${d.step.toFixed(1)}%</em></div>`).join("")}</div>
+        </div>
+        <div class="side sticker">
+          <h2>${ico("school")}the little school</h2>
+          ${boost()}
+          ${classLine(false)}
+          ${srows()}
+          ${takes()}
+          <div style="margin-top:auto">${bell()}</div>
+        </div></div></div>`;
+    }
+
+    // ---------- SCHOOL B: class photos ----------
+    function schoolB() {
+      const SEATS = 30, filled = Math.floor(Math.min(1, seatedN() / size()) * SEATS);
+      const who = faces(filled);
+      const olds = S.done.slice(-4);
+      content.innerHTML = `<div class="page2">${schoolBar()}<div class="body">
+        <div class="wall">
+          <div class="photo now" data-target><div class="pic">
+            ${Array.from({ length: SEATS - filled }, () => `<span></span>`).join("")}${Array.from({ length: filled }, (_, i) => pet(who[i] || "mint-blob", i === 0 && S.fresh >= 0 ? "in" : "")).join("")}
+          </div><div class="cap"><b>class ${S.cls + 1}</b><span class="num">${fmt(seatedN())} of ${fmt(size())}</span></div></div>
+          <div class="olds">${olds.map((d, i) => `<div class="photo old${S.freshDone === S.done.indexOf(d) ? " fresh" : ""}"><div class="pic">${Array.from({ length: 12 }, (_, k) => pet(d.mix[k % d.mix.length])).join("")}</div>
+            <div class="cap"><b>class ${S.done.indexOf(d) + 1}</b><em>+${d.step.toFixed(1)}%</em></div></div>`).join("")}</div>
+        </div>
+        <div class="side sticker">
+          <h2>${ico("school")}the little school</h2>
+          ${boost()}
+          <div class="report">
+            <div class="rl"><span>teachers</span><em>${fmt(S.done.reduce((a, d) => a + d.size, 0))}</em></div>
+            <div class="rl"><span>class ${S.cls + 1}</span><em>${stepTxt()}</em></div>
+            <div class="meter" style="--c:var(--pink)"><i style="--f:${Math.min(1, seatedN() / size())}"></i></div>
+          </div>
+          ${chips("deepchips")}
+          ${takes()}
+          <div style="margin-top:auto">${bell()}</div>
+        </div></div></div>`;
+    }
+
+    // ---------- SCHOOL C: the school house ----------
+    function schoolC() {
+      const W = 540, H = 360, f = Math.min(1, seatedN() / size());
+      const lit = Math.floor(f * 6);
+      const win = (i, x, y) => `<rect x="${x}" y="${y}" width="34" height="30" rx="4" fill="${i < lit ? "color-mix(in srgb, var(--gold) 30%, var(--paper))" : "var(--deep)"}" stroke="var(--lilac)" stroke-width="2.4"/>
+        ${i < lit ? `<image href="../assets/pets/${faces(6)[i] || "mint-blob"}.png" x="${x + 5}" y="${y + 4}" width="24" height="27" style="image-rendering:pixelated"/>` : ""}
+        <path d="M${x + 17} ${y} L${x + 17} ${y + 30}" stroke="var(--lilac)" stroke-width="2" opacity=".6"/>`;
+      const queue = ["peach-cat", "mint-blob", "lilac-cat", "mint-bear", "sky-bunny"].map((p, i) => `<image href="../assets/pets/${p}.png" x="${214 - i * 30}" y="${286 - (i % 2) * 3}" width="24" height="27" style="image-rendering:pixelated"><animate attributeName="y" values="${286 - (i % 2) * 3};${282 - (i % 2) * 3};${286 - (i % 2) * 3}" dur="${1.4 + i * .2}s" repeatCount="indefinite"/></image>`).join("");
+      content.innerHTML = `<div class="page2">${schoolBar()}<div class="body">
+        <div class="sc-left">
+          <div class="yard" data-target><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMax slice">
+            <path d="M0 314 Q140 306 270 314 T540 310" fill="none" stroke="var(--mint)" stroke-width="2.5" opacity=".6"/>
+            <path class="crayon" stroke="var(--mint)" stroke-width="2.2" d="M40 314 l4 -10 l4 10 M480 312 l4 -12 l4 12 M500 312 l4 -8 l4 8" opacity=".7"/>
+            <path d="M246 120 L360 64 L474 120" class="crayon" stroke="var(--pink)"/>
+            <path d="M262 112 L262 314 L458 314 L458 112" fill="color-mix(in srgb, var(--pink) 8%, var(--paper))" stroke="var(--pink)" stroke-width="3" stroke-linejoin="round"/>
+            <path d="M336 72 L336 30 L384 30 L384 72" fill="var(--paper)" stroke="var(--lilac)" stroke-width="2.6" stroke-linejoin="round"/>
+            <path d="M330 32 L360 12 L390 32" class="crayon" stroke="var(--lilac)"/>
+            <g class="bellswing" data-bellart><path d="M348 58 Q348 38 360 38 Q372 38 372 58 Z" fill="color-mix(in srgb, var(--gold) 40%, var(--paper))" stroke="var(--gold)" stroke-width="2.4" stroke-linejoin="round"/><circle cx="360" cy="61" r="3" fill="var(--gold)"/></g>
+            ${win(0, 280, 132)}${win(1, 343, 132)}${win(2, 406, 132)}${win(3, 280, 190)}${win(4, 406, 190)}${win(5, 406, 248)}
+            <path d="M336 314 L336 252 Q360 232 384 252 L384 314" fill="var(--deep)" stroke="var(--lilac)" stroke-width="2.6"/>
+            <g transform="translate(360 96)"><rect x="-42" y="-12" width="84" height="24" rx="5" fill="var(--raised)" stroke="var(--pink-seam)" stroke-width="2"/><text y="6" text-anchor="middle" style="font: 400 14px var(--display); fill: var(--pink)">class ${S.cls + 1}</text></g>
+            <path d="M70 314 Q150 300 230 312 Q280 318 336 312" fill="none" stroke="var(--line)" stroke-width="14" stroke-linecap="round" opacity=".9"/>
+            ${queue}
+            <path d="M120 212 L120 312" class="crayon" stroke="var(--lilac-seam)"/><g transform="translate(120 190) rotate(-4)"><rect x="-58" y="-26" width="116" height="52" rx="8" fill="var(--raised)" stroke="var(--lilac-seam)" stroke-width="2"/><text y="-2" text-anchor="middle" class="num" style="font: 400 20px var(--display); fill: var(--text)">${fmt(seatedN())}</text><text y="16" text-anchor="middle" style="font: 11px var(--body); fill: var(--muted)">of ${fmt(size())}</text></g>
+          </svg></div>
+          <div class="strip sticker">${chips("deepchips")}${takes()}</div>
+        </div>
+        <div class="side sticker">
+          <h2>${ico("school")}the little school</h2>
+          ${boost()}
+          <div class="classline"><b>class ${S.cls + 1}</b><span class="step-up">${stepTxt()}</span></div>
+          <div class="meter" style="--c:var(--pink)"><i style="--f:${Math.min(1, seatedN() / size())}"></i></div>
+          <div class="sec">teachers</div>
+          <div class="tlist">${S.done.map((d, i) => `<div class="trow${S.freshDone === i ? " fresh" : ""}"><b>class ${i + 1}</b><span>${fmt(d.size)}</span><em>+${d.step.toFixed(1)}%</em></div>`).join("")}</div>
+          <div style="margin-top:auto">${bell()}</div>
+        </div></div></div>`;
+    }
+
+    const R = { edge: { A: edgeA, B: edgeB, C: edgeC }, school: { A: schoolA, B: schoolB, C: schoolC } };
+    const render = () => { R[kind][look](); paintIcons(frame); wire(); S.fresh = -1; S.freshDone = -1; S.lastShown = undefined; };
+
+    // a pet going past the edge adds a star to the night sky, never explained
+    function addStars(ids) {
+      const sky = frame.querySelector(".sky");
+      ids.forEach(id => {
+        const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        r.setAttribute("x", Math.floor(rnd() * 74) + 2); r.setAttribute("y", Math.floor(rnd() * 590) + 4);
+        r.setAttribute("width", 1); r.setAttribute("height", 1); r.setAttribute("fill", TINT[id] || "#f5dcec");
+        r.setAttribute("opacity", (0.3 + rnd() * 0.35).toFixed(2)); r.classList.add("fresh"); sky.appendChild(r);
+      });
+    }
+
+    function fly(fromEl, ids) {
+      const target = content.querySelector("[data-target]");
+      if (!fromEl || !target) return;
+      const fr = frame.getBoundingClientRect(), a = fromEl.getBoundingClientRect(), b = target.getBoundingClientRect();
+      ids.slice(0, 8).forEach((id, i) => {
+        const img = document.createElement("img");
+        img.className = "px flyer"; img.src = `../assets/pets/${id}.png`;
+        img.style.left = `${a.left - fr.left + a.width / 2 - 12 + (i - 4) * 8}px`; img.style.top = `${a.top - fr.top - 8}px`;
+        frame.appendChild(img);
+        const dx = b.left - a.left + b.width / 2 - a.width / 2 + (i - 4) * 10, dy = b.top - a.top + b.height * .45;
+        setTimeout(() => { img.style.transform = `translate(${dx}px, ${dy}px) scale(.7)`; img.style.opacity = "0"; }, 30 + i * 70);
+        setTimeout(() => img.remove(), 1000 + i * 70);
+      });
+    }
+
+    function confetti(el) {
+      const fr = frame.getBoundingClientRect(), r = el.getBoundingClientRect();
+      const cols = ["var(--pink)", "var(--gold)", "var(--lilac)", "var(--cyan)", "var(--mint)"];
+      for (let i = 0; i < 26; i++) {
+        const c = document.createElement("span"); c.className = "confetti";
+        c.style.left = `${r.left - fr.left + r.width / 2}px`; c.style.top = `${r.top - fr.top + r.height / 3}px`;
+        c.style.background = cols[i % cols.length];
+        c.style.setProperty("--dx", `${Math.round((rnd() - .5) * 260)}px`); c.style.setProperty("--dy", `${Math.round(-40 - rnd() * 140)}px`);
+        frame.appendChild(c); setTimeout(() => c.remove(), 1200);
+      }
+    }
+
+    // ---- sending pets past the edge ----
+    function send(from, k, btn) {
+      const t = tier(from), ids = Array.from({ length: Math.min(k, 40) }, (_, i) => t.pets[i % t.pets.length]);
+      fly(btn, ids);
+      S.counts[from] -= k;
+      const before = Math.round(Math.min(1, S.sent / S.need) * Math.min(S.need, 520));
+      S.sent += k;
+      addStars(ids);
+      say(cheer);
+      setTimeout(() => {
+        if (S.sent >= S.need && !S.opened) {
+          S.opened = true; render(); say("next door! the map got bigger!");
+          confetti(content.querySelector("[data-target]"));
+          setTimeout(() => { S.opened = false; S.sent -= S.need; S.need = PAGE_AFTER; render(); say(cheer); }, 3600);
+          return;
+        }
+        S.lastShown = before; render();
+      }, 520);
+    }
+
+    // ---- filling a class ----
+    function seat(from, k, btn) {
+      const left = size() - seatedN(); k = Math.min(k, left);
+      if (k <= 0) return;
+      const t = tier(from);
+      fly(btn, Array.from({ length: Math.min(k, 8) }, (_, i) => t.pets[i % t.pets.length]));
+      const DESKS = look === "A" ? 24 : 30;
+      const beforeDesk = Math.floor(Math.min(1, seatedN() / size()) * DESKS);
+      S.counts[from] -= k; S.seated[from] += k;
+      say(full() ? "everyone's here! ring the bell!" : cheer);
+      setTimeout(() => { S.fresh = beforeDesk; render(); }, 520);
+    }
+
+    function ringBell() {
+      const step = stepOf(S.seated), faceMix = faces(3);
+      S.done.push({ size: size(), step, mix: faceMix.length ? faceMix : ["mint-blob"] });
+      S.cls = Math.min(S.cls + 1, CLASS_SIZES.length - 1);
+      S.seated = { common: 0, uncommon: 0, rare: 0, epic: 0, legendary: 0 };
+      const art = content.querySelector("[data-bellart]"); if (art) art.classList.add("go");
+      confetti(content.querySelector("[data-bell]"));
+      say("ding ding! the new teachers are so proud.");
+      setTimeout(() => { S.freshDone = S.done.length - 1; render(); content.querySelector("[data-boost]")?.classList.add("up"); }, 380);
+    }
+
+    function wire() {
+      content.querySelectorAll("[data-shelf]").forEach(el => el.addEventListener("click", () => { S.pick = el.dataset.shelf; render(); }));
+      content.querySelectorAll("[data-take]").forEach(b => b.addEventListener("click", () => {
+        const have = S.counts[S.pick], n = b.dataset.take;
+        const k = n === "all" ? have : Math.min(have, Number(n));
+        if (!k) return;
+        (kind === "edge" ? send : seat)(S.pick, k, b);
+      }));
+      content.querySelector("[data-bell]")?.addEventListener("click", ringBell);
+    }
+
+    // new pets keep coming out of the boxes (pets a minute): they land on the shelves
+    function arrive() {
+      let r = rnd() * 100, i = 0;
+      while (r > ARRIVE[i] && i < ARRIVE.length - 1) { r -= ARRIVE[i]; i++; }
+      S.counts[TIERS[i].id]++;
+      content.querySelectorAll(`[data-count="${TIERS[i].id}"]`).forEach(b => b.textContent = fmt(S.counts[TIERS[i].id]));
+      content.querySelectorAll("[data-take]").forEach(b => { if (S.counts[S.pick]) b.disabled = false; });
+    }
+
+    render();
+    setInterval(arrive, 1600);
+  }
+
+  document.querySelectorAll(".frame").forEach(makeFrame);
+  applyLook(loadLook());
+</script>
+<style>
+  @keyframes bob { 0%, 100% { transform: none; } 25% { transform: translate(1px, -2px) rotate(3deg); } 75% { transform: translate(-1px, 0) rotate(-2deg); } }
+</style>
+</body>
+</html>

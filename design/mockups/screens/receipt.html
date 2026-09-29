@@ -1,0 +1,416 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Boost Receipt</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* B2 the boost receipt: a small "x1.51" tag by the coin pill (once a kind has a source); tap it for a
+     torn-paper receipt of the shared boosts, by kind. Boosts inside one system get a "why so much?"
+     tape where the coins land (here: the trip postcard). Three looks, each its own game window,
+     shown with the receipt and the tape both open. Tap the tag or the tape to fold them. */
+  body { display: block; min-height: 0; padding: 22px 24px 48px; }
+  .sheet { width: 920px; margin: 0 auto; }
+  h1 { font: var(--display-weight) 26px/1 var(--display); color: var(--pink); margin: 0 0 6px; }
+  .lede { color: var(--muted); margin: 0 0 6px; max-width: 800px; }
+  .look-label { display: flex; align-items: baseline; gap: 10px; margin: 30px 0 8px; }
+  .look-label b { white-space: nowrap; font: var(--display-weight) 19px/1 var(--display); color: var(--gold); font-weight: 400; }
+  .look-label span { color: var(--muted); }
+  .content { flex: 1; min-height: 0; }
+  /* the game's tab row today (as in knacks.html) */
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+  .ico { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  .px { image-rendering: pixelated; }
+
+  /* ---------- the adventures tab under it (postcard from trip-done.html look A) ---------- */
+  .tripview { display: grid; grid-template-columns: 1fr 250px; gap: 14px; height: 100%; min-height: 0; }
+  .stage { position: relative; border-radius: var(--r-panel); overflow: hidden; background: var(--paper); border: 2px solid var(--line); }
+  .away { display: flex; flex-direction: column; gap: 12px; padding: 6px 4px 8px 2px; }
+  .away h2 { margin: 0; font: var(--display-weight) 17px/1 var(--display); color: var(--pink); }
+  .trip { padding: 10px 12px 11px; }
+  .trip .head { display: flex; align-items: center; gap: 8px; }
+  .trip .head img { width: 32px; height: 36px; }
+  .trip .head b { display: block; font-weight: inherit; color: var(--pink); }
+  .trip .head span { display: block; font-size: 11px; color: var(--muted); }
+  .trip .story { font-size: 12px; line-height: 1.35; margin: 8px 0; }
+  .trip .bar { height: 8px; border-radius: 4px; background: var(--deep); border: 2px solid var(--line); overflow: hidden; }
+  .trip .bar i { display: block; height: 100%; background: var(--lilac); }
+
+  .post { position: absolute; inset: 20px 18px 66px; display: grid; grid-template-columns: 1fr 2px 1fr; gap: 16px; padding: 16px 16px 14px; background: var(--raised); border: 2px solid var(--lilac-seam); border-radius: var(--r-xl); box-shadow: var(--lift); transform: rotate(-1.5deg); }
+  .post .seam { background: repeating-linear-gradient(var(--lilac-seam) 0 6px, transparent 6px 11px); }
+  .post h3 { margin: 0; font: var(--display-weight) 22px/1.05 var(--display); color: var(--pink); }
+  .post h3 small { display: block; font: 13px var(--body); color: var(--muted); margin-bottom: 2px; }
+  .photo { position: relative; margin: 12px 0 10px 4px; padding: 8px 8px 22px; background: var(--text); border-radius: 4px; transform: rotate(2.5deg); box-shadow: var(--lift); width: 196px; }
+  .photo .shot { height: 90px; border-radius: 2px; background: linear-gradient(var(--deep) 62%, color-mix(in srgb, var(--mint) 30%, var(--deep)) 62%); display: flex; align-items: flex-end; justify-content: center; gap: 10px; padding-bottom: 10px; }
+  .photo .shot img { width: 40px; height: 45px; }
+  .photo figcaption { position: absolute; left: 0; right: 0; bottom: 4px; text-align: center; color: var(--deep); font: 12px var(--display); }
+  .post .notes { font-size: 12px; line-height: 1.45; display: grid; gap: 4px; }
+  .post .notes p { margin: 0; }
+  .post .right { position: relative; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+  .stamp { position: absolute; right: 0; top: 0; width: 54px; height: 62px; padding: 4px; background: var(--deep); border: 3px dotted var(--pink-seam); transform: rotate(4deg); display: grid; place-items: center; }
+  .stamp svg { width: 42px; height: 42px; }
+  .postmark { position: absolute; right: 42px; top: 22px; width: 60px; height: 60px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--lilac) 45%, transparent); color: color-mix(in srgb, var(--lilac) 60%, transparent); font-size: 10px; display: grid; place-items: center; text-align: center; transform: rotate(-12deg); line-height: 1.2; }
+  .post .label { color: var(--muted); font-size: 12px; margin-top: 56px; margin-bottom: 8px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .tag { position: relative; display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; font-size: 12px; background: var(--deep); border: 2px solid var(--line); color: var(--muted); }
+  .parts { display: flex; gap: 10px; }
+  .part { --t: var(--tier-common); display: grid; justify-items: center; gap: 1px; padding: 6px 8px 5px; border-radius: var(--r-lg); background: var(--raised); border: 2px solid var(--t); box-shadow: var(--lift); font-size: 11px; line-height: 1.2; text-align: center; }
+  .part img { width: 32px; height: 36px; }
+  .part b { font-weight: 400; color: var(--text); }
+  .part span { color: var(--t); }
+  .parts .part:nth-child(1) { transform: rotate(-4deg); }
+  .parts .part:nth-child(2) { transform: rotate(3deg); }
+  .a-foot { position: absolute; left: 18px; right: 18px; bottom: 14px; display: flex; align-items: center; justify-content: space-between; }
+  .a-foot .from { color: var(--muted); font-size: 12px; }
+  .welcome { border-color: var(--pink-seam); padding: 7px 18px; font-size: 14px; }
+
+  /* ---------- the tag by the coin pill (shared) ---------- */
+  .top .chip.coins { margin-right: -4px; }
+  .btag { cursor: pointer; border: 0; padding: 0; background: none; font-variant-numeric: tabular-nums; transition: transform .1s var(--ease-out); }
+  .btag:active { transform: scale(.94); }
+  /* the receipt hangs in the window under the tag */
+  .rcpt { position: absolute; z-index: 5; right: 14px; top: 54px; width: 260px; height: 320px; filter: drop-shadow(0 8px 10px rgba(6, 2, 12, .7)); transform-origin: 70% 0; transition: transform .22s var(--ease-out), opacity .18s; }
+  .rcpt.shut { transform: scaleY(.1); opacity: 0; pointer-events: none; }
+  .rcpt > svg.paper { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .rcpt .in { position: absolute; inset: 0; padding: 12px 16px 16px; display: flex; flex-direction: column; }
+  .rcpt .head { text-align: center; }
+  .rcpt .head b { display: block; font: var(--display-weight) 17px/1.1 var(--display); }
+  .rcpt .head small { display: block; font-size: 10px; margin-top: 1px; }
+  .kind { display: flex; flex-direction: column; }
+  .kind .kh { display: flex; align-items: center; gap: 6px; }
+  .kind .kh .ico { width: 16px; height: 16px; }
+  .kind .kh b { flex: 1; font: var(--display-weight) 13px/1.15 var(--display); }
+  .kind .kh .tot { font: var(--display-weight) 14px/1 var(--display); font-variant-numeric: tabular-nums; }
+  .ln { display: flex; align-items: baseline; gap: 4px; font-size: 11px; line-height: 1.26; }
+  .ln .nm { white-space: nowrap; }
+  .ln .dots { flex: 1; min-width: 8px; border-bottom: 2px dotted currentColor; opacity: .35; transform: translateY(-3px); }
+  .ln .x { font-variant-numeric: tabular-nums; }
+  .thanks { margin-top: auto; display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: 10px; }
+  .barcode { display: block; }
+
+  /* the "why so much?" tape on the postcard's coins (shared) */
+  .coinbox { position: relative; }
+  .tape { position: absolute; z-index: 2; cursor: pointer; border: 0; font: 10px/1 var(--body); white-space: nowrap; }
+  .why { position: relative; z-index: 3; transition: transform .2s var(--ease-out), opacity .15s; }
+  .why.shut { display: none; }
+  .why .ln { font-size: 11px; }
+  .why .eq { display: flex; align-items: baseline; gap: 4px; font-size: 11px; padding-top: 3px; margin-top: 2px; }
+
+  /* ---------- look A: the till roll ---------- */
+  .A .btag { display: inline-flex; align-items: center; padding: 3px 9px; border-radius: 999px; background: var(--deep); border: 2px dashed color-mix(in srgb, var(--cyan) 55%, var(--line)); color: var(--cyan); font: var(--display-weight) 13px/1.1 var(--display); }
+  .A .btag.on { border-style: solid; border-color: var(--pink); background: var(--pink-pressed); color: var(--text); }
+  .A .rcpt .in { color: var(--text); }
+  .A .rcpt .head b { color: var(--pink); }
+  .A .rcpt .head small { color: var(--muted); }
+  .A .rcpt .rule { height: 2px; margin: 5px 0; background: repeating-linear-gradient(to right, var(--lilac-seam) 0 5px, transparent 5px 9px); }
+  .A .kind + .kind { margin-top: 4px; }
+  .A .kind .kh { color: var(--lilac); }
+  .A .kind .kh .tot { color: var(--pink); }
+  .A .kind.coins .kh .tot { color: var(--cyan); }
+  .A .rcpt .ln { padding-left: 22px; color: var(--text); }
+  .A .ln .x { color: var(--muted); }
+  .A .thanks { color: var(--muted); }
+  .A .lip { position: absolute; left: -6px; right: -6px; top: -4px; height: 8px; border-radius: 4px; background: var(--deep); border: 2px solid var(--lilac-seam); }
+  .A .tape { left: 40px; top: -11px; padding: 4px 9px 4px; background: color-mix(in srgb, var(--pink) 55%, transparent); color: var(--deep); transform: rotate(8deg); clip-path: polygon(0 12%, 4% 0, 9% 14%, 14% 0, 100% 0, 96% 50%, 100% 100%, 12% 100%, 6% 86%, 0 100%, 3% 50%); }
+  .A .why { width: 214px; padding: 9px 12px 14px; color: var(--text); }
+  .A .why > svg.paper { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; overflow: visible; }
+  .A .why .ln .x { color: var(--muted); }
+  .A .why .eq { border-top: 2px dashed var(--lilac-seam); color: var(--muted); }
+  .A .why .eq b { margin-left: auto; font: var(--display-weight) 15px/1 var(--display); color: var(--cyan); }
+
+  /* ---------- look B: the pale slip, taped on ---------- */
+  .B .btag { position: relative; display: inline-flex; align-items: center; padding: 3px 11px 2px; background: var(--text); color: var(--deep); font: var(--display-weight) 13px/1.1 var(--display); border-radius: 3px; transform: rotate(5deg); box-shadow: var(--lift); clip-path: polygon(0 0, 100% 0, 100% 30%, 94% 50%, 100% 70%, 100% 100%, 0 100%, 0 70%, 6% 50%, 0 30%); }
+  .B .btag.on { background: var(--pink); }
+  .B .rcpt { transform: rotate(-2deg); }
+  .B .rcpt.shut { transform: rotate(-2deg) scaleY(.1); }
+  .B .rcpt .in { color: var(--deep); padding-top: 18px; padding-bottom: 18px; }
+  .B .rcpt .head small { color: color-mix(in srgb, var(--deep) 60%, var(--text)); }
+  .B .rcpt .hold { position: absolute; z-index: 2; left: 50%; top: -9px; width: 86px; height: 22px; margin-left: -43px; background: color-mix(in srgb, var(--pink) 60%, transparent); transform: rotate(3deg); clip-path: polygon(0 10%, 5% 0, 10% 12%, 100% 0, 95% 50%, 100% 100%, 8% 100%, 0 90%, 4% 50%); }
+  .B .rcpt .rule { height: 2px; margin: 5px 0; background: repeating-linear-gradient(to right, color-mix(in srgb, var(--deep) 35%, var(--text)) 0 5px, transparent 5px 9px); }
+  .B .kind + .kind { margin-top: 3px; }
+  .B .kind .kh .tot { position: relative; color: var(--pink-pressed); padding: 0 3px; }
+  .B .kind.coins .kh .tot::after { content: ""; position: absolute; inset: -5px -6px -4px -6px; border: 2px solid var(--pink); border-radius: 50% 45% 55% 40%; transform: rotate(-6deg); }
+  .B .ln { gap: 5px; color: var(--deep); }
+  .B .ln .mk { flex: none; width: 14px; height: 14px; display: grid; place-items: center; align-self: center; }
+  .B .ln .mk img { width: 14px; height: 14px; }
+  .B .ln .mk .ico { width: 13px; height: 13px; }
+  .B .ln .mk .bdg { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--tier-rare); background: color-mix(in srgb, var(--tier-rare) 30%, var(--text)); }
+  .B .ln .dots { opacity: .3; }
+  .B .kind .kh .ico { color: var(--deep); }
+  .B .thanks { color: color-mix(in srgb, var(--deep) 60%, var(--text)); }
+  .B .tape { left: 38px; top: -10px; padding: 4px 9px 3px; background: var(--text); color: var(--deep); transform: rotate(-7deg); box-shadow: var(--lift); clip-path: polygon(0 0, 100% 0, 100% 100%, 92% 88%, 84% 100%, 76% 88%, 68% 100%, 60% 88%, 52% 100%, 44% 88%, 36% 100%, 28% 88%, 20% 100%, 12% 88%, 4% 100%, 0 90%); }
+  .B .why { width: 206px; padding: 14px 12px 10px; background: var(--text); color: var(--deep); border-radius: 2px; transform: rotate(2deg); box-shadow: var(--lift); }
+  .B .why::before { content: ""; position: absolute; left: 50%; top: -8px; width: 60px; height: 16px; margin-left: -30px; background: color-mix(in srgb, var(--pink) 60%, transparent); transform: rotate(-4deg); }
+  .B .why .ln { color: var(--deep); }
+  .B .why .eq { border-top: 2px dashed color-mix(in srgb, var(--deep) 35%, var(--text)); color: color-mix(in srgb, var(--deep) 65%, var(--text)); }
+  .B .why .eq b { margin-left: auto; position: relative; font: var(--display-weight) 15px/1 var(--display); color: var(--pink-pressed); }
+  .B .why .eq b::after { content: ""; position: absolute; inset: -5px -7px -4px -7px; border: 2px solid var(--pink); border-radius: 50% 45% 55% 40%; transform: rotate(-5deg); }
+
+  /* ---------- look C: a price tag and a strip of stickers ---------- */
+  .C .top { gap: 14px; }
+  .C .btag { position: relative; display: inline-flex; align-items: center; height: 26px; padding: 0 10px 0 18px; background: var(--cyan); color: var(--deep); font: var(--display-weight) 13px/1 var(--display); transform: rotate(-6deg); clip-path: polygon(10px 0, 100% 0, 100% 100%, 10px 100%, 0 50%); border-radius: 0 5px 5px 0; }
+  .C .btag::before { content: ""; position: absolute; left: 7px; top: 50%; width: 6px; height: 6px; margin-top: -3px; border-radius: 50%; background: var(--page); }
+  .C .btag.on { background: var(--pink); }
+  .C .string { position: absolute; pointer-events: none; overflow: visible; z-index: 3; }
+  .C .string path { fill: none; stroke: var(--lilac); stroke-width: 1.6; stroke-linecap: round; }
+  .C .rcpt .in { padding: 16px 12px 16px; color: var(--text); }
+  .C .rcpt .head b { color: var(--pink); }
+  .C .rcpt .head small { color: var(--muted); }
+  .C .kind { display: grid; grid-template-columns: 64px 1fr; align-items: center; gap: 6px; margin-top: 6px; padding: 4px 8px 4px 8px; border-radius: 10px; background: var(--raised); border: 2px solid var(--line); }
+  .C .kind.coins { border-color: color-mix(in srgb, var(--cyan) 50%, var(--line)); }
+  .C .kind .kl { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+  .C .kind .kl span { display: flex; align-items: center; gap: 4px; font: var(--display-weight) 15px/1 var(--display); color: var(--pink); font-variant-numeric: tabular-nums; }
+  .C .kind.coins .kl span { color: var(--cyan); }
+  .C .kind .kl span .ico { width: 15px; height: 15px; color: var(--lilac); }
+  .C .kind .kl small { font-size: 10px; color: var(--muted); }
+  .C .stk { display: flex; gap: 3px; }
+  .C .st { display: flex; flex-direction: column; align-items: center; width: 34px; gap: 1px; }
+  .C .st .pic { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 7px; background: var(--deep); border: 2px solid var(--lilac-seam); transform: rotate(var(--t, 0deg)); }
+  .C .st .pic img { width: 14px; height: 14px; }
+  .C .st .pic.badge { border-radius: 50%; border: 2px solid var(--tier-rare); background: color-mix(in srgb, var(--tier-rare) 14%, var(--deep)); position: relative; }
+  .C .st .pic.badge::after { content: ""; position: absolute; inset: 1px; border-radius: 50%; border: 1.5px dashed color-mix(in srgb, var(--tier-rare) 55%, transparent); }
+  .C .st .pic.toy { border-color: var(--tier-common); }
+  .C .st .pic .ico { width: 16px; height: 16px; color: var(--text); }
+  .C .st span { font-size: 10px; color: var(--muted); font-variant-numeric: tabular-nums; line-height: 1.2; }
+  .C .thanks { color: var(--muted); }
+  .C .tape { left: 38px; top: -12px; padding: 4px 8px 3px; background: color-mix(in srgb, var(--cyan) 22%, var(--deep)); color: var(--cyan); border: 2px dashed color-mix(in srgb, var(--cyan) 60%, var(--line)); border-radius: 4px; transform: rotate(-4deg); }
+  .C .why { margin-top: 12px; display: flex; align-items: center; gap: 5px; padding: 8px 8px 7px; border-radius: 10px; background: var(--deep); border: 2px dashed color-mix(in srgb, var(--cyan) 50%, var(--line)); }
+  .C .why .bit { display: flex; flex-direction: column; align-items: center; gap: 1px; font-size: 10px; color: var(--muted); line-height: 1.15; text-align: center; }
+  .C .why .bit b { font: var(--display-weight) 13px/1 var(--display); color: var(--text); white-space: nowrap; }
+  .C .why .bit b.c { color: var(--cyan); }
+  .C .why .op { color: var(--muted); font-size: 12px; }
+  .C .why .bit.sum b { font-size: 16px; color: var(--cyan); }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <h1>the boost receipt</h1>
+  <p class="lede">B2: once a kind has a source, a small tag sits by the coin pill with the coins boost. Tap it for a torn-paper receipt of the shared boosts (toys, book stickers, your pet's badges, the kitchen), by kind, each kind totted up. Boosts inside one system get a "why so much?" tape where the coins land; here on the trip postcard (the tote bag from gear, then the receipt's x1.51). Each window shows the receipt and the tape open; tap the tag or the tape to fold them. Numbers are placeholders from data/book.json, toys.json and gear.json.</p>
+
+  <div class="look-label"><b>Look A</b><span>the till roll: a dashed tag, a dark receipt printed out under it, plain text lines with dotted leaders</span></div>
+  <div class="app win A" data-tab="trips" data-say="we got a receipt! i'm keeping it forever."></div>
+
+  <div class="look-label"><b>Look B</b><span>the pale slip: a ticket-stub tag, a light paper receipt taped up with little marks, the coins total circled in crayon</span></div>
+  <div class="app win B" data-tab="trips" data-say="the meadow was extra generous today ♪"></div>
+
+  <div class="look-label"><b>Look C</b><span>a price tag and stickers: the tag hangs on a string, each kind is a strip with a sticker per boost, the tape shows a little sum</span></div>
+  <div class="app win C" data-tab="trips" data-say="look at all our little helpers!"></div>
+</div>
+
+<script src="../shared/pixel.js"></script>
+<script src="../shared/toy-pixels.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  // the game's current tabs (as in knacks.html)
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+
+  // ---------- little doodles (24 x 24, crayon style) ----------
+  const ICO = {
+    coin: `<path d="M12 3 L19.6 10.4 L12 21.2 L4.4 10.4 Z" fill="var(--cyan)" stroke="var(--cyan)"/><path d="M5 10.4 L19 10.4 M9.2 10.4 L12 4.2 L14.8 10.4 L12 19.8 L9.2 10.4" stroke="var(--page)" stroke-width="1.1"/>`,
+    luck: `<circle cx="8.8" cy="8.6" r="3.3"/><circle cx="15.2" cy="8.8" r="3.3"/><circle cx="8.7" cy="14.8" r="3.3"/><circle cx="15.1" cy="15" r="3.3"/><path d="M12.2 12.2 Q15.6 17 19.4 20.8"/>`,
+    automation: DOODLES.automation,
+    errands: DOODLES.errands,
+    // book stickers (data/book.json names)
+    paint: `<path d="M12 4 Q20.5 4.2 20.4 11.4 Q20.2 15.4 16.4 14.6 Q13.6 14.2 14.2 17.2 Q14.6 20.4 11.4 20.2 Q3.8 19.6 3.9 12 Q4.2 4.2 12 4 Z"/><circle cx="8.4" cy="10.6" r="1.3" fill="currentColor"/><circle cx="12" cy="7.8" r="1.3" fill="currentColor"/><circle cx="16" cy="9.4" r="1.3" fill="currentColor"/>`,
+    glitter: `<path d="M7 7.4 L17 7.4 L17.4 19.6 Q12 20.6 6.6 19.6 Z"/><path d="M6.4 4 L17.6 4 L17.6 7.4 L6.4 7.4 Z"/><path d="M10 12 L10.2 13 M13.8 11.6 L13.8 12.6 M11.8 15.6 L11.9 16.6 M9.4 17 L9.5 17.8 M14.6 16 L14.7 16.8"/>`,
+    glass: `<circle cx="10.4" cy="10.4" r="5.6"/><path d="M14.6 14.6 L20 20.2"/><path d="M8 8.4 Q9 7.2 10.6 7.2"/>`,
+    blanket: `<path d="M4 6 Q12 5 20 6 L19.6 18.4 Q12 19.4 4.4 18.4 Z"/><path d="M4.2 10.2 Q12 9.4 19.8 10.2 M4.3 14.3 Q12 13.6 19.7 14.3 M9.4 5.6 L9.6 18.8 M14.6 5.6 L14.4 18.8" opacity=".7"/>`,
+    washi: `<circle cx="10" cy="12" r="6.4"/><circle cx="10" cy="12" r="2.4"/><path d="M15.6 15 L21 17.2 L20.2 19.4 L14 17.6"/>`,
+    wardrobe: `<path d="M6 3.8 L18 3.8 L18.2 19 L5.8 19 Z"/><path d="M12 3.9 L12 19 M10 11 L10 12.4 M14 11 L14 12.4 M7 19 L7 20.6 M17 19 L17 20.6"/>`,
+    groove: `<path d="M5 14 Q4.6 5 12 5 Q19.4 5 19 14"/><path d="M3.8 13.4 L7.4 13.2 L7.6 19.4 L4.2 19.4 Z M16.6 13.2 L20.2 13.4 L19.8 19.4 L16.4 19.4 Z"/>`,
+    pot: `<path d="M5 10 Q12 9.2 19 10 L18.2 18.6 Q12 20.2 5.8 18.6 Z"/><path d="M3 10.6 L5 10.4 M19 10.4 L21 10.6 M9 6.6 Q9.6 5 9 3.6 M12.4 6.6 Q13 5 12.4 3.6 M15.6 6.6 Q16.2 5 15.6 3.6"/>`,
+    tote: `<path d="M8.4 8.2 Q8.5 3.7 12 3.8 Q15.5 3.8 15.6 8.1"/><path d="M4.7 8.3 Q12 7.6 19.3 8.2 L18.7 19.6 Q12 20.5 5.3 19.7 Z"/>`,
+  };
+  const ico = (k, cls = "ico") => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${ICO[k]}</svg>`;
+  const x2 = v => "x" + v.toFixed(2);
+
+  // ---------- the boosts (placeholders) ----------
+  // shared boosts by kind; a kind only shows once it has a source
+  const toy = id => `<img class="px" src="${toyPixelUrl(id, 1)}" alt="">`;
+  const KINDS = [
+    { id: "coins", name: "coins", icon: "coin", src: [
+      { type: "toy", pic: "acorn", name: "holo acorn", x: 1.25 },
+      { type: "book", pic: "paint", name: "a paint set", x: 1.10 },
+      { type: "book", pic: "glitter", name: "a glitter jar", x: 1.10 } ] },
+    { id: "luck", name: "luck", icon: "luck", src: [
+      { type: "toy", pic: "ladybug", name: "ladybug", x: 1.15 },
+      { type: "book", pic: "glass", name: "a magnifying glass", x: 1.10 } ] },
+    { id: "automation", name: "automation", icon: "automation", src: [
+      { type: "book", pic: "blanket", name: "a cozy blanket", x: 1.10 } ] },
+    { id: "errands", name: "errands", icon: "errands", src: [
+      { type: "book", pic: "washi", name: "a roll of washi tape", x: 1.10 },
+      { type: "book", pic: "wardrobe", name: "a little wardrobe", x: 1.10 },
+      { type: "badge", pic: "groove", name: "in the groove", x: 1.15 },
+      { type: "kitchen", pic: "pot", name: "the kitchen", x: 1.26 } ] },
+  ];
+  KINDS.forEach(k => k.total = k.src.reduce((a, s) => a * s.x, 1));
+  const COINS = KINDS[0].total;                 // the tag by the pill
+  const FOUND = 47, TOTE = 1.30;                // the postcard: found on the way, the tote bag (gear lv 2)
+  const TRIP = Math.round(FOUND * TOTE * COINS);
+
+  // a paper shape with torn (zigzag) ends; top: "straight" | "torn"
+  function paper(w, h, fill, stroke, top = "straight", tooth = 7) {
+    const n = Math.round(w / (tooth * 1.6));
+    const zig = (y, dir) => { let d = ""; for (let i = n; i >= 0; i--) d += ` L${(w * i / n).toFixed(1)} ${(y + (i % 2 ? dir * tooth * .8 : 0)).toFixed(1)}`; return d; };
+    const zigR = (y, dir) => { let d = ""; for (let i = 0; i <= n; i++) d += ` L${(w * i / n).toFixed(1)} ${(y + (i % 2 ? dir * tooth * .8 : 0)).toFixed(1)}`; return d; };
+    const d = (top === "torn" ? `M0 ${tooth * .8}` + zigR(tooth * .8, -1) : `M0 0 L${w} 0`) + ` L${w} ${h - tooth}` + zig(h - tooth, 1) + " Z";
+    return `<svg class="paper" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none" aria-hidden="true"><path d="${d}" fill="${fill}" stroke="${stroke}" stroke-width="2" stroke-linejoin="round" vector-effect="non-scaling-stroke"/></svg>`;
+  }
+  const barcode = color => {
+    const bars = [2, 1, 1, 3, 1, 2, 1, 1, 2, 3, 1, 1, 2, 1, 3, 1, 2, 1, 1, 2, 1, 3, 2, 1, 1, 2];
+    let x = 0, r = "";
+    bars.forEach((b, i) => { if (i % 2 === 0) r += `<rect x="${x}" y="0" width="${b}" height="12" fill="${color}"/>`; x += b + (i % 2 ? 0 : 1); });
+    return `<svg class="barcode" width="${x}" height="12" viewBox="0 0 ${x} 12" shape-rendering="crispEdges" aria-hidden="true">${r}</svg>`;
+  };
+  const stamp = `<svg viewBox="-30 -26 60 50" aria-hidden="true"><path fill="none" stroke="var(--mint)" stroke-width="3" stroke-linecap="round" d="M-22 14 L-17 -2 L-12 14 M-8 14 L-3 -6 L2 14 M6 14 L11 0 L16 14"/><circle cx="-12" cy="-8" r="4" fill="var(--pink)"/><circle cx="10" cy="-11" r="4" fill="var(--gold)"/></svg>`;
+
+  // ---------- the receipt, per look ----------
+  const line = (s, mark = "") => `<div class="ln">${mark}<span class="nm">${s.name}</span><span class="dots"></span><span class="x">${x2(s.x)}</span></div>`;
+  const kindHead = k => `<div class="kh">${ico(k.icon)}<b>${k.name}</b><span class="tot">${x2(k.total)}</span></div>`;
+  const head = `<div class="head"><b>our boosts</b><small>sat 28 sep, 14:02</small></div>`;
+
+  function receiptA() {
+    return `<div class="rcpt">${paper(260, 320, "var(--raised)", "var(--lilac-seam)")}<div class="lip"></div>
+      <div class="in">${head}<div class="rule"></div>
+        ${KINDS.map(k => `<div class="kind ${k.id}">${kindHead(k)}${k.src.map(s => line(s)).join("")}</div>`).join("")}
+        <div class="thanks"><span>thank you, come again ♪</span>${barcode("var(--muted)")}</div>
+      </div></div>`;
+  }
+  function receiptB() {
+    const mark = s => `<span class="mk">${s.type === "toy" ? toy(s.pic) : s.type === "badge" ? `<span class="bdg"></span>` : ico(s.pic)}</span>`;
+    return `<div class="rcpt">${paper(260, 320, "var(--text)", "color-mix(in srgb, var(--deep) 25%, var(--text))", "torn")}<div class="hold"></div>
+      <div class="in">${head}<div class="rule"></div>
+        ${KINDS.map(k => `<div class="kind ${k.id}">${kindHead(k)}${k.src.map(s => line(s, mark(s))).join("")}</div>`).join("")}
+        <div class="thanks"><span>thank you, come again ♪</span>${barcode("color-mix(in srgb, var(--deep) 60%, var(--text))")}</div>
+      </div></div>`;
+  }
+  function receiptC() {
+    const tilts = [-4, 3, -2, 4];
+    const st = (s, i) => {
+      const cls = s.type === "toy" ? " toy" : s.type === "badge" ? " badge" : "";
+      const pic = s.type === "toy" ? `<img class="px" src="${toyPixelUrl(s.pic, 1)}" alt="">` : ico(s.pic);
+      return `<div class="st" title="${s.name}"><div class="pic${cls}" style="--t: ${tilts[i % 4]}deg">${pic}</div><span>${x2(s.x)}</span></div>`;
+    };
+    return `<div class="rcpt">${paper(260, 320, "var(--deep)", "var(--lilac-seam)", "torn")}
+      <div class="in">${head}
+        ${KINDS.map(k => `<div class="kind ${k.id}"><div class="kl"><span>${ico(k.icon)}${x2(k.total)}</span><small>${k.name}</small></div><div class="stk">${k.src.map(st).join("")}</div></div>`).join("")}
+        <div class="thanks"><span>thank you, come again ♪</span>${barcode("var(--muted)")}</div>
+      </div></div>`;
+  }
+
+  // ---------- the "why so much?" tape and its note, per look ----------
+  const whyLines = [
+    { name: "found on the way", v: String(FOUND) },
+    { name: "a tote bag", v: x2(TOTE) },
+    { name: "our boosts", v: x2(COINS) },
+  ];
+  const whyText = () => whyLines.map(l => `<div class="ln"><span class="nm">${l.name}</span><span class="dots"></span><span class="x">${l.v}</span></div>`).join("")
+    + `<div class="eq"><span>all together</span><b>${TRIP}</b></div>`;
+  const WHY = {
+    A: () => `<div class="why">${paper(214, 100, "var(--deep)", "var(--lilac-seam)")}${whyText()}</div>`,
+    B: () => `<div class="why">${whyText()}</div>`,
+    C: () => `<div class="why">
+      <div class="bit"><b>${FOUND}</b>found</div><span class="op">×</span>
+      <div class="bit">${ico("tote")}<b>${x2(TOTE)}</b></div><span class="op">×</span>
+      <div class="bit"><b class="c">${x2(COINS)}</b>our boosts</div><span class="op">=</span>
+      <div class="bit sum"><b>${TRIP}</b></div></div>`,
+  };
+
+  // ---------- the tab under it ----------
+  function tripTab(look) {
+    const party = [["peach-cat", "peach cat"], ["sky-bunny", "sky bunny"], ["mint-blob", "mint blob"]];
+    return `<div class="tripview">
+      <div class="stage">
+        <div class="post">
+          <div class="left">
+            <h3><small>greetings from</small>the meadow!</h3>
+            <figure class="photo"><div class="shot">${party.map(([id, n]) => `<img class="px" src="../assets/pets/${id}.png" alt="${n}">`).join("")}</div><figcaption>all three of us ♪</figcaption></figure>
+            <div class="notes"><p>picked the lucky clover.</p><p>said hello to the mole, very politely.</p><p>looked around. there's a shed over there!</p></div>
+          </div>
+          <div class="seam"></div>
+          <div class="right">
+            <div class="postmark">the<br>meadow<br>♪</div>
+            <div class="stamp">${stamp}</div>
+            <div class="label">we brought back</div>
+            <div class="tags">
+              <span class="coinbox"><span class="tag" style="color: var(--cyan)"><span data-icon="coin" data-px="1.2"></span>${TRIP}</span><button class="tape">why so much?</button></span>
+              <span class="tag" style="color: var(--gold)"><span data-icon="xp" data-px="1.2"></span>23</span>
+              <span class="tag" style="color: var(--lilac)">a starter box</span>
+            </div>
+            ${WHY[look]()}
+            <div class="parts">
+              <div class="part" style="--t: var(--tier-rare)"><img class="px" src="../assets/book/eyes-sparkle.png" alt=""><b>sparkle eyes</b><span>rare</span></div>
+              <div class="part" style="--t: var(--tier-uncommon)"><img class="px" src="../assets/book/accessory-leaf.png" alt=""><b>leaf</b><span>uncommon</span></div>
+            </div>
+          </div>
+        </div>
+        <div class="a-foot"><span class="from">love, peach cat, sky bunny and mint blob</span><button class="btn primary welcome">welcome back <span data-icon="heart" data-px="1.4"></span></button></div>
+      </div>
+      <div class="away">
+        <h2>away</h2>
+        <div class="trip sticker">
+          <div class="head"><img class="px" src="../assets/pets/mint-bear.png" alt=""><div><b>the duck pond</b><span>mint bear</span></div></div>
+          <div class="story">mint bear is counting ducks. again.</div>
+          <div class="bar"><i style="width: 64%"></i></div>
+        </div>
+        <div class="trip sticker">
+          <div class="head"><img class="px" src="../assets/pets/toxic-cat.png" alt=""><div><b>the orchard</b><span>a party of 5</span></div></div>
+          <div class="story">they found a very round apple.</div>
+          <div class="bar"><i style="width: 28%"></i></div>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // ---------- mount one game window per look (mountFrame builds the first .app it finds) ----------
+  const wins = [...document.querySelectorAll(".win")];
+  wins.forEach(w => w.classList.remove("app"));
+  const looks = ["A", "B", "C"];
+  wins.forEach((w, i) => {
+    w.classList.add("app");
+    const c = mountFrame();
+    c.removeAttribute("id"); c.className = "content";
+    w.classList.remove("app");
+    const look = looks[i];
+    c.innerHTML = tripTab(look);
+    // the tag right after the coin pill, the receipt in the window
+    const coins = w.querySelector(".top .chip.coins");
+    coins.insertAdjacentHTML("afterend", `<button class="btag on" title="our boosts">${x2(COINS)}</button>`);
+    w.insertAdjacentHTML("beforeend", { A: receiptA, B: receiptB, C: receiptC }[look]());
+    const tag = w.querySelector(".btag"), rc = w.querySelector(".rcpt");
+    tag.addEventListener("click", () => { rc.classList.toggle("shut"); tag.classList.toggle("on"); });
+    const tape = w.querySelector(".tape"), why = w.querySelector(".why");
+    tape.addEventListener("click", () => why.classList.toggle("shut"));
+  });
+  wins.forEach(w => w.classList.add("app"));
+
+  // look C: a little string from the coin pill to the price tag's hole
+  function strings() {
+    document.querySelectorAll(".win.C").forEach(w => {
+      w.querySelector(".string")?.remove();
+      const a = w.getBoundingClientRect(), p = w.querySelector(".top .chip.coins").getBoundingClientRect(), t = w.querySelector(".btag").getBoundingClientRect();
+      const x1 = p.right - a.left - 4, y1 = p.top - a.top + p.height / 2, x2p = t.left - a.left + 9, y2 = t.top - a.top + t.height / 2;
+      w.insertAdjacentHTML("beforeend", `<svg class="string" style="left:0;top:0" width="${a.width}" height="${a.height}"><path d="M${x1} ${y1} Q${(x1 + x2p) / 2} ${Math.max(y1, y2) + 7} ${x2p} ${y2}"/></svg>`);
+    });
+  }
+  applyLook(loadLook());
+  strings();
+  document.fonts?.ready.then(strings);
+</script>
+</body>
+</html>
