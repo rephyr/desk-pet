@@ -1582,7 +1582,7 @@ func take_off_job(job_id: String, count := 1, uids: Array = []) -> int:
 			var pet := collection.get_pet(uid)
 			if pet:
 				crew_pets.append(pet)
-		var picked := _pick(crew_pets, state.herd, count, func(p: Pet): return Jobs.pet_speed(p, job), false)
+		var picked := _pick(crew_pets, state.herd, count, func(p: Pet): return _pet_speed(p, job), false)
 		cards = picked[0]
 		counts = picked[1]
 	var n := cards.size()
