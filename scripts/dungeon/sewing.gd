@@ -88,9 +88,10 @@ static func strength(catalog: Catalog, r: Dictionary) -> float:
 	return float(s.base) * pow(float(s.grow), int(r.floor)) * float(data(catalog).get("room_x", 1.0))
 
 
-## What clearing a room pays: a well floor at the room's floor, for the pets sent (at most the entrance).
-static func pay(catalog: Catalog, r: Dictionary, sent: int, entrance_level: int) -> int:
-	return maxi(1, roundi(Dungeon.pay(catalog, int(r.floor), sent, entrance_level) * float(data(catalog).get("pay_x", 1.0))))
+## What clearing a room pays: a well floor at the room's floor, for the pets sent (at most the
+## entrance), x the lanterns boost (`boost`).
+static func pay(catalog: Catalog, r: Dictionary, sent: int, entrance_level: int, boost := 1.0) -> int:
+	return maxi(1, roundi(Dungeon.pay(catalog, int(r.floor), sent, entrance_level, boost) * float(data(catalog).get("pay_x", 1.0))))
 
 
 ## How long a room takes.
@@ -165,7 +166,7 @@ static func many(catalog: Catalog, mark: String) -> String:
 ## why: target | stuck | gone, turned: 0 }.
 static func simulate(catalog: Catalog, army: Dictionary, r: Dictionary, orders: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
 	var sent: int = army.get("cards", []).size() + Herd.total(_counts(army))
-	return Dungeon.simulate_room(catalog, army, strength(catalog, r), pay(catalog, r, sent, int(orders.get("entrance", 0))),
+	return Dungeon.simulate_room(catalog, army, strength(catalog, r), pay(catalog, r, sent, int(orders.get("entrance", 0)), float(orders.get("pay_x", 1.0))),
 		int(data(catalog).get("door_floor", 20)), str(orders.get("first", "")), rng)
 
 

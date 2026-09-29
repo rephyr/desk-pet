@@ -45,8 +45,9 @@ func _init() -> void:
 				coins / TRIPS / minutes, parts / TRIPS, boxes / TRIPS, 100.0 * lost / TRIPS])
 	_errands(catalog, rng)
 	_rummage(catalog)
-	_dungeon(catalog, rng)
+	var rates := _dungeon(catalog, rng)
 	_sewing(catalog, rng)
+	_perks(catalog, rates)
 	quit()
 
 
@@ -119,8 +120,9 @@ func _pick(style: String, run: RunState, location: Dictionary, catalog: Catalog)
 ## The old well's dungeon (data/dungeon.json): armies of a front row of 20 cards and 280 from the
 ## herd (average stats for their rarity), sent to floor 40, coming home when half are gone, the
 ## herd first. How deep they get, what a run pays and costs, and wisps an hour of runs back to back.
-func _dungeon(catalog: Catalog, rng: RandomNumberGenerator) -> void:
+func _dungeon(catalog: Catalog, rng: RandomNumberGenerator) -> Array:
 	const RUNS := 300
+	var rates: Array = []  # [army, deepest floor, wisps an hour], for the perks table
 	print("\nthe old well: 20 cards in front + 280 from the herd, down to floor 40, home when 50%% are gone, the herd first. %d runs each." % RUNS)
 	print("%-20s %8s %8s %8s %8s %10s" % ["army", "floor", "deepest", "wisps", "lost", "wisps/h"])
 	for mix in [["common", "common"], ["uncommon", "common"], ["rare", "uncommon"], ["epic", "rare"], ["legendary", "epic"]]:
@@ -146,7 +148,39 @@ func _dungeon(catalog: Catalog, rng: RandomNumberGenerator) -> void:
 			lost += gone[0].size() + Herd.total(gone[1])
 			seconds += Dungeon.run_seconds(catalog, run)
 		print("%-20s %8.1f %8d %8.0f %8.0f %10.0f" % ["%s + %s" % mix, floors / RUNS, deepest, wisps / RUNS, lost / RUNS, wisps / (seconds / 3600.0)])
+		rates.append(["%s + %s" % mix, deepest, wisps / (seconds / 3600.0)])
+	return rates
 
+
+## The wisps perks on the well wall (data/perks.json): each link's prices, the first army from the
+## well's table that gets down to its nail, and the hours of that army's runs back to back to buy
+## every level (no perks counted in: an army with them earns faster). Then the tips' prices.
+func _perks(catalog: Catalog, rates: Array) -> void:
+	print("\nthe wisps perks: every level's price, the first army deep enough for the nail, hours of its runs to buy them all.")
+	print("%-12s %5s %-34s %-20s %8s %7s" % ["perk", "floor", "prices", "army", "wisps/h", "hours"])
+	var total := 0.0
+	for p in Perks.chain(catalog):
+		var rate: Array = []
+		for r in rates:
+			if int(r[1]) >= int(p.floor):
+				rate = r
+				break
+		if rate.is_empty():
+			rate = rates.back()
+		var sum := 0.0
+		for c in p.price:
+			sum += float(c)
+		var hours := sum / maxf(float(rate[2]), 1.0)
+		total += hours
+		print("%-12s %5d %-34s %-20s %8.0f %7.1f" % [p.id, int(p.floor), " ".join(p.price.map(func(c): return _short(float(c)))), rate[0], float(rate[2]), hours])
+	print("the whole chain: %.1f hours of runs" % total)
+	var top: Array = rates.back()
+	for t in Perks.tips(catalog):
+		var row := "%-12s" % t.id
+		for lv in [0, 3, 6, 10]:
+			var price := Perks.price(catalog, { str(t.id): lv }, str(t.id))
+			row += "  lv %d: %s (%.1f h)" % [lv, _short(float(price)), price / maxf(float(top[2]), 1.0)]
+		print(row)
 
 ## E3 the sewing room (data/sewing.json): the same armies as the well, into each fixed room and the
 ## first rolled ones (chalk locks left out: this is only the fight). How often each clears it, and

@@ -57,6 +57,8 @@ extends Node
 ##   down-done             the army's run is over now: it comes home
 ##   deep <n>              the army has been down to floor n before (bands and orders open up)
 ##   wisps <n>             you have exactly n wisps
+##   perk <id> [level]     a wisps perk on the well wall at that level (1 if left out), for free
+##   buy-perk <id>         buys a perk's next level with wisps, like its card's button (fails if it can't)
 ##   open-plushie          a pet brings home the plushie machine (its real unlock: the popup, the free button)
 ##   buttons <slot>=<n> ...  your active pet's parts get that many buttons (the plushie machine's)
 ##   hopper <rarity> <n>   n pets of that rarity from the herd go into the plushie machine's hopper
@@ -369,6 +371,13 @@ func _step(w: PackedStringArray) -> String:
 			GameState.wisps = int(w[1])
 			GameState.dungeon_changed.emit()
 			GameState.changed.emit()
+		"perk":  # perk <id> [level]: a wisps perk at that level, for free
+			if Perks.perk(GameState.catalog, w[1]).is_empty():
+				return "unknown perk %s" % w[1]
+			GameState.debug_perk(w[1], int(w[2]) if w.size() > 2 else 1)
+		"buy-perk":  # buy-perk <id>: with wisps
+			if not GameState.buy_perk(w[1]):
+				return "couldn't buy the perk %s" % w[1]
 		"open-plushie":  # the plushie machine comes home: its real unlock (popup, free button)
 			GameState.grant({ "find:plushie_machine": 1 })
 		"buttons":  # buttons body=2 eyes=5: your active pet's buttons

@@ -11,7 +11,7 @@ scripts/pets/        pet rules and pet visuals (Pet, PetRoller, Collection, Knac
 scripts/adventure/   adventure rules: runs, events, parties, rewards, rumours, the pet's voice
 scripts/idle/        errands (Jobs) and automation (Automation): pure rules for idle jobs, see data/errands.json, data/automation.json
 scripts/machine/     the capsule machine (Machine) and capsule toys (Toys): pure rules, see data/machine.json, data/toys.json
-scripts/dungeon/     the old well's dungeon (Dungeon): floors, power, a whole run worked out at once, pay; the sewing room (Sewing): rooms, chalk locks, keep lines; pure rules, see data/dungeon.json, data/sewing.json
+scripts/dungeon/     the old well's dungeon (Dungeon): floors, power, a whole run worked out at once, pay; the sewing room (Sewing): rooms, chalk locks, keep lines; the wisps perks on the well wall (Perks); pure rules, see data/dungeon.json, data/sewing.json, data/perks.json
 scripts/dev/         debug-only: launch flags, test profiles, scripted test flows (DevDriver)
 scripts/game_state   the player's progress + saving (autoload "GameState")
 scripts/ui/          screens and widgets; they read GameState and call its functions
@@ -256,6 +256,29 @@ best front_row cards) / `sew_hint(mark)` (like `bit_hint`) / `debug_sewn(n)`; un
 when the rule is on OR a keep line picks something, `_sort_pet` asks `_keep_new` first;
 `Collection.keep_uids` (rebuilt from `homes.kept` by `_keep_lines_changed`) counts in `always_card`, so
 kept pets never fold and the stall never takes them.
+
+Save v28 adds the wisps perk tree (renumber at the lane merge): top-level `perks` `{ perk id: level }`
+(`Perks`, data/perks.json; only levels > 0, links clamped to their max, tips any level). The
+migration moves `dungeon.entrance` (a level) into `perks.entrance`; `Dungeon.fresh/clean` no longer
+keep it. Count links ADD their steps to a base: `Perks.count_base` (entrance / front_row from data/dungeon.json
+`entrance.start` / `front_row`, the rest 0), `Perks.count` / `count_at`, `Perks.card_value` (the nail
+card's whole number); `Dungeon.entrance(catalog, level)` = `count_at("entrance", level)`. An army for the rules can
+carry `front_n` / `front_x` / `behind_x` / `band_x` ({ rope | doors | stairs | room: x }), orders
+`pay_x`; `GameState._army_rules` fills them from `boost("front" | "herd_power" | "cellar" | "stairs")`,
+`send_army` / `send_to_room` pass `pay_x = boost("lanterns")`. `boost_parts` appends `Perks.parts`
+(source "perks"). Counts: `front_row_size()` (army_best, sew_front, FrontRow), `perk_holds()` /
+`perk_nudges()` (passed to `Plushie.holds_max / can_hold / toggle_hold / next_pet` as extras; the shop's
+hold price still counts bought holds only), `perk_away_hours()` (`_army_while_away` on load: finishes
+the run that was out and sends the same army again back to back from the save time, up to
+perks.json `away_runs_max` runs, each quiet (`send_army(true)` / `_finish_dungeon_run(true)`: no
+signals, save, refold or unlock check; `_home_again()` does those once after), nothing for a save
+with no `saved_at`; wisps into `idle_log.wisps` and `dungeon_news`). `boost("pets")` speeds box opening
+(`_open_in_background`, `PackJob`'s rest, the workers' box tables). `GameState.perks_shown()` /
+`perk_available` / `perk_price` / `buy_perk` / `debug_perk`, the pages rebuild on
+`dungeon_changed`. UI: `PerkNail` (a Button; `PerkNail.texture(thing, look, px)` renders the SVG
+things) placed by `WellColumn` (lane x 40, `nail_at`, `_thread`, tips under the last floor drawn,
+`nail_pressed(id)`); `DungeonView.pick_nail(id)` / `_nail_card` in the side column. The well panel
+is 236 wide (the column's middle at 0.55), the page's gaps 10, FrontRow's gap 3, the picker's 5.
 
 ## Testing
 

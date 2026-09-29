@@ -474,14 +474,34 @@ All opt-in, with odds shown before confirming:
     0.4 of its strength can't be passed. Pets that don't come back become stars, never named.
   - **Wisps (the darker currency, candy floss coral):** each cleared floor pays 0.01 x 1.15^floor
     x pets SENT (at most the entrance), never per pet lost. Lit landings are the progress bar.
-    The plushie machine spends them (nudges, holds, the wild reel); widening the entrance is the
-    dungeon's own first buy, later.
+    The plushie machine spends them (nudges, holds, the wild reel); the perks on the well wall
+    (below) spend them too, the widened entrance first.
   - **Firsts:** floor 10 gives the first dungeon part (an epic) and your pet learns "lead the
     army" (automation: it takes the same army down again whenever it's home, while the game runs);
     floor 20 gives a tiny key (E3's), fully hidden until found. While parts aren't open yet
     (40 trips), floor 10's part waits: it's given on the first clear after parts open, and its
     glint on the well only shows once parts are open.
   - Gear never works in the dungeon; the power boost (your active pet's power knacks) does.
+  - **The perk tree on the well wall (look A, on the walls; well-additions mockup):** coral things
+    hang on nails down the left lane of the well's soil, one per landing, joined by a coral thread
+    (solid down to the last one bought, dashed chalk after). The bow on the well's left roof post is
+    the entrance and the first buy. A chain: a thing can be bought once the one above has a level;
+    unbought ones are dashed outlines (the next buyable one brighter); nails deeper than the army
+    has been stay fully hidden. Tapping a nail puts its card where "last time" sits (the thing,
+    level pips, what it does now → next as numbers, "hang it up" / "one more" with its wisps price,
+    "all done!" at its max, no button while the one above isn't bought; ✕ brings "last time" back).
+    Only wisps buy perks. The chain (data/perks.json, `Perks`; all numbers placeholders): the
+    entrance (fits 300 → 4.8k), the little flag (floor 3, front row power), the dinner bell (6, the
+    herd's power: everyone walking behind), the spool (10, lanterns: wisps from the well and the
+    sewing room), the nightlight (13, power in the cellar), the lunchbox (17, pets/sec: box opening),
+    the woolly scarf (20, power on the stairs and in the sewing rooms), the pinwheel (24, front row
+    20 → 22 → 24 cards), the music box (28, while you're away: your pet leading the army keeps
+    taking it down for 1/2/4/8 hours of closed time, real runs, wisps only), the paper star (33, army
+    power, shared with knacks), the thimble (36, +1/+2 plushie holds) and the ribbon (40, +1/+2
+    nudges per pet that hops in), the last two hidden until the plushie machine opens. Once every
+    link has a level, 2 endless tips hang at the bottom: the lucky coin (coins) and the rattle
+    (pets/sec), +4% a level, each level x3 the price. Multipliers go through the boost plumbing
+    (source "perks"; coins and power are shared kinds). Voice: a new nail after a run, a buy.
 
 ## The sewing room (E3, off the well's floor 20)
 

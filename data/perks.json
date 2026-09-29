@@ -1,0 +1,35 @@
+{
+	"_note": "The wisps perk tree on the well wall (scripts/dungeon/perks.gd, GameState's perks part, the dungeon page's WellColumn nails + the nail card; design lanes/mockups2 well-additions.html Look A). Only WISPS buy perks, nothing here has a coin price. CHAIN: coral things on nails down the left lane of the well, one per landing ('floor'; 0 = the bow on the well's roof post). A link can be bought once the one above it has at least 1 level. A nail shows once the army has been down to its floor (dungeon deep >= floor) and its 'needs' unlock is open (the plushie perks wait for feature:plushie); hidden ones stay fully hidden. 'steps[level]' is what the link does at that level (index 0 = nothing bought), 'price[level]' what the next level costs; the last step is its max. A link does either a boost 'kind' (a multiplier, data/boosts.json, source 'perks'; shared kinds show on the boost receipt) or a 'count' the game reads instead, its steps ADDED to the count's base (entrance and front_row start at data/dungeon.json entrance.start and front_row, the rest at 0; the nail card shows the whole count): entrance (more pets that fit through at once), front_row (more cards that fight in front), away_hours (hours your pet keeps leading the army while the game is closed: real runs, wisps only), holds (plushie holds on top of the machine's and the bought ones), nudges (extra plushie nudges per pet that hops in). 'away_runs_max': the most runs the music box works out when the game loads (short runs stop there before its hours are up). 'what' is the effect's word on the nail card and 'fmt' how its number reads (num, x, cards, hours, plus). TIPS: the 2 endless things at the bottom, shown once every chain link has at least 1 level: each level gives + 'each' on its kind (x(1 + each x level)), the next level costs base x grow ^ level, never past 'price_max'. Every number is a placeholder.",
+	"chain": [
+		{ "id": "entrance", "name": "the entrance", "thing": "bow", "floor": 0, "what": "fits", "fmt": "num", "count": "entrance",
+			"steps": [0, 300, 900, 2100, 4500], "price": [100, 600, 1800, 5400] },
+		{ "id": "flag", "name": "the little flag", "thing": "flag", "floor": 3, "what": "front row", "fmt": "x", "kind": "front",
+			"steps": [1, 1.2, 1.4, 1.6, 1.8, 2], "price": [150, 300, 700, 1500, 3200] },
+		{ "id": "bell", "name": "the dinner bell", "thing": "bell", "floor": 6, "what": "the herd", "fmt": "x", "kind": "herd_power",
+			"steps": [1, 1.15, 1.3, 1.45], "price": [200, 700, 1600] },
+		{ "id": "spool", "name": "the spool", "thing": "spool", "floor": 10, "what": "lanterns", "fmt": "x", "kind": "lanterns",
+			"steps": [1, 1.25, 1.5, 1.75, 2, 2.5], "price": [300, 600, 1400, 3000, 6400] },
+		{ "id": "nightlight", "name": "the nightlight", "thing": "moon", "floor": 13, "what": "the cellar", "fmt": "x", "kind": "cellar",
+			"steps": [1, 1.3, 1.6, 2], "price": [800, 2400, 7200] },
+		{ "id": "lunchbox", "name": "the lunchbox", "thing": "lunch", "floor": 17, "what": "pets/sec", "fmt": "x", "kind": "pets",
+			"steps": [1, 1.25, 1.5, 2], "price": [1500, 4000, 9000] },
+		{ "id": "scarf", "name": "the woolly scarf", "thing": "scarf", "floor": 20, "what": "the stairs", "fmt": "x", "kind": "stairs",
+			"steps": [1, 1.3, 1.6, 2], "price": [2200, 6000, 14000] },
+		{ "id": "pinwheel", "name": "the pinwheel", "thing": "pinwheel", "floor": 24, "what": "front row", "fmt": "cards", "count": "front_row",
+			"steps": [0, 2, 4], "price": [4000, 12000] },
+		{ "id": "musicbox", "name": "the music box", "thing": "musicbox", "floor": 28, "what": "while you're away", "fmt": "hours", "count": "away_hours",
+			"steps": [0, 1, 2, 4, 8], "price": [6500, 16000, 40000, 90000] },
+		{ "id": "star", "name": "the paper star", "thing": "star", "floor": 33, "what": "the army", "fmt": "x", "kind": "power",
+			"steps": [1, 1.25, 1.5], "price": [12000, 30000] },
+		{ "id": "thimble", "name": "the thimble", "thing": "thimble", "floor": 36, "what": "holds", "fmt": "plus", "count": "holds", "needs": "feature:plushie",
+			"steps": [0, 1, 2], "price": [20000, 50000] },
+		{ "id": "ribbon", "name": "the ribbon", "thing": "ribbon", "floor": 40, "what": "nudges a pet", "fmt": "plus", "count": "nudges", "needs": "feature:plushie",
+			"steps": [0, 1, 2], "price": [30000, 75000] }
+	],
+	"tips": [
+		{ "id": "coin", "name": "the lucky coin", "thing": "coin", "what": "coins", "kind": "coins", "each": 0.04, "base": 20000, "grow": 3 },
+		{ "id": "rattle", "name": "the rattle", "thing": "rattle", "what": "pets/sec", "kind": "pets", "each": 0.04, "base": 20000, "grow": 3 }
+	],
+	"away_runs_max": 500,
+	"price_max": 4000000000000000000
+}

@@ -49,6 +49,8 @@ func _init() -> void:
 	_test_new_homes_game(catalog)
 	_test_sewing(catalog)
 	_test_sewing_game(catalog)
+	_test_perks(catalog)
+	_test_perks_game(catalog)
 	_test_merged_lanes(catalog)
 	print("\n%s (%d checks)" % ["ALL PASSED" if _failures == 0 else "%d FAILED" % _failures, _checks])
 	quit(1 if _failures > 0 else 0)
@@ -2010,7 +2012,7 @@ func _test_merged_lanes(catalog: Catalog) -> void:
 	var gs: Node = load("res://scripts/game_state.gd").new()
 	var c: Collection = gs.collection
 	var newest: int = load("res://scripts/game_state.gd").SAVE_VERSION
-	_check(newest == 27, "the save chain ends at v27 (dungeon 24, plushie 25, new homes 26, the sewing room 27)")
+	_check(newest == 28, "the save chain ends at v28 (dungeon 24, plushie 25, new homes 26, the sewing room 27, perks 28)")
 	_check("cellar" in gs.dungeon.bands, "v24: an old save's open cellar is a dungeon band")
 	_check(not gs.plushie_open() and gs.wisps == 0 and gs.plushie.hopper.is_empty(), "v25: an empty plushie machine and no wisps")
 	_check(gs.job_joins("coin_hunt"), "v26: sharing on -> new pets join the errand")
@@ -2590,6 +2592,222 @@ func _test_sewing_game(catalog: Catalog) -> void:
 	_check(gs3.finds.has("little_key") and gs3.sewing_open(), "a v26 save past floor 20 gets the key and its door")
 	gs3.free()
 	gs.free()
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+
+
+## The wisps perk tree on the well wall (Perks, data/perks.json): nails show by depth and needs,
+## a chain (each needs the one above), prices and the cap, values, buying, the tips once the chain
+## is done, boost parts and counts, a save made safe; the army's perks in the dungeon's maths.
+func _test_perks(catalog: Catalog) -> void:
+	var yes := func(_id): return true
+	var no := func(_id): return false
+	var st := {}
+	_check(Perks.shown(catalog, st, 0, yes) == ["entrance"], "at the top only the bow shows (%s)" % [Perks.shown(catalog, st, 0, yes)])
+	_check(Perks.shown(catalog, st, 12, yes) == ["entrance", "flag", "bell", "spool"], "down to floor 12: the nails to floor 10 (%s)" % [Perks.shown(catalog, st, 12, yes)])
+	var deep_no := Perks.shown(catalog, st, 60, no)
+	_check(not "thimble" in deep_no and not "ribbon" in deep_no and "star" in deep_no, "the plushie perks stay hidden until the machine opens")
+	_check("thimble" in Perks.shown(catalog, st, 60, yes) and "ribbon" in Perks.shown(catalog, st, 60, yes), "and show once it has")
+	# the chain
+	_check(Perks.available(catalog, st, "entrance", 0, yes) and not Perks.available(catalog, st, "flag", 12, yes), "the bow first; the flag waits for it")
+	_check(not Perks.available(catalog, st, "flag", 1, yes), "a hidden nail can't be bought")
+	_check(Perks.buy(catalog, st, "entrance", 50, 12, yes) == -1 and Perks.level(st, "entrance") == 0, "not enough wisps: nothing")
+	_check(Perks.buy(catalog, st, "flag", 99999, 12, yes) == -1, "the flag can't be bought before the bow")
+	var cost := Perks.buy(catalog, st, "entrance", 99999, 12, yes)
+	_check(cost == 100 and Perks.level(st, "entrance") == 1, "the bow's first level costs 100 wisps (%d)" % cost)
+	_check(Perks.available(catalog, st, "flag", 12, yes) and not Perks.available(catalog, st, "spool", 12, yes), "now the flag can be bought, the spool still waits for the bell")
+	_check(Dungeon.entrance(catalog, 0) == 300 and Dungeon.entrance(catalog, 1) == 600 and Dungeon.entrance(catalog, 4) == 4800, "the entrance fits 300, then 600 .. 4.8k")
+	_check(Perks.price(catalog, st, "entrance") == 600, "each level costs more")
+	st.entrance = 4
+	_check(Perks.maxed(catalog, st, "entrance") and Perks.price(catalog, st, "entrance") == -1 and Perks.buy(catalog, st, "entrance", 1 << 40, 12, yes) == -1,
+		"a maxed link can't be bought again")
+	st.flag = 2
+	_check(is_equal_approx(Perks.value(catalog, st, "flag"), 1.4), "the flag at level 2 is x1.40")
+	var front := Perks.parts(catalog, st, "front")
+	_check(front.size() == 1 and front[0].source == "perks" and is_equal_approx(float(front[0].x), 1.4), "its boost part: perks flag x1.40")
+	_check(Perks.parts(catalog, st, "power").is_empty(), "nothing on power until the paper star")
+	# counts
+	_check(is_equal_approx(Perks.count(catalog, st, "front_row"), 20.0), "the front row is 20 without the pinwheel")
+	st.pinwheel = 1
+	_check(is_equal_approx(Perks.count(catalog, st, "front_row"), 22.0), "the pinwheel makes it 22")
+	_check(is_equal_approx(Perks.count(catalog, st, "holds"), 0.0) and is_equal_approx(Perks.count(catalog, st, "nope"), 0.0), "counts with nothing bought, or no link: 0")
+	# one source of truth: the base lives in data/dungeon.json, the links add on top
+	var front_was = catalog.dungeon.front_row
+	var start_was = catalog.dungeon.entrance.start
+	catalog.dungeon.front_row = 30
+	catalog.dungeon.entrance.start = 500
+	_check(is_equal_approx(Perks.count(catalog, st, "front_row"), 32.0) and Dungeon.entrance(catalog, 0) == 500 and Dungeon.entrance(catalog, 1) == 800,
+		"tuning dungeon.json front_row / entrance.start moves the counts (%d, %d)" % [int(Perks.count(catalog, st, "front_row")), Dungeon.entrance(catalog, 1)])
+	_check(is_equal_approx(Perks.card_value(catalog, Perks.perk(catalog, "pinwheel"), 2), 34.0), "the pinwheel's card shows the whole front row")
+	catalog.dungeon.front_row = front_was
+	catalog.dungeon.entrance.start = start_was
+	# the tips: once every link has a level
+	_check(not Perks.chain_done(catalog, st) and not "coin" in Perks.shown(catalog, st, 60, yes), "the tips wait for the chain")
+	_check(not Perks.available(catalog, st, "coin", 60, yes), "and can't be bought before")
+	for p in Perks.chain(catalog):
+		st[str(p.id)] = maxi(1, Perks.level(st, str(p.id)))
+	_check(Perks.chain_done(catalog, st) and Perks.shown(catalog, st, 60, yes).slice(-2) == ["coin", "rattle"], "every link bought once: the lucky coin and the rattle hang at the bottom")
+	var tip0 := Perks.price(catalog, st, "coin")
+	_check(Perks.buy(catalog, st, "coin", tip0, 60, yes) == tip0 and Perks.price(catalog, st, "coin") == tip0 * 3, "a tip's next level costs x3 (%d)" % tip0)
+	st.coin = 3
+	_check(is_equal_approx(Perks.value(catalog, st, "coin"), 1.12) and is_equal_approx(float(Perks.parts(catalog, st, "coins")[0].x), 1.12), "the lucky coin gives +4% a level")
+	st.rattle = 2
+	var pets := Perks.parts(catalog, st, "pets")
+	_check(pets.size() == 2 and is_equal_approx(Boosts.total(pets), 1.25 * 1.08), "the lunchbox and the rattle both speed pets/sec (%.3f)" % Boosts.total(pets))
+	st.coin = 200
+	_check(Perks.price(catalog, st, "coin") == int(float(catalog.perks.price_max)) and not Perks.maxed(catalog, st, "coin"), "a tip never costs more than the cap, and never ends")
+	# a save made safe
+	var clean := Perks.clean(catalog, { "entrance": 99, "flag": 0, "nope": 3, "coin": 12, "bell": "x" })
+	_check(clean == { "entrance": 4, "coin": 12 }, "clean: links clamped to their max, tips any level, unknown and empty ones dropped (%s)" % [clean])
+	for kind in ["front", "herd_power", "cellar", "stairs", "lanterns", "pets", "power", "coins"]:
+		_check(Boosts.is_kind(catalog, kind), "boost kind %s is in data/boosts.json" % kind)
+	for p in Perks.chain(catalog):
+		_check(p.has("kind") != p.has("count"), "%s does a boost kind or a count, not both" % p.id)
+		_check(p.price.size() == p.steps.size() - 1, "%s has a price for every level" % p.id)
+		_check(not p.has("kind") or Boosts.is_kind(catalog, str(p.kind)), "%s's kind is a boost kind" % p.id)
+		_check(not p.has("coins") and not p.has("coin_price"), "%s has no coin price" % p.id)
+	var floors := Perks.chain(catalog).map(func(p): return int(p.floor))
+	var sorted := floors.duplicate()
+	sorted.sort()
+	_check(floors == sorted and floors[0] == 0, "the chain goes down the well, the bow on top")
+
+	# the army's perks in the dungeon's maths
+	var a := _army(30, 10.0, 100, 5.0)
+	var base_rope := Dungeon.army_power(catalog, a, "rope")
+	var base_door := Dungeon.army_power(catalog, a, "door")
+	a.front_x = 2.0
+	_check(is_equal_approx(Dungeon.army_power(catalog, a, "rope"), base_rope * 2.0), "front_x doubles the front row")
+	a.front_x = 1.0
+	a.behind_x = 2.0
+	_check(is_equal_approx(Dungeon.army_power(catalog, a, "rope"), base_rope) and is_equal_approx(Dungeon.army_power(catalog, a, "door"), base_rope + (base_door - base_rope) * 2.0),
+		"behind_x only counts for the ones walking behind")
+	a.behind_x = 1.0
+	a.band_x = { "doors": 1.5, "stairs": 3.0, "room": 3.0 }
+	_check(is_equal_approx(Dungeon.army_power(catalog, a, "rope"), base_rope) and is_equal_approx(Dungeon.army_power(catalog, a, "knock"), base_door * 1.5)
+		and is_equal_approx(Dungeon.army_power(catalog, a, "guard"), base_door * 3.0) and is_equal_approx(Dungeon.army_power(catalog, a, "room"), base_door * 3.0),
+		"band_x: the cellar's floors, the stairs and the sewing rooms")
+	a.band_x = {}
+	a.front_n = 22
+	_check(is_equal_approx(Dungeon.army_power(catalog, a, "rope"), base_rope * 22.0 / 20.0), "front_n 22: two more cards fight on the rope")
+	_check(Dungeon.pay(catalog, 12, 300, 0, 2.0) == roundi(Dungeon.pay(catalog, 12, 300, 0) * 2.0) or absi(Dungeon.pay(catalog, 12, 300, 0, 2.0) - 2 * Dungeon.pay(catalog, 12, 300, 0)) <= 1,
+		"pay_x (lanterns) multiplies a floor's pay")
+	_check(Dungeon.pay(catalog, 12, 1000, 1) > Dungeon.pay(catalog, 12, 1000, 0), "a wider entrance pays for more pets")
+
+
+func _test_perks_game(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped the perks in the game: it needs a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var pets := []
+	for i in 30:
+		var p := _plain_pet(catalog, "epic", "holo", 500 + i)  # holo: they stay cards
+		p.uid = str(i + 1)
+		pets.append(p.to_dict())
+	var auto := Automation.fresh()
+	auto.taught["army"] = true
+	var old := { "version": 27, "coins": 1000, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(),
+		"unlocks": ["page:beyond", "location:well", "feature:dungeon", "feature:lead_army", "tab:automation", "feature:parts"],
+		"finds": ["deep_rope"], "automation": auto, "wisps": 100000,
+		"collection": { "pets": pets, "active": "1", "next_id": 31, "seen": {}, "herd": { "common:normal": 3000 }, "herd_ever": true },
+		"dungeon": { "deep": 12, "bands": ["well", "cellar"], "entrance": 2, "target": 5, "firsts": { "10": true } }, "room": 40 }
+	SaveFile.write(path, old)
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	_check(gs.perk_level("entrance") == 2 and not gs.dungeon.has("entrance"), "v27 -> v28: the entrance's level moved into the perks")
+	_check(int(gs.army().entrance) == 1200, "and still fits 1.2k (%d)" % int(gs.army().entrance))
+	_check(gs.perks_shown() == ["entrance", "flag", "bell", "spool"], "the nails down to floor 12 show (%s)" % [gs.perks_shown()])
+	# buying
+	gs.army_best()
+	gs.set_army_herd("common", 3000)
+	var rules0: Dictionary = gs.army_rules()
+	var power0 := Dungeon.army_power(catalog, rules0, "rope")
+	var w0: int = gs.wisps
+	_check(not gs.buy_perk("bell"), "the bell waits for the flag")
+	_check(gs.buy_perk("flag") and gs.wisps == w0 - 150 and gs.perk_level("flag") == 1, "the flag: 150 wisps")
+	_check(is_equal_approx(gs.boost("front"), 1.2) and gs.boost_parts("front")[0].source == "perks", "the front row's boost comes from the perks")
+	_check(is_equal_approx(Dungeon.army_power(catalog, gs.army_rules(), "rope"), power0 * 1.2), "and makes the army stronger on the rope")
+	gs.wisps = 10
+	_check(not gs.buy_perk("flag") and gs.perk_level("flag") == 1, "not enough wisps: nothing")
+	gs.wisps = 100000
+	# the lanterns pay more
+	gs.debug_perk("spool", 5)
+	_check(is_equal_approx(gs.boost("lanterns"), 2.5), "the spool at its max: lanterns x2.5")
+	gs.send_army()
+	var paid := 0
+	for fl in gs.dungeon.run.floors:
+		paid += int(fl.pay)
+	var plain := 0
+	for fl in gs.dungeon.run.floors:
+		if fl.cleared:
+			plain += Dungeon.pay(catalog, int(fl.f), int(gs.dungeon.run.sent), 2)
+	_check(paid > 0 and absi(paid - roundi(plain * 2.5)) <= gs.dungeon.run.floors.size(), "a run's floors pay x2.5 (%d vs %d)" % [paid, plain])
+	gs.dungeon.run = {}
+	gs._rest_changed()
+	# the pinwheel: 22 cards in front
+	gs.dungeon.deep = 40
+	gs.debug_perk("pinwheel", 1)
+	gs.army_best()
+	_check(gs.front_row_size() == 22 and gs.army().cards.size() == 22 and gs.sew_front().size() == 22, "the pinwheel: army best takes 22 cards (%d)" % gs.army().cards.size())
+	# the plushie perks: hidden until the machine opens, then holds and nudges
+	for id in ["bell", "nightlight", "lunchbox", "scarf", "musicbox", "star"]:
+		gs.debug_perk(id, 1)
+	_check(not "thimble" in gs.perks_shown() and not "coin" in gs.perks_shown(), "no plushie perks, no tips, before the plushie machine")
+	gs.grant({ "find:plushie_machine": 1 })
+	_check("thimble" in gs.perks_shown() and "ribbon" in gs.perks_shown(), "the plushie machine opens: the thimble and the ribbon hang there")
+	var holds0 := Plushie.holds_max(catalog, gs.plushie, gs.perk_holds())
+	_check(gs.buy_perk("thimble") and Plushie.holds_max(catalog, gs.plushie, gs.perk_holds()) == holds0 + 1, "the thimble: one more hold")
+	_check(gs.buy_perk("ribbon") and gs.perk_nudges() == 1, "the ribbon: a nudge more per pet")
+	var st := Plushie.fresh()
+	st.hopper = [_plain_pet(catalog, "common", "normal", 9).to_dict()]
+	Plushie.next_pet(catalog, st, gs.collection.active(), gs.perk_nudges())
+	_check(int(st.nudges) == 1, "a plain pet hopping in brings the ribbon's nudge (%d)" % int(st.nudges))
+	_check(gs.perks_shown().slice(-2) == ["coin", "rattle"], "the chain is done: the tips hang at the bottom")
+	_check(gs.buy_perk("rattle") and is_equal_approx(gs.boost("pets"), 1.25 * 1.04), "the lunchbox and the rattle: pets/sec x%.3f" % gs.boost("pets"))
+	_check(is_equal_approx(gs.boost("power"), 1.25 * Boosts.total(Knacks.parts(catalog, gs.collection.active(), "power", gs.knack_gate))), "the paper star shares the army power boost with knacks")
+	gs.save_game()
+	var saved: Dictionary = SaveFile.read(path)
+	_check(int(saved.version) == 28 and saved.perks.get("thimble", 0) == 1 and not saved.dungeon.has("entrance"), "it saves at v28 with the perks")
+	gs.free()
+	# the music box: your pet kept leading the army while the game was closed
+	var away := saved.duplicate(true)
+	away.dungeon.run = {}
+	away.dungeon.target = 10
+	away.dungeon.home_at = 90
+	away.automation.task = "army"
+	away.wisps = 0
+	away.perks.musicbox = 0
+	away.perks.erase("musicbox")
+	away.saved_at = Time.get_unix_time_from_system() - 2 * 3600
+	SaveFile.write(path, away)
+	var gs0: Node = load("res://scripts/game_state.gd").new()
+	var none: int = gs0.wisps
+	gs0.free()
+	_check(none == 0, "no music box: nothing happened while the game was closed (%d)" % none)
+	# (the chain needs every link for the tips: the music box at level 2 is 2 hours)
+	away.perks.musicbox = 2
+	SaveFile.write(path, away)
+	var gs2: Node = load("res://scripts/game_state.gd").new()
+	var one_run := Dungeon.run_seconds(catalog, { "floors": range(10) })
+	_check(gs2.wisps > 0 and int(gs2.idle_log.get("wisps", 0)) > 0, "the music box: wisps from runs while away (%d)" % gs2.wisps)
+	_check(gs2.dungeon_news.get("got", 0) > 0, "and your pet has news about them")
+	var herd_left: int = gs2.collection.herd_count("common:normal")
+	_check(herd_left < 3000, "real runs: some pets didn't come back (%d left)" % herd_left)
+	_check(gs2.wisps > 10 * Dungeon.pay(catalog, 1, 1, 2), "several runs' worth (%d, a run takes %d s)" % [gs2.wisps, int(one_run)])
+	# the cap is data (perks.json away_runs_max) and a save with no saved_at plays nothing
+	var cap_was = gs2.catalog.perks.get("away_runs_max", 500)
+	gs2.dungeon.run = {}
+	gs2.wisps = 0
+	gs2.catalog.perks.away_runs_max = 1
+	gs2._army_while_away(Time.get_unix_time_from_system() - 3600, Time.get_unix_time_from_system())
+	_check(gs2.dungeon_running() and gs2.wisps == 0, "away_runs_max 1: one run sent, none worked out (%d)" % gs2.wisps)
+	gs2.catalog.perks.away_runs_max = cap_was
+	gs2.dungeon.run = {}
+	_check(gs2._army_while_away(0.0, Time.get_unix_time_from_system()) == 0 and not gs2.dungeon_running(), "no saved_at: no runs dated 1970")
+	gs2.free()
 	for f in [path, path + ".bak", path + ".tmp"]:
 		if FileAccess.file_exists(f):
 			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))

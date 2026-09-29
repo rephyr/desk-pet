@@ -500,7 +500,7 @@ func _refresh_reel(i: int, keeper: Pet) -> void:
 	_hold[i].visible = going
 	_kept[i].visible = r.banked and not full
 	_bank[i].disabled = int(r.held) <= 0 or busy()
-	_hold[i].disabled = busy() or not Plushie.can_hold(catalog, st, i)
+	_hold[i].disabled = busy() or not Plushie.can_hold(catalog, st, i, GameState.perk_holds())
 	_set_on(_hold[i], r.hold)
 
 
@@ -531,7 +531,7 @@ func _refresh_side(keeper: Pet, st: Dictionary) -> void:
 		_refresh_rows(st)
 	_wisps.text = UiTheme.num(GameState.wisps - _pending_wisps)
 	_nudge_dots.set_dots(int(st.nudges), int(st.nudges))
-	var holds := Plushie.holds_max(catalog, st)
+	var holds := Plushie.holds_max(catalog, st, GameState.perk_holds())
 	_hold_dots.set_dots(holds - Plushie.holds_used(st), holds)
 	for what in Plushie.SHOP:
 		var price := GameState.plushie_price(what)

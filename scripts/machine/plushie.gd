@@ -236,8 +236,9 @@ static func anything_held(state: Dictionary) -> bool:
 	return state.try.reels.any(func(r): return int(r.held) > 0)
 
 
-static func holds_max(catalog: Catalog, state: Dictionary) -> int:
-	return int(data(catalog).get("holds", 2)) + int(state.bought.get("hold", 0))
+## Reels you can hold at once: the machine's, the bought ones and `extra` (the thimble perk).
+static func holds_max(catalog: Catalog, state: Dictionary, extra := 0) -> int:
+	return int(data(catalog).get("holds", 2)) + int(state.bought.get("hold", 0)) + maxi(extra, 0)
 
 
 static func holds_used(state: Dictionary) -> int:
@@ -367,16 +368,16 @@ static func _bank(catalog: Catalog, state: Dictionary, keeper: Pet, i: int, sewn
 
 ## Whether reel i's hold can be tapped now: it's on hold (tap to let go), or it holds buttons, isn't
 ## banked, spins are left and a hold is free.
-static func can_hold(catalog: Catalog, state: Dictionary, i: int) -> bool:
+static func can_hold(catalog: Catalog, state: Dictionary, i: int, extra := 0) -> bool:
 	var r: Dictionary = state.try.reels[i]
 	if r.hold:
 		return true
-	return int(r.held) > 0 and not r.banked and not needs_next(state) and holds_used(state) < holds_max(catalog, state)
+	return int(r.held) > 0 and not r.banked and not needs_next(state) and holds_used(state) < holds_max(catalog, state, extra)
 
 
 ## Holds reel i for the next spin, or lets go of it. False when it can't (see can_hold).
-static func toggle_hold(catalog: Catalog, state: Dictionary, i: int) -> bool:
-	if not can_hold(catalog, state, i):
+static func toggle_hold(catalog: Catalog, state: Dictionary, i: int, extra := 0) -> bool:
+	if not can_hold(catalog, state, i, extra):
 		return false
 	var r: Dictionary = state.try.reels[i]
 	r.hold = not r.hold
@@ -402,8 +403,9 @@ static func nudge(catalog: Catalog, state: Dictionary, keeper: Pet, i: int, rng:
 
 
 ## The fed pet's spins are used up: everything still held is banked, and the best pet in the
-## hopper hops in (its finish adds nudges). Returns { sewn: { slot: n }, fed: the new pet's dict or {} }.
-static func next_pet(catalog: Catalog, state: Dictionary, keeper: Pet) -> Dictionary:
+## hopper hops in (its finish adds nudges, and `extra_nudges` more: the ribbon perk). Returns
+## { sewn: { slot: n }, fed: the new pet's dict or {} }.
+static func next_pet(catalog: Catalog, state: Dictionary, keeper: Pet, extra_nudges := 0) -> Dictionary:
 	var out := { "sewn": {}, "fed": {} }
 	var t: Dictionary = state.try
 	for i in t.reels.size():
@@ -426,7 +428,7 @@ static func next_pet(catalog: Catalog, state: Dictionary, keeper: Pet) -> Dictio
 	state.hopper.remove_at(best)
 	t.spins_max = spins_for(catalog, t.fed)
 	t.spins = t.spins_max
-	state.nudges = int(state.nudges) + nudges_for(catalog, str(t.fed.get("finish", "normal")))
+	state.nudges = int(state.nudges) + nudges_for(catalog, str(t.fed.get("finish", "normal"))) + maxi(extra_nudges, 0)
 	out.fed = t.fed
 	return out
 

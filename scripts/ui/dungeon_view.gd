@@ -9,6 +9,9 @@ extends HBoxContainer
 ## Once the tiny key is found, the well's floor 20 has a little pink door: tapping it slides the column
 ## over to the sewing room (SewingRoom, header "‹ the sewing room"; ‹ slides back). The front row's
 ## cards that match the room's chalk lock get a chalk tick then.
+## The wisps perks hang on nails down the well's left lane (WellColumn, PerkNail): tapping one puts
+## its card where "last time" sits (the thing, level pips, what it does as a number, the buy button
+## with its wisps price); ✕ brings "last time" back.
 
 const PICK_PAGE := 20
 const PICK_COLUMNS := 5
@@ -38,14 +41,16 @@ var _built := false  # the page has been built once (the door seen then isn't ne
 var _running := false
 var _tick := 0.0
 var _follow_floor := -1  # the landing the scroll last followed the army to (you can scroll away in between)
+var _nail := ""  # the perk whose card is open in the side column ("" = the last run's card)
+var _reveal := ""  # a perk's nail to scroll into view after the next rebuild
 
 
 func _init() -> void:
-	add_theme_constant_override("separation", 12)
+	add_theme_constant_override("separation", 10)  # (12 before the well got its nails lane)
 	size_flags_vertical = SIZE_EXPAND_FILL
 	# the well
 	var well := PanelContainer.new()
-	well.custom_minimum_size = Vector2(224, 0)
+	well.custom_minimum_size = Vector2(236, 0)  # the nails' lane down the left, the well right of the middle
 	well.add_theme_stylebox_override("panel", UiTheme.box(UiTheme.PAPER, UiTheme.LINE, 12, 2, 0))
 	var wcol := VBoxContainer.new()
 	wcol.add_theme_constant_override("separation", 0)
@@ -84,6 +89,7 @@ func _init() -> void:
 	_column.door_pressed.connect(func():
 		show_rooms(true)
 		PetBubble.say_line(self, "sewing_door"))
+	_column.nail_pressed.connect(pick_nail)
 	_mid.size_flags_horizontal = SIZE_EXPAND_FILL
 	_mid.add_theme_constant_override("separation", 12)
 	add_child(_mid)
@@ -106,6 +112,7 @@ func _init() -> void:
 		if is_visible_in_tree():
 			_followed = false
 			_picking = false
+			_drop_nail()
 			if not GameState.sewing_open():
 				show_rooms(false, false)
 			_rebuild())
@@ -120,6 +127,7 @@ func show_rooms(on: bool, animate := true) -> void:
 	_hold()
 	if on:
 		_rooms.to_next()
+		_drop_nail()
 	_back.visible = on
 	_title.text = "the sewing room" if on else "the old well"
 	_dirty = true
@@ -169,6 +177,9 @@ func speak() -> void:
 		PetBubble.say(self, news)
 		return
 	var n := GameState.take_dungeon_news()
+	if bool(n.get("nail", false)):
+		PetBubble.say_line(self, "perk_nail")
+		return
 	if n.has("room"):
 		var key := "sewing_stuck" if not n.cleared else ("sewing_again" if n.again else "sewing_home")
 		PetBubble.say_line(self, key, { "got": UiTheme.num(int(n.got)), "room": str(n.room) })
@@ -262,6 +273,9 @@ func _rebuild() -> void:
 		_show_door = true
 	_door_seen = door
 	_built = true
+	if _reveal != "":
+		_show_nail.call_deferred(_reveal)
+		_reveal = ""
 
 
 # ---- the army ------------------------------------------------------------------------
@@ -271,7 +285,7 @@ func _build_mid(a: Dictionary) -> void:
 	if _picking:
 		_mid.add_child(_picker(a))
 		return
-	var front_n := int(GameState.catalog.dungeon.get("front_row", 20))
+	var front_n := GameState.front_row_size()
 	var cards: Array = a.cards
 	# the front row: your pet's flag, then the strongest front_n; the rest walk behind
 	var front := _sticker()
@@ -401,7 +415,7 @@ func _picker(a: Dictionary) -> Control:
 	_page = clampi(_page, 0, pages - 1)
 	var grid := GridContainer.new()
 	grid.columns = PICK_COLUMNS
-	grid.add_theme_constant_override("h_separation", 6)
+	grid.add_theme_constant_override("h_separation", 5)  # (6 before the well got its nails lane)
 	grid.add_theme_constant_override("v_separation", 6)
 	for pet in choices.slice(_page * PICK_PAGE, (_page + 1) * PICK_PAGE):
 		grid.add_child(_chip(pet, in_army.has(pet.uid)))
@@ -500,6 +514,10 @@ func _build_side(a: Dictionary, rules: Dictionary) -> void:
 	col.add_child(go)
 	_side.add_child(Tilted.new(card, -1.2))
 
+	if _nail != "" and _nail in GameState.perks_shown():
+		_side.add_child(_nail_card(_nail))
+		return
+	_drop_nail()  # (the nail stopped showing: its ring goes too)
 	var last: Dictionary = state.last
 	if last.is_empty():
 		return
@@ -518,6 +536,216 @@ func _build_side(a: Dictionary, rules: Dictionary) -> void:
 	lcol.add_child(_last_row("brought home", got))
 	lcol.add_child(_last_row("came home", UiTheme.title(UiTheme.num(int(last.back)), 16, UiTheme.TEXT)))
 	_side.add_child(lastc)
+
+
+# ---- the wisps perks on the well wall ------------------------------------------------------
+
+## Opens a perk's card in the side column (a tap on its nail), or closes it with "".
+func pick_nail(id: String) -> void:
+	_nail = id
+	_column.set_picked(id)
+	_reveal = id
+	_dirty = true
+
+
+## No perk card open, and no ring on any nail ("last time" is back).
+func _drop_nail() -> void:
+	_nail = ""
+	_column.set_picked("")
+
+
+## Scrolls the well so a perk's nail is in view (a picked one, or the tips when they first hang).
+func _show_nail(id: String) -> void:
+	await get_tree().process_frame  # the column has its new size by then
+	var nail := _column.nail(id)
+	var h := _scroll.size.y
+	if nail == null or h <= 0.0:
+		return
+	var top := nail.position.y - 16.0
+	var bottom := nail.position.y + nail.size.y + 16.0
+	var at := float(_scroll.scroll_vertical)
+	if top < at:
+		at = top
+	elif bottom > at + h:
+		at = bottom - h
+	_scroll.scroll_vertical = int(clampf(at, 0.0, maxf(0.0, _column.custom_minimum_size.y - h)))
+
+
+## A perk's card: its name and ✕, the thing on its nail, level pips (a tip's level), what it does
+## now and next as numbers, and the buy button (none while the one above isn't bought yet).
+func _nail_card(id: String) -> Control:
+	var catalog := GameState.catalog
+	var p := Perks.perk(catalog, id)
+	var tip := Perks.is_tip(catalog, id)
+	var lv := GameState.perk_level(id)
+	var maxed := Perks.maxed(catalog, GameState.perks, id)
+	var card := PanelContainer.new()
+	card.add_theme_stylebox_override("panel", UiTheme.sticker(UiTheme.WISP.lerp(UiTheme.LILAC_SEAM, 0.45), 12, UiTheme.RAISED, 11))
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 8)
+	card.add_child(col)
+	var head := HBoxContainer.new()
+	head.add_child(_h3(str(p.name)))
+	head.add_child(UiTheme.spacer())
+	var x := UiTheme.small_button("✕", func(): pick_nail(""))
+	x.custom_minimum_size = Vector2(20, 20)
+	x.add_theme_color_override("font_color", UiTheme.MUTED)
+	x.add_theme_color_override("font_hover_color", UiTheme.PINK)
+	for st in ["normal", "hover", "pressed", "focus"]:
+		x.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	head.add_child(x)
+	col.add_child(head)
+	var body := HBoxContainer.new()
+	body.add_theme_constant_override("separation", 12)
+	var big := _BigThing.new(str(p.get("thing", "bow")), "on" if lv > 0 or tip else "next")
+	body.add_child(big)
+	var info := VBoxContainer.new()
+	info.add_theme_constant_override("separation", 6)
+	info.size_flags_horizontal = SIZE_EXPAND_FILL
+	info.size_flags_vertical = SIZE_SHRINK_CENTER
+	if tip:
+		info.add_child(_lv_pill(lv))
+	else:
+		info.add_child(_Pips.new(lv, Perks.max_level(p)))
+	info.add_child(_effect(p, lv, maxed))
+	body.add_child(info)
+	col.add_child(body)
+	if maxed:
+		var done := UiTheme.button("all done!")
+		done.disabled = true
+		col.add_child(done)
+	elif GameState.perk_available(id):
+		var price := GameState.perk_price(id)
+		var buy := Button.new()
+		buy.focus_mode = FOCUS_NONE
+		buy.disabled = GameState.wisps < price
+		var sb := UiTheme.box(UiTheme.DEEP, UiTheme.PINK_SEAM, 8, 2, 6)
+		sb.content_margin_left = 12
+		sb.content_margin_right = 12
+		buy.add_theme_stylebox_override("normal", sb)
+		buy.add_theme_stylebox_override("hover", UiTheme.box(UiTheme.DEEP, UiTheme.PINK, 8, 2, 6))
+		buy.add_theme_stylebox_override("pressed", sb)
+		var dis := sb.duplicate()
+		dis.border_color = UiTheme.LINE
+		buy.add_theme_stylebox_override("disabled", dis)
+		buy.custom_minimum_size = Vector2(0, 32)
+		var row := HBoxContainer.new()
+		row.mouse_filter = MOUSE_FILTER_IGNORE
+		row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		row.offset_left = 12
+		row.offset_right = -12
+		var word := UiTheme.label("one more" if lv > 0 or tip else "hang it up", UiTheme.MUTED if buy.disabled else UiTheme.TEXT, UiTheme.SMALL + 1)
+		word.size_flags_horizontal = SIZE_EXPAND_FILL
+		row.add_child(word)
+		var tint := UiTheme.MUTED if buy.disabled else UiTheme.WISP
+		row.add_child(UiTheme.icon_rect("lantern", 15, tint))
+		row.add_child(UiTheme.label(UiTheme.num(price), tint, UiTheme.SMALL + 1))
+		for c in row.get_children():
+			c.mouse_filter = MOUSE_FILTER_IGNORE
+		buy.add_child(row)
+		buy.text = ""
+		buy.pressed.connect(func(): _buy_perk(id))
+		col.add_child(buy)
+	return card
+
+
+func _buy_perk(id: String) -> void:
+	var catalog := GameState.catalog
+	var done := Perks.chain_done(catalog, GameState.perks)
+	if not GameState.buy_perk(id):
+		return
+	_column.pop(id)
+	if not done and Perks.chain_done(catalog, GameState.perks) and not Perks.tips(catalog).is_empty():
+		_reveal = str(Perks.tips(catalog).back().id)  # the tips just hung at the bottom: show them
+	if str(Perks.perk(catalog, id).get("count", "")) == "entrance":
+		PetBubble.say_line(self, "perk_entrance")
+	elif Perks.is_tip(catalog, id):
+		PetBubble.say_line(self, "perk_tip")
+	else:
+		PetBubble.say_line(self, "perk_hang")
+
+
+## What a perk does now → next, as numbers ("fits 300 → 600", "front row x1.20 → x1.40"); only
+## what it does at its max.
+func _effect(p: Dictionary, lv: int, maxed: bool) -> Control:
+	var f := HFlowContainer.new()
+	f.add_theme_constant_override("h_separation", 4)
+	f.add_theme_constant_override("v_separation", 2)
+	f.add_child(UiTheme.label(str(p.get("what", "")), UiTheme.MUTED, UiTheme.SMALL))
+	var now := Perks.card_value(GameState.catalog, p, lv)
+	if maxed:
+		f.add_child(UiTheme.label(_fmt(p, now), UiTheme.WISP, UiTheme.SMALL))
+		return f
+	f.add_child(UiTheme.label(_fmt(p, now), UiTheme.TEXT, UiTheme.SMALL))
+	f.add_child(UiTheme.label("→", UiTheme.MUTED, UiTheme.SMALL))
+	f.add_child(UiTheme.label(_fmt(p, Perks.card_value(GameState.catalog, p, lv + 1)), UiTheme.WISP, UiTheme.SMALL))
+	return f
+
+
+## A perk's number as its card shows it (data/perks.json "fmt").
+static func _fmt(p: Dictionary, v: float) -> String:
+	match str(p.get("fmt", "x")):
+		"num":
+			return UiTheme.num(v)
+		"cards":
+			return "%d cards" % int(v)
+		"hours":
+			return "%s h" % (str(int(v)) if is_equal_approx(v, roundf(v)) else "%.1f" % v)
+		"plus":
+			return "+%d" % int(v)
+	return "x%.2f" % v
+
+
+func _lv_pill(lv: int) -> Control:
+	var pill := PanelContainer.new()
+	var sb := UiTheme.box(UiTheme.DEEP, UiTheme.WISP.lerp(UiTheme.LINE, 0.55), 999, 2, 0)
+	sb.content_margin_left = 7
+	sb.content_margin_right = 7
+	pill.add_theme_stylebox_override("panel", sb)
+	pill.size_flags_horizontal = SIZE_SHRINK_BEGIN
+	pill.add_child(UiTheme.label("lv %d" % lv, UiTheme.WISP, UiTheme.SMALL - 1))
+	return pill
+
+
+## The thing on its nail, big, in a little deep box (the nail card).
+class _BigThing extends Control:
+	var _thing := ""
+	var _look := ""
+
+	func _init(thing: String, look: String) -> void:
+		_thing = thing
+		_look = look
+		custom_minimum_size = Vector2(56, 64)
+		size_flags_vertical = SIZE_SHRINK_CENTER
+		texture_filter = TEXTURE_FILTER_LINEAR
+		mouse_filter = MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		draw_style_box(UiTheme.box(UiTheme.DEEP, UiTheme.LINE, 10, 2, 0), Rect2(Vector2.ZERO, size))
+		draw_circle(Vector2(size.x / 2.0, 8.0), 2.0, UiTheme.MUTED)
+		draw_line(Vector2(size.x / 2.0, 8.0), Vector2(size.x / 2.0, 14.0), UiTheme.MUTED, 1.2)
+		var px := 36.0
+		draw_texture_rect(PerkNail.texture(_thing, _look, int(px), false, false), Rect2(Vector2((size.x - px) / 2.0, 16.0), Vector2(px, px)), false)
+
+
+## Level pips: one per level, filled coral up to the level bought.
+class _Pips extends Control:
+	var _on := 0
+	var _n := 1
+
+	func _init(on: int, n: int) -> void:
+		_on = on
+		_n = maxi(n, 1)
+		custom_minimum_size = Vector2(_n * 12 - 3, 9)
+		mouse_filter = MOUSE_FILTER_IGNORE
+
+	func _draw() -> void:
+		for i in _n:
+			var c := Vector2(i * 12 + 4.5, 4.5)
+			if i < _on:
+				draw_circle(c, 4.5, UiTheme.WISP)
+			else:
+				draw_arc(c, 3.5, 0, TAU, 16, UiTheme.LILAC_SEAM, 2.0, true)
 
 
 func _last_row(what: String, value: Control) -> Control:

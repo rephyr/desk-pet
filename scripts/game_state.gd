@@ -27,7 +27,7 @@ signal homes_rule_changed  # the sorting rule was switched or stepped (the sorti
 signal homes_paid(boxes: int)  # pets left for new homes and their points filled this many boxes
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
-const SAVE_VERSION := 27
+const SAVE_VERSION := 28
 const STAT_FLOOR := 20.0
 const HUNGER_DECAY := 100.0 / (4.0 * 3600.0)  # full to floor in about 4 h
 const HAPPY_DECAY := 100.0 / (6.0 * 3600.0)
@@ -127,8 +127,9 @@ var debug_land := {}  # debug builds: what the plushie machine's next spin lands
 var automation := Automation.fresh()
 var dungeon := Dungeon.fresh(Catalog.shared())  # the old well, all the way down (see Dungeon)
 var wisps := 0  # the darker currency: the dungeon's cleared floors pay them, plushie machine misses puff them, the plushie machine spends them (see grant_wisps)
-var dungeon_news := {}  # the army just came home: { got, floor, early, deepest } (a sewing room run: { got, room, cleared, again }) for your pet to say (not saved)
+var dungeon_news := {}  # the army just came home: { got, floor, early, deepest, nail } (a sewing room run: { got, room, cleared, again }) for your pet to say (not saved)
 var sewing := Sewing.fresh()  # E3 the sewing room off the well's floor 20 (see Sewing)
+var perks := {}  # the wisps perk tree on the well wall: perk id -> level (see Perks, data/perks.json)
 var army_held := false  # the sewing room is open on screen: your pet leading the army waits at home for you (not saved)
 var _auto_at := 0.0  # unix time your pet's jobs have worked up to
 var _hold_saves := false  # automation's tick is running: saves wait for the end of it
@@ -850,6 +851,7 @@ func debug_new_game() -> void:
 	wisps = 0
 	dungeon_news = {}
 	sewing = Sewing.fresh()
+	perks = {}
 	collection.keep_uids.clear()
 	_auto_at = 0.0
 	_worker_of.clear()
@@ -1744,7 +1746,7 @@ func _open_in_background(delta: float) -> void:
 	if _pack_seen < BACKGROUND_AFTER:
 		_pack_timer = 0.0
 		return
-	_pack_timer += delta * boost("automation")
+	_pack_timer += delta * boost("automation") * boost("pets")
 	if _pack_timer >= BACKGROUND_PACK_EVERY:
 		_pack_timer = 0.0
 		var pet := auto_open_pack()
@@ -1962,7 +1964,7 @@ func _work_for_automation(seconds: float, show: bool) -> void:
 	var worker_pulls := Automation.work(catalog, automation, "machine", workers_speed("machine"), seconds)
 	if worker_pulls > 0:
 		_pet_cranks(worker_pulls, false)
-	var worker_boxes := Automation.work(catalog, automation, "boxes", workers_speed("boxes"), seconds)
+	var worker_boxes := Automation.work(catalog, automation, "boxes", workers_speed("boxes") * boost("pets"), seconds)
 	if worker_boxes > 0:
 		_workers_open(worker_boxes)
 
@@ -2489,7 +2491,7 @@ func army() -> Dictionary:
 		herd[Herd.rarity_of(k)] = int(herd.get(Herd.rarity_of(k), 0)) + int(keys[k])
 	var cards := army_cards()
 	return { "cards": cards, "herd": herd, "keys": keys, "sent": cards.size() + Herd.total(keys),
-		"entrance": Dungeon.entrance(catalog, int(dungeon.entrance)) }
+		"entrance": Dungeon.entrance(catalog, perk_level("entrance")) }
 
 
 ## Pets of a rarity from the herd that could go: resting ones and the ones in the army already.
@@ -2524,8 +2526,8 @@ func set_army_card(uid: String, on: bool) -> bool:
 func army_best() -> void:
 	if dungeon_running():
 		return
-	var best: Array = army_choices().slice(0, int(catalog.dungeon.get("front_row", 20))).map(func(p): return p.uid)
-	var room := Dungeon.entrance(catalog, int(dungeon.entrance))
+	var best: Array = army_choices().slice(0, front_row_size()).map(func(p): return p.uid)
+	var room := Dungeon.entrance(catalog, perk_level("entrance"))
 	dungeon.cards = best.slice(0, room)
 	_rest_changed()
 	_trim_army_herd()
@@ -2548,7 +2550,7 @@ func set_army_herd(rarity: String, n: int) -> void:
 
 ## The herd's picks make room for the cards: the plainest shelves give way first.
 func _trim_army_herd() -> void:
-	var over := int(army().sent) - Dungeon.entrance(catalog, int(dungeon.entrance))
+	var over := int(army().sent) - Dungeon.entrance(catalog, perk_level("entrance"))
 	for tier in catalog.tiers:
 		if over <= 0:
 			break
@@ -2609,12 +2611,16 @@ func _army_rules(cards: Array, herd_keys: Dictionary) -> Dictionary:
 	var herd := {}
 	for k in herd_keys:
 		herd[k] = { "n": int(herd_keys[k]), "power": Dungeon.pet_power(catalog, Herd.template(catalog, k)), "rank": catalog.rank(Herd.rarity_of(k)) }
-	var front := cards.slice(0, int(catalog.dungeon.get("front_row", 20)))
+	var front_n := front_row_size()
+	var front := cards.slice(0, front_n)
 	var luck := 0.0
 	for pet in front:
 		luck += Party.stat_of(pet, "luck", catalog)
 	luck = luck / front.size() if not front.is_empty() else 0.0
-	return { "cards": list, "herd": herd, "luck": Dungeon.knock_chance(catalog, luck, boost("luck")), "boost": boost("power") }
+	# the perks: the front row's size and power, pets walking behind, the cellar, the stairs (and rooms)
+	return { "cards": list, "herd": herd, "luck": Dungeon.knock_chance(catalog, luck, boost("luck")), "boost": boost("power"),
+		"front_n": front_n, "front_x": boost("front"), "behind_x": boost("herd_power"),
+		"band_x": { "doors": boost("cellar"), "stairs": boost("stairs"), "room": boost("stairs") } }
 
 
 ## The feeling words for floors `from`..`to`: floor -> [word, heat] (strength is never a number).
@@ -2633,13 +2639,14 @@ func floor_words(from: int, to: int, rules: Dictionary = {}) -> Dictionary:
 
 
 ## Sends the army down the well with its orders: the whole run is worked out now (Dungeon.simulate),
-## its pets stay busy until it's home. Returns whether it went.
-func send_army() -> bool:
+## its pets stay busy until it's home. Returns whether it went. `quiet` (the music box's runs while
+## loading): no signals and no save, the caller does those once after.
+func send_army(quiet := false) -> bool:
 	if not dungeon_open() or dungeon_running() or tutorial_active():
 		return false
 	var cards := army_cards()
 	var herd_keys := army_herd_keys()
-	var room := Dungeon.entrance(catalog, int(dungeon.entrance))
+	var room := Dungeon.entrance(catalog, perk_level("entrance"))
 	if cards.size() > room:
 		cards = cards.slice(0, room)
 	var sent := cards.size() + Herd.total(herd_keys)
@@ -2647,12 +2654,14 @@ func send_army() -> bool:
 		return false
 	var rng := RandomNumberGenerator.new()
 	rng.seed = _rng.randi()
-	var orders := { "target": int(dungeon.target), "home_at": int(dungeon.home_at), "entrance": int(dungeon.entrance),
-		"first": str(dungeon.first) if Dungeon.first_earned(catalog, dungeon) else "" }
+	var orders := { "target": int(dungeon.target), "home_at": int(dungeon.home_at), "entrance": perk_level("entrance"),
+		"pay_x": boost("lanterns"), "first": str(dungeon.first) if Dungeon.first_earned(catalog, dungeon) else "" }
 	var result := Dungeon.simulate(catalog, _army_rules(cards, herd_keys), orders, rng)
 	dungeon.run = { "at": Time.get_unix_time_from_system(), "floors": result.floors, "why": result.why, "turned": result.turned,
 		"cards": cards.map(func(p): return p.uid), "herd": herd_keys.duplicate(), "sent": sent, "target": int(dungeon.target) }
-	_rest_changed()
+	_rest_changed()  # (only drops the busy-pets cache: the next army_cards() needs it fresh)
+	if quiet:
+		return true
 	dungeon_changed.emit()
 	changed.emit()
 	save_game()
@@ -2684,10 +2693,12 @@ func _dungeon_tick() -> void:
 
 ## The army is home: pets that didn't come back leave (a star each, never a word about them), the
 ## cleared floors pay their wisps, the landings stay lit, and a floor's first time gives its thing.
-func _finish_dungeon_run() -> void:
+## `quiet` (the music box's runs while loading): no refold, unlock check or signals, the caller does
+## those once after.
+func _finish_dungeon_run(quiet := false) -> void:
 	var run: Dictionary = dungeon.run
 	if run.has("room"):
-		_finish_room_run()
+		_finish_room_run(quiet)
 		return
 	dungeon.run = {}
 	_rest_changed()
@@ -2695,6 +2706,7 @@ func _finish_dungeon_run() -> void:
 	var got := Dungeon.run_pay(run)
 	var to := Dungeon.cleared_to(run)
 	var deepest := to > int(dungeon.deep)
+	var nails := perks_shown().size()
 	grant_wisps(got)
 	dungeon.deep = maxi(int(dungeon.deep), to)
 	for id in Dungeon.shown_bands(catalog, dungeon):
@@ -2710,8 +2722,15 @@ func _finish_dungeon_run() -> void:
 			_dungeon_first(first)
 	dungeon.cards = dungeon.cards.filter(func(uid): return collection.get_pet(str(uid)) != null)
 	dungeon.target = mini(int(dungeon.target), Dungeon.target_max(catalog, dungeon))
-	dungeon_news = { "got": got, "floor": to, "early": str(run.get("why", "")) != "target", "deepest": deepest }
-	collection.refold()  # cards home again may fold into the herd
+	dungeon_news = { "got": got, "floor": to, "early": str(run.get("why", "")) != "target", "deepest": deepest,
+		"nail": perks_shown().size() > nails }  # a new nail showed on the wall down there
+	if not quiet:
+		_home_again()
+
+
+## After an army is home: cards home again may fold into the herd, unlocks, the pages refresh.
+func _home_again() -> void:
+	collection.refold()
 	check_unlocks()
 	dungeon_changed.emit()
 	adventures_changed.emit()
@@ -2747,7 +2766,7 @@ func sew_room(i: int) -> Dictionary:
 ## The front row the chalk locks look at: the army's strongest front_row cards (your pet with the
 ## flag leads, it doesn't count).
 func sew_front() -> Array[Pet]:
-	return army_cards().slice(0, int(catalog.dungeon.get("front_row", 20)))
+	return army_cards().slice(0, front_row_size())
 
 
 ## Which of room `i`'s marks the front row fills: [bool].
@@ -2778,13 +2797,14 @@ func send_to_room(i: int) -> bool:
 		return false
 	var cards := army_cards()
 	var herd_keys := army_herd_keys()
-	var entrance := Dungeon.entrance(catalog, int(dungeon.entrance))
+	var entrance := Dungeon.entrance(catalog, perk_level("entrance"))
 	if cards.size() > entrance:
 		cards = cards.slice(0, entrance)
 	var sent := cards.size() + Herd.total(herd_keys)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = _rng.randi()
-	var orders := { "entrance": int(dungeon.entrance), "first": str(dungeon.first) if Dungeon.first_earned(catalog, dungeon) else "" }
+	var orders := { "entrance": perk_level("entrance"), "pay_x": boost("lanterns"),
+		"first": str(dungeon.first) if Dungeon.first_earned(catalog, dungeon) else "" }
 	var result := Sewing.simulate(catalog, _army_rules(cards, herd_keys), sew_room(i), orders, rng)
 	dungeon.run = { "at": Time.get_unix_time_from_system(), "floors": result.floors, "why": result.why, "turned": 0,
 		"cards": cards.map(func(p): return p.uid), "herd": herd_keys.duplicate(), "sent": sent, "target": int(dungeon.target),
@@ -2798,7 +2818,7 @@ func send_to_room(i: int) -> bool:
 
 ## The army is back from a room: losses as a well floor, a clear pays its wisps, and the first clear
 ## of the next room counts (its firsts: keep lines, the plushie machine).
-func _finish_room_run() -> void:
+func _finish_room_run(quiet := false) -> void:
 	var run: Dictionary = dungeon.run
 	dungeon.run = {}
 	_rest_changed()
@@ -2823,10 +2843,8 @@ func _finish_room_run() -> void:
 		"back": int(run.get("sent", 0)) - lost_n, "room": i }
 	dungeon.cards = dungeon.cards.filter(func(uid): return collection.get_pet(str(uid)) != null)
 	dungeon_news = { "got": got, "room": str(r.name), "cleared": cleared, "again": cleared and not first }
-	collection.refold()  # cards home again may fold into the herd
-	check_unlocks()
-	dungeon_changed.emit()
-	adventures_changed.emit()
+	if not quiet:
+		_home_again()
 
 
 ## Where a dashed mark comes from, in your pet's words (like bit_hint): parts from the tier that has
@@ -2882,6 +2900,137 @@ func debug_sewn(n: int) -> void:
 	_keep_lines_changed()
 	check_unlocks()
 	dungeon_changed.emit()
+
+
+# ---- the wisps perk tree on the well wall (see Perks, data/perks.json) -----------------
+
+## A perk's level (0 = not bought).
+func perk_level(id: String) -> int:
+	return Perks.level(perks, id)
+
+
+## The perks on the wall now, in order: the chain's nails the army has been deep enough for (and
+## whose needs is open), then the 2 tips once the chain is done. [] while the dungeon is closed.
+func perks_shown() -> Array[String]:
+	if not dungeon_open():
+		return []
+	return Perks.shown(catalog, perks, int(dungeon.deep), is_open)
+
+
+## What a perk's next level costs in wisps (-1 when maxed).
+func perk_price(id: String) -> int:
+	return Perks.price(catalog, perks, id)
+
+
+## Whether a perk can be bought now, wisps aside: it shows, it isn't maxed, the one above has a level.
+func perk_available(id: String) -> bool:
+	return dungeon_open() and Perks.available(catalog, perks, id, int(dungeon.deep), is_open)
+
+
+## Buys a perk's next level with wisps. False when it can't (not there yet, maxed, not enough wisps).
+func buy_perk(id: String) -> bool:
+	if not dungeon_open():
+		return false
+	var cost := Perks.buy(catalog, perks, id, wisps, int(dungeon.deep), is_open)
+	if cost < 0:
+		return false
+	wisps -= cost
+	_perks_changed(id)
+	return true
+
+
+## Sets a perk's level for free (dev steps and tests).
+func debug_perk(id: String, lv: int) -> void:
+	if Perks.perk(catalog, id).is_empty():
+		return
+	perks[id] = lv
+	perks = Perks.clean(catalog, perks)
+	_perks_changed(id)
+
+
+func _perks_changed(id: String) -> void:
+	_boosts_changed()
+	if not dungeon_running():
+		_trim_army_herd()  # (a wider entrance never trims; kept for a save with a narrower one)
+	dungeon_changed.emit()  # (the well's nails and the nail card rebuild from this)
+	changed.emit()
+	save_game()
+
+
+## The number a count gives now: its base plus its perk's step (see Perks.count).
+func perk_count(name: String) -> float:
+	return Perks.count(catalog, perks, name)
+
+
+## Cards that fight in the dungeon's front row (data/dungeon.json front_row, the pinwheel perk adds).
+func front_row_size() -> int:
+	return int(perk_count("front_row"))
+
+
+## Extra plushie holds from the perks (the thimble).
+func perk_holds() -> int:
+	return int(perk_count("holds"))
+
+
+## Extra plushie nudges per pet that hops in (the ribbon).
+func perk_nudges() -> int:
+	return int(perk_count("nudges"))
+
+
+## Hours your pet keeps leading the army while the game is closed (the music box; 0 without it).
+func perk_away_hours() -> float:
+	return perk_count("away_hours")
+
+
+## The game was closed `away` seconds (it was saved at `saved_at`): with the music box, your pet
+## leading the army kept taking it down back to back for up to its hours. Real runs, worked out one
+## after another from where the last one was (losses and firsts as usual, wisps only: nothing else
+## counts closed time here). The run that was out finishes too; the last one sent may still be
+## down there. What they brought goes in the idle log and the dungeon news. Returns the wisps.
+## At most data/perks.json away_runs_max runs; each one runs quiet (the refold, unlocks and signals
+## happen once after the loop).
+func _army_while_away(saved_at: float, now: float) -> int:
+	var hours := perk_away_hours()
+	if saved_at <= 0.0 or hours <= 0.0 or not dungeon_open() or automation.task != "army" or not knows_job("army") or tutorial_active():
+		return 0
+	var until := minf(now, saved_at + hours * 3600.0)
+	var t := saved_at
+	var got := 0
+	var runs_n := 0
+	var deepest := false
+	var nail := false
+	var to := 0
+	var wisps0 := wisps
+	var came_home := false
+	var sent_any := false
+	for i in int(catalog.perks.get("away_runs_max", 500)):
+		if dungeon_running():
+			var ends := float(dungeon.run.at) + Dungeon.run_seconds(catalog, dungeon.run)
+			if ends > now:
+				break  # still down there: it comes home on its own
+			came_home = true
+			if dungeon.run.has("room"):
+				_finish_dungeon_run(true)
+				t = maxf(t, ends)
+				continue
+			_finish_dungeon_run(true)
+			runs_n += 1
+			deepest = deepest or bool(dungeon_news.get("deepest", false))
+			nail = nail or bool(dungeon_news.get("nail", false))
+			to = maxi(to, int(dungeon_news.get("floor", 0)))
+			t = maxf(t, ends)
+		if t >= until or not send_army(true):
+			break
+		sent_any = true
+		dungeon.run.at = t  # it set off back then
+	if came_home or sent_any:
+		_home_again()  # once for all of them
+		changed.emit()
+	got = wisps - wisps0
+	if runs_n > 0:
+		_log_idle({ "wisps": got })
+		dungeon_news = { "got": got, "floor": to, "early": false, "deepest": deepest, "nail": nail }
+	return got
 
 
 # ---- keep lines: the sorting card keeps pets as cards (see Sewing) --------------------
@@ -3155,7 +3304,7 @@ func plushie_spin() -> Dictionary:
 		return {}
 	var result: Dictionary
 	if Plushie.needs_next(plushie):
-		result = Plushie.next_pet(catalog, plushie, keeper)
+		result = Plushie.next_pet(catalog, plushie, keeper, perk_nudges())
 		result.next = true
 	else:
 		result = Plushie.spin(catalog, plushie, keeper, _rng, debug_land)
@@ -3183,7 +3332,7 @@ func plushie_bank(i: int) -> int:
 
 ## Holds reel i for the next spin (or lets go). False when it can't.
 func plushie_hold(i: int) -> bool:
-	if not Plushie.toggle_hold(catalog, plushie, i):
+	if not Plushie.toggle_hold(catalog, plushie, i, perk_holds()):
 		return false
 	_plushie_saved()
 	return true
@@ -3875,6 +4024,7 @@ func boost_parts(kind: String) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	out.append_array(Toys.parts(toys, catalog, kind, now))
 	out.append_array(Knacks.parts(catalog, collection.active(), kind, knack_gate))
+	out.append_array(Perks.parts(catalog, perks, kind))
 	return out
 
 
@@ -4204,6 +4354,7 @@ func save_game() -> void:
 		"dungeon": dungeon,
 		"wisps": wisps,
 		"sewing": sewing,
+		"perks": perks,
 		"coin_reserve": coin_reserve,
 		"saved_boxes": saved_boxes.keys(),
 		"visited": visited.keys(),
@@ -4293,6 +4444,7 @@ func load_game() -> bool:
 	wisps = maxi(0, int(data.get("wisps", 0)))  # v24 added the dungeon (it pays them), v25 the plushie machine (it spends them)
 	dungeon = Dungeon.clean(catalog, data.get("dungeon", {}))
 	sewing = Sewing.clean(data.get("sewing", {}))  # v27 added the sewing room
+	perks = Perks.clean(catalog, data.get("perks", {}))  # v28 added the wisps perks (the entrance moved in)
 	if from_version < 27 and int(dungeon.deep) >= int(catalog.sewing.get("door_floor", 20)):
 		finds["little_key"] = true  # been past floor 20 already: the key was found there
 	var trips := away()
@@ -4403,6 +4555,11 @@ func load_game() -> bool:
 		_hold_saves = false
 		_save_held = false
 	_auto_at = Time.get_unix_time_from_system()
+	# the music box: your pet kept leading the army while the game was closed, for up to its hours
+	_hold_saves = true
+	_army_while_away(float(data.get("saved_at", 0.0)), Time.get_unix_time_from_system())
+	_hold_saves = false
+	_save_held = false
 
 	# catch up on time spent closed: coins at the slowest rate, stats to the floor at worst
 	var away := Time.get_unix_time_from_system() - float(data.get("saved_at", 0.0))
@@ -4560,6 +4717,17 @@ func _migrate(data: Dictionary) -> Dictionary:
 	# a room that's full already opens the stall)
 	# v27: the sewing room (its state, keep lines on the sorting rule, room runs in the dungeon's run);
 	# nothing moves: older saves start with none of it (load_game: past floor 20 already = the key)
+	if version < 28:
+		# v28: the wisps perk tree. The entrance's level moves out of the dungeon into the perks.
+		var dg = data.get("dungeon", {})
+		if dg is Dictionary and int(dg.get("entrance", 0)) > 0:
+			var pk = data.get("perks", {})
+			if not pk is Dictionary:
+				pk = {}
+			pk["entrance"] = int(dg.entrance)
+			data.perks = pk
+		if dg is Dictionary:
+			dg.erase("entrance")
 	if version < 7:
 		# v7: dungeon places open one rumour at a time; saves that had the dungeons keep them all
 		var had: Array = data.get("unlocks", [])

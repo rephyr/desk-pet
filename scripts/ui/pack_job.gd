@@ -41,7 +41,7 @@ func step(delta: float, home_x: float, pile_x: float) -> void:
 			if not GameState.pinned.is_empty():
 				_show(GameState.collection.get_pet(GameState.pinned[0]))
 			else:
-				_rest -= delta * GameState.boost("automation")  # the automation speed boost shortens its breaks
+				_rest -= delta * GameState.boost("automation") * GameState.boost("pets")  # the automation speed and pets/sec boosts shorten its breaks
 				if _rest <= 0.0 and GameState.can_auto_open():
 					job = Job.FETCH
 		Job.FETCH:

@@ -1,13 +1,13 @@
 class_name FrontRow
 extends Control
-## The front row: your pet with its flag, then up to `front_n` (data/dungeon.json front_row) little
+## The front row: your pet with its flag, then up to `front_n` (data/dungeon.json front_row, the pinwheel perk more) little
 ## card pets in a 7-wide grid, as many rows as that takes; empty places are dashed. Tap it to pick the cards (the dungeon page, DungeonView).
 ## In the sewing room, cards that match a mark of the room's chalk lock get a chalk tick.
 
 signal pressed
 
 const CELL := Vector2(36, 42)
-const GAP := Vector2(4, 6)
+const GAP := Vector2(3, 6)  # (4 wide before the well got its nails lane)
 const COLS := 7
 
 var _cells: Array = []  # [texture, tier colour, lead, chalk tick]
