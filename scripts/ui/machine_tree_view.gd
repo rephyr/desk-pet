@@ -10,7 +10,7 @@ extends HBoxContainer
 ## the tree (its "view"), older nodes fade behind it, and a sign per globe pans between them
 ## (design/mockups/screens/globes.html, the upgrades page).
 
-const MAP := Vector2(600, 460)  # the first globe's part of the tree's map, see data/machine_tree.json "at"
+const MAP := Vector2(600, 540)  # the first globe's part of the tree's map, see data/machine_tree.json "at"
 const BRANCH_COLORS := { "repair": "pink", "coins": "cyan", "chutes": "mint", "balls": "gold", "shiny": "lilac", "lights": "gold", "drops": "pink" }
 const BRANCH_NAMES := { "repair": "a repair", "coins": "coins", "chutes": "chutes", "balls": "extra balls", "shiny": "shiny balls", "lights": "lights", "drops": "the big one", "sunset": "a repair" }
 const REPAIRS := ["repair", "drops", "sunset"]  # branches whose nodes are fixed (not upgraded), drawn big
@@ -352,8 +352,47 @@ class TreeMap extends Control:
 				# a later globe's repairs are a chain going up: their names sit beside them
 				draw_string(font, c + Vector2(r + 10.0, 5.0), str(n.name), HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.SMALL + 1, _k(name_color))
 			else:
-				draw_string(font, c + Vector2(-70, label_y), str(n.name), HORIZONTAL_ALIGNMENT_CENTER, 140, UiTheme.SMALL + 1, _k(name_color))
+				_draw_name(font, n, c, label_y, _k(name_color))
 		_alpha = 1.0
+
+	## A first-globe node's name under it, wrapped to the room between it and its neighbours on the
+	## same row (and the panel's edges) so names never run into each other; a smaller hand if a word
+	## is still too wide. A paper patch behind each line keeps it clear of the links.
+	func _draw_name(font: Font, n: Dictionary, c: Vector2, label_y: float, color: Color) -> void:
+		var half := minf(70.0, minf(c.x - 6.0, size.x - 6.0 - c.x))
+		for o in Catalog.shared().machine_tree.nodes:
+			if o.id == n.id or not _shown(o) or Machine.globe_of(Catalog.shared(), o) != Machine.globe_of(Catalog.shared(), n):
+				continue
+			var p := _at(o)
+			if absf(p.y - c.y) < 4.0:
+				half = minf(half, absf(p.x - c.x) / 2.0 - 3.0)
+		var width := half * 2.0
+		var fs := UiTheme.SMALL + 1
+		var lines := _wrap(font, str(n.name), width, fs)
+		while fs > UiTheme.SMALL - 1 and lines.any(func(l): return font.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > width):
+			fs -= 1
+			lines = _wrap(font, str(n.name), width, fs)
+		var y := c.y + label_y
+		for l in lines:
+			var w := font.get_string_size(l, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+			draw_rect(Rect2(c.x - w / 2.0 - 2.0, y - fs + 1.0, w + 4.0, fs + 3.0), _k(UiTheme.PAPER))
+			draw_string(font, Vector2(c.x - w / 2.0, y), l, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, color)
+			y += fs + 2.0
+
+	## Words packed into lines no wider than `width` (a lone long word gets a line of its own).
+	func _wrap(font: Font, text: String, width: float, fs: int) -> Array:
+		var lines := []
+		var line := ""
+		for word in text.split(" "):
+			var tried := word if line == "" else line + " " + word
+			if line != "" and font.get_string_size(tried, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x > width:
+				lines.append(line)
+				line = word
+			else:
+				line = tried
+		if line != "":
+			lines.append(line)
+		return lines
 
 	func _dashed_ring(c: Vector2, r: float, color: Color) -> void:
 		for i in 16:
