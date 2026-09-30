@@ -73,16 +73,6 @@ func _queue_sticker(page_id: String) -> void:
 func _process(_delta: float) -> void:
 	if _showing or _queue.is_empty() or not (can_show.is_valid() and can_show.call()):
 		return
-	# Check if a postcard is showing - directly check if the adventures tab's postcard is visible
-	var postcard_visible := false
-	# Try to access the adventures tab through GameState if available
-	if GameState.has_method("adventures_tab") and GameState.adventures_tab != null:
-		var adventures_tab = GameState.adventures_tab
-		if adventures_tab.has_method("_postcard") and adventures_tab._postcard != null:
-			postcard_visible = adventures_tab._postcard.visible
-	
-	if postcard_visible:
-		return
 	_show(_queue.pop_front())
 
 
