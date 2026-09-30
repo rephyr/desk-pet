@@ -46,7 +46,7 @@ func _ready() -> void:
 	_source = WindowSource.create()
 	_source.setup(win, _overlay)
 	_apply_size()
-	_set_out(GameState.pet_out and not DevProfile.active())  # a test run keeps the pet off your desktop
+	_set_out(GameState.pet_out and not DevProfile.parked())  # a test run keeps the pet off your desktop
 	if GameState.tutorial_active():
 		_set_expanded(true)  # a new player starts in the full game, at the boxes
 	_apply_dev_args()

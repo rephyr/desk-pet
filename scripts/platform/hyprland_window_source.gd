@@ -15,7 +15,7 @@ var _styled := {}  # window address -> true once styled
 var _zero_scaling := false  # XWayland windows get real pixels on scaled monitors
 ## A test run (DevProfile) keeps its window parked here, off every monitor, and never pinned,
 ## so testing never covers what you're doing.
-var _parked := DevProfile.active()
+var _parked := DevProfile.parked()
 const PARKED_AT := Vector2i(-4000, 3000)
 
 

@@ -4,8 +4,9 @@ extends RefCounted
 ##   godot . -- --profile=test                 saves and settings in user://profiles/test/
 ##   godot . -- --profile=test --from=pile_full  starts from tests/saves/pile_full.json
 ##   godot . -- --from=new                     a brand new game (implies --profile=test)
+##   godot . -- --profile=fresh --from=new --play  a fresh game to play by hand, like the real one
 ## A profile run is also kept out of your way: its window is parked off-screen and the pet never
-## goes out onto the desktop (see home.gd). Release builds always use the real paths.
+## goes out onto the desktop (see home.gd), unless --play. Release builds always use the real paths.
 
 const FIXTURES := "res://tests/saves/"
 
@@ -23,6 +24,11 @@ static func profile_name() -> String:
 ## Whether this is a test run (a profile).
 static func active() -> bool:
 	return profile_name() != ""
+
+
+## Whether the run stays out of your way (parked window, pet kept home): a test run without --play.
+static func parked() -> bool:
+	return active() and not DevArgs.has("play")
 
 
 ## Where a save-like file lives: user://<file>, or inside the profile's folder.
