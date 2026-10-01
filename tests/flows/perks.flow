@@ -1,9 +1,11 @@
-# The wisps perk tree on the well wall (look A, on the walls): coral things on nails down the left
-# lane of the well, joined by a coral thread (solid down to the last one bought, dashed chalk after).
-# At the top only the bow on the roof post shows: the entrance, the first buy. Deeper nails show once
-# the army has been that deep; each thing needs the one above. Tapping a nail puts its card where
-# "last time" sits (✕ brings it back). The plushie perks wait for the plushie machine; once every
-# link is bought the lucky coin and the rattle hang at the bottom. Everything stays inside the window.
+# The wisps perks on the well wall (look A of perks-redo.html): a small "perks" button by the wisps
+# (a gold dot when one is affordable) opens the well wall's sheet over the dungeon page. Every perk
+# the army has reached hangs there as a tag on ONE coral thread (the chain: each waits for the one
+# before it), with level pips, now → next as numbers and one tap to buy ("hang it up", then "one
+# more"). Ones you can afford stand out, ones waiting on the perk before are faint, the next one not
+# reached yet is a chalk carrot ("down to landing N"). The plushie perks wait for the plushie
+# machine; once every link is bought the lucky coin and the rattle hang at the end. The wall scrolls
+# inside its sheet late on. ✕ closes it. Everything stays inside the window.
 from rich
 view full
 stickers off                  # new pets here can fill a book page: no sticker popups over the shots
@@ -23,28 +25,35 @@ army best
 army-herd common 280
 wait 1
 expect text "the old well"
+expect text "perks"
 expect fits
-shot bow                             # only the bow on the roof post
-click PerkNail#1
+shot page                            # no nails down the well any more: the perks button by the wisps
+click name:perks
 wait 0.5
+expect text "the well wall"
 expect text "the entrance"
 expect text "hang it up"
 expect text "fits"
+expect text "down to landing 3"      # the carrot: the little flag, not reached yet
 expect fits
-shot entrance_short                  # not enough wisps yet: the button is there but off
+shot entrance_short                  # not enough wisps yet: the button is sunk
 wisps 200
-wait 0.5
+wait 1
 expect fits
-shot entrance_card
-click "hang it up"
+shot entrance_card                   # affordable: solid coral (and a gold dot on the button)
+click name:buy_entrance
 wait 1
 expect text "one more"
-expect text "/ 600"                  # the entrance fits 600 now
+expect text "600"                    # the entrance fits 600 now
 expect fits
 shot bought
+click name:close_wall
+wait 0.5
+expect no-text "the well wall"
+expect text "/ 600"
 army-herd common 580
 wait 0.5
-expect text "600"
+expect text "586"                    # 6 cards and 580 from the shelf
 orders 5 30
 down
 down-done
@@ -55,27 +64,21 @@ click "lovely"
 tab adventures
 page adventures 2
 wait 1
-click "✕"
-wait 0.5
-expect text "last time"              # the card goes, last time is back
-expect fits
-shot nails_10                        # the flag, the bell and the spool; the nightlight stays hidden
-wisps 5000
-click PerkNail#2                     # the little flag
-wait 0.5
-expect text "the little flag"
-click "hang it up"
-wait 1
-expect text "one more"
-expect fits
-shot flag_bought                     # the thread is coral to the flag, dashed after
-click PerkNail#4                     # the spool: the bell above it isn't bought yet
+click name:perks
 wait 0.5
 expect text "the spool"
-expect no-text "hang it up"
-expect no-text "one more"
+expect text "down to landing 13"     # the nightlight is the carrot now
+expect no-text "the lunchbox"        # nothing past the carrot
 expect fits
-shot spool_waits
+shot wall_10                         # the flag, the bell and the spool; the nightlight in chalk
+wisps 5000
+wait 1
+click name:buy_flag
+wait 1
+expect node buy_bell                 # the bell can go up now
+expect no-node buy_spool             # the spool waits for the bell: just its price, faint
+expect fits
+shot flag_bought                     # the thread is coral to the flag, dashed after
 deep 40
 perk bell 1
 perk spool 2
@@ -85,68 +88,64 @@ perk scarf 1
 perk pinwheel 1
 perk musicbox 1
 wait 1
-click PerkNail#10                    # the paper star
-wait 0.5
 expect text "the paper star"
+expect no-text "the thimble"         # no thimble or ribbon before the plushie machine
+expect no-text "down to landing"     # and no carrot: the rest wait for the plushie machine
 expect fits
-shot chain                           # no thimble or ribbon before the plushie machine
+shot chain
 open-plushie
 wait popup
 click "lovely"
 tab adventures
 page adventures 2
 wait 1
+click name:close_wall                # (the wall stayed open under the popup)
+wait 0.5
+click name:change_army               # the came home report goes: the army card
+wait 0.5
 army best
 wait 1
 expect fits
 shot pinwheel                        # 22 cards in the front row
-click PerkNail#8                     # the pinwheel's card shows the whole front row
+click name:perks
 wait 0.5
-expect text "22 cards"
+expect text "22 cards"               # the pinwheel's tag shows the whole front row
 expect text "24 cards"
-click "✕"
-wait 0.5
+expect text "the thimble"
 perk star 1
 wisps 200000
 buy-perk thimble
-wait 0.5
-click PerkNail#12                    # the ribbon
-wait 0.5
+wait 1
 expect text "the ribbon"
 expect text "hang it up"
 expect fits
 shot plushie_perks
-click "hang it up"
-wait 1
+click name:buy_ribbon
+wait 1.5
+expect text "the lucky coin"         # the chain is done: the tips hang at the end
+expect text "the rattle"
 expect fits
-shot tips                            # the chain is done: the lucky coin and the rattle
-click PerkNail#13                    # the lucky coin
-wait 0.5
-expect text "the lucky coin"
-expect text "lv 0"
-click "one more"
-wait 0.5
+shot tips
+click name:buy_coin
+wait 1
 expect text "lv 1"
 expect text "one more"
 expect fits
-shot tip_card
+shot tip_bought
 boosts
 perk flag 5
-click PerkNail#2
-wait 0.5
+wait 1
 expect text "all done!"
+scroll 0
+wait 0.3
 expect fits
-shot maxed
-click PerkNail#10                    # the paper star (in view when the well comes back)
-wait 0.5
-expect text "the paper star"
-shot star_picked
-tab home                             # away and back: the card and its pink ring are gone
+shot maxed                           # the top of the wall: the flag is all done
+tab home                             # away and back: the sheet is closed
 wait 0.5
 tab adventures
 page adventures 2
 wait 1
-expect text "last time"
-expect no-text "all done!"
+expect no-text "the well wall"
+expect text "down we go!"
 expect fits
 shot back_again

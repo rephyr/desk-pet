@@ -1,6 +1,6 @@
 # Held landings (look A, on the walls): every 10th landing the army has cleared can be held by a
 # crowd of plain pets sent by shelf. An empty landing only has a dashed '0/500' pill right of the
-# shaft; tapping it puts its card where "last time" sits: "landing 10", how many, "holding the rope",
+# shaft; tapping it puts its card in the army card's place: "landing 10", how many, "holding the rope",
 # a meter, a ‹ n › per shelf with pets that may go and "hold on tight!". While it fills the pill is a
 # dashed 'N/M'; once it's full, a coral 'N' and a pennant on the card. The crowds: around the rope at
 # 10, propping the door at 20 (the pill under the landing, clear of the sewing room's door), sitting
@@ -48,12 +48,11 @@ wait 0.3
 expect text "50"
 expect fits
 shot picked
-hold-scroll 30                       # six shelves: the list scrolls
-hold-pick uncommon 25
+hold-pick uncommon 25                # (the card has the desk's room now: all six shelves fit, no scroll)
 wait 1.2
-hold-scrolled 30                     # a step (and the page's checks) keep it where it was
+expect text "25"
 expect fits
-shot picked_scrolled
+shot picked_two
 hold-pick uncommon 0
 click "hold on tight!"
 wait 0.5
@@ -106,15 +105,18 @@ expect fits
 shot start_from
 down
 wait 2
-expect text "on the way…"
+expect text "walking"
+expect text "landing 30, everyone holding on"
 expect fits
 shot running                         # the army pops out at landing 30
 down-done
 wait 1
-expect text "last time"
-expect text "floor 3*"
+expect text "landing 30 to floor 3*"
 expect fits
 shot home
+click name:change_army
+wait 0.5
+expect text "last time"
 deep 62                              # deep landings: wide dashed pills stay inside the well's column
 herd common normal 150000
 holders 50 common 35100

@@ -1,8 +1,11 @@
-# E1 the old well dungeon (look A, the cross-section): the rope find at the well opens it. The
-# dungeon page shows the well as a drawn column, the army (the front row of cards with your pet's
-# flag, the herd by shelf, the entrance) and the orders card. The army goes down, comes home with
-# wisps and lit landings; deeper down the cellar's doors and the stairs with a guard show, and your
-# pet learns to lead the army. Everything stays inside the window.
+# E1 the old well dungeon (look A of dungeon-redo.html: the slim well column + a roomy desk): the rope
+# find at the well opens it. The dungeon page shows the well as a drawn column, the army card (how
+# many of what fits, the entrance by shelf, fill up / empty, the front row with your pet's flag, a
+# 10-pip slider and "all" per shelf) and the orders as rows of choices. Tapping a floor moves the
+# flag. The army goes down: floor N of M, counters and a row per floor as it happens; it comes home
+# with the "came home" report (4 numbers, faces, by shelf, floor by floor, the best bit). Deeper
+# down the cellar's doors and the stairs with a guard show, and your pet learns to lead the army.
+# Everything stays inside the window.
 from rich
 view full
 stickers off                         # 300 pets fill a random few book pages: no sticker popups
@@ -25,7 +28,10 @@ wait 1
 expect text "the old well"
 expect text "down we go!"
 expect text "front row"
+expect text "the army"
 expect no-text "who goes first"      # earned in the cellar
+expect no-text "start from"          # nothing held yet
+expect text "perks"                  # the bow on the wall: the perks button by the wisps
 expect fits
 shot empty
 click FrontRow#1
@@ -37,24 +43,48 @@ click "best ones"
 wait 1
 click "done"
 wait 1
+click name:fill_up                   # the plainest first, up to the entrance
+wait 1
+expect text "300"
+expect text "280"                    # 280 commons walk behind the 20 cards
+expect fits
+shot filled
+click name:empty_army
+wait 1
 army-herd common 150
 army-herd uncommon 90
 orders 5 30
 wait 1
 expect text "240"
+flag 3                               # a tap on floor 3: the flag moves there
+wait 0.5
+flag 5
+wait 0.5
 expect fits
 shot army
 down
-wait 45                              # a floor takes 20 s: they're a couple of landings down
-expect text "on the way…"
+wait 30                              # a new floor takes 20 s: they're on the second one
+expect text "of 5"
+expect text "walking"
+expect text "stayed below"
+expect text "so far"
 expect fits
 shot running
 down-done
 wait 1
-expect text "last time"
-expect text "brought home"
+expect text "home*"
+expect text "came home of 260"
+expect text "floor by floor"
+expect text "best bit"
+expect text "same again!"
 expect fits
 shot home
+click name:change_army
+wait 1
+expect text "last time"
+expect text "of 260 came home"
+expect fits
+shot last_time
 deep 24
 wait popup                           # past floor 10: your pet can lead the army
 shot lead_popup
@@ -73,11 +103,29 @@ task none
 down-done
 tab adventures
 wait 1
+expect fits
+shot home_deep                       # the report after a run your pet led
+click name:change_army
+wait 1
 orders 27 30 "plain ones"
 wait 1
 expect text "who goes first"
 expect fits
 shot deep
+down
+wait 3                               # floors cleared before go 4x faster
+expect text "of 27"
+expect fits
+shot running_fast
+down-at 22                           # deep down: who stayed below, floor by floor, as it happens
+wait 1
+expect fits
+shot running_deep
+down-done
+wait 1
+expect fits
+shot home_long                       # floor by floor for a long run
+click name:change_army
 tab collection
 wait 1
 expect fits

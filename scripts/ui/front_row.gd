@@ -1,23 +1,26 @@
 class_name FrontRow
 extends Control
 ## The front row: your pet with its flag, then up to `front_n` (data/dungeon.json front_row, the pinwheel perk more) little
-## card pets in a 7-wide grid, as many rows as that takes; empty places are dashed. Tap it to pick the cards (the dungeon page, DungeonView).
+## card pets in a grid `cols` wide (7, or 11 on the roomy army card), as many rows as that takes;
+## empty places are dashed. Tap it to pick the cards (the dungeon page, DungeonView).
 ## In the sewing room, cards that match a mark of the room's chalk lock get a chalk tick.
 
 signal pressed
 
 const CELL := Vector2(36, 42)
-const GAP := Vector2(3, 6)  # (4 wide before the well got its nails lane)
+const GAP := Vector2(4, 4)
 const COLS := 7
 
 var _cells: Array = []  # [texture, tier colour, lead, chalk tick]
 var _places := 1  # your pet's and the front row's
+var _cols := COLS
 
 
-func _init(lead: Pet, cards: Array, clickable: bool, front_n: int, ticks: Array = []) -> void:
+func _init(lead: Pet, cards: Array, clickable: bool, front_n: int, ticks: Array = [], cols := COLS) -> void:
 	_places = maxi(front_n, 0) + 1
-	var rows := ceili(_places / float(COLS))
-	custom_minimum_size = Vector2(COLS * CELL.x + (COLS - 1) * GAP.x, rows * CELL.y + (rows - 1) * GAP.y)
+	_cols = maxi(cols, 1)
+	var rows := ceili(_places / float(_cols))
+	custom_minimum_size = Vector2(_cols * CELL.x + (_cols - 1) * GAP.x, rows * CELL.y + (rows - 1) * GAP.y)
 	texture_filter = TEXTURE_FILTER_NEAREST
 	mouse_filter = MOUSE_FILTER_STOP if clickable else MOUSE_FILTER_IGNORE
 	mouse_default_cursor_shape = CURSOR_POINTING_HAND
@@ -31,9 +34,9 @@ func _init(lead: Pet, cards: Array, clickable: bool, front_n: int, ticks: Array 
 
 
 func _draw() -> void:
-	var step := Vector2((size.x - CELL.x) / (COLS - 1), CELL.y + GAP.y)
+	var step := Vector2(CELL.x + GAP.x, CELL.y + GAP.y)
 	for i in _places:
-		var at := Vector2(i % COLS * step.x, i / COLS * step.y).round()
+		var at := Vector2(i % _cols * step.x, i / _cols * step.y).round()
 		var r := Rect2(at, CELL)
 		if i < _cells.size():
 			var c: Array = _cells[i]
