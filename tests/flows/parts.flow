@@ -1,0 +1,77 @@
+# The workbench's "your pet" page (playtest 1 P4, parts-redo.html look A): every part tile in the
+# bag shows its knack's doodle, its size on your active pet ("+40%") and the kind in a word, with its
+# rarity edge, count badge and plushie buttons (in the number too); the sewing table shows your pet
+# now and after, the knack that leaves struck out and the new one; under the bag your pet's knacks
+# (the leaving one struck out, the new one dashed). Everything stays inside the window.
+from after_tutorial
+view full
+stickers off                  # no sticker popups over the shots
+unlock feature:parts
+unlock feature:errands
+unlock tab:automation
+unlock tab:inventory
+dress body=blob palette=lilac pattern=plain eyes=sleepy accessory=headphones
+part accessory:horns
+part accessory:crown
+part palette:gold
+part pattern:stars
+part eyes:cyclops
+part accessory:halo
+part pattern:checker@2
+part eyes:sparkle
+part body:bunny
+part pattern:stripes
+part accessory:leaf 2
+part pattern:spots 4
+part palette:peach 3
+part accessory:bow 2
+part body:cat
+tab inventory
+page inventory 0
+wait 1
+expect text "parts"
+expect text "+40%"                   # the crown on a plain pet: 5 x8 = 40% automation
+expect text "automation"
+expect text "+30%"                   # the checker with 2 buttons: 15 x2 = 30%
+expect no-text "mood"
+expect fits
+shot bag
+click "crown"
+wait 1
+expect text "royal"
+expect text "automation 40% faster"
+expect text "in the groove"          # the headphones' knack leaves
+expect text "a very tricky stitch"
+expect text "sew it on"
+expect fits
+shot crown
+click "checker"
+wait 1
+expect text "game night"
+expect text "+30% bits and parts"
+expect text "buttons"
+expect fits
+shot buttons
+click "eyes"
+wait 1
+expect fits
+shot eyes_only
+click "all"
+click "bow"
+wait 1
+expect text "gift bow"
+dice 3
+click "sew it on"
+wait 1
+expect text "it held!"
+expect fits
+shot sewn
+click "lovely!"
+wait 1
+expect fits
+shot after
+dress finish=holo                    # a holo pet: every number on the tiles grows (x1.5)
+wait 2
+expect text "+60%"
+expect fits
+shot holo

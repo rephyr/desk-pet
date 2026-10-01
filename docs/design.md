@@ -347,8 +347,9 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   (common 1, uncommon 2, rare 3, epic 5, legendary 8, mythic 12) x the pet's finish (shiny x1.25,
   holo x1.5, ghost x1.75, glitch x2, prismatic x2.5), rounded to a whole %. Knacks of the same kind
   on a pet add up. Your ACTIVE pet's knacks are the `knacks` boost source (shared kinds; the hum
-  counts for coins, xp and luck like an "all" toy); other pets' count a quarter on their own work
-  (errand speed, worker speed, their trips). Knack-only kinds: spotting, adventure speed, tougher,
+  counts for coins, xp and luck like an "all" toy); every card pet's count IN FULL on its own work
+  (errand speed, worker speed, the dungeon army's power, its trips; playtest 1 P4, was a quarter;
+  data/knacks.json "own"). Knack-only kinds: spotting, adventure speed, tougher,
   safe home, bits and parts, trail pickups, treat length, while away, rummaging, shiny capsules,
   pet boxes. Traits stay beside knacks (traits per pet, knacks per part). Hidden until earned:
   nothing shows before parts open (40 trips), and a knack for something you haven't got (fever
@@ -357,6 +358,12 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   eye", "+30% spotting", "eyes: cyclops"), and each card in an opened shelf wears its best badge on
   the bottom-right corner (not on the cushion). Herd counts have no looks, so their knacks don't
   count (x1); stand-ins are whole pets and count theirs. Numbers are placeholders.
+  The workbench's "your pet" page (parts-redo.html look A, built 2026-10-01): each part tile in the
+  bag wears its knack's doodle, its size on your active pet (its finish and the part's buttons
+  counted, `Knacks.row`) and the kind in a word ("+40%", "automation"; data/knacks.json "short");
+  the sewing table shows now -> after, the knack that leaves struck out and the one that comes;
+  under the bag "<pet>'s knacks" as chips (the leaving one struck out, the new one dashed). Boxes
+  aren't on this page any more (the home pile and the boxes tab open them).
   **The plushie machine (F1/F2, built; look A, the cabinet; sacrifice-reels.html):** the mid-game
   layer that makes a perfect pet hard again. A page in the workbench (your pet | toys | plushie
   machine), fully hidden until the sewing room's last room (E3) brings the machine home and sews one

@@ -51,13 +51,14 @@ knows the UI exists; state changes are announced with signals (`GameState.change
 - Game code only ever calls `boost()`; no source has its own multiplier call.
 - Knacks (D1) are the second source: `Knacks` (scripts/pets/knacks.gd, static, pure: a gate
   Callable goes in) works a pet's knacks out of its parts and finish; nothing is saved. `of` /
-  `best` build display rows (the UI only). Totals (`total`, `parts`, `own`, `party_all`) take the
+  `best` build display rows (the UI only; `row` is one part's row on a pet of a finish with n
+  buttons, which the workbench's bag tiles and sewing table use). Totals (`total`, `parts`, `own`, `party_all`) take the
   lean path: `counting(kind)` makes a lookup table once (slot -> part id -> size before the
   finish, only parts whose knack kind counts and is open), `sum_in` / `own_in` then add a pet up
   with no rows or strings (about 2.5 us a pet a kind). `GameState.boost_parts` appends
   `Knacks.parts(catalog, collection.active(), kind, knack_gate)`. `knack_gate(gate)` answers
   "adventures", "machine:<node>" and unlock ids. `GameState.knack_own(pet, kind)` keeps each
-  pet's own share by uid (`_knack_own`, tables in `_knack_steps`). `_knacks_changed()` (a pet's
+  card pet's own multiplier (its knacks in full: data "own" 1.0) by uid (`_knack_own`, tables in `_knack_steps`). `_knacks_changed()` (a pet's
   parts, a new game, a load, a regate) clears boosts, those and the errand and worker speeds;
   `_knack_gates_changed()` (unlock, unlocked, machine_upgraded, tutorial_changed, debug lock-all,
   the `fix` dev step) clears boosts and the knack caches, clears the errand / worker speeds only

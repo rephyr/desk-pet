@@ -141,6 +141,15 @@ What she found, and what we're doing about it, in order (P1 first).
   run. Sewing room: crammed into the 236 px well column, marks only count the 20 strongest, the
   keeper/active pet can't count. Parts: knacks are real but only your active pet gets them fully,
   herd pets get nothing, and the sewing table even says "no change". All need mockups + picks.
+  **Parts BUILT 2026-10-01 (lane parts2, no save change):** data/knacks.json `own` 0.25 -> 1.0
+  (every card pet's own errands, worker speed, army power and trips get its knacks in full; herd
+  pets none; your active pet still feeds the global boost). Workbench "your pet" page look A:
+  part tiles with the knack's doodle, its size on your active pet (finish + buttons, `Knacks.row`)
+  and a short kind word (knacks.json `short`), the sewing table's now -> after with the leaving
+  knack struck out and the new one, the "mood" line gone, "<pet>'s knacks" chips under the bag.
+  The boxes row left the page (the home pile and the boxes tab have them). The page only rebuilds
+  when the bag, your pet or the knack gates change (checked at most once a second). Dev step
+  `dice <seed>`; flow parts.
 
 ## Phase A: finish the early game (stage 1 → 2)
 
@@ -507,7 +516,7 @@ What she found, and what we're doing about it, in order (P1 first).
 - Grafting (sewing onto your active pet, can fail) exists; the workbench shows it.
 - **Built (lane b2-d1, merged, look C):** data/knacks.json (35 knacks, one per part, sizes step x
   rarity x finish), `Knacks` (scripts/pets/knacks.gd), your active pet's knacks are the `knacks`
-  boost source, other pets' count a quarter on their own errands, worker jobs and trips (packed as
+  boost source, other pets' count a quarter (in full since P4) on their own errands, worker jobs and trips (packed as
   `RunState.knacks`), 11 knack-only boost kinds (spots, trip, tough, safe, finds, pickups, treats,
   away, rummage, shiny, pet_boxes). Hidden until parts open and until each kind's system opens;
   power waits for fights (E1). Badges on the pet details (tap to read), the best badge on grid

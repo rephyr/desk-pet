@@ -93,9 +93,6 @@ func _init() -> void:
 	collection.toys.workbench_requested.connect(func(edition):
 		show_tab("inventory")
 		workbench.show_toy(edition))
-	workbench.bag.open_box_requested.connect(func(box_id):
-		show_tab("boxes")
-		boxes.open(box_id, 1))
 	home.go.connect(show_tab)
 	home.open_box.connect(func(box_id):
 		show_tab("boxes")

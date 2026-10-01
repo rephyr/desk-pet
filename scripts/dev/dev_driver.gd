@@ -119,6 +119,8 @@ extends Node
 ##   buy <nudge | hold | wild>  buys one with wisps at the plushie machine
 ##   keeper <next | prev>  the plushie machine's next or previous keeper
 ##   part <slot:id[@n]> [count]  parts in your bag (slot:id@n: a part with n buttons on it)
+##   dice <seed>           GameState's dice start from this seed (a stitch on the workbench holds or
+##                         slips the same way every run)
 ##   door                  the dungeon page's column slides over to the sewing room (like tapping its door)
 ##   sew-room <n>          the sewing room shows room n (1 = the button tin; only rooms that show)
 ##   sewn <n>              the first n rooms of the sewing room are cleared, with their real firsts
@@ -699,6 +701,8 @@ func _step(w: PackedStringArray) -> String:
 				return "no part %s" % w[1]
 			GameState.parts[w[1]] = int(GameState.parts.get(w[1], 0)) + (int(w[2]) if w.size() > 2 else 1)
 			GameState.changed.emit()
+		"dice":  # dice <seed>: GameState's dice from this seed
+			GameState._rng.seed = int(w[1])
 		"keeper":  # keeper next | prev
 			if not GameState.plushie_swap(1 if w[1] == "next" else -1):
 				return "can't swap the keeper now"
