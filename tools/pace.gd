@@ -42,6 +42,7 @@ func _init() -> void:
 		p.treats = "--treats" in OS.get_cmdline_user_args()
 		p.trace = "--trace" in OS.get_cmdline_user_args()
 		p.pick = _arg("pick", "trunk")
+		p.parties = _arg("parties", "one")
 		p.play(minutes)
 		players.append(p)
 		print("  player %d done in %.1f s: %s coins, %d pets (room %d), %d trips, %d pets stayed behind on your trips, %d pats, happy %d%% of the time" % [r + 1,

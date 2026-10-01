@@ -113,6 +113,12 @@ What she found, and what we're doing about it, in order (P1 first).
   lights 73 -> 60 min, better drops 113 -> 104, automation 124 -> 115; new glass still waits
   ~27 min on 1 glass (few pets early). NOT done: the midnight globe (porch_machine find + its
   nodes porch_dust / porch_hatch don't exist yet: content to build).
+  Then (same day): the backyard's own bit is sure on a finished trip (chance 1.0, was 0.6-0.8),
+  and the pace sim learned `--parties=many` (every spare pet out, each party somewhere else). The
+  real early bottleneck was one party at a time (the sim, and players nobody told). Many parties,
+  5 runs: new glass 14.5 min, lights 38, better drops 64, automation 72; but trips-gated unlocks
+  jump ahead (parts at 40 trips lands at 48 min, before better drops): retune those for the
+  200 h curve. **Emilia's target (2026-10-01): ~200 hours of game before any prestige layer.**
 - **P4 late-game redesigns**: the plushie machine has no stake (sewn buttons are safe, misses pay
   wisps, cracks pay double; one mythic ≈ the whole wisps economy). **Decided:** cracks can pop
   sewn buttons, misses pay nothing, each next button needs better fed pets, holding stakes

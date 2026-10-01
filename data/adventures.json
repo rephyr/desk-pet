@@ -11,7 +11,7 @@
 	"locations": [
 		{
 			"id": "garden", "type": "foraging", "page": "backyard", "name": "the garden path", "start": true, "safe": true, "max_party": 1, "minutes": 2.5, "go_home": true,
-			"difficulty": 1.0, "danger": 1.0, "loot": 1.0, "box": "starter", "finish_rewards": [ { "kind": "bit", "id": "spring", "chance": 0.7 },{ "kind": "coins", "amount": [1, 2] }, { "kind": "part", "chance": 0.2 }], "draws": 3,
+			"difficulty": 1.0, "danger": 1.0, "loot": 1.0, "box": "starter", "finish_rewards": [ { "kind": "bit", "id": "spring", "chance": 1.0 },{ "kind": "coins", "amount": [1, 2] }, { "kind": "part", "chance": 0.2 }], "draws": 3,
 			"pool": [
 				{ "event": "garden_fork", "weight": 3 }, { "event": "garden_brambles", "weight": 3 },
 				{ "event": "garden_goose", "weight": 2 }, { "event": "garden_chest", "weight": 2 },
@@ -23,7 +23,7 @@
 		},
 		{
 			"id": "meadow", "type": "foraging", "page": "backyard", "name": "the meadow", "minutes": 6, "go_home": true,
-			"difficulty": 1.1, "danger": 1.0, "loot": 2.2, "box": "starter", "finish_rewards": [ { "kind": "bit", "id": "gear", "chance": 0.7 },{ "kind": "coins", "amount": [2, 4] }, { "kind": "part", "chance": 0.25 }], "draws": 4, "part_slots": ["body", "pattern"],
+			"difficulty": 1.1, "danger": 1.0, "loot": 2.2, "box": "starter", "finish_rewards": [ { "kind": "bit", "id": "gear", "chance": 1.0 },{ "kind": "coins", "amount": [2, 4] }, { "kind": "part", "chance": 0.25 }], "draws": 4, "part_slots": ["body", "pattern"],
 			"pool": [
 				{ "event": "meadow_butterflies", "weight": 3 }, { "event": "meadow_hay", "weight": 2 },
 				{ "event": "meadow_moles", "weight": 2 }, { "event": "meadow_kite", "weight": 1 }, { "event": "meadow_basket", "weight": 3 }, { "event": "meadow_wagon", "weight": 2 },
@@ -34,7 +34,7 @@
 		},
 		{
 			"id": "woods", "type": "foraging", "page": "backyard", "name": "the woods", "minutes": 10, "go_home": true,
-			"difficulty": 1.3, "danger": 1.1, "loot": 6.5, "box": "starter", "finish_rewards": [ { "kind": "bit", "id": "gear", "chance": 0.8 },{ "kind": "coins", "amount": [3, 5] }, { "kind": "part", "chance": 0.3 }, { "kind": "box", "chance": 0.05 }], "draws": 4, "part_slots": ["body", "pattern"],
+			"difficulty": 1.3, "danger": 1.1, "loot": 6.5, "box": "starter", "finish_rewards": [ { "kind": "bit", "id": "gear", "chance": 1.0 },{ "kind": "coins", "amount": [3, 5] }, { "kind": "part", "chance": 0.3 }, { "kind": "box", "chance": 0.05 }], "draws": 4, "part_slots": ["body", "pattern"],
 			"pool": [
 				{ "event": "woods_mushrooms", "weight": 3 }, { "event": "woods_owl", "weight": 2 },
 				{ "event": "woods_log", "weight": 2 }, { "event": "woods_fox", "weight": 2 }, { "event": "woods_cart", "weight": 2 },
@@ -60,7 +60,7 @@
 		},
 		{
 			"id": "pond", "type": "foraging", "page": "backyard", "name": "the duck pond", "minutes": 6, "go_home": true,
-			"difficulty": 1.1, "danger": 1.0, "loot": 2.2, "box": "starter", "finish_rewards": [ { "kind": "bit", "id": "glass", "chance": 0.6 },{ "kind": "coins", "amount": [2, 4] }, { "kind": "part", "chance": 0.25 }], "draws": 4, "part_slots": ["eyes", "palette"],
+			"difficulty": 1.1, "danger": 1.0, "loot": 2.2, "box": "starter", "finish_rewards": [ { "kind": "bit", "id": "glass", "chance": 1.0 },{ "kind": "coins", "amount": [2, 4] }, { "kind": "part", "chance": 0.25 }], "draws": 4, "part_slots": ["eyes", "palette"],
 			"pool": [
 				{ "event": "garden_pond", "weight": 2 }, { "event": "pond_frog", "weight": 3 },
 				{ "event": "pond_lilypads", "weight": 2 }, { "event": "pond_reeds", "weight": 2 }, { "event": "pond_turtle", "weight": 1 }
@@ -70,7 +70,7 @@
 		},
 		{
 			"id": "stream", "type": "foraging", "page": "backyard", "name": "the stream", "minutes": 10, "go_home": true, "more": true,
-			"difficulty": 1.3, "danger": 1.1, "loot": 5.6, "box": "starter", "finish_rewards": [ { "kind": "bit", "id": "glass", "chance": 0.7 },{ "kind": "coins", "amount": [3, 5] }, { "kind": "part", "chance": 0.3 }, { "kind": "box", "chance": 0.05 }], "draws": 4, "part_slots": ["eyes", "palette"],
+			"difficulty": 1.3, "danger": 1.1, "loot": 5.6, "box": "starter", "finish_rewards": [ { "kind": "bit", "id": "glass", "chance": 1.0 },{ "kind": "coins", "amount": [3, 5] }, { "kind": "part", "chance": 0.3 }, { "kind": "box", "chance": 0.05 }], "draws": 4, "part_slots": ["eyes", "palette"],
 			"pool": [
 				{ "event": "stream_stones", "weight": 3 }, { "event": "stream_fish", "weight": 2 },
 				{ "event": "stream_bottle", "weight": 2 }, { "event": "stream_waterfall", "weight": 1 }, { "event": "pond_frog", "weight": 1 }
@@ -79,7 +79,7 @@
 		},
 		{
 			"id": "shed", "type": "foraging", "page": "backyard", "name": "the old shed", "minutes": 6, "go_home": true, "more": true,
-			"difficulty": 1.1, "danger": 1.0, "loot": 2.2, "box": "starter", "finish_rewards": [ { "kind": "bit", "id": "bolt", "chance": 0.7 },{ "kind": "coins", "amount": [2, 4] }, { "kind": "part", "chance": 0.25 }], "draws": 4, "part_slots": ["accessory"],
+			"difficulty": 1.1, "danger": 1.0, "loot": 2.2, "box": "starter", "finish_rewards": [ { "kind": "bit", "id": "bolt", "chance": 1.0 },{ "kind": "coins", "amount": [2, 4] }, { "kind": "part", "chance": 0.25 }], "draws": 4, "part_slots": ["accessory"],
 			"pool": [
 				{ "event": "shed_boxes", "weight": 3 }, { "event": "shed_spider", "weight": 2 },
 				{ "event": "shed_jar", "weight": 2 }, { "event": "shed_mice", "weight": 2 }

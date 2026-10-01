@@ -30,6 +30,7 @@ const GATE_NODES := ["chute2"]  # machine nodes off the repair/drops branches th
 const SOURCES := ["lever", "errands", "adventures", "auto trips", "pet crank", "workers", "rummage"]
 
 var style := "steady"
+var parties := "one"  # --parties=: "one" party you send at a time (players who never found out), "many" (every spare pet goes, each party somewhere else)
 var pick := "trunk"  # --pick=: where the party goes first: "trunk" (one look at a place where something new could be, then a bit the next repair needs, then a find, then any bit), "bits" (any bit, then a find) or "finds" (a find, then any bit: the first reports, as if it knew where every find was)
 var trace := false  # --trace: prints every trip sent and every one collected
 var treats := false  # the player also tosses every treat on its own trips (GameState.toss_treat, the pouch counts)
@@ -122,8 +123,10 @@ func play(minutes: float) -> void:
 			if gs.tutorial_active():
 				_next_decide = t + 5.0  # the tutorial holds everyone's hand: casual players follow it through too
 			_decide()
-		if here and gs.tutorial in ["send", "done"] and _hand_run() == null:
-			_send_party()  # after the check-in's buys, so a repair just bought points the party on
+		if here and gs.tutorial in ["send", "done"] and (_hand_run() == null or parties == "many"):
+			for i in 20:  # after the check-in's buys, so a repair just bought points the party on
+				if not _send_party() or parties != "many":
+					break
 		_notice()
 		if fmod(t, WINDOW) == 0.0:
 			_close_window()
@@ -252,10 +255,10 @@ func _hand_run() -> RunState:
 
 ## The biggest party allowed goes where the next thing is: a find that's there to be found, a
 ## bit the machine needs, somewhere new, else the best coins.
-func _send_party() -> void:
+func _send_party() -> bool:
 	var pets: Array = gs.sendable_pets()
 	if pets.is_empty():
-		return
+		return false
 	var resting := {}
 	for p in gs.resting_pets():
 		resting[p.uid] = true
@@ -265,9 +268,11 @@ func _send_party() -> void:
 		return _stat_sum(a) > _stat_sum(b))
 	var place := _pick_place(pets.size())
 	if place == "":
-		return
+		return false
 	var keep := 1 if gs.feature_on("errands") and pets.size() > 1 else 0  # one pet keeps earning at home
 	var n := mini(pets.size() - keep, gs.max_party(place))
+	if n <= 0:
+		return false
 	var going: Array[Pet] = []
 	for i in n:
 		going.append(pets[i])
@@ -278,6 +283,7 @@ func _send_party() -> void:
 		_count("trip " + place)
 		if trace:
 			print("  %6.1f  send %d to %s (bits %s)" % [t / 60.0, going.size(), place, str(gs.bits)])
+	return run != null
 
 
 func _stat_sum(pet: Pet) -> float:
@@ -288,7 +294,12 @@ func _stat_sum(pet: Pet) -> float:
 
 
 func _places() -> Array[Dictionary]:
-	return gs.open_locations().filter(func(l): return str(l.get("type", "")) != "dungeon")
+	var busy := {}
+	if parties == "many":  # each party somewhere else
+		for run: RunState in gs.runs:
+			if not run.auto:
+				busy[run.location_id] = true
+	return gs.open_locations().filter(func(l): return str(l.get("type", "")) != "dungeon" and not busy.has(str(l.id)))
 
 
 func _pick_place(have: int) -> String:
