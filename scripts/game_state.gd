@@ -42,7 +42,9 @@ static var testing := false
 ## one the script makes) loads or saves the real or profile save, unless the script sets this (the
 ## GameState tests do, on their own profile's save). See tool_run().
 static var tool_saves := false
-const SAVE_VERSION := 40
+const SAVE_VERSION := 41
+const PINNED_MAX := 10  # good pulls waiting to be seen: older ones stop waiting (and may fold into the herd)
+const SPARE_FRESH_MS := 1000  # spare_shelves() is worked out again at least this often
 const WORKER_BOXES_MAX := 2000  # box workers open at most this many boxes in one go (every pet is rolled)
 const OFFLINE_CAP := 12.0 * 3600.0
 const FRAME_GAP := 5.0  # a frame this long means the computer slept: counts as closed (no care drain)
@@ -112,6 +114,8 @@ var _was_active := ""  # the active pet before it changed (it goes back to work)
 var last_moved := ""  # the uid of the last pet put on or taken off an errand (for your pet to name it)
 ## Who's resting, worked out once until crews, workers, trips or the herd change (see _rest_changed)
 var _rest := {}
+var _spare := {}  # spare_shelves(), worked out again when _spare_changed() or a second old
+var _spare_at := 0
 var room := 0  # room steps built (the house card): the room holds this many plain pets, see Herd.room_cap
 ## New homes: the stall's jar, the sorting rule and its count, see NewHomes and data/new_homes.json
 var homes := NewHomes.fresh(Catalog.shared())
@@ -148,6 +152,7 @@ var boxes_greeted := {}  # box id -> true: the boxes tab has shown this tier arr
 var debug_all_tiers := false  # debug builds: every box tier is in the shop (dev step "tiers all"), not saved
 var buying_on := true  # your pet buys more when the pile runs out (once it has the piggy bank)
 var pinned: Array[String] = []  # good pulls your pet opened, waiting for you to see them
+var join_up_to := ""  # "new pets join here" only takes new pets up to this rarity ("" = every rarity)
 var rummaged := {}  # rummage spot id -> unix time it has something in it again (see data/rummage.json)
 ## The capsule machine, see Machine and data/machine.json: { pulls, lit, bought: { upgrade id: n },
 ## globes: [globe ids you have], greeted: [globes the machine tab has shown arriving] }
@@ -244,6 +249,7 @@ func _init() -> void:
 		_was_active = p.uid if p else "")
 	_was_active = collection.active_uid
 	collection.pet_changed.connect(func(_p):
+		_spare_changed()  # a favourite or buttons: whether it may go changed
 		_worker_speed.clear()
 		_job_speed.clear()
 		_job_tip.clear()
@@ -610,16 +616,62 @@ func homes_open() -> bool:
 	return feature_on("new_homes")
 
 
-## Pets of a rarity the stall may take, in the order it takes them: a plain finish at a time
-## (normal before shiny); inside one, resting before working, and counts before the oldest cards.
-## Never favourites, the active pet, pets with a part new to the book, holo or better, pets away,
-## pinned pulls or party leaders. `n` -1: all of them. Returns { cards: [uids], rest: { key: n }
-## (resting counts), work: { key: n } (counts on errands and machines), n }.
-func homes_pick(rarity: String, n := -1) -> Dictionary:
-	var out := { "cards": [], "rest": {}, "work": {}, "n": 0 }
+## Pets of a rarity that may go (new homes, past the edge, the school, the wishing jar, helpers,
+## holders, the army): ONE rule for all of them. In the order they go: every resting pet before any
+## working one; inside each, the plainest finish first, counts before the oldest cards. Only finishes
+## below the sorting card's keep line (keep_line()), and never favourites, your active pet, pets with
+## a part new to the book, buttons or a keep line (Collection.kept), pets away, pinned pulls, party
+## leaders or the army. `n` -1: all of them. Returns { cards: [uids], rest: { key: n } (resting
+## counts), work: { key: n } (counts on errands and machines), n, working (how many of n work) }.
+func spare_pick(rarity: String, n := -1, ctx := {}) -> Dictionary:
+	var out := { "cards": [], "rest": {}, "work": {}, "n": 0, "working": 0 }
 	var left := n if n >= 0 else (1 << 62)
-	var busy := _busy_uids()
-	var free_rest := resting_herd()
+	if ctx.is_empty():
+		ctx = _spare_ctx()
+	var busy: Dictionary = ctx.busy
+	var free_rest: Dictionary = ctx.free_rest
+	var out_now: Dictionary = ctx.out_now
+	var resting: Dictionary = ctx.resting
+	var cards := collection.cards_of(rarity)
+	var finishes: Array = catalog.finishes.filter(func(f): return may_go_finish(str(f.id)))
+	var mine := {}  # finish -> its cards that may go, oldest first
+	for f in finishes:
+		mine[f.id] = cards.filter(func(pet: Pet): return pet.finish == f.id and not collection.kept(pet) and not busy.has(pet.uid))
+	# everyone resting first (plainest finish first: the count, then the cards), then the ones working
+	for f in finishes:
+		var k := Herd.key(rarity, str(f.id))
+		var take := mini(left, int(free_rest.get(k, 0)))
+		if take > 0:
+			out.rest[k] = take
+			left -= take
+		for pet: Pet in mine[f.id]:
+			if left <= 0:
+				break
+			if resting.has(pet.uid):
+				out.cards.append(pet.uid)
+				left -= 1
+	for f in finishes:
+		var k := Herd.key(rarity, str(f.id))
+		var working := collection.herd_count(k) - int(free_rest.get(k, 0)) - int(out_now.get(k, 0))
+		var take := mini(left, maxi(0, working))
+		if take > 0:
+			out.work[k] = take
+			left -= take
+		for pet: Pet in mine[f.id]:
+			if left <= 0:
+				break
+			if not resting.has(pet.uid):
+				out.cards.append(pet.uid)
+				out.working += 1
+				left -= 1
+	out.working += Herd.total(out.work)
+	out.n = out.cards.size() + Herd.total(out.rest) + Herd.total(out.work)
+	return out
+
+
+## What spare_pick needs to know about everyone (worked out once for all the rarities): busy uids,
+## resting counts, counts out (away, or the army's), resting cards.
+func _spare_ctx() -> Dictionary:
 	var out_now := {}
 	for uid: String in _stand_ins_out():
 		Herd.put(out_now, Herd.key_of(uid), 1)
@@ -629,62 +681,92 @@ func homes_pick(rarity: String, n := -1) -> Dictionary:
 	var resting := {}
 	for pet in resting_cards():
 		resting[pet.uid] = true
-	var cards := collection.cards_of(rarity)
-	for f in catalog.finishes:
-		if left <= 0:
-			break
-		if not Herd.plain(catalog, str(f.id)):
-			continue
-		var k := Herd.key(rarity, str(f.id))
-		var mine: Array[Pet] = []  # this finish's cards that may go, oldest first
-		for pet in cards:
-			if pet.finish == f.id and not collection.always_card(pet) and not busy.has(pet.uid):
-				mine.append(pet)
-		# resting: the count, then the cards
-		var take := mini(left, int(free_rest.get(k, 0)))
-		if take > 0:
-			out.rest[k] = take
-			left -= take
-		for pet in mine:
-			if left <= 0:
-				break
-			if resting.has(pet.uid):
-				out.cards.append(pet.uid)
-				left -= 1
-		# working: the count on errands and machines, then the cards
-		var working := collection.herd_count(k) - int(free_rest.get(k, 0)) - int(out_now.get(k, 0))
-		take = mini(left, maxi(0, working))
-		if take > 0:
-			out.work[k] = take
-			left -= take
-		for pet in mine:
-			if left <= 0:
-				break
-			if not resting.has(pet.uid):
-				out.cards.append(pet.uid)
-				left -= 1
-	out.n = out.cards.size() + Herd.total(out.rest) + Herd.total(out.work)
+	return { "busy": _busy_uids(), "free_rest": resting_herd(), "out_now": out_now, "resting": resting }
+
+
+## The sorting card's keep line: pets of this finish and better never go anywhere (see spare_pick).
+func keep_line() -> String:
+	return str(homes.rule.get("keep", "holo"))
+
+
+## Whether pets of this finish may go (below the keep line).
+func may_go_finish(finish: String) -> bool:
+	return catalog.finish_rank(finish) < catalog.finish_rank(keep_line())
+
+
+## How many pets of each rarity may go right now: rarity -> { n, working } (see spare_pick; rarities
+## with none are left out). Kept for a second at most: pickers ask every frame.
+func spare_shelves() -> Dictionary:
+	if _spare.is_empty() or Time.get_ticks_msec() - _spare_at > SPARE_FRESH_MS:
+		_spare = { "shelves": {} }
+		_spare_at = Time.get_ticks_msec()
+		var ctx := _spare_ctx()
+		for tier in catalog.tiers:
+			var plan := spare_pick(str(tier.id), -1, ctx)
+			if int(plan.n) > 0:
+				_spare.shelves[tier.id] = { "n": int(plan.n), "working": int(plan.working) }
+	return _spare.shelves
+
+
+## Who may go changed (a favourite, a pin, the keep line): spare_shelves() works it out again.
+func _spare_changed() -> void:
+	_spare = {}
+
+
+## How many pets of a rarity may go right now (the stall, the edge, the school...).
+func homes_can_go(rarity: String) -> int:
+	return int(spare_shelves().get(rarity, {}).get("n", 0))
+
+
+## The face of a pet that would go soon from a shelf (null when none may); `salt` picks another.
+func spare_face(rarity: String, salt := 0) -> Pet:
+	var plan := spare_pick(rarity, 8)
+	if not plan.cards.is_empty() and plan.rest.is_empty():
+		return collection.get_pet(str(plan.cards[salt % plan.cards.size()]))
+	for part in [plan.rest, plan.work]:
+		for k in part:
+			var uids := herd_faces({ k: 1 }, 1, salt)
+			if not uids.is_empty():
+				return collection.get_pet(str(uids[0]))
+	return null
+
+
+## Takes up to `n` pets of a rarity for good (-1: all that may go, see spare_pick): off their
+## errands and machines if they have to. `star`: they're gone (a star each); otherwise they stay on
+## somewhere (school, holders, helpers). Returns { n: how many went, counts: count key -> how many
+## (cards too, by rarity and finish), palettes: the looks of up to `keep` of them }.
+func _take_spare(rarity: String, n: int, keep: int, star: bool) -> Dictionary:
+	var out := { "n": 0, "counts": {}, "palettes": [] }
+	var plan := spare_pick(rarity, n)
+	if int(plan.n) <= 0:
+		return out
+	for uid in plan.cards:
+		var pet := collection.get_pet(str(uid))
+		if pet:
+			Herd.put(out.counts, Herd.key(pet.rarity, pet.finish), 1)
+			if out.palettes.size() < keep:
+				out.palettes.append(str(pet.parts.palette))
+	var counts: Dictionary = plan.rest.duplicate()
+	for k in plan.work:
+		Herd.put(counts, k, _herd_off_places(k, int(plan.work[k])))  # off their errands and machines first
+	for k in counts:
+		Herd.put(out.counts, k, int(counts[k]))
+		for uid in collection.stand_in_uids(k, mini(int(counts[k]), maxi(0, keep - out.palettes.size()))):
+			var face := Herd.stand_in(catalog, uid)
+			if face:
+				out.palettes.append(str(face.parts.palette))
+	out.n = collection.leave(counts, plan.cards, star)
+	_spare_changed()
 	return out
 
 
-## How many pets of a rarity the stall may take right now.
-func homes_can_go(rarity: String) -> int:
-	return int(homes_pick(rarity).n)
-
-
-## The stall takes `n` pets of a rarity (-1: all it may), see homes_pick. They leave for good (a
+## The stall takes `n` pets of a rarity (-1: all it may), see spare_pick. They leave for good (a
 ## star each), their points go in the jar, and full jars drop boxes on your pile. Returns
 ## { n: how many left, boxes }.
 func send_home(rarity: String, n := 1) -> Dictionary:
-	var plan := homes_pick(rarity, n)
-	if int(plan.n) <= 0:
+	var gone := int(_take_spare(rarity, n, 0, true).n)
+	if gone <= 0:
 		return { "n": 0, "boxes": 0 }
-	for k in plan.work:
-		_herd_off_places(k, int(plan.work[k]))  # off their errands and machines first
-	var counts: Dictionary = plan.rest.duplicate()
-	for k in plan.work:
-		Herd.put(counts, k, int(plan.work[k]))
-	var gone := collection.leave(counts, plan.cards)
 	var boxes := NewHomes.pay(homes, catalog, rarity, gone)
 	if boxes > 0:
 		var box := NewHomes.box_id(catalog)
@@ -715,12 +797,12 @@ func built(id: String) -> bool:
 
 
 ## How many pets of a rarity could go and help on a pinned drawing right now: plain pets the new
-## homes stall may take (see homes_pick), as many as still help it (Workshop.useful).
+## homes stall may take (see spare_pick), as many as still help it (Workshop.useful).
 func helpers_can_go(id: String, rarity: String) -> int:
 	var useful := Workshop.useful(catalog, workshop, id, rarity)
 	if useful <= 0:
 		return 0
-	return int(homes_pick(rarity, useful).n)
+	return mini(useful, homes_can_go(rarity))
 
 
 ## `n` pets of a rarity (-1: as many as help) go and help build a pinned drawing. They come off
@@ -730,15 +812,11 @@ func send_helpers(id: String, rarity: String, n := 1) -> int:
 	if not workshop_open() or not id in Workshop.pinned(workshop):
 		return 0
 	var useful := Workshop.useful(catalog, workshop, id, rarity)
-	var plan := homes_pick(rarity, useful if n < 0 else mini(n, useful))
-	if int(plan.n) <= 0:
+	if useful <= 0:
 		return 0
-	for k in plan.work:
-		_herd_off_places(k, int(plan.work[k]))
-	var counts: Dictionary = plan.rest.duplicate()
-	for k in plan.work:
-		Herd.put(counts, k, int(plan.work[k]))
-	var gone := collection.leave(counts, plan.cards, false)
+	var gone := int(_take_spare(rarity, useful if n < 0 else mini(n, useful), 0, false).n)
+	if gone <= 0:
+		return 0
 	Workshop.take(catalog, workshop, id, rarity, gone)
 	workshop_changed.emit("")
 	changed.emit()
@@ -932,6 +1010,7 @@ func set_rule(key: String, value) -> void:
 		"keep":
 			if catalog.finish(str(value)).id == str(value):
 				homes.rule.keep = str(value)
+	_rest_changed()  # the keep line: which finishes may go anywhere (and the army holds)
 	homes_rule_changed.emit()
 	changed.emit()
 	save_game()
@@ -1382,6 +1461,7 @@ func debug_new_game() -> void:
 	_roller.wish = {}
 	_crews_changed()
 	pinned.clear()
+	join_up_to = ""
 	rummaged.clear()
 	machine = { "pulls": 0, "lit": 0, "bought": {}, "globes": [Machine.first_globe(catalog)], "greeted": [Machine.first_globe(catalog)] }
 	fever_until = 0.0
@@ -1526,6 +1606,7 @@ func _resting() -> Dictionary:
 ## Something changed who's resting: it's worked out again when next asked.
 func _rest_changed() -> void:
 	_rest = {}
+	_spare = {}
 
 
 ## Pets from the herd that are busy: count key -> on errands, working, away or leading a party.
@@ -2158,6 +2239,16 @@ func worker_joins(id: String) -> bool:
 	return automation.get("wjoin", {}).has(id)
 
 
+## "New pets join here" takes new pets up to this rarity only ("" = every rarity).
+func set_join_up_to(rarity: String) -> void:
+	if rarity != "" and not catalog.tiers.any(func(t): return t.id == rarity):
+		return
+	join_up_to = rarity
+	jobs_changed.emit()
+	changed.emit()
+	save_game()
+
+
 ## Whether any job has "new pets join here" on.
 func any_join() -> bool:
 	for job in open_jobs():
@@ -2195,6 +2286,13 @@ func _place_new(uids: Array) -> void:
 		elif resting.has(uid):
 			resting.erase(uid)
 			cards.append(uid)
+	# "up to" a rarity: rarer new pets stay resting (for the army, the edge...); the rule's pets still go
+	if join_up_to != "":
+		var top := catalog.rank(join_up_to)
+		cards = cards.filter(func(uid): return forced.has(uid) or catalog.rank(collection.get_pet(uid).rarity) <= top)
+		for k in counts.keys():
+			if catalog.rank(Herd.rarity_of(k)) > top:
+				counts.erase(k)
 	# machines and tables first, while they have room
 	for j in worker_jobs():
 		var id := str(j.id)
@@ -2440,12 +2538,26 @@ func auto_open_pack() -> Pet:
 	if pulled.is_empty():
 		return null
 	var good: Array = []
+	var pins: Array[String] = []
 	for pet in pulled:
 		if is_good_pull(pet) and collection.get_pet(pet.uid) == pet:  # not one the sorting rule sent off
-			pinned.append(pet.uid)
+			pins.append(pet.uid)
 			good.append(pet.display_name(catalog))
+	_pin(pins)
 	_log_idle({ "packs": 1, "good": good })
 	return BoxShop.best_first(pulled, catalog)[0]
+
+
+## Good pulls wait for you to see them, the newest PINNED_MAX only: a pinned pet stays a card (it
+## can't fold, go to new homes or past the edge), so a pile of unseen pulls would fill the room.
+func _pin(uids: Array[String]) -> void:
+	if uids.is_empty():
+		return
+	pinned.append_array(uids)
+	_spare_changed()
+	if pinned.size() > PINNED_MAX:
+		pinned = pinned.slice(pinned.size() - PINNED_MAX)
+		collection.refold()  # the ones that stopped waiting may fold into the herd now
 
 
 ## Rare or better, or a holo-or-better finish: worth showing you.
@@ -2458,6 +2570,7 @@ func dismiss_pinned(uid := "") -> void:
 	var i := 0 if uid == "" else pinned.find(uid)
 	if i >= 0 and i < pinned.size():
 		pinned.remove_at(i)
+		_spare_changed()
 		collection.refold()  # a good pull you've seen may fold into the herd now
 		changed.emit()
 
@@ -3084,6 +3197,7 @@ func _workers_open(count: int) -> void:
 	count = mini(count, room_left())  # a full room: the boxes wait on the pile
 	var opened := 0
 	var good: Array = []
+	var pins: Array[String] = []
 	var split := BoxShop.split_open(bag, pet_box_order(), mini(count, WORKER_BOXES_MAX))
 	for box_id in split:
 		var before := in_bag(box_id)
@@ -3092,8 +3206,9 @@ func _workers_open(count: int) -> void:
 		for pet in pulled:
 			if is_good_pull(pet) and not _sent_home.has(pet.uid):  # not one the sorting rule sent off
 				if collection.get_pet(pet.uid) != null:  # a big batch may have folded it into the herd already
-					pinned.append(pet.uid)
+					pins.append(pet.uid)
 				good.append(pet.display_name(catalog))
+	_pin(pins)
 	if opened > 0:
 		_log_idle({ "packs": opened, "good": good })
 
@@ -3271,7 +3386,7 @@ func _army_herd(used: Dictionary) -> Dictionary:
 	var out := {}
 	for rarity: String in dungeon.herd:
 		var left := int(dungeon.herd[rarity])
-		var keys: Array = collection.herd.keys().filter(func(k): return Herd.rarity_of(k) == rarity)
+		var keys: Array = collection.herd.keys().filter(func(k): return Herd.rarity_of(k) == rarity and may_go_finish(Herd.finish_of(k)))
 		keys.sort_custom(func(a, b): return catalog.finish_rank(Herd.finish_of(a)) > catalog.finish_rank(Herd.finish_of(b)))
 		for k in keys:
 			if left <= 0:
@@ -3304,8 +3419,8 @@ func army_cards() -> Array[Pet]:
 	return _strongest_first(out)
 
 
-## Cards that could go in the army (resting ones and the ones in it), the strongest first. Never
-## the plushie machine's keeper: it stays home.
+## Cards that could go in the army (resting ones, ones on errands and machines, and the ones in it),
+## the strongest first. Never the plushie machine's keeper: it stays home.
 func army_choices() -> Array[Pet]:
 	var out: Array[Pet] = []
 	if not dungeon_running():
@@ -3314,7 +3429,7 @@ func army_choices() -> Array[Pet]:
 			if pet:
 				out.append(pet)
 	var keeper := _plushie_keeper_uid()
-	for pet in resting_cards():
+	for pet in resting_cards() + _working_cards():  # working ones come off their errands to join
 		if pet.uid != keeper:
 			out.append(pet)
 	return _strongest_first(out)
@@ -3341,26 +3456,42 @@ func army() -> Dictionary:
 		"entrance": Dungeon.entrance(catalog, perk_level("entrance")) }
 
 
-## Pets of a rarity from the herd that could go: resting ones and the ones in the army already.
+## Pets of a rarity from the herd that could go: the ones in the army already, resting ones and the
+## ones on errands and machines (they come off when they join), below the keep line. Never pets away.
 func army_herd_room(rarity: String) -> int:
+	var out_now := {}
+	for uid: String in _stand_ins_out():
+		Herd.put(out_now, Herd.key_of(uid), 1)
 	var n := 0
-	for k in resting_herd():
-		if Herd.rarity_of(k) == rarity:
-			n += int(resting_herd()[k])
-	for k in army_herd_keys():
-		if Herd.rarity_of(k) == rarity:
-			n += int(army_herd_keys()[k])
+	for k in collection.herd:
+		if Herd.rarity_of(k) == rarity and may_go_finish(Herd.finish_of(k)):
+			n += maxi(0, collection.herd_count(k) - int(out_now.get(k, 0)))
 	return n
 
 
-## Adds a resting card to the army (while there's room at the entrance), or takes it out.
+## Cards on errands or machines (not away, not your pet): the army can take them off to join.
+func _working_cards() -> Array[Pet]:
+	var out: Array[Pet] = []
+	var busy := _busy_uids()
+	for uid in _job_of.keys() + _worker_of.keys():
+		var pet := collection.get_pet(str(uid))
+		if pet and not busy.has(pet.uid) and not Herd.is_stand_in(pet.uid) and pet.uid != collection.active_uid:
+			out.append(pet)
+	return out
+
+
+## Adds a card to the army (while there's room at the entrance; off its errand or machine if it has
+## one), or takes it out.
 func set_army_card(uid: String, on: bool) -> bool:
 	if dungeon_running() or on == (uid in dungeon.cards):
 		return false
 	if on:
 		var a := army()
-		if int(a.sent) >= int(a.entrance) or uid == _plushie_keeper_uid() or not resting_cards().any(func(p): return p.uid == uid):
+		if int(a.sent) >= int(a.entrance) or uid == _plushie_keeper_uid():
 			return false
+		if not (resting_cards() + _working_cards()).any(func(p): return p.uid == uid):
+			return false
+		_off_work([uid])
 		dungeon.cards.append(uid)
 	else:
 		dungeon.cards.erase(uid)
@@ -3376,6 +3507,7 @@ func army_best() -> void:
 	var best: Array = army_choices().slice(0, front_row_size()).map(func(p): return p.uid)
 	var room := Dungeon.entrance(catalog, perk_level("entrance"))
 	dungeon.cards = best.slice(0, room)
+	_off_work(dungeon.cards)
 	_rest_changed()
 	_trim_army_herd()
 	_army_changed()
@@ -3388,11 +3520,41 @@ func set_army_herd(rarity: String, n: int) -> void:
 	var a := army()
 	var others := int(a.sent) - int(a.herd.get(rarity, 0))
 	n = clampi(n, 0, mini(army_herd_room(rarity), int(a.entrance) - others))
+	_free_for_army(rarity, n - int(a.herd.get(rarity, 0)))
 	if n > 0:
 		dungeon.herd[rarity] = n
 	else:
 		dungeon.herd.erase(rarity)
 	_army_changed()
+
+
+## `more` pets of a rarity are joining the army's herd: past the resting ones, they come off their
+## errands and machines (the finishes the army takes first, see _army_herd).
+func _free_for_army(rarity: String, more: int) -> void:
+	var resting := 0
+	var rest := resting_herd()
+	for k in rest:
+		if Herd.rarity_of(k) == rarity and may_go_finish(Herd.finish_of(k)):
+			resting += int(rest[k])
+	var need := more - resting
+	if need <= 0:
+		return
+	var keys: Array = collection.herd.keys().filter(func(k): return Herd.rarity_of(k) == rarity and may_go_finish(Herd.finish_of(k)))
+	keys.sort_custom(func(a, b): return catalog.finish_rank(Herd.finish_of(a)) > catalog.finish_rank(Herd.finish_of(b)))
+	for k in keys:
+		if need <= 0:
+			break
+		need -= _herd_off_places(str(k), need)
+
+
+## These cards come off their errands and machines (they're joining the army).
+func _off_work(uids: Array) -> void:
+	var on_jobs := uids.filter(func(uid): return _job_of.has(uid))
+	var on_machines := uids.filter(func(uid): return _worker_of.has(uid))
+	if not on_jobs.is_empty():
+		_take_off(on_jobs)
+	if not on_machines.is_empty():
+		_take_off_workers(on_machines)
 
 
 ## The herd's picks make room for the cards: the plainest shelves give way first.
@@ -3636,13 +3798,13 @@ func hold_spots() -> Array[int]:
 	return Dungeon.hold_spots(catalog, dungeon) if dungeon_open() else ([] as Array[int])
 
 
-## How many pets of a rarity could go and hold landing `f`: plain ones the new homes stall may take
-## (never favourites, your pet, the army, holo and better...), at most what the landing still needs.
+## How many pets of a rarity could go and hold landing `f`: the ones that may go (spare_pick: never
+## favourites, your pet, the army, the keep line...), at most what the landing still needs.
 func hold_can_go(f: int, rarity: String) -> int:
 	var room := hold_room(f)
 	if room <= 0:
 		return 0
-	return int(homes_pick(rarity, room).n)
+	return mini(room, homes_can_go(rarity))
 
 
 ## How many more pets landing `f` needs to be fully held (0 when it is, or isn't a spot now).
@@ -3678,27 +3840,15 @@ func hold_faces(f: int, n: int) -> Array:
 ## how many went.
 func send_holders(f: int, rarity: String, n: int) -> int:
 	var room := hold_room(f)
-	if n <= 0 or room <= 0:  # (homes_pick reads a negative n as "all of them")
+	if n <= 0 or room <= 0:  # (spare_pick reads a negative n as "all of them")
 		return 0
-	var plan := homes_pick(rarity, mini(n, room))
-	if int(plan.n) <= 0:
-		return 0
-	for k in plan.work:
-		_herd_off_places(k, int(plan.work[k]))
-	var counts: Dictionary = plan.rest.duplicate()
-	for k in plan.work:
-		Herd.put(counts, k, int(plan.work[k]))
-	var took := counts.duplicate()
-	for uid in plan.cards:
-		var pet := collection.get_pet(str(uid))
-		if pet:
-			Herd.put(took, Herd.key(pet.rarity, pet.finish), 1)
-	var gone := collection.leave(counts, plan.cards, false)
+	var got := _take_spare(rarity, mini(n, room), 0, false)
+	var gone := int(got.n)
 	if gone <= 0:
 		return 0
 	var held: Dictionary = dungeon.held.get(str(f), {})
-	for k in took:  # (the plan never has your pet or a busy card, so everyone in it went)
-		Herd.put(held, str(k), int(took[k]))
+	for k in got.counts:  # (the plan never has your pet or a busy card, so everyone in it went)
+		Herd.put(held, str(k), int(got.counts[k]))
 	dungeon.held[str(f)] = held
 	_rest_changed()
 	_clamp_herd_places()
@@ -4042,6 +4192,7 @@ func set_keep_line(i: int, pick: String) -> bool:
 	lines[i] = pick
 	_keep_lines_changed()
 	collection.refold()
+	_rest_changed()
 	homes_rule_changed.emit()
 	changed.emit()
 	save_game()
@@ -4482,8 +4633,7 @@ func edge_done(page_id: String) -> bool:
 	return Edge.page_full(catalog, edge, page_id)
 
 
-## Resting pets from the herd by rarity, the shelves the edge and the school take from: rarity ->
-## how many (rarities with none are left out).
+## Resting pets from the herd by rarity: rarity -> how many (rarities with none are left out).
 func resting_shelves() -> Dictionary:
 	var out := {}
 	var h := resting_herd()
@@ -4497,40 +4647,20 @@ func resting_shelves() -> Dictionary:
 	return out
 
 
-## Takes up to `n` resting herd pets of a rarity off the herd for good, plainest finish first.
-## Returns [count key -> how many, palettes of up to `keep` of them].
-func _take_resting(rarity: String, n: int, keep: int) -> Array:
-	var h := resting_herd()
-	var keys := h.keys().filter(func(k): return Herd.rarity_of(k) == rarity)
-	keys.sort_custom(func(a, b): return catalog.finish_rank(Herd.finish_of(a)) < catalog.finish_rank(Herd.finish_of(b)))
-	var taken := {}
-	var palettes := []
-	for k in keys:
-		if n <= 0:
-			break
-		var got := collection.take_plain(k, mini(n, int(h[k])), maxi(0, keep - palettes.size()))
-		if int(got[0]) > 0:
-			taken[k] = int(got[0])
-			n -= int(got[0])
-			palettes.append_array(got[1])
-	return [taken, palettes]
-
-
-## Sends `n` resting herd pets of a rarity past the edge (-1: as many as are still to go). They never
-## come back: a star each, a scribble on the page; a full page opens (_open_edge_pages). Returns how
-## many went.
+## Sends `n` pets of a rarity past the edge (-1: as many as are still to go): the ones that may go
+## (spare_pick), off their errands if they have to. They never come back: a star each, a scribble
+## on the page; a full page opens (_open_edge_pages). Returns how many went.
 func send_past_edge(rarity: String, n: int) -> int:
 	if not edge_open():
 		return 0
 	n = edge_to_go() if n < 0 else mini(n, edge_to_go())
 	if n <= 0:
 		return 0
-	var got := _take_resting(rarity, n, int(catalog.edge.get("stars_kept_per_send", 64)))
-	var sent := Herd.total(got[0])
+	var got := _take_spare(rarity, n, int(catalog.edge.get("stars_kept_per_send", 64)), true)  # a star each
+	var sent := int(got.n)
 	if sent <= 0:
 		return 0
-	collection.add_stars(got[1], sent)
-	Edge.add(catalog, edge, sent, got[1])
+	Edge.add(catalog, edge, sent, got.palettes)
 	check_unlocks()
 	_open_edge_pages()
 	edge_changed.emit()
@@ -4553,8 +4683,8 @@ func school_open() -> bool:
 	return feature_on("school")
 
 
-## Sits `n` resting herd pets of a rarity down in the class (-1: every seat left). They're off the
-## herd from now on. Returns how many sat down.
+## Sits `n` pets of a rarity down in the class (-1: every seat left): the ones that may go
+## (spare_pick), off their errands if they have to. Returns how many sat down.
 func seat_in_school(rarity: String, n: int) -> int:
 	if not school_open():
 		return 0
@@ -4562,13 +4692,8 @@ func seat_in_school(rarity: String, n: int) -> int:
 	n = left if n < 0 else mini(n, left)
 	if n <= 0:
 		return 0
-	var got := _take_resting(rarity, n, 0)
-	var sat := School.seat(catalog, school, got[0])
-	var back: Dictionary = got[0]  # never more than the seats (School.seat stops there): the rest go back
-	for k in back:
-		var extra := int(back[k]) - int(sat.get(k, 0))
-		if extra > 0:
-			collection.add_plain(k, extra)
+	var got := _take_spare(rarity, n, 0, false)  # they stay on as pupils: no stars
+	var sat := School.seat(catalog, school, got.counts)  # (n is at most the seats left: everyone sits)
 	school_changed.emit()
 	changed.emit()
 	save_game()
@@ -5541,31 +5666,18 @@ func set_wish(key: String) -> bool:
 	return true
 
 
-## The jar's shelves: rarity id -> { n: resting herd pets that can go, first: the face of the one
-## that would go first }. Like the edge and the school, the jar takes from the herd's resting counts
-## (plainest finish first): cards (favourites, the active pet, pinned pulls, sewn pets, holo and up,
-## the newest few) never go, nor pets away, on errands or working.
+## The jar's shelves: rarity id -> { n: pets that may go (spare_pick), first: the face of the one
+## that would go first }.
 func wish_shelves() -> Dictionary:
 	var out := {}
-	var h := resting_herd()
-	var first := {}  # rarity -> the plainest key with pets
-	for k in h:
-		if int(h[k]) <= 0:
-			continue
-		var r := Herd.rarity_of(k)
-		var shelf: Dictionary = out.get(r, { "n": 0 })
-		shelf.n = int(shelf.n) + int(h[k])
-		out[r] = shelf
-		if not first.has(r) or catalog.finish_rank(Herd.finish_of(k)) < catalog.finish_rank(Herd.finish_of(first[r])):
-			first[r] = k
-	for r in out:
-		var uids := collection.stand_in_uids(str(first[r]), 1)
-		out[r].first = Herd.stand_in(catalog, uids[0]) if not uids.is_empty() else null
+	var shelves := spare_shelves()
+	for r in shelves:
+		out[r] = { "n": int(shelves[r].n), "first": spare_face(str(r)) }
 	return out
 
 
-## Sends `n` resting herd pets of a rarity into the wished look's jar (-1: as many as fit), the
-## plainest finish first. They never come back (a star each). Returns { sent, before, after } (full
+## Sends `n` pets of a rarity into the wished look's jar (-1: as many as fit): the ones that may go
+## (spare_pick), plainest finish first. They never come back (a star each). Returns { sent, before, after } (full
 ## steps before and after).
 func send_to_wish(rarity: String, n: int) -> Dictionary:
 	var key: String = wish.on
@@ -5577,12 +5689,11 @@ func send_to_wish(rarity: String, n: int) -> Dictionary:
 	var take := room if n < 0 else mini(n, room)
 	if take <= 0:
 		return out
-	var got := _take_resting(rarity, take, int(catalog.wish.get("dots", 90)))
-	var sent := Herd.total(got[0])
+	var got := _take_spare(rarity, take, int(catalog.wish.get("dots", 90)), true)  # each one is a star in the night sky now
+	var sent := int(got.n)
 	if sent <= 0:
 		return out
-	collection.add_stars(got[1], sent)  # each one is a star in the night sky now
-	Wish.add(catalog, wish, key, sent, got[1])
+	Wish.add(catalog, wish, key, sent, got.palettes)
 	var after := int(Wish.where(catalog, Wish.sent(wish, key)).full)
 	if after > before:
 		_roller.wish = Wish.weights(catalog, wish)
@@ -5879,6 +5990,7 @@ func save_game() -> void:
 		"sent": sent,
 		"buying_on": buying_on,
 		"pinned": pinned,
+		"join_up_to": join_up_to,
 		"rummaged": rummaged,
 		"machine": machine,
 		"toys": toys,
@@ -6076,6 +6188,11 @@ func _load_save() -> bool:
 		boxes_greeted[str(id)] = true
 	buying_on = bool(data.get("buying_on", true))
 	pinned.assign(data.get("pinned", []).filter(func(uid): return collection.get_pet(str(uid)) != null).map(func(uid): return str(uid)))
+	join_up_to = str(data.get("join_up_to", ""))
+	if join_up_to != "" and not catalog.tiers.any(func(t): return t.id == join_up_to):
+		join_up_to = ""
+	if pinned.size() > PINNED_MAX:  # older saves kept every unseen good pull (the refold below folds the rest)
+		pinned = pinned.slice(pinned.size() - PINNED_MAX)
 	idle_log = data.get("idle_log", {})
 	rummaged.clear()
 	var saved_rummage: Dictionary = data.get("rummaged", {})

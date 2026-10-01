@@ -72,7 +72,7 @@
 			"popup": { "title": "new: the little school!", "text": "spare pets can go to school and stay on as teachers. every class that finishes makes every worker a bit quicker, for good.", "go": "automation" },
 			"earn": { "edge_sent": 100, "open": "tab:automation" }, "announce": "i made a little school! the others can learn to be teachers." },
 		{ "id": "dungeon", "opens": ["feature:dungeon"], "show": "hidden",
-			"popup": { "title": "new: the old well, all the way down!", "text": "the rope goes further down than anyone's been. line up a front row and some of the herd, and send them down floor by floor!", "go": "adventures:dungeon" },
+			"popup": { "title": "new: the old well, all the way down!", "text": "the rope goes further down than anyone's been. line up a front row and pets to walk behind them, and send them down floor by floor!", "go": "adventures:dungeon" },
 			"earn": { "find": "deep_rope" }, "announce": "the rope goes waaay down. i packed snacks!" },
 		{ "id": "lead_army", "opens": ["feature:lead_army"], "show": "hidden", "learns": "army",
 			"popup": { "title": "new: lead the army!", "text": "your pet knows the way down now. put it on the job in automation and it takes the same army down again whenever everyone's home.", "go": "automation" },

@@ -1,0 +1,31 @@
+# Pets on errands can still go: the edge's shelves count everyone who may go ("n working" are on
+# errands), and sending takes resting pets first, then pets off their errands. The errands tab's
+# "up to" line under the join switches keeps rarer new pets resting.
+from rich
+view full
+stickers off                  # new pets here can fill a book page: no sticker popups over the shots
+pets 6
+herd common normal 300
+herd rare normal 60
+unlock page:beyond
+unlock location:orchard
+unlock feature:edge
+find basket                   # errands open (the basket's pet starts on the coin hunt)
+wait popup
+click "lovely"
+job coin_hunt 400
+edge
+wait 1
+expect text "60 working"
+expect fits
+shot edge_working
+click "rare"
+click "10"
+wait 1
+expect fits
+shot edge_sent
+tab errands
+wait 1
+expect text "up to"
+expect fits
+shot errands_up_to

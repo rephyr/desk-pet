@@ -3,6 +3,7 @@ extends PanelContainer
 ## The sorting rule, a little index card under the new homes stall: off | on, "new pets below
 ## ‹rare› go to ‹new homes›", and what's always kept (a finish and up, new parts, favourites).
 ## Steppers, never dropdowns. It only touches pets pulled after it's switched on (GameState._sorter).
+## The keeps work whether it's on or off: pets kept there never go anywhere (GameState.spare_pick).
 ## Once the sewing room's button tin is cleared, keep lines go under the keeps: "keep ‹halos›" keeps
 ## the newest matching pets from boxes as cards (n/50), whether the rule is on or off (see Sewing).
 ## Hold it in a Tilted.
@@ -123,7 +124,7 @@ func _refresh() -> void:
 		(b as Button).add_theme_font_size_override("font_size", UiTheme.SMALL)
 	_head.add_child(_switch)
 	UiTheme.clear(_lines)
-	var below := _stepper(catalog.tier_at(catalog.rank(str(rule.below))).name, catalog.tier_color(str(rule.below)),
+	var below := stepper(catalog.tier_at(catalog.rank(str(rule.below))).name, catalog.tier_color(str(rule.below)),
 		func(d): _step("below", rarities, str(rule.below), d))
 	if keep_on:  # keep lines need the room: "new pets below" goes on one line
 		var first := _row("new pets below", below)
@@ -133,13 +134,13 @@ func _refresh() -> void:
 		_lines.add_child(_em("new pets"))
 		_lines.add_child(_row("below", below))
 	var to_names := { "homes": "new homes", "work": "work", "school": "school" }
-	_lines.add_child(_row("go to", _stepper(to_names.get(str(rule.to), str(rule.to)), UiTheme.TEXT,
+	_lines.add_child(_row("go to", stepper(to_names.get(str(rule.to), str(rule.to)), UiTheme.TEXT,
 		func(d): _step("to", places, str(rule.to), d))))
 	UiTheme.clear(_keeps)
 	var keep := HBoxContainer.new()
 	keep.add_theme_constant_override("separation", 3)
 	keep.add_child(UiTheme.icon_rect("xp", 12))
-	keep.add_child(_stepper(str(catalog.finish(str(rule.keep)).name), UiTheme.GOLD, func(d): _step("keep", finishes, str(rule.keep), d), 46))
+	keep.add_child(stepper(str(catalog.finish(str(rule.keep)).name), UiTheme.GOLD, func(d): _step("keep", finishes, str(rule.keep), d), 46))
 	keep.add_child(UiTheme.label("and up", UiTheme.TEXT, UiTheme.SMALL))
 	_keeps.add_child(_chip(keep))
 	if keep_on:  # keep lines need the room: the always-kept ones as their icons, on the same line
@@ -157,7 +158,7 @@ func _refresh() -> void:
 	for i in picks.size():
 		var pick: String = picks[i]
 		var line := i
-		var row := _row("keep", _stepper(Sewing.keep_word(catalog, pick), UiTheme.TEXT if pick != "" else UiTheme.MUTED,
+		var row := _row("keep", stepper(Sewing.keep_word(catalog, pick), UiTheme.TEXT if pick != "" else UiTheme.MUTED,
 			func(d): _step_keep(line, options, pick, d), KEEP_W))
 		if pick != "":
 			var n := UiTheme.label("%d/%d" % [GameState.kept_count(pick), cap], UiTheme.MUTED, UiTheme.SMALL - 1)
@@ -166,8 +167,7 @@ func _refresh() -> void:
 		_keep_lines.add_child(row)
 	var dim := 1.0 if rule.on else 0.55
 	_lines.modulate.a = dim
-	_keeps.modulate.a = dim
-	_today.modulate.a = dim
+	_today.modulate.a = dim  # (the keeps stay lit: they keep pets everywhere, the rule on or off)
 
 
 func _step(key: String, options: Array, now: String, d: int) -> void:
@@ -199,7 +199,8 @@ func _row(em: String, stepper: Control) -> Control:
 
 
 ## ‹ value ›: a stepper (tap the arrows to go through the choices).
-func _stepper(value: String, color: Color, on_step: Callable, width := STEP_W) -> Control:
+## A ‹ value › stepper (the errands' "up to" line uses it too).
+static func stepper(value: String, color: Color, on_step: Callable, width := STEP_W) -> Control:
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel", UiTheme.box(UiTheme.DEEP, UiTheme.LINE, 8, 2, 1))
 	var row := HBoxContainer.new()

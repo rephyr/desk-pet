@@ -2081,15 +2081,13 @@ func _test_wish(catalog: Catalog) -> void:
 		c.see(spots_key)
 	_check(not gs.set_wish("part:pattern:nope") and not gs.set_wish("finish:blob:normal"), "only a real part can be wished for")
 	_check(gs.set_wish(spots_key) and gs.wish.on == spots_key, "wishing for spots")
-	# who can go: resting pets from the herd; cards (the active pet, pinned, sewn, holo...) and pets
-	# on errands stay
+	# who can go: the shared rule (GameState.spare_pick), resting pets first
 	var active: Pet = c.active()
 	gs.unlocks["feature:errands"] = true
 	gs.put_on_job("coin_hunt", 100)
 	var on_job: int = gs.job_size("coin_hunt")
 	var shelves: Dictionary = gs.wish_shelves()
-	var rest_by: Dictionary = gs.resting_shelves()
-	_check(shelves.keys() == rest_by.keys() and shelves.keys().all(func(r): return int(shelves[r].n) == int(rest_by[r])), "a shelf holds its rarity's resting herd pets (%s)" % [rest_by])
+	_check(shelves.keys().all(func(r): return int(shelves[r].n) == int(gs.spare_pick(str(r)).n)), "a shelf holds its rarity's pets that may go (%s)" % [shelves.keys()])
 	var face: Pet = shelves.common.first
 	_check(face != null and face.rarity == "common" and face.finish == "normal", "the shelf's face is a plain common (normal finishes go first)")
 	var cards := c.pets.size()
@@ -2097,7 +2095,7 @@ func _test_wish(catalog: Catalog) -> void:
 	var stars: int = c.fallen_n
 	var shiny_before: int = c.herd_count("common:shiny")
 	var sent: Dictionary = gs.send_to_wish("common", 10)
-	_check(sent.sent == 10 and c.pets.size() == cards, "sending 10 takes 10 from the herd, never a card (%d)" % sent.sent)
+	_check(sent.sent == 10 and c.pets.size() == cards, "sending 10 takes 10 from the resting count first (%d)" % sent.sent)
 	_check(c.fallen_n == stars + 10, "they never come back: 10 new stars")
 	_check(c.herd_count("common:shiny") == shiny_before, "the plainest finish goes first (the shinies stay)")
 	_check(Wish.sent(gs.wish, spots_key) == 10 and gs.wish.jars[spots_key].dots.size() == 10, "the jar counts them and keeps their colours")
@@ -3238,11 +3236,20 @@ func _test_new_homes_game(catalog: Catalog) -> void:
 	_check(not gs.feature_on("sorting") and not gs.homes.rule.on, "the sorting card waits (and starts off)")
 	# who goes, and in what order: resting before working, never the ones that always stay
 	var resting: int = gs.resting_count() - 3  # the favourite, the new part and the holo rest too, but stay
-	var plan: Dictionary = gs.homes_pick("common", resting + 5)
+	var plan: Dictionary = gs.spare_pick("common", resting + 5)
 	_check(Herd.total(plan.work) + plan.cards.filter(func(u): return gs.job_of(u) != "").size() == 5, "resting pets go first, then 5 from work")
-	var every: Dictionary = gs.homes_pick("common")
+	var every: Dictionary = gs.spare_pick("common")
 	var keep := ["1", "2", "3", "4"]  # active, favourite, new part, holo
 	_check(not every.cards.any(func(u): return u in keep), "never the active pet, a favourite, a new part or holo")
+	# the keep line (the sorting card's "keep ‹holo› and up") keeps pets everywhere, the rule on or off
+	gs.set_rule("keep", "ghost")
+	var with_holo: Dictionary = gs.spare_pick("common")
+	_check("4" in with_holo.cards and not with_holo.cards.any(func(u): return u in ["1", "2", "3"]),
+		"the keep line at ghost: holo may go, never the active pet, a favourite or a new part")
+	_check(int(gs.spare_shelves().common.n) == int(with_holo.n), "the shelves count what may go (%d)" % int(with_holo.n))
+	gs.set_rule("keep", "shiny")
+	_check(not gs.may_go_finish("shiny") and gs.may_go_finish("normal") and not gs.spare_pick("common").cards.has("4"), "the keep line at shiny: shinies and holo stay")
+	gs.set_rule("keep", "holo")
 	var stars := c.fallen_n
 	var bag0: int = gs.in_bag("starter")
 	var got: Dictionary = gs.send_home("common", 60)
@@ -3278,6 +3285,13 @@ func _test_new_homes_game(catalog: Catalog) -> void:
 	gs.dismiss_pinned("b")
 	gs.dismiss_pinned("zz")
 	_check(gs.pinned == ["a", "c"], "seeing one good pull takes only that one off the wall")
+	# only the newest few wait: a pinned pet can't fold or leave, so a pile of them filled the room
+	gs.pinned.clear()
+	var many: Array[String] = []
+	for i in gs.PINNED_MAX + 25:
+		many.append("p%d" % i)
+	gs._pin(many)
+	_check(gs.pinned == many.slice(25), "only the newest %d good pulls wait to be seen (%d)" % [gs.PINNED_MAX, gs.pinned.size()])
 	gs.pinned.clear()
 	gs.set_rule("below", "rare")
 	count0 = c.count()
@@ -3307,6 +3321,27 @@ func _test_new_homes_game(catalog: Catalog) -> void:
 	var rest0: int = gs.resting_count()
 	gs.debug_give_pets(5)
 	_check(gs.resting_count() == rest0 + 5, "no switch on: new pets rest")
+	# "up to" a rarity: rarer new pets rest (for the army, the edge...)
+	gs.set_job_join("coin_hunt", true)
+	gs.set_join_up_to("common")
+	var hunt2: int = gs.job_size("coin_hunt")
+	var rares0: int = int(gs.resting_shelves().get("rare", 0)) + gs.resting_cards().filter(func(p): return p.rarity == "rare").size()
+	var roller := PetRoller.new(catalog)
+	var new_ones: Array[Pet] = []
+	for i in 3:
+		new_ones.append(roller.roll("starter", "common"))
+		new_ones.append(roller.roll("starter", "rare"))
+	c.add(new_ones)
+	var rares1: int = int(gs.resting_shelves().get("rare", 0)) + gs.resting_cards().filter(func(p): return p.rarity == "rare").size()
+	_check(gs.job_size("coin_hunt") == hunt2 + 3 and rares1 == rares0 + 3, "up to common: the commons join, the rares rest (%d, %d)" % [gs.job_size("coin_hunt") - hunt2, rares1 - rares0])
+	gs.set_join_up_to("nope")
+	_check(gs.join_up_to == "common", "only a real rarity")
+	gs.save_game()
+	var gs3: Node = load("res://scripts/game_state.gd").new()
+	_check(gs3.join_up_to == "common", "\"up to\" loads back (%s)" % gs3.join_up_to)
+	gs3.free()
+	gs.set_join_up_to("")
+	gs.set_job_join("coin_hunt", false)
 	gs.set_worker_join("adventures", true)
 	_check(not gs.worker_joins("adventures"), "adventures never get the switch (parties keep their slots)")
 	# a round trip keeps it all
@@ -4078,19 +4113,20 @@ func _test_edge_school_game(catalog: Catalog) -> void:
 	gs.follow_lead("below")
 	_check(gs.edge_open() and "edge" in popped, "the last place past the fence opens the edge (%s)" % str(popped))
 	_check(not "edge" in gs.rumours, "a rumour of the edge has nothing left to lead to")
-	# only resting pets from the herd go: never cards, never pets on errands
-	var cards := c.pets.size()
+	# who goes: the shared rule (GameState.spare_pick): resting pets first, then off their errands
 	gs.put_on_job("coin_hunt", 300)
 	var on_job: int = gs.job_size("coin_hunt")
 	var resting_commons: int = int(gs.resting_shelves().get("common", 0))
 	var stars := c.fallen_n
-	var herd_before := c.herd_total()
-	var sent: int = gs.send_past_edge("common", -1)
-	_check(sent == resting_commons and sent > 0 and sent < 500, "\"all\" sends the resting commons (%d of %d)" % [sent, resting_commons])
-	_check(c.pets.size() == cards and gs.job_size("coin_hunt") == on_job, "cards and pets on errands stay (%d cards, %d on the job)" % [c.pets.size(), gs.job_size("coin_hunt")])
-	_check(c.fallen_n == stars + sent and c.herd_total() == herd_before - sent, "each one a star, gone from the herd")
-	_check(c.fallen.size() - 0 <= int(catalog.edge.stars_kept_per_send) + 1, "star colours kept one by one stay capped (%d)" % c.fallen.size())
-	_check(int(gs.resting_shelves().get("common", 0)) == 0 and gs.send_past_edge("common", 10) == 0, "with no resting commons nobody goes")
+	var count_before := c.count()
+	var sent: int = gs.send_past_edge("common", resting_commons)
+	_check(sent == resting_commons and sent > 0 and sent < 400, "the resting commons go first (%d of %d)" % [sent, resting_commons])
+	_check(gs.job_size("coin_hunt") == on_job, "while some rest, pets on errands stay (%d on the job)" % gs.job_size("coin_hunt"))
+	_check(c.fallen_n == stars + sent and c.count() == count_before - sent, "each one a star, gone for good")
+	_check(c.fallen.size() <= int(catalog.herd.fallen_keep), "star colours kept one by one stay capped (%d)" % c.fallen.size())
+	var more_sent: int = gs.send_past_edge("common", 100)
+	_check(more_sent == 100 and gs.job_size("coin_hunt") < on_job, "then they come off their errands (%d went, %d on the job)" % [more_sent, gs.job_size("coin_hunt")])
+	sent += more_sent
 	_check(gs.edge_to_go() == 500 - sent, "the number to go drops (%d)" % gs.edge_to_go())
 	# the school opens after the first 100, once the automation tab is there
 	_check(not gs.school_open(), "the school waits for the automation tab")
@@ -4545,7 +4581,7 @@ func _test_merged_lanes(catalog: Catalog) -> void:
 	var gs: Node = load("res://scripts/game_state.gd").new()
 	var c: Collection = gs.collection
 	var newest: int = load("res://scripts/game_state.gd").SAVE_VERSION
-	_check(newest == 40, "the save chain ends at v40 (herd + new homes 28, dungeon 33, plushie 34, the sewing room 35, perks 36, held landings 37, the wishing jar 38, the shed workshop 39, room steps 40)")
+	_check(newest == 41, "the save chain ends at v41 (herd + new homes 28, dungeon 33, plushie 34, the sewing room 35, perks 36, held landings 37, the wishing jar 38, the shed workshop 39, room steps 40, join up to 41)")
 	_check(gs.room_cap() >= c.plain_count() and (gs.room == 0 or Herd.room_cap(catalog, gs.room - 1) < ceili(c.plain_count() * 1.1)),
 		"v40: a v23 save's room is the fewest steps with room for its pets (%d steps, %d / %d)" % [gs.room, c.plain_count(), gs.room_cap()])
 	_check(gs.workshop == Workshop.fresh(catalog) and not gs.workshop_open(), "v39: an old save gets a fresh workshop, still closed")
@@ -4579,7 +4615,7 @@ func _test_merged_lanes(catalog: Catalog) -> void:
 	gs.set_army_herd("common", 100)
 	var army_herd: int = Herd.total(gs.army_herd_keys())
 	_check(army_herd == 100, "100 commons from the herd in the army (%d)" % army_herd)
-	var every: Dictionary = gs.homes_pick("common")
+	var every: Dictionary = gs.spare_pick("common")
 	_check(not every.cards.any(func(u): return u in gs.dungeon.cards or u == keeper), "the stall never picks army cards or the keeper")
 	var herd_before: int = c.herd_count("common:normal")
 	gs.send_home("common", -1)
@@ -5233,7 +5269,15 @@ func _test_dungeon_game(catalog: Catalog) -> void:
 	_check(gs.resting_count() == resting_before - 300, "the army's pets aren't resting (%d)" % gs.resting_count())
 	gs.put_on_job("coin_hunt", -1)
 	_check(gs.job_size("coin_hunt") == resting_before - 300 and int(gs.army().sent) == 300, "errands take everyone else, never the army")
+	# with nobody resting, the army's herd comes off the errands (the shared rule, see spare_pick)
+	gs.set_army_herd("common", 0)
+	gs.put_on_job("coin_hunt", -1)
+	var hunt_all: int = gs.job_size("coin_hunt")
+	gs.set_army_herd("common", 100)
+	_check(int(gs.army().herd.get("common", 0)) == 100 and gs.job_size("coin_hunt") == hunt_all - 100,
+		"the army's herd comes off the errands (%d in it, %d off)" % [int(gs.army().herd.get("common", 0)), hunt_all - gs.job_size("coin_hunt")])
 	gs.take_off_job("coin_hunt", -1)
+	gs.set_army_herd("common", 280)
 	_check(gs.floor_words(1, 3).size() == 3, "the next floors get feeling words")
 
 	# a run: it goes, its pets stay busy, it comes home
@@ -5472,7 +5516,7 @@ func _test_sewing_game(catalog: Catalog) -> void:
 		"only the newest %d: the oldest ones became plain again" % cap)
 	_check(pulled.filter(func(p): return gs.collection.get_pet(p.uid) != null and not p.new_part and Herd.plain(catalog, p.finish) and not "zoomy" in p.traits).is_empty(),
 		"the rule still sorts every other common away")
-	var plan: Dictionary = gs.homes_pick("common")
+	var plan: Dictionary = gs.spare_pick("common")
 	_check(not plan.cards.any(func(uid): return gs.collection.keep_uids.has(uid)), "the stall never takes a kept pet")
 	gs.set_rule("on", false)
 	var more: Array = gs.open_boxes("starter", 0, "common")

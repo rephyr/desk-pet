@@ -185,9 +185,8 @@ knows the UI exists; state changes are announced with signals (`GameState.change
 - `Wish` (scripts/pets/wish.gd, pure rules, data/wish.json) is the wishing jar: steps, where a
   jar is (`where`), `add(catalog, state, key, n, palettes)`, `weights` (book key -> x for every
   look with a full step). `GameState.wish` = `{ on, jars: { book key: { sent, dots } } }`,
-  `set_wish`, `wish_shelves` (rarity -> resting herd pets and the next stand-in's face, from
-  `resting_herd()` like the edge), `send_to_wish` (`_take_resting`: plainest finish first, a star
-  each through `Collection.add_stars`), signal `wish_changed(step)`. `WishJarCard` looks over the
+  `set_wish`, `wish_shelves` (rarity -> pets that may go and the next one's face, from
+  `spare_shelves()` like the edge), `send_to_wish` (`_take_spare`: the shared rule, a star each), signal `wish_changed(step)`. `WishJarCard` looks over the
   shelves at most once a second while pets stream in (box tables) and changes chip counts and faces
   in place. `PetRoller.wish` takes the weights (set on load, new game and every full step): with it
   empty the roller runs exactly as before; with it, `_pick_part` and `_signature_slot` pick weighted
@@ -361,6 +360,20 @@ has more plain pets than the first room holds gets room for them plus data/herd.
 most and leaves an open shelf of another rarity alone.
 Who's resting is worked out once (`GameState._resting`: cards, herd counts minus errands, workers,
 stand-ins away or leading, and the dungeon's army) until `_rest_changed()`.
+**Who may go (one rule, save v41):** `GameState.spare_pick(rarity, n)` picks the pets of a rarity
+that may leave or go somewhere, for every place that takes pets by the shelf: the new homes stall,
+the edge, the school, the wishing jar, workshop helpers, held landings and the army's herd. Every
+resting pet goes before any working one (then they come off their errands and machines,
+`_herd_off_places`), the plainest finish first, counts before the oldest cards. Only finishes below
+the sorting card's keep line (`keep_line()` = `homes.rule.keep`, `may_go_finish()`; it works with the
+rule on or off), and never `Collection.kept()` pets (favourites, your active pet, a new part, buttons,
+a keep line) or busy ones (away, pinned pulls, party leaders, the army, the plushie keeper).
+`_take_spare(rarity, n, keep, star)` takes them (`Collection.leave`; `star` false = they stay on
+somewhere) and returns `{ n, counts, palettes }`. `spare_shelves()` (rarity -> `{ n, working }`, for
+pickers that ask every frame) is cached until `_spare_changed()` and at most a second. The army's
+front row can take cards off errands too (`_working_cards`, `_off_work`). `join_up_to` (save field):
+"new pets join here" takes new pets up to that rarity only (`_place_new`; the errands tab's "up to"
+stepper).
 It also adds new homes: top-level `new_homes` `{ points, by_hand, sorted, room_was_full,
 rule { on, below, to, keep }, today { day, n } }` (`NewHomes`, data/new_homes.json), `jobs[id].join`
 and `automation.wjoin` ("new pets join here"); `jobs_auto` is gone (an older save with it on gets every
@@ -368,7 +381,7 @@ shared-out errand's switch on (not the kitchen or scouting); an older save whose
 `Collection.add(pets, sorter)` asks the sorter about each pet after the book counts it ("homes": it
 never joins, a star); `Collection.leave(counts, uids)` takes pets off for good (a star each, the
 stand-in looks of a count leaving never come back) and emits `pets_left(n)` (the night sky redraws).
-`GameState.send_home(rarity, n)` / `homes_pick` (the stall), `_sorter` / `_sort_pet` (the rule, box
+`GameState.send_home(rarity, n)` / `spare_pick` (the stall), `_sorter` / `_sort_pet` (the rule, box
 openings only: `open_boxes`, the machine's pet box), `_place_new(uids)` (busy paws, replaces
 `jobs_auto`; the rule's work pets go to every open errand when nothing takes them), `_room_hit()`
 (first full room: unlock `new_homes`). Unlock entries can be `"quiet": true` (no popup card) and earn
@@ -481,7 +494,7 @@ every 10th, clamps each crowd to its need and puts `start` back to 0 unless it's
 target at least start + 1. `Dungeon.simulate` takes `orders.start`: the loop begins at start + 1, so
 skipped floors are never in `floors` (no pay, no losses); a run keeps `start`, and `run_seconds` /
 `run_floor` count only walked floors (the army is drawn from the landing). `GameState.hold_spots()`,
-`hold_room(f)` (what it still needs, never below 0), `hold_can_go(f, rarity)` (`homes_pick`, capped at
+`hold_room(f)` (what it still needs, never below 0), `hold_can_go(f, rarity)` (`spare_pick`, capped at
 `hold_room`; the dungeon page keys its rebuilds on it, so a growing herd doesn't rebuild it), `send_holders(f, rarity, n)` (off
 places like `send_home`, `Collection.leave(counts, uids, false)`: no star, no `pets_left`, their
 stand-in looks go), `hold_faces(f, n)` (stand-in Pets for the crowd), `set_start(f)` (checks `starts()`, clamps the target, saves; `set_order("start", ±1)` uses it);
@@ -507,7 +520,7 @@ hand them again; `Toys.mend` is the sewing basket. Unlock earn key `ours: <place
 `is_ours`); unlock `workshop` opens `feature:workshop` with `open: feature:whistle`.
 `Collection.leave(counts, uids, false)` (the new `star` flag) takes helpers off with no star and no `pets_left`.
 GameState: `workshop_open / workshop_shown / built(id) / helpers_can_go / send_helpers` (through
-`homes_pick`, off errands and machines first) `/ build_drawing / debug_build`, signal
+`spare_pick`, off errands and machines first) `/ build_drawing / debug_build`, signal
 `workshop_changed(built_id)`; the chores: `_ring_bell` (every second: done non-auto runs except
 `watching` go through `collect_run`, their postcard dicts wait in `postcards`, not saved,
 `letterbox_keep` at most; each postcard dict carries its `news` and `announce` lines, which

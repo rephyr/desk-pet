@@ -1,8 +1,9 @@
 class_name HerdPicker
 extends VBoxContainer
-## Picking pets from the herd by the shelf (C2 look A): a row per rarity that has resting herd pets
-## (a face, the rarity, how many), tap one to pick it, then 1 / 10 / 100 / all. Only counts, never
-## cards. The edge and the school both use it; what "all" means (as many as still fit) is up to them.
+## Picking pets by the shelf (C2 look A): a row per rarity that has pets that may go (GameState.
+## spare_pick: resting ones first, then off their errands; never favourites or past the keep line):
+## a face, the rarity, how many and how many of them work. Tap one to pick it, then 1 / 10 / 100 /
+## all. The edge and the school both use it; what "all" means (as many as still fit) is up to them.
 
 signal take(rarity: String, n: int)  # n is -1 for "all"
 
@@ -12,6 +13,7 @@ var _rows := VBoxContainer.new()
 var _takes := GridContainer.new()
 var _key := ""  # the rarities the rows are for (the counts change in place)
 var _counts := {}  # rarity -> its row's count label
+var _working := {}  # rarity -> its row's "n working" label
 
 
 func _init() -> void:
@@ -32,7 +34,7 @@ func _init() -> void:
 ## Shows the shelves as they are now: the rows are built again only when a rarity turns up or runs
 ## out; otherwise just their counts change (box workers change them nearly every frame).
 func refresh() -> void:
-	var shelves := GameState.resting_shelves()
+	var shelves := GameState.spare_shelves()
 	if not shelves.has(picked):
 		picked = str(shelves.keys()[0]) if not shelves.is_empty() else ""
 	var key := str(shelves.keys())
@@ -42,14 +44,12 @@ func refresh() -> void:
 		_key = key
 		UiTheme.clear(_rows)
 		_counts.clear()
+		_working.clear()
 		for rarity in shelves:
-			_rows.add_child(_row(str(rarity), int(shelves[rarity])))
+			_rows.add_child(_row(str(rarity), shelves[rarity]))
 	else:
 		for rarity in shelves:
-			var text := UiTheme.num(int(shelves[rarity]))
-			var label: Label = _counts[rarity]
-			if label.text != text:
-				label.text = text
+			_show_counts(str(rarity), shelves[rarity])
 	_restyle()
 
 
@@ -79,18 +79,24 @@ func row_point(rarity: String) -> Vector2:
 	return get_global_rect().get_center()
 
 
-## A resting stand-in from a shelf, for a face (null if there's none).
+## A face from a shelf: the pet that would go first (null if there's none).
 static func face_of(rarity: String, salt := 0) -> Pet:
-	var h := GameState.resting_herd()
-	var keys := h.keys().filter(func(k): return Herd.rarity_of(k) == rarity)
-	keys.sort_custom(func(a, b): return GameState.catalog.finish_rank(Herd.finish_of(a)) < GameState.catalog.finish_rank(Herd.finish_of(b)))
-	if keys.is_empty():
-		return null
-	var uids := GameState.herd_faces({ keys[0]: h[keys[0]] }, 1, salt)
-	return GameState.collection.get_pet(str(uids[0])) if not uids.is_empty() else null
+	return GameState.spare_face(rarity, salt)
 
 
-func _row(rarity: String, n: int) -> Control:
+## A row's numbers: how many may go, and how many of those work ("" when none do).
+func _show_counts(rarity: String, shelf: Dictionary) -> void:
+	var text := UiTheme.num(int(shelf.n))
+	var label: Label = _counts[rarity]
+	if label.text != text:
+		label.text = text
+	var working := int(shelf.working)
+	var w: Label = _working[rarity]
+	w.text = "%s working" % UiTheme.num(working) if working > 0 else ""
+	w.visible = working > 0
+
+
+func _row(rarity: String, shelf: Dictionary) -> Control:
 	var catalog := GameState.catalog
 	var color := catalog.tier_color(rarity)
 	var row := PanelContainer.new()
@@ -110,10 +116,16 @@ func _row(rarity: String, n: int) -> Control:
 	name_label.size_flags_horizontal = SIZE_EXPAND_FILL
 	name_label.mouse_filter = MOUSE_FILTER_IGNORE
 	line.add_child(name_label)
-	var count := UiTheme.title(UiTheme.num(n), 14, UiTheme.TEXT)
+	var working := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL - 1)
+	working.mouse_filter = MOUSE_FILTER_IGNORE
+	working.size_flags_vertical = SIZE_SHRINK_CENTER
+	line.add_child(working)
+	_working[rarity] = working
+	var count := UiTheme.title("", 14, UiTheme.TEXT)
 	count.mouse_filter = MOUSE_FILTER_IGNORE
 	line.add_child(count)
 	_counts[rarity] = count
+	_show_counts(rarity, shelf)
 	row.gui_input.connect(func(e: InputEvent):
 		if e is InputEventMouseButton and e.pressed and e.button_index == MOUSE_BUTTON_LEFT:
 			picked = rarity

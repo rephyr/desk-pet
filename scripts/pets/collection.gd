@@ -349,7 +349,13 @@ func finish_seen(finish: String) -> bool:
 
 ## Whether a pet always stays a card, whatever else happens.
 func always_card(pet: Pet) -> bool:
-	return pet.fav or pet.new_part or not pet.buttons.is_empty() or pet.uid == active_uid or not _is_plain(pet.finish) or keep_uids.has(pet.uid)
+	return kept(pet) or not _is_plain(pet.finish)
+
+
+## Whether a pet never leaves, whatever its finish: a favourite, your active pet, one with a part new
+## to the book, one with buttons, or one a keep line keeps.
+func kept(pet: Pet) -> bool:
+	return pet.fav or pet.new_part or not pet.buttons.is_empty() or pet.uid == active_uid or keep_uids.has(pet.uid)
 
 
 ## Folds the oldest plain cards of every shelf that has more than keep_cards of them that may fold.

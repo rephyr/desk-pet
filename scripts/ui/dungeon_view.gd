@@ -320,7 +320,7 @@ func _build_mid(a: Dictionary) -> void:
 	fcol.add_child(row)
 	_mid.add_child(front)
 
-	# the herd: a mound, a stepper per shelf, the entrance
+	# walking behind (pets from the shelves): a mound, a stepper per shelf, the entrance
 	var herd := _sticker()
 	herd.size_flags_vertical = SIZE_EXPAND_FILL
 	var hcol := VBoxContainer.new()
@@ -329,7 +329,7 @@ func _build_mid(a: Dictionary) -> void:
 	var top := HBoxContainer.new()
 	var names := VBoxContainer.new()
 	names.add_theme_constant_override("separation", 6)
-	names.add_child(_h3("the herd"))
+	names.add_child(_h3("walking behind"))
 	var total := Herd.total(GameState.army_herd_keys())
 	names.add_child(UiTheme.title(UiTheme.num(total), 22, UiTheme.TEXT))
 	top.add_child(names)
@@ -796,7 +796,7 @@ func _hold_card(f: int, keep := 0) -> Control:
 		var tname := VBoxContainer.new()
 		tname.add_theme_constant_override("separation", -2)
 		tname.add_child(UiTheme.label(str(tier.name), catalog.tier_color(tier.id), UiTheme.SMALL + 1))
-		tname.add_child(UiTheme.label("of %s" % UiTheme.num(int(GameState.homes_pick(tier.id).n)), UiTheme.MUTED, UiTheme.SMALL - 1))
+		tname.add_child(UiTheme.label("of %s" % UiTheme.num(GameState.homes_can_go(tier.id)), UiTheme.MUTED, UiTheme.SMALL - 1))
 		tname.size_flags_horizontal = SIZE_EXPAND_FILL
 		r.add_child(tname)
 		var id := str(tier.id)

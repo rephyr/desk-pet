@@ -24,7 +24,7 @@
 		{ "id": "pet_boxes", "name": "pet boxes" },
 		{ "id": "power", "name": "army power" },
 		{ "id": "front", "name": "front row power" },
-		{ "id": "herd_power", "name": "the herd's power" },
+		{ "id": "herd_power", "name": "power walking behind" },
 		{ "id": "cellar", "name": "power in the cellar" },
 		{ "id": "stairs", "name": "power on the stairs" },
 		{ "id": "lanterns", "name": "lanterns" },

@@ -14,6 +14,7 @@ var _from := PanelContainer.new()
 var _from_face := PetPortrait.new(1, false)
 var _from_name := UiTheme.label("", UiTheme.TEXT, UiTheme.SMALL + 1)
 var _from_count := UiTheme.title("0", 16, UiTheme.TEXT)
+var _from_working := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL - 1)  # "310 working": they come off their errands
 var _takes: Array[Button] = []
 var _jar_box := PanelContainer.new()
 var _meter := Control.new()
@@ -53,6 +54,8 @@ func _init() -> void:
 	_from_name.size_flags_horizontal = SIZE_EXPAND_FILL
 	_from_name.size_flags_vertical = SIZE_SHRINK_CENTER
 	row.add_child(_from_name)
+	_from_working.size_flags_vertical = SIZE_SHRINK_CENTER
+	row.add_child(_from_working)
 	_from_count.size_flags_vertical = SIZE_SHRINK_CENTER
 	row.add_child(_from_count)
 	col.add_child(_from)
@@ -149,7 +152,11 @@ func refresh() -> void:
 	_dirty = false
 	_pins = GameState.pinned.size()
 	var catalog := GameState.catalog
-	var can := GameState.homes_can_go(rarity) if rarity != "" else 0
+	var shelf: Dictionary = GameState.spare_shelves().get(rarity, {}) if rarity != "" else {}
+	var can := int(shelf.get("n", 0))
+	var working := int(shelf.get("working", 0))
+	_from_working.text = "%s working" % UiTheme.num(working) if working > 0 else ""
+	_from_working.visible = working > 0
 	var color := catalog.tier_color(rarity) if rarity != "" else UiTheme.MUTED
 	_from.add_theme_stylebox_override("panel", _from_style(color))
 	_from_name.text = catalog.tier_at(catalog.rank(rarity)).name if rarity != "" else ""

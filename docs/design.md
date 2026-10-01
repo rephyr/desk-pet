@@ -183,6 +183,15 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   once the first pet folds; full, it turns pink and wiggles, box openings wait on the pile
   (by hand, your pet, box workers, the machine's pet box: nothing is lost) and your pet squishes.
   Gifts (the tutorial's pets, the basket's pet) always come in.
+- **Who may go (one rule, built 2026-10-01):** every place that takes pets by the shelf (the new
+  homes stall, past the edge, the school, the wishing jar, workshop helpers, held landings, the
+  army) takes the same pets: everyone resting first, then pets off their errands and machines,
+  plainest finish first. The sorting card's "keep ‹holo› and up" line keeps pets everywhere, the rule
+  on or off: move it up and holo, ghost... may go too. Favourites, your active pet, pets with a new
+  part, buttons or a keep line, and pets away or in the army never go. Shelves show how many may go
+  and how many of those are working ("310 working"). The errands' "new pets join" switches have an
+  "up to ‹rarity›" line: rarer new pets stay resting for the army and the edge. The word "herd" is
+  never on screen (the army's plain pets are "walking behind").
 - **New homes** (C3 look A, built): the first time the room is full a striped stall turns up in a
   side column beside the bookcase (no popup; your pet mentions it). Tap a plank to pick that shelf
   (dashed pink border), tap it again to open it; the stall takes 1 / 10 / 100 / all of the shelf's
@@ -214,10 +223,8 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   boxes (box tables), a jar sticker stands beside a narrower book (3 stickers a row). Tap a part
   sticker you've found (body, palette, pattern, eyes, accessory; never a finish) to wish for it: it
   becomes the jar's label. Send pets by shelf (a chip per rarity, then 1 / 10 / 100 / all): every
-  pet counts 1 and never comes back (each is a night-sky star). Like the edge and the school, the
-  jar takes resting pets from the herd, the plainest finish first; cards (your active pet,
-  favourites, pinned pulls, sewn pets, holo and up, the newest few) never go, nor pets away, on
-  errands or working. The jar fills with dots in their
+  pet counts 1 and never comes back (each is a night-sky star). Like every place that takes pets by
+  the shelf, the jar follows the one "who may go" rule (see New homes). The jar fills with dots in their
   colours, 4 steps of 200 / 600 / 2k / 6k (8,800 in all); a gold star lights per full step and the
   lid glows when it's full (then it takes nobody). Each full step makes that look turn up more
   often INSIDE its already-rolled tier in every box (x1.5 / x2 / x3 / x4): the part picked in the
@@ -514,7 +521,8 @@ economy: currency, body parts, and rewards for mechanics not designed yet. Rewar
   (or earlier, saying yes to a rumour, "where the map stops"), the beyond map stops short with a
   torn right edge and a crayon signpost, **"the edge"**; the next page is tucked under the tear and
   peeks out with a big number to go ("500 to go"), no outline of what's there. Tap the signpost: a
-  card in the right column lists the shelves of resting herd pets (only counts, never cards), pick
+  card in the right column lists the shelves of pets that may go (the "who may go" rule, see New
+  homes; a shelf says how many of them are working), pick
   one and send 1 / 10 / 100 / all ("all" stops at what's still to go). They fly off and **never
   come back**: a night-sky star each, and a crayon scribble in their colours on the tucked page.
   Any pet counts the same. Your pet always says "they'll draw the rest of the map!". A full page
@@ -719,8 +727,9 @@ All opt-in, with odds shown before confirming:
     doors; tiny doors on 13/17 let only rare and up through, knock-back doors on 15/19 roll luck:
     nobody answers and the army comes home), further down (21+, stairs forever, a guard every 10th
     at x2). A band shows once the army has stood at its top.
-  - **The army:** card pets you add (tap the front row: resting cards by power, "best ones") and
-    pets from the herd taken by the shelf (steppers of 10). The best 20 cards by power (stats with
+  - **The army:** card pets you add (tap the front row: resting or working cards by power, "best
+    ones"; working ones come off their errands) and pets from the shelves (steppers of 10, the "who
+    may go" rule: resting first, then off their errands). The page calls them "walking behind". The best 20 cards by power (stats with
     traits, rarity, finish, their own power knack) fight in front; the rest and the herd walk
     behind at half. Your active pet's flag leads the front row (it never fights or falls). The
     entrance fits 300 at first. Army pets are busy: not resting, not on errands or trips.

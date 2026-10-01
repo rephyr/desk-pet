@@ -405,6 +405,11 @@ func _rebuild_box() -> void:
 			sw.add_theme_color_override("font_pressed_color", _color(job))
 			sw.add_theme_color_override("font_hover_pressed_color", _color(job))
 			_box.add_child(sw)
+	var switches := GameState.spare_count() > STEPS_AFTER and not GameState.built("chart")
+	if switches or GameState.any_join():  # (the chore chart, or machines joining: it still applies)
+		if not switches:
+			_box.add_child(_heading("new pets join", -1))
+		_box.add_child(_join_up_to())
 
 	var out: Array = GameState.away().keys()
 	if not out.is_empty():
@@ -594,6 +599,28 @@ func _primary() -> StyleBoxFlat:
 	sb.content_margin_left = 12
 	sb.content_margin_right = 12
 	return sb
+
+
+## "up to ‹legendary›" under the join switches: rarer new pets stay resting (for the army, the edge).
+func _join_up_to() -> Control:
+	var catalog := GameState.catalog
+	var options: Array[String] = []
+	for t in catalog.tiers:
+		options.append(str(t.id))
+	options.append("")  # every rarity
+	var now := GameState.join_up_to
+	var word: String = "any rarity" if now == "" else str(catalog.tier_at(catalog.rank(now)).name)
+	var color := UiTheme.TEXT if now == "" else catalog.tier_color(now)
+	var row := HBoxContainer.new()
+	row.add_theme_constant_override("separation", 6)
+	var l := UiTheme.label("up to", UiTheme.MUTED, UiTheme.SMALL)
+	l.size_flags_vertical = SIZE_SHRINK_CENTER
+	row.add_child(l)
+	row.add_child(SortingCard.stepper(word, color, func(d: int):
+		var i := options.find(GameState.join_up_to)
+		GameState.set_join_up_to(options[clampi(i + d, 0, options.size() - 1)])
+		_dirty = true, 78))
+	return row
 
 
 ## "new pets join here": a small switch on a job (errand notes, the workers' side card).

@@ -5,7 +5,7 @@
 			"steps": [0, 300, 900, 2100, 4500], "price": [100, 600, 1800, 5400] },
 		{ "id": "flag", "name": "the little flag", "thing": "flag", "floor": 3, "what": "front row", "fmt": "x", "kind": "front",
 			"steps": [1, 1.2, 1.4, 1.6, 1.8, 2], "price": [150, 300, 700, 1500, 3200] },
-		{ "id": "bell", "name": "the dinner bell", "thing": "bell", "floor": 6, "what": "the herd", "fmt": "x", "kind": "herd_power",
+		{ "id": "bell", "name": "the dinner bell", "thing": "bell", "floor": 6, "what": "walking behind", "fmt": "x", "kind": "herd_power",
 			"steps": [1, 1.15, 1.3, 1.45], "price": [200, 700, 1600] },
 		{ "id": "spool", "name": "the spool", "thing": "spool", "floor": 10, "what": "lanterns", "fmt": "x", "kind": "lanterns",
 			"steps": [1, 1.25, 1.5, 1.75, 2, 2.5], "price": [300, 600, 1400, 3000, 6400] },
