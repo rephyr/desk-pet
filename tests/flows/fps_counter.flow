@@ -1,0 +1,17 @@
+# The video page's "show fps" switch: a small frame rate readout in the full game's corner.
+from rich
+view full
+tab settings
+click "video"
+expect no-node FpsReadout
+click "show fps"
+wait 1
+expect node FpsReadout
+shot fps_counter
+expect fits
+tab home
+expect node FpsReadout
+shot fps_home
+tab settings
+click "show fps"
+expect no-node FpsReadout

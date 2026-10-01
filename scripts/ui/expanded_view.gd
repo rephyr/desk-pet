@@ -103,6 +103,7 @@ func _init() -> void:
 	_tabs = { "home": home, "machine": machine, "boxes": boxes, "collection": collection, "adventures": adventures, "errands": errands, "automation": automation, "inventory": workbench, "settings": SettingsTab.new() }
 	for tab_id in _tabs:
 		body.add_child(_tabs[tab_id])
+	body.add_child(FpsReadout.new())  # the "show fps" setting, in the page's bottom corner
 	# the boost receipt prints out under the tag, over whatever tab is open
 	_paper.mouse_filter = MOUSE_FILTER_IGNORE
 	_paper.z_index = UiTheme.Z_PAPER
