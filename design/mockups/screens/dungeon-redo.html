@@ -1,0 +1,886 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Old Well Redo</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* Playtest 1 (P4): the old well felt clunky. This redo of the adventures tab's dungeon page fixes:
+     - the army fills in one or two taps ("fill up", a slider of pips per shelf in A, shelf toggles in B)
+       instead of 10-pet steppers;
+     - the orders are rows of choices (one stepper left: the floor, and you can tap a landing instead);
+     - the run shows floor by floor: where the army is, who got bumped, how many stayed below;
+     - "came home" is a proper result (floors, wisps, bumped, stayed below, the front row's faces, a best bit);
+     - perks are a small button by the wisps (the perk wall is redesigned elsewhere).
+     Strength is still never a number, only a feeling word. Pets that stay below are never named.
+     ?look=A (the well column + a roomy desk) or ?look=B (a depth ribbon on top, everything below it).
+     ?state=ready | run | home, and ?pos=N freezes a run after N floors (for screenshots).
+     Numbers are placeholders from data/dungeon.json (strength 100 x 1.2^n, pay 0.01 x 1.15^n x sent). */
+  .content { min-height: 0; }
+  #content { min-height: 0; }
+
+  /* the full tab row of this stage: squeeze the spine a little so settings still fits (as dungeon.html) */
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+  .sky .fresh { animation: twinkle-in 1.4s ease-out; }
+  @keyframes twinkle-in { 0% { opacity: 0; } 30% { opacity: 1; } }
+
+  :root { --wisp: #ff9e7d; }
+
+  .label-look { position: fixed; right: 12px; bottom: 8px; font: 400 12px/1 var(--display); color: var(--muted); }
+  .label-look a { color: var(--muted); margin-left: 8px; }
+  .label-look a.on { color: var(--pink); }
+
+  /* ---------- shared bits ---------- */
+  .page2 { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; user-select: none; }
+  .bar { display: flex; align-items: center; gap: 8px; flex: none; }
+  .muted { color: var(--muted); }
+  .num { font-variant-numeric: tabular-nums; }
+  .h3 { margin: 0; font: 400 15px/1 var(--display); color: var(--lilac); white-space: nowrap; }
+  .panel { border-radius: var(--r-panel); border: 2px solid var(--line); background: var(--paper); overflow: hidden; position: relative; }
+  .card { background: var(--raised); border: 2px solid var(--line); border-radius: var(--r-xl); box-shadow: var(--lift); position: relative; }
+
+  .wispchip { margin-left: auto; position: relative; display: flex; align-items: center; gap: 6px; padding: 2px 12px 2px 7px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--wisp) 40%, var(--line)); color: var(--wisp); }
+  .wispchip b { font: 400 17px/1 var(--display); color: var(--wisp); font-variant-numeric: tabular-nums; }
+  .wispchip.bump b { animation: bump .5s var(--ease-out); }
+  @keyframes bump { 30% { transform: scale(1.2); color: var(--text); } }
+  .wispico { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; display: block; }
+  .perksbtn { position: relative; display: inline-flex; align-items: center; gap: 5px; padding: 3px 11px 3px 8px; border-radius: 999px; background: var(--deep); border: 2px dashed color-mix(in srgb, var(--wisp) 45%, var(--line)); color: var(--text); font-size: 12px; cursor: pointer; }
+  .perksbtn:hover { border-color: var(--pink); color: var(--pink); }
+  .perksbtn svg { width: 16px; height: 16px; }
+  .perksbtn .new { position: absolute; top: -3px; right: -2px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+  .rise { position: absolute; pointer-events: none; font: 400 15px/1 var(--display); color: var(--wisp); white-space: nowrap; animation: rise 1.3s var(--ease-out) forwards; z-index: 9; }
+  @keyframes rise { from { transform: translate(-50%, 0); opacity: 1; } to { transform: translate(-50%, -30px); opacity: 0; } }
+
+  /* a row of choices (never a dropdown) */
+  .pick { display: inline-flex; background: var(--deep); border: 2px solid var(--line); border-radius: var(--r-md); padding: 2px; gap: 1px; flex: none; }
+  .pick button { border: 0; background: none; padding: 2px 8px; border-radius: 6px; cursor: pointer; color: var(--muted); font-size: 11px; white-space: nowrap; }
+  .pick button.on { background: var(--pink-pressed); color: var(--text); }
+  .pick button:hover:not(.on):not(:disabled) { color: var(--pink); }
+  .pick button:disabled { cursor: default; }
+  .step { display: inline-flex; align-items: center; gap: 1px; background: var(--deep); border: 2px solid var(--line); border-radius: var(--r-md); padding: 1px; flex: none; }
+  .step button { width: 20px; height: 22px; border: 0; background: none; color: var(--muted); border-radius: 6px; cursor: pointer; padding: 0; line-height: 1; }
+  .step button:hover:not(:disabled) { color: var(--pink); background: var(--raised); }
+  .step button:disabled { opacity: .35; cursor: default; }
+  .step output { min-width: 26px; text-align: center; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .feel { display: inline-flex; align-items: center; padding: 0 7px; border-radius: 999px; font-size: 11px; line-height: 18px; background: var(--deep); border: 2px solid var(--line); color: var(--muted); white-space: nowrap; }
+  .feel.mid { color: var(--text); border-color: color-mix(in srgb, var(--lilac) 35%, var(--line)); }
+  .feel.hot { color: var(--pink); border-color: var(--pink-seam); }
+  .oline { display: flex; align-items: center; gap: 6px; font-size: 12px; white-space: nowrap; min-width: 0; }
+  .oline > span:first-child { color: var(--text); }
+  .go { font: 400 16px/1 var(--display); padding: 9px 18px 8px; border-color: var(--pink-seam); }
+  .go:hover { transform: rotate(-2deg); }
+  .btn.small { padding: 3px 10px; font-size: 12px; }
+  .link2 { background: none; border: 0; padding: 0 2px; cursor: pointer; color: var(--muted); font-size: 11px; }
+  .link2:hover { color: var(--pink); }
+
+  /* front row cards */
+  .fcards { display: grid; gap: 4px; }
+  .fcard { position: relative; width: 36px; height: 42px; display: grid; place-items: end center; padding-bottom: 2px; border-radius: 8px; background: var(--raised); border: 2px solid color-mix(in srgb, var(--tc) 80%, var(--deep)); box-shadow: 0 3px 6px rgba(6, 2, 12, .5); transition: opacity .6s; }
+  .fcard img { width: 32px; height: 36px; }
+  .fcard .lead { position: absolute; top: -7px; left: -5px; width: 14px; height: 14px; transform: rotate(-12deg); }
+  .fcard.gone { opacity: .28; border-style: dashed; box-shadow: none; }
+  .fcard.new { animation: stepup .5s var(--ease-out); }
+  @keyframes stepup { from { transform: translateY(8px); opacity: 0; } }
+  .plaster { position: absolute; right: -4px; top: -4px; width: 14px; height: 7px; border-radius: 3px; background: var(--text); transform: rotate(32deg); box-shadow: 0 1px 2px rgba(6,2,12,.6); }
+  .plaster::after { content: ""; position: absolute; left: 5px; top: 2px; width: 4px; height: 3px; border-radius: 1px; background: color-mix(in srgb, var(--muted) 70%, var(--text)); }
+  .mini { position: relative; width: 22px; height: 24px; display: grid; place-items: end center; border-radius: 6px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--tc) 70%, var(--deep)); }
+  .mini img { width: 16px; height: 18px; }
+  .mini.gone { opacity: .25; border-style: dashed; }
+  .mini .plaster { width: 11px; height: 6px; right: -4px; top: -3px; }
+
+  /* the crowd */
+  .mound { position: relative; flex: none; }
+  .mound img { position: absolute; width: 16px; height: 18px; }
+  .mound img.flip { transform: scaleX(-1); }
+
+  /* the entrance meter, stacked by shelf (rarity colours: the pets themselves) */
+  .gate { position: relative; height: 14px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--lilac) 40%, var(--line)); overflow: hidden; display: flex; }
+  .gate i { display: block; height: 100%; background: var(--tc); transition: width .35s var(--ease-out); }
+  .gate i + i { box-shadow: -2px 0 0 var(--deep); }
+  .gate.full { border-color: var(--pink-seam); }
+  .count { font: 400 22px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .count small { font: 12px var(--body); color: var(--muted); }
+  .count.full { color: var(--pink); }
+
+  /* the well, drawn */
+  .well { display: block; }
+  .well .soil { fill: color-mix(in srgb, var(--deep) 40%, var(--paper)); }
+  .well .pebble { fill: none; stroke: var(--line); stroke-width: 1.6; }
+  .well .shaft { fill: var(--deep); }
+  .well .wall { fill: none; stroke: var(--lilac-seam); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+  .well .wall.tail { stroke-dasharray: 3 5; opacity: .6; }
+  .well .brick { stroke: var(--lilac-seam); stroke-width: 2; opacity: .5; stroke-linecap: round; fill: none; }
+  .well .rope { fill: none; stroke: var(--muted); stroke-width: 2; stroke-linecap: round; }
+  .well .land { fill: none; stroke: var(--lilac-seam); stroke-width: 2; stroke-dasharray: 3 4; opacity: .75; stroke-linecap: round; }
+  .well .land.lit { stroke: var(--wisp); stroke-dasharray: none; opacity: 1; stroke-width: 2.4; }
+  .well .door { fill: var(--raised); stroke: var(--lilac); stroke-width: 1.7; }
+  .well .boing { fill: none; stroke: var(--lilac); stroke-width: 1.5; stroke-linecap: round; opacity: .8; }
+  .well .glow { fill: var(--wisp); opacity: .17; }
+  .well .lamp { fill: var(--wisp); }
+  .well .hook { stroke: var(--muted); stroke-width: 1.4; }
+  .well .fl { font: 10px var(--body); fill: var(--muted); }
+  .well .fl.lit { fill: var(--wisp); }
+  .well .fw { font: 10px var(--body); fill: var(--muted); }
+  .well .fw.mid { fill: var(--text); }
+  .well .fw.hot { fill: var(--pink); }
+  .well .band { font: 12px var(--display); fill: var(--lilac); }
+  .well .flag { fill: var(--pink); }
+  .well .pole { stroke: var(--pink); stroke-width: 2; stroke-linecap: round; }
+  .well .pennant { fill: var(--wisp); }
+  .well .ppole { stroke: var(--wisp); stroke-width: 2; stroke-linecap: round; }
+  .well .grass { fill: none; stroke: var(--mint); stroke-width: 2.5; stroke-linecap: round; }
+  .well .tuft { fill: none; stroke: var(--mint); stroke-width: 2; stroke-linecap: round; opacity: .8; }
+  .well .stone { fill: var(--raised); stroke: var(--lilac); stroke-width: 2.4; }
+  .well .roof { fill: color-mix(in srgb, var(--pink-seam) 40%, var(--raised)); stroke: var(--pink-seam); stroke-width: 2.4; stroke-linejoin: round; }
+  .well .post { fill: none; stroke: var(--lilac); stroke-width: 2.4; stroke-linecap: round; }
+  .well .spark { fill: var(--gold); }
+  .well .hit { fill: transparent; cursor: pointer; }
+  .well .hit:hover { fill: color-mix(in srgb, var(--pink) 10%, transparent); }
+  .well .skip { fill: color-mix(in srgb, var(--wisp) 7%, transparent); }
+  .well .trail { fill: none; stroke: var(--lilac-seam); stroke-width: 2.4; stroke-dasharray: 2 5; stroke-linecap: round; }
+  .well .trail.lit { stroke: var(--wisp); stroke-dasharray: none; }
+  .well .stop { fill: var(--deep); stroke: var(--lilac-seam); stroke-width: 2; }
+  .well .stop.lit { fill: var(--wisp); stroke: var(--wisp); }
+  .well .stop.now { stroke: var(--pink); stroke-width: 2.4; }
+
+  /* the army on its way: your pet leads, a pill says how many are still walking */
+  .party { position: absolute; display: flex; align-items: flex-end; pointer-events: none; z-index: 4; transition: top .5s var(--ease-out), left .5s var(--ease-out); }
+  .party img { width: 16px; height: 18px; margin-right: -5px; animation: bob .5s ease-in-out infinite alternate; }
+  .party img:nth-child(2) { animation-delay: .15s; } .party img:nth-child(3) { animation-delay: .3s; }
+  @keyframes bob { to { transform: translateY(-2px); } }
+  .party .pill { margin-left: 8px; padding: 0 6px; border-radius: 999px; background: var(--raised); border: 2px solid var(--pink-seam); font-size: 10px; line-height: 15px; color: var(--text); font-variant-numeric: tabular-nums; }
+
+  /* the run: a floor row in the log */
+  .frow { display: grid; align-items: center; gap: 8px; font-size: 12px; }
+  .frow.fresh, .tile.fresh { animation: drop .45s var(--ease-out); }
+  @keyframes drop { from { transform: translateY(-6px); opacity: 0; } }
+  .fnum { font: 400 14px/1 var(--display); color: var(--wisp); font-variant-numeric: tabular-nums; }
+  .ghosts { display: flex; align-items: center; gap: 2px; min-width: 0; overflow: hidden; }
+  .ghosts img { width: 16px; height: 18px; opacity: .22; }
+  .ghosts span { font-size: 11px; color: var(--muted); white-space: nowrap; margin-left: 3px; }
+  .bumps { display: inline-flex; align-items: center; gap: 4px; font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .bumps .plaster { position: relative; right: auto; top: auto; transform: rotate(-20deg); }
+  .pay { font: 400 13px/1 var(--display); color: var(--wisp); white-space: nowrap; display: inline-flex; align-items: center; gap: 3px; justify-content: flex-end; justify-self: end; }
+  .walk { position: relative; height: 10px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--lilac) 40%, var(--line)); overflow: hidden; }
+  .walk i { position: absolute; inset: 0 auto 0 0; width: calc(var(--f) * 100%); background: var(--lilac); border-radius: 999px; }
+  .walk.zoom i { background: var(--wisp); }
+  .tally { display: flex; flex-direction: column; gap: 2px; }
+  .tally b { font: 400 20px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+  .tally span { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .tally.quiet b { color: var(--muted); }
+
+  /* came home */
+  .best { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--r-lg); background: var(--deep); border: 2px dashed color-mix(in srgb, var(--gold) 45%, var(--line)); font-size: 12px; }
+  .best .tag { font: 400 13px/1 var(--display); color: var(--gold); white-space: nowrap; }
+  .best img { width: 32px; height: 36px; flex: none; }
+  .deeptag { display: inline-block; padding: 3px 10px 2px; border-radius: 6px; background: var(--gold); color: var(--deep); font: 400 12px/1.1 var(--display); transform: rotate(4deg); box-shadow: 0 0 14px color-mix(in srgb, var(--gold) 45%, transparent); white-space: nowrap; }
+  .bars { display: flex; align-items: flex-end; gap: 6px; height: 74px; }
+  .bars .b { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: 2px; height: 100%; min-width: 0; }
+  .bars .b i { display: block; width: 100%; max-width: 34px; border-radius: 4px 4px 2px 2px; background: color-mix(in srgb, var(--muted) 50%, var(--deep)); }
+  .bars .b i.hot { background: var(--pink-seam); }
+  .bars .b i.zero { height: 2px !important; background: var(--line); }
+  .bars .b small { font-size: 9px; color: var(--muted); line-height: 1; }
+  .bars .b.new small { color: var(--gold); }
+
+  /* ---------- LOOK A: the well column + a roomy desk ---------- */
+  .a-body { display: grid; grid-template-columns: 180px 1fr; gap: 12px; flex: 1; min-height: 0; }
+  .a-well { display: flex; flex-direction: column; }
+  .a-well h2 { margin: 0; padding: 7px 12px 5px; font: 400 16px/1 var(--display); color: var(--pink); border-bottom: 2px dashed var(--line); flex: none; }
+  .a-scroll { position: relative; flex: 1; min-height: 0; overflow: hidden auto; scrollbar-width: thin; scrollbar-color: var(--lilac-seam) transparent; }
+  .a-desk { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .a-army { padding: 9px 12px 9px; display: flex; flex-direction: column; gap: 6px; flex: 1; min-height: 0; }
+  .a-head { display: flex; align-items: center; gap: 10px; }
+  .a-head .gate { flex: 1; }
+  .a-front { display: flex; gap: 14px; align-items: flex-start; }
+  .a-front .fcards { grid-template-columns: repeat(10, 36px); }
+  .a-front .side { display: flex; flex-direction: column; gap: 6px; padding-top: 2px; min-width: 0; flex: 1; align-items: flex-start; }
+  .a-front .side .mound { margin-top: 4px; }
+  .sub { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); }
+  .sub .h3 { font-size: 13px; }
+  .stitch { height: 2px; flex: none; background: repeating-linear-gradient(to right, var(--line) 0 5px, transparent 5px 9px); }
+  .shelves { display: flex; flex-direction: column; gap: 5px; }
+  .shelf { display: grid; grid-template-columns: 128px 1fr 54px 40px; align-items: center; gap: 10px; font-size: 12px; }
+  .shelf .tn { color: var(--tc); display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+  .shelf .tn small { color: var(--muted); font-size: 10px; }
+  .shelf output { text-align: right; font: 400 15px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+  .shelf output.zero { color: var(--muted); }
+  .pips { display: grid; grid-template-columns: repeat(10, 1fr); gap: 3px; height: 18px; padding: 2px; border-radius: var(--r-md); background: var(--deep); border: 2px solid var(--line); cursor: pointer; touch-action: none; }
+  .pips i { border-radius: 4px; background: color-mix(in srgb, var(--tc) 12%, var(--deep)); border: 1px solid color-mix(in srgb, var(--tc) 22%, var(--line)); transition: background .12s; }
+  .pips i.on { background: color-mix(in srgb, var(--tc) 85%, var(--deep)); border-color: var(--tc); }
+  .pips i.part { background: linear-gradient(to right, color-mix(in srgb, var(--tc) 85%, var(--deep)) var(--p), color-mix(in srgb, var(--tc) 12%, var(--deep)) var(--p)); border-color: color-mix(in srgb, var(--tc) 60%, var(--line)); }
+  .pips:hover { border-color: var(--pink-seam); }
+  .allbtn { padding: 2px 0; border-radius: var(--r-md); background: var(--deep); border: 2px solid var(--line); color: var(--muted); font-size: 11px; cursor: pointer; text-align: center; }
+  .allbtn:hover { color: var(--pink); border-color: var(--pink-seam); }
+  .allbtn.on { color: var(--text); background: var(--pink-pressed); border-color: var(--pink); }
+  .a-orders { padding: 8px 12px 9px; display: grid; grid-template-columns: 1fr auto; gap: 8px 14px; align-items: center; border-top: 6px solid color-mix(in srgb, var(--lilac) 45%, var(--line)); flex: none; }
+  .a-orders .lines { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .a-orders .h3 { font-size: 15px; }
+  .a-orders .gocol { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .a-last { display: flex; align-items: center; gap: 12px; padding: 0 4px; font-size: 11px; color: var(--muted); flex: none; }
+  .a-last b { font: 400 13px/1 var(--display); color: var(--text); font-weight: 400; }
+  .a-last b.w { color: var(--wisp); }
+  /* A's run */
+  .a-run { padding: 12px 14px; display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 0; }
+  .a-run .now { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; align-items: center; }
+  .a-run .now .big { font: 400 28px/1 var(--display); color: var(--pink); white-space: nowrap; grid-row: span 2; }
+  .a-run .now .big small { font: 12px var(--body); color: var(--muted); }
+  .a-run .now .line1 { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+  .a-run .tallies { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 12px; align-items: end; padding: 8px 10px; border-radius: var(--r-lg); background: var(--deep); border: 2px solid var(--line); }
+  .a-log { flex: 1; min-height: 0; overflow: hidden auto; display: flex; flex-direction: column; gap: 5px; scrollbar-width: thin; scrollbar-color: var(--lilac-seam) transparent; padding-right: 2px; }
+  .a-log .frow { grid-template-columns: 30px 82px 1fr 92px 64px; justify-items: start; padding: 3px 8px; border-radius: var(--r-md); background: var(--deep); border: 2px solid var(--line); min-height: 30px; }
+  .a-log .frow.zoomed { opacity: .72; min-height: 24px; padding: 1px 8px; }
+  .a-front.small .fcards { grid-template-columns: repeat(20, 22px); gap: 3px; }
+  /* A's came home */
+  .a-home { padding: 12px 14px; display: flex; flex-direction: column; gap: 11px; flex: 1; min-height: 0; border-color: color-mix(in srgb, var(--wisp) 40%, var(--line)); }
+  .a-home .hh { display: flex; align-items: center; gap: 12px; }
+  .a-home .hh h2 { margin: 0; font: 400 22px/1 var(--display); color: var(--pink); white-space: nowrap; }
+  .a-home .stats { display: grid; grid-template-columns: 1.1fr 1.25fr .9fr 1fr; gap: 10px; }
+  .stat { padding: 8px 10px; border-radius: var(--r-lg); background: var(--deep); border: 2px solid var(--line); display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .stat b { font: 400 22px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+  .stat b.w { color: var(--wisp); }
+  .stat b.q { color: var(--muted); }
+  .stat span { font-size: 11px; color: var(--muted); white-space: nowrap; }
+  .a-home .who { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+  .a-home .who .fcards { grid-template-columns: repeat(10, 22px); gap: 3px; }
+  .shelfout { display: flex; flex-direction: column; gap: 3px; font-size: 11px; }
+  .shelfout div { display: grid; grid-template-columns: 74px 1fr 1fr; gap: 8px; white-space: nowrap; }
+  .shelfout .tn { color: var(--tc); }
+  .shelfout .q { color: var(--muted); }
+  .a-home .foot { display: flex; align-items: center; gap: 8px; margin-top: auto; }
+
+  /* ---------- LOOK B: a depth ribbon on top, everything below it ---------- */
+  .b-ribbon { flex: none; height: 104px; }
+  .b-ribbon .sign { position: absolute; left: 8px; bottom: 7px; z-index: 3; font: 400 12px/1 var(--display); color: var(--pink); padding: 4px 9px 3px; border-radius: 6px; background: var(--raised); border: 2px solid var(--pink-seam); transform: rotate(-3deg); box-shadow: var(--lift); }
+  .b-body { display: grid; grid-template-columns: 1fr 292px; gap: 12px; flex: 1; min-height: 0; }
+  .b-who { padding: 10px 12px 11px; display: flex; flex-direction: column; gap: 9px; min-height: 0; }
+  .b-who .hd { display: flex; align-items: center; gap: 10px; }
+  .b-who .fr { display: flex; align-items: flex-start; gap: 12px; }
+  .b-who .fcards { grid-template-columns: repeat(10, 36px); }
+  .shelfchips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; }
+  .schip { position: relative; display: flex; flex-direction: column; gap: 1px; padding: 6px 9px 6px; border-radius: var(--r-lg); background: var(--deep); border: 2px solid color-mix(in srgb, var(--tc) 30%, var(--line)); cursor: pointer; text-align: left; color: var(--text); font-size: 11px; transition: transform .08s var(--ease-out); }
+  .schip:active { transform: scale(.95); }
+  .schip .tn { color: var(--tc); font-size: 12px; }
+  .schip b { font: 400 17px/1 var(--display); font-variant-numeric: tabular-nums; color: var(--muted); }
+  .schip small { color: var(--muted); font-size: 10px; }
+  .schip.on { border: 2px dashed var(--tc); background: color-mix(in srgb, var(--tc) 12%, var(--deep)); transform: rotate(-2deg); }
+  .schip.on b { color: var(--text); }
+  .schip .chk { position: absolute; right: 7px; top: 7px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid color-mix(in srgb, var(--tc) 40%, var(--line)); }
+  .schip.on .chk { background: var(--tc); border-color: var(--tc); }
+  .b-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .b-orders { padding: 10px 12px 11px; display: flex; flex-direction: column; gap: 7px; border-top: 6px solid color-mix(in srgb, var(--lilac) 45%, var(--line)); transform: rotate(-.8deg); }
+  .b-orders .ol { display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+  .b-orders .ol > span { color: var(--muted); font-size: 11px; }
+  .b-orders .ol .row { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .b-orders .ol .row > span { color: var(--text); }
+  .b-orders .go { align-self: stretch; margin-top: 2px; }
+  .b-last { padding: 8px 12px; display: flex; flex-direction: column; gap: 6px; font-size: 11px; color: var(--muted); flex: none; }
+  .b-last .r { display: flex; justify-content: space-between; }
+  .b-last b { font: 400 13px/1 var(--display); color: var(--text); }
+  .b-last b.w { color: var(--wisp); }
+  /* B's run */
+  .b-log { padding: 10px 12px; display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 7px; overflow: hidden auto; min-height: 0; align-content: start; scrollbar-width: thin; scrollbar-color: var(--lilac-seam) transparent; }
+  .tile { display: flex; flex-direction: column; gap: 3px; padding: 6px 8px; border-radius: var(--r-lg); background: var(--deep); border: 2px solid var(--line); font-size: 11px; min-width: 0; }
+  .tile .t1 { display: flex; align-items: center; gap: 6px; }
+  .tile .t1 .pay { margin-left: auto; font-size: 12px; }
+  .tile .ghosts img { width: 16px; height: 18px; }
+  .tile.now { border: 2px dashed var(--pink-seam); }
+  .tile.now .walk { margin-top: 4px; }
+  .tile.zoomed { opacity: .7; }
+  .b-now { padding: 10px 12px; display: flex; flex-direction: column; gap: 9px; }
+  .b-now .row { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+  .b-now .fm { display: grid; grid-template-columns: repeat(10, 22px); gap: 3px 4px; }
+  /* B's came home: a postcard */
+  .b-post { grid-column: 1 / -1; position: relative; padding: 14px 16px 12px; display: grid; grid-template-columns: 250px 1fr; gap: 16px; transform: rotate(-.6deg); border-color: color-mix(in srgb, var(--wisp) 45%, var(--line)); min-height: 0; }
+  .b-post .scene { position: relative; border-radius: var(--r-lg); background: var(--paper); border: 2px solid var(--line); overflow: hidden; }
+  .b-post .stamp { position: absolute; right: 14px; top: 10px; width: 58px; height: 64px; border: 2px dashed var(--wisp); border-radius: 6px; display: grid; place-items: center; text-align: center; color: var(--wisp); font: 400 12px/1.1 var(--display); transform: rotate(5deg); background: var(--deep); }
+  .b-post .stamp b { display: block; font-size: 24px; }
+  .b-post .txt { display: flex; flex-direction: column; gap: 11px; min-width: 0; }
+  .b-post .ph { display: flex; align-items: center; gap: 12px; padding-right: 76px; min-height: 40px; }
+  .b-post .pmid { display: flex; align-items: center; gap: 22px; }
+  .b-post h2 { margin: 0; font: 400 22px/1 var(--display); color: var(--pink); white-space: nowrap; }
+  .b-post .lines { display: grid; grid-template-columns: auto auto auto auto; justify-content: start; align-items: center; gap: 6px 12px; font-size: 12px; }
+  .b-post .lines span:nth-child(4n+3) { margin-left: 10px; }
+  .b-post .lines span { color: var(--muted); }
+  .b-post .lines b { font: 400 16px/1 var(--display); color: var(--text); font-variant-numeric: tabular-nums; }
+  .b-post .lines b.q { color: var(--muted); }
+  .b-post .wbig { display: flex; align-items: center; gap: 8px; font: 400 30px/1 var(--display); color: var(--wisp); }
+  .b-post .foot { display: flex; align-items: center; gap: 8px; margin-top: auto; }
+  .b-post .faces { display: flex; flex-wrap: wrap; gap: 3px; }
+  .b-post .best { padding: 6px 10px; }
+</style>
+</head>
+<body>
+<div class="app" data-tab="trips" data-say="the rope goes waaay down. i packed snacks!"></div>
+<div class="label-look" id="look"></div>
+
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  // the game's tabs at this stage (as in dungeon.html)
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+  TABS.forEach(t => { t.news = false; });
+
+  const q = new URLSearchParams(location.search);
+  const LOOK = (q.get("look") || "A").toUpperCase() === "B" ? "B" : "A";
+  document.getElementById("look").innerHTML = `${LOOK === "A" ? "A: the well column + a roomy desk" : "B: a depth ribbon on top"}<a href="?look=A" class="${LOOK === "A" ? "on" : ""}">A</a><a href="?look=B" class="${LOOK === "B" ? "on" : ""}">B</a>`;
+
+  // ---------------- placeholder numbers (data/dungeon.json) ----------------
+  const TIERS = ["common", "uncommon", "rare", "epic"];
+  const KINDS = { common: ["mint-blob", "peach-cat", "lilac-cat"], uncommon: ["mint-bear", "peach-bear"], rare: ["sky-bunny", "midnight-bear"], epic: ["bubblegum-fox", "toxic-cat"] };
+  const HERD_POWER = { common: 0.5, uncommon: 0.8, rare: 1.5, epic: 3 };   // x herd_x already
+  const TINT = { "mint-blob": "#8fe8c0", "peach-cat": "#ffb59a", "lilac-cat": "#c9a0ff", "mint-bear": "#8fe8c0", "peach-bear": "#ffb59a",
+    "sky-bunny": "#8cc8ff", "midnight-bear": "#8c8cff", "lilac-blob": "#c9a0ff", "bubblegum-fox": "#ff8fc8", "toxic-cat": "#b8ff6b", "gold-dragon": "#ffe08a" };
+  const CARD_POWER = { uncommon: 14, rare: 24, epic: 40, legendary: 70 };
+  const FRONT0 = [
+    { id: "lilac-blob", t: "rare", lead: true },
+    { id: "gold-dragon", t: "legendary" }, { id: "bubblegum-fox", t: "epic" }, { id: "toxic-cat", t: "epic" }, { id: "bubblegum-fox", t: "epic" },
+    { id: "sky-bunny", t: "rare" }, { id: "midnight-bear", t: "rare" }, { id: "sky-bunny", t: "rare" }, { id: "lilac-blob", t: "rare" },
+    { id: "midnight-bear", t: "rare" }, { id: "sky-bunny", t: "rare" }, { id: "midnight-bear", t: "rare" },
+    { id: "mint-bear", t: "uncommon" }, { id: "peach-bear", t: "uncommon" }, { id: "mint-bear", t: "uncommon" }, { id: "peach-bear", t: "uncommon" },
+    { id: "mint-bear", t: "uncommon" }, { id: "peach-bear", t: "uncommon" }, { id: "mint-bear", t: "uncommon" }, { id: "peach-bear", t: "uncommon" },
+  ];
+  const WORDS = [[4, "easy peasy", ""], [2, "a stroll", ""], [1.3, "comfy", ""], [0.95, "spooky", "mid"], [0.7, "tricky", "mid"], [0.5, "so tough", "hot"], [0, "brr!", "hot"]];
+  const TINY = [13, 17], KNOCK = [15, 19];
+  const HOMES = [10, 30, 50, 70, 90];
+  const FIRSTS = ["plain ones", "anyone", "the front row"];
+  const ENTRANCE = 2400;       // the bow, a few levels in
+  const AHEAD = 5;             // target_ahead
+  const SHOW_TO = 20;          // the cellar is the deepest band reached, so the well is drawn to 20
+  const MS_NEW = 1300, MS_KNOWN = 420;  // mock speeds: floors you've cleared before go quick
+  const strength = f => 100 * Math.pow(1.2, f);
+  const fmt = n => { n = Math.round(n); if (Math.abs(n) < 10000) return n.toLocaleString("en"); const v = n / 1000; return (v < 100 ? (Math.round(v * 10) / 10) : Math.round(v)) + "k"; };
+  const pet = (id, cls = "") => `<img class="px ${cls}" src="../assets/pets/${id}.png" alt="">`;
+  const WISP = (s = 20) => `<svg class="wispico" viewBox="0 0 24 24" style="width:${s}px;height:${s}px"><path d="M5.2 15.6 Q3.2 11.4 7.4 10 Q8 5.8 12.6 6.2 Q17 6.4 17.4 10.6 Q20.6 11.8 19 15 Q17 17.6 12.6 16.6 Q8.4 18.4 5.2 15.6 Z" fill="currentColor" fill-opacity=".3"/><path d="M17.4 10.6 Q20.4 7.4 18.4 4.4 Q16.8 2.8 15.4 4.6"/><path d="M8.8 13.4 Q11 11.4 13.6 13"/></svg>`;
+  const FLAG = `<svg viewBox="0 0 14 14" fill="none" stroke-linecap="round"><path d="M3 13 L3 1.5" stroke="var(--pink)" stroke-width="2"/><path d="M3.5 2 L12 4.6 L3.5 7.4 Z" fill="var(--pink)" stroke="var(--pink)" stroke-width="1" stroke-linejoin="round"/></svg>`;
+  const BOW = `<svg viewBox="0 0 24 24" fill="none" stroke="var(--wisp)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 12 Q6 5 3.6 8 Q2.6 12.6 12 12 Q18 5 20.4 8 Q21.4 12.6 12 12 Z" fill="var(--wisp)" fill-opacity=".3"/><path d="M12 12 L8.6 19 M12 12 L15.4 19"/></svg>`;
+  const DOOR = `<svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="var(--lilac)" stroke-width="2" stroke-linejoin="round"><path d="M9 20 L9 13 A3 3 0 0 1 15 13 L15 20 Z" fill="var(--raised)"/><path d="M4 20 L20 20" stroke="var(--lilac-seam)"/></svg>`;
+  const kindOf = f => f <= 10 ? "rope" : TINY.includes(f) ? "tiny" : KNOCK.includes(f) ? "knock" : f <= 20 ? "door" : "stairs";
+  const bandOf = f => f <= 10 ? "the well" : f <= 20 ? "the cellar" : "further down";
+  const wordOf = r => { const w = WORDS.find(x => r >= x[0]); return [w[1], w[2]]; };
+
+  // ---------------- the state ----------------
+  const S = {
+    deep: 14, target: 16, start: 10, held: [10], home: 30, first: "anyone",
+    front: FRONT0.map(p => ({ ...p })),
+    have: { common: 3120, uncommon: 940, rare: 188, epic: 14 },
+    herd: { common: 520, uncommon: 940, rare: 160, epic: 0 },
+    wisps: 18420,
+    phase: "ready", run: null,
+    last: { floor: 14, got: 1118, back: 2231, sent: 2400 },
+  };
+  const herdN = () => TIERS.reduce((a, t) => a + S.herd[t], 0);
+  const sent = () => S.front.length + herdN();
+  const room = () => ENTRANCE - sent();
+  const power = () => S.front.reduce((a, p) => a + CARD_POWER[p.t], 0) + TIERS.reduce((a, t) => a + S.herd[t] * HERD_POWER[t], 0);
+  const feelOf = f => wordOf(power() / strength(f));
+
+  const content = mountFrame();
+  const app = document.querySelector(".app");
+  const say = t => { app.querySelector(".top .bubble").textContent = t; };
+
+  // extra stars: many pets have not come back by this stage. Never explained.
+  let sd = 41; const rr = () => (sd = (sd * 16807) % 2147483647) / 2147483647;
+  (() => { const sky = app.querySelector(".sky"), tints = Object.values(TINT); let out = "";
+    for (let i = 0; i < 150; i++) out += `<rect x="${Math.floor(rr() * 74) + 2}" y="${Math.floor(rr() * 590) + 4}" width="1" height="1" fill="${tints[i % tints.length]}" opacity="${(0.18 + rr() * 0.3).toFixed(2)}"/>`;
+    sky.insertAdjacentHTML("beforeend", out); })();
+  function addStars(ids) {
+    const sky = app.querySelector(".sky");
+    ids.slice(0, 12).forEach(id => { const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      r.setAttribute("x", Math.floor(rr() * 74) + 2); r.setAttribute("y", Math.floor(rr() * 590) + 4); r.setAttribute("width", 1); r.setAttribute("height", 1);
+      r.setAttribute("fill", TINT[id] || "#f5dcec"); r.setAttribute("opacity", (0.3 + rr() * 0.35).toFixed(2)); r.classList.add("fresh"); sky.appendChild(r); });
+  }
+
+  // ---------------- army edits ----------------
+  function fillUp() {   // the best cards up front, then the shelves best first, until the entrance is full
+    S.front = FRONT0.map(p => ({ ...p }));
+    for (const t of [...TIERS].reverse()) S.herd[t] = Math.min(S.have[t], S.herd[t] + Math.max(0, room()));
+  }
+  function setShelf(t, n) { S.herd[t] = Math.max(0, Math.min(S.have[t], n, S.herd[t] + Math.max(0, room()))); }
+
+  // ---------------- the run (worked out at set-off, like Dungeon.simulate) ----------------
+  function simulate() {
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    const going = sent(), limit = Math.ceil(going * S.home / 100);
+    const alive = { ...S.herd }, cards = S.front.map((p, i) => ({ ...p, i, hurt: false, gone: false }));
+    const pw = () => cards.filter(c => !c.gone).reduce((a, c) => a + CARD_POWER[c.t] * (c.hurt ? .5 : 1), 0) + TIERS.reduce((a, t) => a + alive[t] * HERD_POWER[t], 0) - hurtPw;
+    let hurtPw = 0, lostAll = 0; const floors = []; let why = "target";
+    for (let f = S.start + 1; f <= S.target; f++) {
+      const kind = kindOf(f);
+      const tinyPw = kind === "tiny" ? (cards.filter(c => !c.gone && c.t !== "uncommon").reduce((a, c) => a + CARD_POWER[c.t], 0) + alive.rare * HERD_POWER.rare + alive.epic * HERD_POWER.epic) * 1.6 : 0;
+      const ratio = (kind === "tiny" ? tinyPw : pw()) / strength(f);
+      const [word, heat] = wordOf(ratio);
+      const walking = going - lostAll;
+      let nLost = Math.min(walking - 1, Math.round(walking * Math.min(.25, .03 / (ratio * ratio)) * (0.8 + rnd() * .4)));
+      let nHurt = Math.round(walking * Math.min(.25, .05 / ratio) * (0.8 + rnd() * .4) * .5);
+      // who goes first
+      const lost = { cards: [], herd: {} }, hurtCards = [];
+      const fromHerd = (t, k) => { const x = Math.min(k, alive[t]); alive[t] -= x; lost.herd[t] = (lost.herd[t] || 0) + x; return x; };
+      const fromCards = k => { let x = 0; for (const c of [...cards].reverse()) { if (x >= k) break; if (!c.gone && !c.lead) { c.gone = true; lost.cards.push(c.i); x++; } } return x; };
+      let left = nLost;
+      if (S.first === "the front row") left -= fromCards(left);
+      if (S.first === "anyone") { if (heat && left > 0) left -= fromCards(1); const tot = TIERS.reduce((a, t) => a + alive[t], 0) || 1; TIERS.forEach(t => { left -= fromHerd(t, Math.floor(left * alive[t] / tot)); }); }
+      ["common", "uncommon", "rare", "epic"].forEach(t => { if (left > 0) left -= fromHerd(t, left); });
+      if (left > 0) fromCards(left);
+      hurtPw += nHurt * 0.3;
+      if (heat || rnd() < .4) { const c = cards.find(c => !c.gone && !c.hurt && !c.lead && rnd() < .5); if (c) { c.hurt = true; hurtCards.push(c.i); } }
+      lostAll += nLost;
+      const pay = Math.max(1, Math.round(0.01 * Math.pow(1.15, f) * going * 4));
+      floors.push({ f, kind, word, heat, lost: nLost, lostHerd: lost.herd, lostCards: lost.cards, hurt: nHurt + hurtCards.length, hurtCards, pay, known: f <= S.deep, walking: going - lostAll });
+      if (lostAll >= limit && f < S.target) { why = "home"; break; }
+    }
+    const got = floors.reduce((a, x) => a + x.pay, 0), hurtAll = floors.reduce((a, x) => a + x.hurt, 0);
+    const lostCards = floors.flatMap(x => x.lostCards), hurtCards = floors.flatMap(x => x.hurtCards).filter(i => !lostCards.includes(i));
+    const lostHerd = {}; floors.forEach(x => Object.entries(x.lostHerd).forEach(([t, n]) => { lostHerd[t] = (lostHerd[t] || 0) + n; }));
+    const hurtHerd = {}; TIERS.forEach(t => { hurtHerd[t] = Math.round((hurtAll - hurtCards.length) * (S.herd[t] / Math.max(1, herdN()))); });
+    const deepest = floors.length ? floors[floors.length - 1].f : S.start;
+    let best = null;
+    const knock = floors.find(x => x.kind === "knock"), tiny = floors.find(x => x.kind === "tiny");
+    if (knock) best = { tag: `floor ${knock.f}`, text: "somebody answered the knocking door!", art: "door" };
+    else if (tiny) best = { tag: `floor ${tiny.f}`, text: `${fmt(alive.rare + alive.epic + 9)} squeezed through the tiny door`, art: "door" };
+    return { going, floors, why, got, lostAll, hurtAll, lostCards, hurtCards, lostHerd, hurtHerd, deepest, newDeep: deepest > S.deep, best, shown: 0, at: 0 };
+  }
+
+  let timer = null, startedAt = 0;
+  function go() {
+    if (S.phase !== "ready" || sent() === 0) return;
+    S.run = simulate(); S.phase = "run";
+    say(S.start ? `straight down to landing ${S.start}! hi, everyone!` : "down we go! hold paws, everyone!");
+    render(); step();
+  }
+  function step() {
+    const R = S.run;
+    if (R.shown >= R.floors.length) { finish(); return; }
+    const fl = R.floors[R.shown], ms = fl.known ? MS_KNOWN : MS_NEW;
+    startedAt = performance.now(); R.ms = ms;
+    timer = setTimeout(() => {
+      R.shown++; R.fresh = fl; S.wisps += fl.pay; bumpWisps(`+${fmt(fl.pay)}`);
+      addStars(fl.lostCards.map(i => S.front[i].id).concat(Array.from({ length: Math.min(4, Math.ceil(fl.lost / 20)) }, (_, k) => KINDS.common[k % 3])));
+      if (fl.f === 11 && !fl.known) say("a cellar! with doors! and TINY doors!");
+      else if (!fl.known) say(`floor ${fl.f}! it echoes down here!`);
+      render(); step();
+    }, ms);
+  }
+  function finish() {
+    const R = S.run; S.phase = "home";
+    // the army as it is now: who stayed below is gone from the shelves and the front row
+    TIERS.forEach(t => { S.have[t] -= (R.lostHerd[t] || 0); S.herd[t] -= (R.lostHerd[t] || 0); });
+    S.last = { floor: R.deepest, got: R.got, back: R.going - R.lostAll, sent: R.going };
+    if (R.newDeep) { S.deep = R.deepest; say(`floor ${R.deepest}! nobody's been this deep! i think!`); }
+    else if (R.why === "home") say(`we came home a bit early. but ${fmt(R.got)} wisps! so glowy!`);
+    else say(`we're home! ${fmt(R.got)} wisps, all glowy!`);
+    render();
+  }
+  function again() {   // same orders, the army topped up the same way
+    S.front = S.front.filter((p, i) => !S.run.lostCards.includes(i));
+    while (S.front.length < 20) S.front.push({ ...FRONT0[12 + (S.front.length % 8)], fresh: true });
+    S.phase = "ready"; S.run = null; fillUp(); go();
+  }
+  function done() {
+    S.front = S.front.filter((p, i) => !S.run.lostCards.includes(i));
+    S.phase = "ready"; S.run = null; say("everyone line up! tallest at the back!"); render();
+  }
+  function bumpWisps(text) {
+    const el = content.querySelector("[data-wisps]"); if (!el) return;
+    el.querySelector("b").textContent = fmt(S.wisps);
+    el.classList.remove("bump"); void el.offsetWidth; el.classList.add("bump");
+    const fr = app.getBoundingClientRect(), r = el.getBoundingClientRect();
+    const p = document.createElement("span"); p.className = "rise"; p.textContent = text;
+    p.style.left = `${r.left - fr.left + r.width / 2}px`; p.style.top = `${r.top - fr.top - 4}px`;
+    app.appendChild(p); setTimeout(() => p.remove(), 1400);
+  }
+
+  // ---------------- pieces ----------------
+  const bar = () => `<div class="bar"><div class="seg"><button>adventures</button><button>upgrades</button><button class="on">dungeon</button></div>
+      <span class="wispchip" data-wisps>${WISP(20)}<b class="num">${fmt(S.wisps)}</b></span>
+      <button class="perksbtn" title="the perks">${BOW}perks<span class="new"></span></button></div>`;
+  const card = (p, i, R) => { const gone = R && R.lostCards.slice(0, 99).includes(i) && (S.phase === "home" || R.floors.slice(0, R.shown).some(x => x.lostCards.includes(i)));
+    const hurt = R && !gone && (S.phase === "home" ? R.hurtCards.includes(i) : R.floors.slice(0, R.shown).some(x => x.hurtCards.includes(i)));
+    return `<div class="fcard${p.fresh ? " new" : ""}${gone ? " gone" : ""}" style="--tc:var(--tier-${p.t})">${p.lead ? `<span class="lead">${FLAG}</span>` : ""}${pet(p.id)}${hurt ? `<span class="plaster"></span>` : ""}</div>`; };
+  const miniCard = (p, i, R) => { const gone = R && (S.phase === "home" ? R.lostCards.includes(i) : R.floors.slice(0, R.shown).some(x => x.lostCards.includes(i)));
+    const hurt = R && !gone && (S.phase === "home" ? R.hurtCards.includes(i) : R.floors.slice(0, R.shown).some(x => x.hurtCards.includes(i)));
+    return `<div class="mini${gone ? " gone" : ""}" style="--tc:var(--tier-${p.t})">${pet(p.id)}${hurt ? `<span class="plaster"></span>` : ""}</div>`; };
+  const feelPill = f => { const [w, h] = feelOf(f); return `<span class="feel ${f <= S.deep ? "" : h}">${w}</span>`; };
+  const gate = () => `<div class="gate${sent() >= ENTRANCE ? " full" : ""}"><i style="--tc:var(--pink-seam); width:${S.front.length / ENTRANCE * 100}%"></i>${[...TIERS].reverse().map(t => `<i style="--tc:var(--tier-${t}); width:${S.herd[t] / ENTRANCE * 100}%"></i>`).join("")}</div>`;
+  const countBig = () => `<span class="count${sent() >= ENTRANCE ? " full" : ""}">${fmt(sent())} <small>/ ${fmt(ENTRANCE)}</small></span>`;
+  function moundHtml(count, w, h, maxN, seedN = 5, ids = null) {
+    let s = seedN; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    ids = ids || TIERS.flatMap(t => S.herd[t] > 0 ? KINDS[t] : []).concat(["mint-blob"]);
+    const n = Math.min(count, Math.max(1, Math.min(maxN, Math.round(Math.log10(count + 1) * maxN / 3.4))));
+    const hs = 9, vs = 6, rows = Math.max(1, Math.floor((h - 18) / vs) + 1);
+    let base = 1; const fits = bb => { let c = 0; for (let r = 0; r < rows; r++) c += Math.max(0, bb - 2 * r); return c; };
+    while (fits(base) < n && ((base + 1) * hs + 16) <= w) base++;
+    const out = []; let k = 0;
+    for (let r = 0; r < rows && k < n; r++) {
+      const inRow = Math.min(Math.max(0, base - 2 * r), n - k), x0 = (base - inRow) / 2 * hs;
+      for (let c = 0; c < inRow && k < n; c++, k++) { const id = ids[Math.floor(rnd() * ids.length)];
+        out.push(`<img class="px${rnd() < .5 ? " flip" : ""}" src="../assets/pets/${id}.png" style="left:${(x0 + c * hs + rnd() * 3 - 1.5).toFixed(1)}px; top:${(h - 18 - r * vs - rnd() * 2).toFixed(1)}px; z-index:${rows - r}" alt="">`); }
+    }
+    return `<div class="mound" style="width:${(base - 1) * hs + 16}px; height:${h}px">${out.join("")}</div>`;
+  }
+  const ghosts = (fl, max) => { if (!fl.lost) return `<span class="ghosts"><span>everyone</span></span>`;
+    const ids = fl.lostCards.map(i => S.front[i].id).concat(Object.entries(fl.lostHerd).flatMap(([t, n]) => Array.from({ length: Math.min(n, 3) }, (_, k) => KINDS[t][k % KINDS[t].length])));
+    return `<span class="ghosts">${ids.slice(0, max).map(id => pet(id)).join("")}<span>${fmt(fl.lost)} stayed below</span></span>`; };
+  const bumps = n => n ? `<span class="bumps"><span class="plaster"></span>${fmt(n)}</span>` : `<span class="bumps"></span>`;
+  const payTag = n => `<span class="pay">+${fmt(n)}${WISP(14)}</span>`;
+  const walkFrac = () => { const R = S.run; return R && R.ms ? Math.min(1, (performance.now() - startedAt) / R.ms) : 0; };
+
+  // orders, as rows of choices
+  const targetStep = () => `<span class="step"><button data-t="-1" ${S.target <= S.start + 1 ? "disabled" : ""}>‹</button><output>${S.target}</output><button data-t="1" ${S.target >= Math.min(SHOW_TO, S.deep + AHEAD) ? "disabled" : ""}>›</button></span>`;
+  const startPick = () => `<span class="pick">${[0, ...S.held].map(l => `<button data-start="${l}" class="${S.start === l ? "on" : ""}">${l ? `landing ${l}` : "the top"}</button>`).join("")}</span>`;
+  const homePick = () => `<span class="pick">${HOMES.map(h => `<button data-home="${h}" class="${S.home === h ? "on" : ""}">${h}%</button>`).join("")}</span>`;
+  const firstPick = () => `<span class="pick">${FIRSTS.map(x => `<button data-first="${x}" class="${S.first === x ? "on" : ""}">${x}</button>`).join("")}</span>`;
+  const goBtn = () => `<button class="btn go" data-go ${sent() ? "" : "disabled"}>down we go!</button>`;
+
+  // ---------------- the well, drawn (look A: a slim column, no nails lane any more) ----------------
+  function wellA() {
+    const w = 176, cx = 80, g = 58, fw = 16, fc = 21, ww = 40, wc = 66, tail = 22;
+    const y = f => f <= 10 ? g + f * fw : g + 10 * fw + (f - 10) * fc;
+    const half = f => (f <= 10 ? ww : wc) / 2, fh = f => f <= 10 ? fw : fc;
+    const H = y(SHOW_TO) + tail, a = y(10), b = y(20);
+    const s = []; let seed = 23; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    s.push(`<rect class="soil" x="0" y="${g}" width="${w}" height="${H - g}"/>`);
+    for (let i = 0; i < 46; i++) { const x = rnd() * w, yy = g + 10 + rnd() * (H - g - 14); if (Math.abs(x - cx) < (yy < a ? ww : wc) / 2 + 30 && x > cx - 60) continue; if (x > cx + 30) continue;
+      s.push(`<ellipse class="pebble" cx="${x.toFixed(1)}" cy="${yy.toFixed(1)}" rx="${(2 + rnd() * 2).toFixed(1)}" ry="${(1.5 + rnd()).toFixed(1)}"/>`); }
+    const L0 = cx - ww / 2, L1 = cx - wc / 2, R0 = cx + ww / 2, R1 = cx + wc / 2, E = H + 2, cut = H - tail;
+    s.push(`<path class="shaft" d="M${L0} ${g} L${L0} ${a} L${L1} ${a} L${L1} ${E} L${R1} ${E} L${R1} ${a} L${R0} ${a} L${R0} ${g} Z"/>`);
+    s.push(`<path class="wall" d="M${L0} ${g} L${L0} ${a} L${L1} ${a} L${L1} ${cut}"/><path class="wall" d="M${R0} ${g} L${R0} ${a} L${R1} ${a} L${R1} ${cut}"/><path class="wall tail" d="M${L1} ${cut} L${L1} ${H} M${R1} ${cut} L${R1} ${H}"/>`);
+    for (let yy = g + 5, k = 0; yy < a - 2; yy += 7, k++) { const o1 = k % 2 ? 2 : 0; s.push(`<path class="brick" d="M${L0 - 8 + o1} ${yy} L${L0 - 2} ${yy} M${R0 + 2} ${yy + 3} L${R0 + 8 - o1} ${yy + 3}"/>`); }
+    s.push(`<path class="rope" d="M${cx} ${g - 30} Q${cx + 4} ${(g + a) / 2} ${cx} ${a - 3}"/>`);
+    if (S.start) s.push(`<rect class="skip" x="${L0}" y="${g}" width="${ww}" height="${y(S.start) - g}"/>`);
+    const R = S.run, cleared = S.phase === "run" ? Math.max(S.deep, ...R.floors.slice(0, R.shown).map(x => x.f)) : S.deep;
+    for (let f = 1; f <= SHOW_TO; f++) {
+      const yy = y(f), lit = f <= cleared, hw = half(f), l = cx - hw, r = cx + hw, h = fh(f), cls = lit ? "land lit" : "land";
+      let lampX = l + 6;
+      if (f <= 10) s.push(`<path class="${cls}" d="M${l + 1} ${yy - 1} Q${cx} ${yy + h * .55} ${r - 1} ${yy - 1}"/>`);
+      else {
+        s.push(`<path class="${cls}" d="M${l + 1} ${yy} L${r - 1} ${yy}"/>`);
+        const tiny = TINY.includes(f), left = f % 2 === 1, dw = tiny ? 6 : 9, dh = tiny ? 8 : Math.min(13, h - 4), x0 = left ? l + 4 : r - 4 - dw;
+        s.push(`<path class="door" d="M${x0} ${yy} L${x0} ${yy - dh + dw / 2} A${dw / 2} ${dw / 2} 0 0 1 ${x0 + dw} ${yy - dh + dw / 2} L${x0 + dw} ${yy} Z"/>`);
+        if (KNOCK.includes(f)) { const bx = left ? x0 + dw + 3 : x0 - 3, sg = left ? 1 : -1, my = yy - dh / 2; s.push(`<path class="boing" d="M${bx} ${my - 3} q ${2 * sg} 3 0 6 M${bx + 3 * sg} ${my - 5} q ${3 * sg} 5 0 10"/>`); }
+        lampX = left ? r - 7 : l + 7;
+      }
+      if (lit) { const ly = yy - Math.min(8, h - 3); s.push(`<circle class="glow" cx="${lampX}" cy="${ly}" r="${Math.min(7, h / 2 + 1)}"/><rect class="lamp" x="${lampX - 2}" y="${ly - 2}" width="4" height="5" rx="1.2"/>`); }
+      if (f === 20) { const sx = r - 10, sy = yy - 7; s.push(`<path class="spark" opacity=".5" d="M${sx} ${sy - 5} Q${sx + .8} ${sy - .8} ${sx + 5} ${sy} Q${sx + .8} ${sy + .8} ${sx} ${sy + 5} Q${sx - .8} ${sy + .8} ${sx - 5} ${sy} Q${sx - .8} ${sy - .8} ${sx} ${sy - 5} Z"/>`); }
+      if (S.held.includes(f)) { const px = l - 10; s.push(`<path class="ppole" d="M${px} ${yy} L${px} ${yy - 12}"/><path class="pennant" d="M${px} ${yy - 12} L${px - 8} ${yy - 9} L${px} ${yy - 6} Z"/>`); }
+      if (f % 5 === 0 || f === S.deep || f === S.target || f === S.start + 1) s.push(`<text class="fl${lit ? " lit" : ""}" x="${l - (S.held.includes(f) ? 16 : 5)}" y="${yy + 3}" text-anchor="end">${f}</text>`);
+      if (f > S.deep && f <= S.deep + AHEAD) { const [word, heat] = feelOf(f); s.push(`<text class="fw ${heat}" x="${r + 6}" y="${yy + 3}">${word}</text>`); }
+      if (S.phase === "ready" && f > S.start && f <= S.deep + AHEAD) s.push(`<rect class="hit" data-floor="${f}" x="${l - 18}" y="${yy - h + 2}" width="${w - l + 16}" height="${h}" rx="4"><title>floor ${f}</title></rect>`);
+    }
+    // the flag
+    const ty = y(S.target), px = cx + half(S.target) - 6;
+    s.push(`<path class="pole" d="M${px} ${ty - 1} L${px} ${ty - 13}"/><path class="flag" d="M${px} ${ty - 13} L${px - 8} ${ty - 10} L${px} ${ty - 7} Z"/>`);
+    // bands
+    [["the well", g, a], ["the cellar", a, b]].forEach(([nm, t, bt]) => s.push(`<text class="band" x="0" y="0" text-anchor="middle" transform="translate(13 ${(t + bt) / 2}) rotate(-90)">${nm}</text>`));
+    // the well mouth
+    const rl = L0 - 9, rr2 = R0 + 9;
+    s.push(`<path class="grass" d="M0 ${g} Q${w * .12} ${g - 3} ${w * .25} ${g} T${w * .5} ${g} T${w * .75} ${g} T${w} ${g}"/>`);
+    [14, 32, 130, 150, 166].forEach(tx => s.push(`<path class="tuft" d="M${tx} ${g} l-3 -6 M${tx} ${g} l0 -8 M${tx} ${g} l3 -6"/>`));
+    s.push(`<path class="post" d="M${rl + 4} ${g - 12} L${rl + 4} ${g - 36} M${rr2 - 4} ${g - 12} L${rr2 - 4} ${g - 36}"/><path class="roof" d="M${rl - 9} ${g - 34} L${cx} ${g - 52} L${rr2 + 9} ${g - 34} Z"/>`);
+    s.push(`<path class="post" d="M${rl + 4} ${g - 30} L${rr2 - 4} ${g - 30}"/><circle class="stone" cx="${cx}" cy="${g - 30}" r="3"/><rect class="stone" x="${rl}" y="${g - 13}" width="${rr2 - rl}" height="13" rx="4"/>`);
+    return { svg: `<svg class="well" width="${w}" height="${H}" viewBox="0 0 ${w} ${H}" aria-hidden="true">${s.join("")}</svg>`, y, cx };
+  }
+
+  // ---------------- the depth ribbon (look B): the well on its side, floors as stops ----------------
+  function ribbon(W) {
+    // words above the grass, the trail underground, floor numbers under it, band names in the soil
+    const H = 100, x0 = 132, x1 = W - 24, n = SHOW_TO, gap = (x1 - x0) / (n - 1), gy = 40, ty = 62;
+    const x = f => f === 0 ? 96 : x0 + (f - 1) * gap;
+    const s = []; const R = S.run;
+    const cleared = S.phase === "run" ? Math.max(S.deep, ...R.floors.slice(0, R.shown).map(z => z.f)) : S.deep;
+    s.push(`<rect class="soil" x="0" y="${gy}" width="${W}" height="${H - gy}"/>`);
+    let seed = 31; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 40; i++) { const px = 120 + rnd() * (W - 130), py = gy + 6 + rnd() * 6; s.push(`<ellipse class="pebble" cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" rx="${(1.5 + rnd() * 1.5).toFixed(1)}" ry="1.2"/>`); }
+    s.push(`<path class="grass" d="M0 ${gy} Q${W * .1} ${gy - 3} ${W * .2} ${gy} T${W * .4} ${gy} T${W * .6} ${gy} T${W * .8} ${gy} T${W} ${gy}"/>`);
+    // the well mouth on the left, its shaft turning sideways into the trail
+    const cx = 62, rl = 44, rr2 = 80;
+    s.push(`<path class="shaft" d="M${cx - 9} ${gy} L${cx - 9} ${ty + 9} L${x(0)} ${ty + 9} L${x(0)} ${ty - 9} L${cx + 9} ${ty - 9} L${cx + 9} ${gy} Z"/><path class="wall" d="M${cx - 9} ${gy} L${cx - 9} ${ty + 9} L${x(0)} ${ty + 9} M${cx + 9} ${gy} L${cx + 9} ${ty - 9} L${x(0)} ${ty - 9}"/>`);
+    s.push(`<path class="post" d="M${rl + 4} ${gy - 10} L${rl + 4} ${gy - 28} M${rr2 - 4} ${gy - 10} L${rr2 - 4} ${gy - 28}"/><path class="roof" d="M${rl - 8} ${gy - 26} L${cx} ${gy - 39} L${rr2 + 8} ${gy - 26} Z"/><rect class="stone" x="${rl}" y="${gy - 11}" width="${rr2 - rl}" height="11" rx="4"/>`);
+    // the trail: lit to the deepest, dashed after
+    s.push(`<path class="trail lit" d="M${x(0)} ${ty} L${x(cleared)} ${ty}"/><path class="trail" d="M${x(cleared) + 6} ${ty} L${W - 6} ${ty}"/>`);
+    if (S.start) s.push(`<rect class="skip" x="${x(0)}" y="${ty - 11}" width="${x(S.start) - x(0)}" height="22" rx="6"/>`);
+    // bands, in the soil
+    [["the well", 1, 10], ["the cellar", 11, 20]].forEach(([nm, a, b]) => s.push(`<path class="land" d="M${x(a) - 8} ${H - 6} L${x(b) + 8} ${H - 6}" style="stroke-dasharray:none;opacity:.5"/><text class="band" x="${x(a) - 8}" y="${H - 11}" style="font-size:11px">${nm}</text>`));
+    for (let f = 1; f <= n; f++) {
+      const xx = x(f), lit = f <= cleared, kind = kindOf(f), yy = ty;
+      const now = S.phase === "run" && R.floors[R.shown] && R.floors[R.shown].f === f;
+      if (lit) s.push(`<circle class="glow" cx="${xx}" cy="${yy - 1}" r="9"/>`);
+      if (kind === "rope") s.push(`<circle class="stop${lit ? " lit" : ""}${now ? " now" : ""}" cx="${xx}" cy="${yy}" r="4.5"/>`);
+      else { const dw = kind === "tiny" ? 7 : 11, dh = kind === "tiny" ? 10 : 15;
+        s.push(`<path class="door" style="${lit ? "fill:var(--wisp);stroke:var(--wisp)" : ""}${now ? ";stroke:var(--pink)" : ""}" d="M${xx - dw / 2} ${yy + 5} L${xx - dw / 2} ${yy + 5 - dh + dw / 2} A${dw / 2} ${dw / 2} 0 0 1 ${xx + dw / 2} ${yy + 5 - dh + dw / 2} L${xx + dw / 2} ${yy + 5} Z"/>`);
+        if (kind === "knock") s.push(`<path class="boing" d="M${xx + 8} ${yy - 6} q 2 3 0 6 M${xx + 11} ${yy - 8} q 3 5 0 10"/>`); }
+      if (S.held.includes(f)) s.push(`<path class="ppole" d="M${xx - 10} ${yy + 5} L${xx - 10} ${yy - 9}"/><path class="pennant" d="M${xx - 10} ${yy - 9} L${xx - 18} ${yy - 6} L${xx - 10} ${yy - 3} Z"/>`);
+      s.push(`<text class="fl${lit ? " lit" : ""}" x="${xx}" y="${yy + 19}" text-anchor="middle">${f}</text>`);
+      if (f > S.deep && f <= S.deep + AHEAD) { const [word, heat] = feelOf(f); const anchor = f === n ? "end" : "middle", wx = f === n ? xx + 8 : xx;
+        s.push(`<text class="fw ${heat}" x="${wx}" y="${f % 2 ? gy - 8 : gy - 21}" text-anchor="${anchor}">${word}</text>`); }
+      if (S.phase === "ready" && f > S.start && f <= S.deep + AHEAD) s.push(`<rect class="hit" data-floor="${f}" x="${xx - gap / 2}" y="2" width="${gap}" height="${H - 20}" rx="6"><title>floor ${f}</title></rect>`);
+    }
+    const tx = x(S.target);
+    s.push(`<path class="pole" d="M${tx + 7} ${ty + 4} L${tx + 7} ${ty - 12}"/><path class="flag" d="M${tx + 7} ${ty - 12} L${tx + 15} ${ty - 9} L${tx + 7} ${ty - 6} Z"/>`);
+    return { svg: `<svg class="well" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" aria-hidden="true">${s.join("")}</svg>`, x, ly: ty };
+  }
+
+  // ---------------- LOOK A ----------------
+  function renderA() {
+    const R = S.run;
+    const geo = wellA();
+    let party = "";
+    if (S.phase === "run") {
+      const fl = R.floors[Math.min(R.shown, R.floors.length - 1)], prev = R.shown ? R.floors[R.shown - 1].f : S.start;
+      const yy = geo.y(prev) + (geo.y(fl.f) - geo.y(prev)) * .5;
+      party = `<div class="party" style="left:${geo.cx - 20}px; top:${yy - 18}px">${pet("lilac-blob")}${pet("gold-dragon")}${pet("mint-bear")}<span class="pill">${fmt(R.shown ? R.floors[R.shown - 1].walking : R.going)}</span></div>`;
+    }
+    let desk = "";
+    if (S.phase === "ready") desk = deskReadyA();
+    else if (S.phase === "run") desk = deskRunA();
+    else desk = deskHomeA();
+    const sc = content.querySelector(".a-scroll"), keep = sc ? sc.scrollTop : null;
+    content.innerHTML = `<div class="page2">${bar()}<div class="a-body">
+      <div class="a-well panel"><h2>the old well</h2><div class="a-scroll">${geo.svg}${party}</div></div>
+      <div class="a-desk">${desk}</div></div></div>`;
+    const sc2 = content.querySelector(".a-scroll");
+    if (S.phase === "run") { const fl = R.floors[Math.min(R.shown, R.floors.length - 1)]; sc2.scrollTop = Math.max(0, geo.y(fl.f) - sc2.clientHeight / 2); }
+    else sc2.scrollTop = keep !== null ? keep : Math.max(0, geo.y(S.target) - sc2.clientHeight * .65);
+  }
+  function deskReadyA() {
+    const shelves = TIERS.filter(t => S.have[t] > 0).map(t => {
+      const cap = S.have[t], on = S.herd[t] / cap * 10;
+      const pips = Array.from({ length: 10 }, (_, k) => on >= k + 1 ? `<i class="on"></i>` : on > k ? `<i class="part" style="--p:${((on - k) * 100).toFixed(0)}%"></i>` : `<i></i>`).join("");
+      const all = S.herd[t] >= cap;
+      return `<div class="shelf" style="--tc:var(--tier-${t})"><span class="tn">${t}<small>of ${fmt(cap)}</small></span>
+        <div class="pips" data-pips="${t}">${pips}</div><output class="${S.herd[t] ? "" : "zero"}">${fmt(S.herd[t])}</output>
+        <button class="allbtn${all ? " on" : ""}" data-all="${t}">${all ? "all" : "all"}</button></div>`; }).join("");
+    return `<div class="a-army card">
+        <div class="a-head"><span class="h3">the army</span>${countBig()}${gate()}<button class="btn small" data-fill ${sent() >= ENTRANCE ? "disabled" : ""}>fill up</button><button class="link2" data-empty>empty</button></div>
+        <div class="a-front">
+          <div class="fcards">${S.front.map((p, i) => card(p, i)).join("")}</div>
+          <div class="side"><span class="sub"><span class="h3">front row</span></span><button class="link2" data-best>best ones</button><button class="link2">pick ›</button></div>
+        </div>
+        <div class="sub" style="align-items:flex-end"><span class="h3">walking behind</span><span>${fmt(herdN())}</span><span style="flex:1"></span>${moundHtml(herdN(), 200, 26, 30, 7)}</div>
+        <div class="shelves">${shelves}</div>
+      </div>
+      <div class="a-orders card">
+        <div class="lines">
+          <div class="oline"><span class="h3" style="width:62px">orders</span><span>start from</span>${startPick()}</div>
+          <div class="oline"><span style="width:62px"></span><span>down to floor</span>${targetStep()}${feelPill(S.target)}</div>
+          <div class="oline"><span>come home when</span>${homePick()}<span>are gone</span></div>
+          <div class="oline"><span>who goes first</span>${firstPick()}</div>
+        </div>
+        <div class="gocol">${goBtn()}</div>
+      </div>
+      <div class="a-last"><span>last time</span><span>floor <b>${S.last.floor}</b></span><span><b class="w">+${fmt(S.last.got)}</b> wisps</span><span><b>${fmt(S.last.back)}</b> of ${fmt(S.last.sent)} came home</span></div>`;
+  }
+  function deskRunA() {
+    const R = S.run, done = R.floors.slice(0, R.shown), fl = R.floors[Math.min(R.shown, R.floors.length - 1)];
+    const walking = done.length ? done[done.length - 1].walking : R.going;
+    const lost = done.reduce((a, x) => a + x.lost, 0), hurt = done.reduce((a, x) => a + x.hurt, 0), got = done.reduce((a, x) => a + x.pay, 0);
+    const rows = done.slice().reverse().map(x => `<div class="frow${x.known ? " zoomed" : ""}${x === R.fresh ? " fresh" : ""}"><span class="fnum">${x.f}</span><span class="feel ${x.heat}">${x.word}</span>${ghosts(x, 8)}${bumps(x.hurt)}${payTag(x.pay)}</div>`).join("");
+    return `<div class="a-run card">
+      <div class="now"><span class="big">floor ${fl.f} <small>of ${S.target}</small></span>
+        <div class="line1"><span class="muted">${bandOf(fl.f)}</span><span class="feel ${fl.heat}">${fl.word}</span></div>
+        <div class="walk${fl.known ? " zoom" : ""}" data-walk><i style="--f:${walkFrac()}"></i></div></div>
+      <div class="tallies">
+        <div class="tally"><b>${fmt(walking)}</b><span>walking</span></div>
+        <div class="tally"><b style="display:inline-flex;align-items:center;gap:6px"><span class="plaster" style="position:relative;right:auto;top:auto"></span>${fmt(hurt)}</b><span>bumped</span></div>
+        <div class="tally quiet"><b>${fmt(lost)}</b><span>stayed below</span></div>
+        <div class="tally" style="align-items:flex-end"><b style="color:var(--wisp);display:inline-flex;align-items:center;gap:4px">+${fmt(got)}${WISP(18)}</b><span>so far</span></div>
+      </div>
+      <div class="a-front small"><div class="fcards">${S.front.map((p, i) => miniCard(p, i, R)).join("")}</div></div>
+      <div class="a-log">${rows || `<div class="muted" style="font-size:12px;padding:4px 2px">${S.start ? `landing ${S.start}, everyone holding on` : "down the rope"}</div>`}</div>
+    </div>`;
+  }
+  function deskHomeA() {
+    const R = S.run, fl = R.floors;
+    const maxLost = Math.max(1, ...fl.map(x => x.lost));
+    const barsH = fl.map(x => `<div class="b${x.f > S.deep - (R.newDeep ? 0 : 99) && x.f > (R.newDeep ? R.deepest - 2 : 999) ? " new" : ""}"><small class="muted">${x.lost ? fmt(x.lost) : ""}</small><i class="${x.lost ? (x.heat ? "hot" : "") : "zero"}" style="height:${(x.lost / maxLost * 40 + 2).toFixed(0)}px"></i><small>${x.f}</small><small class="${x.heat}" style="color:var(--${x.heat === "hot" ? "pink" : "muted"})">${x.word}</small></div>`).join("");
+    const shelfRows = TIERS.filter(t => R.lostHerd[t] || R.hurtHerd[t]).map(t => `<div style="--tc:var(--tier-${t})"><span class="tn">${t}</span><span><span class="plaster" style="position:relative;display:inline-block;right:auto;top:auto;transform:rotate(-20deg);margin-right:4px"></span>${fmt(R.hurtHerd[t] || 0)}</span><span class="q">${R.lostHerd[t] ? `${fmt(R.lostHerd[t])} stayed below` : ""}</span></div>`).join("");
+    const best = R.best ? `<div class="best"><span class="tag">best bit</span>${DOOR}<span>${R.best.text}</span><span class="muted" style="margin-left:auto">${R.best.tag}</span></div>` : "";
+    return `<div class="a-home card">
+      <div class="hh"><h2>${R.why === "home" ? "home early" : "home!"}</h2>${R.newDeep ? `<span class="deeptag">deepest yet: floor ${R.deepest}</span>` : ""}<span class="muted" style="margin-left:auto;font-size:12px">${S.start ? `landing ${S.start} to floor ${R.deepest}` : `the top to floor ${R.deepest}`}</span></div>
+      <div class="stats">
+        <div class="stat"><b class="w">+${fmt(R.got)}${WISP(20)}</b><span>wisps</span></div>
+        <div class="stat"><b>${fmt(R.going - R.lostAll)}</b><span>came home of ${fmt(R.going)}</span></div>
+        <div class="stat"><b><span class="plaster" style="position:relative;right:auto;top:auto"></span>${fmt(R.hurtAll)}</b><span>bumped</span></div>
+        <div class="stat"><b class="q">${fmt(R.lostAll)}</b><span>stayed below</span></div>
+      </div>
+      <div class="who">
+        <div style="display:flex;flex-direction:column;gap:6px"><span class="sub"><span class="h3">front row</span></span><div class="fcards">${S.front.map((p, i) => miniCard(p, i, R)).join("")}</div></div>
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:0"><span class="sub"><span class="h3">walking behind</span></span><div class="shelfout">${shelfRows}</div></div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:5px"><span class="sub"><span class="h3">floor by floor</span></span><div class="bars">${barsH}</div></div>
+      ${best}
+      <div class="foot"><button class="btn go" data-again>same again!</button><button class="btn" data-done>change the army</button></div>
+    </div>`;
+  }
+
+  // ---------------- LOOK B ----------------
+  function renderB() {
+    const R = S.run;
+    let body = "";
+    if (S.phase === "ready") body = bodyReadyB();
+    else if (S.phase === "run") body = bodyRunB();
+    else body = bodyHomeB();
+    content.innerHTML = `<div class="page2">${bar()}<div class="b-ribbon panel"><span class="sign">the old well</span><div class="rib"></div></div><div class="b-body">${body}</div></div>`;
+    const rib = content.querySelector(".rib"), W = content.querySelector(".b-ribbon").clientWidth - 4;
+    const geo = ribbon(W);
+    let party = "";
+    if (S.phase === "run") {
+      const fl = R.floors[Math.min(R.shown, R.floors.length - 1)], prev = R.shown ? R.floors[R.shown - 1].f : S.start;
+      const xx = geo.x(prev) + (geo.x(fl.f) - geo.x(prev)) * .5;
+      party = `<div class="party" style="left:${xx - 12}px; top:${geo.ly - 26}px">${pet("lilac-blob")}${pet("gold-dragon")}${pet("mint-bear")}<span class="pill">${fmt(R.shown ? R.floors[R.shown - 1].walking : R.going)}</span></div>`;
+    } else if (S.phase === "home") {
+      party = `<div class="party" style="left:84px; top:4px">${pet("lilac-blob")}${pet("gold-dragon")}${pet("mint-bear")}</div>`;
+    }
+    rib.innerHTML = geo.svg + party;
+  }
+  function bodyReadyB() {
+    const chips = TIERS.filter(t => S.have[t] > 0).map(t => { const on = S.herd[t] > 0;
+      return `<button class="schip${on ? " on" : ""}" style="--tc:var(--tier-${t})" data-toggle="${t}"><span class="chk"></span><span class="tn">${t}</span><b>${fmt(S.herd[t])}</b><small>of ${fmt(S.have[t])}</small></button>`; }).join("");
+    return `<div class="b-who card">
+        <div class="hd"><span class="h3">who's going</span>${countBig()}<span style="flex:1"></span><button class="btn small" data-fill ${sent() >= ENTRANCE ? "disabled" : ""}>fill up</button><button class="link2" data-empty>empty</button></div>
+        ${gate()}
+        <div class="fr"><div class="fcards">${S.front.map((p, i) => card(p, i)).join("")}</div>
+          <div style="display:flex;flex-direction:column;gap:5px;align-items:flex-start"><span class="h3" style="font-size:13px">front row</span><button class="link2" data-best>best ones</button><button class="link2">pick ›</button></div></div>
+        <div class="stitch"></div>
+        <div class="sub" style="align-items:flex-end"><span class="h3">walking behind</span><span>${fmt(herdN())}</span><span style="flex:1"></span>${moundHtml(herdN(), 220, 44, 40, 9)}</div>
+        <div class="shelfchips">${chips}</div>
+      </div>
+      <div class="b-side">
+        <div class="b-orders card">
+          <span class="h3">orders</span>
+          <div class="ol"><div class="row"><span>start from</span>${startPick()}</div></div>
+          <div class="ol"><div class="row"><span>down to floor</span>${targetStep()}${feelPill(S.target)}</div></div>
+          <div class="ol"><span>come home when</span><div class="row">${homePick()}<span>are gone</span></div></div>
+          <div class="ol"><span>who goes first</span><div class="row">${firstPick()}</div></div>
+          ${goBtn()}
+        </div>
+        <div class="b-last card"><span class="h3" style="font-size:13px">last time</span>
+          <div class="r"><span>floor <b>${S.last.floor}</b></span><span><b class="w">+${fmt(S.last.got)}</b> wisps</span><span><b>${fmt(S.last.back)}</b> home</span></div></div>
+      </div>`;
+  }
+  function bodyRunB() {
+    const R = S.run, done = R.floors.slice(0, R.shown), fl = R.floors[Math.min(R.shown, R.floors.length - 1)];
+    const walking = done.length ? done[done.length - 1].walking : R.going;
+    const lost = done.reduce((a, x) => a + x.lost, 0), hurt = done.reduce((a, x) => a + x.hurt, 0), got = done.reduce((a, x) => a + x.pay, 0);
+    const tile = x => `<div class="tile${x.known ? " zoomed" : ""}${x === R.fresh ? " fresh" : ""}"><div class="t1"><span class="fnum">${x.f}</span><span class="feel ${x.heat}">${x.word}</span>${payTag(x.pay)}</div>
+        <div class="t1">${x.lost ? `<span class="ghosts">${(x.lostCards.map(i => S.front[i].id).concat(Object.entries(x.lostHerd).flatMap(([t, n]) => Array.from({ length: Math.min(n, 2) }, (_, k) => KINDS[t][k % KINDS[t].length])))).slice(0, 3).map(id => pet(id)).join("")}<span>${fmt(x.lost)}</span></span>` : `<span class="ghosts"><span>everyone</span></span>`}<span style="margin-left:auto">${bumps(x.hurt)}</span></div></div>`;
+    const nowTile = R.shown < R.floors.length ? `<div class="tile now"><div class="t1"><span class="fnum" style="color:var(--pink)">${fl.f}</span><span class="feel ${fl.heat}">${fl.word}</span></div><span class="muted">${bandOf(fl.f)}</span><div class="walk${fl.known ? " zoom" : ""}" data-walk><i style="--f:${walkFrac()}"></i></div></div>` : "";
+    return `<div class="b-log card"><div class="sub"><span class="h3">on the way down</span><span>${S.start ? `from landing ${S.start}` : "from the top"} to floor ${S.target}</span></div>
+        <div class="tiles">${done.map(tile).join("")}${nowTile}</div></div>
+      <div class="b-side"><div class="b-now card">
+        <div class="row"><div class="tally"><b style="font-size:26px">${fmt(walking)}</b><span>walking</span></div>${moundHtml(walking - 20, 120, 34, 26, 11)}</div>
+        <div class="stitch"></div>
+        <div class="row"><div class="tally"><b style="display:inline-flex;align-items:center;gap:6px"><span class="plaster" style="position:relative;right:auto;top:auto"></span>${fmt(hurt)}</b><span>bumped</span></div>
+          <div class="tally quiet"><b>${fmt(lost)}</b><span>stayed below</span></div>
+          <div class="tally" style="align-items:flex-end"><b style="color:var(--wisp);display:inline-flex;align-items:center;gap:4px">+${fmt(got)}${WISP(18)}</b><span>so far</span></div></div>
+        <div class="stitch"></div>
+        <span class="h3" style="font-size:13px">front row</span>
+        <div class="fm">${S.front.map((p, i) => miniCard(p, i, R)).join("")}</div>
+      </div></div>`;
+  }
+  function bodyHomeB() {
+    const R = S.run;
+    const faces = S.front.map((p, i) => miniCard(p, i, R)).join("");
+    const best = R.best ? `<div class="best" style="padding:6px 10px"><span class="tag">best bit</span>${DOOR}<span>${R.best.text}</span><span class="muted" style="margin-left:auto">${R.best.tag}</span></div>` : "";
+    return `<div class="b-post card">
+      <div class="scene">${postScene(R)}</div>
+      <div class="txt">
+        <div class="ph"><h2>home from floor ${R.deepest}!</h2>${R.newDeep ? `<span class="deeptag">deepest yet!</span>` : ""}</div>
+        <div class="pmid"><div class="wbig">+${fmt(R.got)}${WISP(30)}</div>
+          <div class="lines">
+            <span>went down</span><b>${fmt(R.going)}</b>
+            <span>bumped</span><b style="display:inline-flex;align-items:center;gap:6px"><span class="plaster" style="position:relative;right:auto;top:auto"></span>${fmt(R.hurtAll)}</b>
+            <span>came home</span><b>${fmt(R.going - R.lostAll)}</b>
+            <span>stayed below</span><b class="q">${fmt(R.lostAll)}</b>
+          </div></div>
+        <div class="faces">${faces}</div>
+        <div class="bars" style="height:62px">${barsOf(R)}</div>
+        ${best}
+        <div class="foot"><button class="btn go" data-again>same again!</button><button class="btn" data-done>ok</button></div>
+      </div>
+      <div class="stamp"><span>floor<b>${R.deepest}</b></span></div>
+    </div>`;
+  }
+  function barsOf(R) {
+    const maxLost = Math.max(1, ...R.floors.map(x => x.lost));
+    return R.floors.map(x => `<div class="b"><small class="muted">${x.lost ? fmt(x.lost) : ""}</small><i class="${x.lost ? (x.heat ? "hot" : "") : "zero"}" style="height:${(x.lost / maxLost * 30 + 2).toFixed(0)}px"></i><small>${x.f}</small></div>`).join("");
+  }
+  function postScene(R) {   // the crowd coming back up out of the well mouth, with your pet's flag
+    const w = 246, h = 330, g = 190, cx = 124;
+    const s = [`<rect x="0" y="${g}" width="${w}" height="${h - g}" fill="color-mix(in srgb, var(--deep) 40%, var(--paper))"/>`,
+      `<path d="M0 ${g} Q60 ${g - 4} 124 ${g} T${w} ${g}" fill="none" stroke="var(--mint)" stroke-width="2.5" stroke-linecap="round"/>`,
+      `<rect x="${cx - 24}" y="${g}" width="48" height="${h - g}" fill="var(--deep)"/>`,
+      `<path d="M${cx - 24} ${g} L${cx - 24} ${h} M${cx + 24} ${g} L${cx + 24} ${h}" stroke="var(--lilac-seam)" stroke-width="2.5"/>`,
+      `<path d="M${cx - 30} ${g - 14} L${cx - 30} ${g - 50} M${cx + 30} ${g - 14} L${cx + 30} ${g - 50}" stroke="var(--lilac)" stroke-width="2.4" stroke-linecap="round"/>`,
+      `<path d="M${cx - 44} ${g - 46} L${cx} ${g - 74} L${cx + 44} ${g - 46} Z" fill="color-mix(in srgb, var(--pink-seam) 40%, var(--raised))" stroke="var(--pink-seam)" stroke-width="2.4" stroke-linejoin="round"/>`,
+      `<rect x="${cx - 36}" y="${g - 16}" width="72" height="16" rx="4" fill="var(--raised)" stroke="var(--lilac)" stroke-width="2.4"/>`];
+    for (let i = 0; i < 9; i++) { const yy = g + 16 + i * 11; s.push(`<path d="M${cx - 22} ${yy} Q${cx} ${yy + 5} ${cx + 22} ${yy}" fill="none" stroke="var(--wisp)" stroke-width="2"/>`); }
+    [[30, 40], [200, 60], [60, 90], [176, 24], [110, 30]].forEach(([x, y]) => s.push(`<path d="M${x} ${y - 3} Q${x + .6} ${y - .6} ${x + 3} ${y} Q${x + .6} ${y + .6} ${x} ${y + 3} Q${x - .6} ${y + .6} ${x - 3} ${y} Q${x - .6} ${y - .6} ${x} ${y - 3} Z" fill="var(--gold)" opacity=".6"/>`));
+    const back = Math.max(1, R.going - R.lostAll);
+    const left = moundHtml(back, 84, 46, 30, 13), right = moundHtml(back, 84, 46, 30, 17);
+    return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" style="display:block">${s.join("")}</svg>
+      <div style="position:absolute;left:8px;top:${g - 44}px">${left}</div><div style="position:absolute;right:6px;top:${g - 44}px">${right}</div>
+      <div style="position:absolute;left:${cx - 16}px;top:${g - 52}px;width:32px;height:36px">${pet("lilac-blob")}<span style="position:absolute;left:-6px;top:-10px;width:16px;height:16px;transform:rotate(-12deg)">${FLAG}</span></div>`;
+  }
+
+  // ---------------- wiring ----------------
+  const render = () => { (LOOK === "A" ? renderA : renderB)(); wire(); };
+  function wire() {
+    const on = (sel, fn) => content.querySelectorAll(sel).forEach(b => b.addEventListener("click", e => fn(b, e)));
+    on("[data-fill]", () => { fillUp(); render(); if (sent() >= ENTRANCE) say("that's everyone who fits! the entrance is only so big."); });
+    on("[data-empty]", () => { TIERS.forEach(t => { S.herd[t] = 0; }); render(); });
+    on("[data-best]", () => { S.front = FRONT0.map(p => ({ ...p })); say("the strongest ones up front! i picked them myself ♡"); render(); });
+    on("[data-all]", b => { const t = b.dataset.all; setShelf(t, S.herd[t] >= S.have[t] ? 0 : S.have[t]); render(); });
+    on("[data-toggle]", b => { const t = b.dataset.toggle; setShelf(t, S.herd[t] > 0 ? 0 : S.have[t]); render(); if (room() <= 0 && S.herd[t] < S.have[t] && S.herd[t] > 0) say("squish! nobody else fits through the entrance."); });
+    on("[data-t]", b => { S.target = Math.max(S.start + 1, Math.min(S.deep + AHEAD, S.target + Number(b.dataset.t))); render(); });
+    on("[data-start]", b => { S.start = Number(b.dataset.start); S.target = Math.max(S.target, S.start + 1); render(); });
+    on("[data-home]", b => { S.home = Number(b.dataset.home); render(); });
+    on("[data-first]", b => { S.first = b.dataset.first; render(); });
+    on("[data-go]", go);
+    on("[data-again]", again);
+    on("[data-done]", done);
+    content.querySelectorAll(".hit").forEach(h => h.addEventListener("click", () => { S.target = Number(h.dataset.floor); render(); }));
+    // the pips are a slider: tap or drag along them
+    content.querySelectorAll("[data-pips]").forEach(el => {
+      const t = el.dataset.pips;
+      const set = e => { const r = el.getBoundingClientRect(); const k = Math.max(0, Math.min(10, Math.ceil((e.clientX - r.left) / r.width * 10)));
+        const cur = Math.round(S.herd[t] / S.have[t] * 10); setShelf(t, (k === cur && e.type === "pointerdown") ? Math.round(S.have[t] * (k - 1) / 10) : Math.round(S.have[t] * k / 10)); };
+      el.addEventListener("pointerdown", e => { el.setPointerCapture(e.pointerId); set(e); render(); });
+    });
+  }
+  // the walking bar fills between floors
+  (function anim() { const el = content.querySelector("[data-walk] i"); if (el && S.phase === "run") el.style.setProperty("--f", walkFrac()); requestAnimationFrame(anim); })();
+
+  // ---------------- start ----------------
+  const state = q.get("state") || "ready", pos = q.get("pos");
+  if (state === "run" || pos !== null) {
+    fillUp(); S.run = simulate(); S.phase = "run";
+    const n = pos !== null ? Math.min(Number(pos), S.run.floors.length - 1) : 3;
+    S.run.shown = n; S.run.ms = 1; startedAt = performance.now() - 1;
+    S.wisps += S.run.floors.slice(0, n).reduce((a, x) => a + x.pay, 0);
+    say(`floor ${S.run.floors[n].f}! it echoes down here!`);
+    render();
+    content.querySelectorAll("[data-walk] i").forEach(i => i.style.setProperty("--f", .6));
+    S.run.ms = 0;
+  } else if (state === "home") {
+    fillUp(); S.run = simulate(); S.phase = "run"; S.run.shown = S.run.floors.length; S.wisps += S.run.got; finish();
+  } else render();
+  applyLook(loadLook());
+</script>
+</body>
+</html>

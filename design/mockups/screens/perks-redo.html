@@ -1,0 +1,473 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perks Redo</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* P4: the wisps perks, off the 40 px nail lane. Every reached perk at once, levels + price on each,
+     the ones you can afford in solid coral, one tap buys. Only the next unreached one shows (the Carrot
+     Rule), as a chalk outline with "down to landing N". Plushie perks stay hidden until the machine.
+     ?look=A  the well wall: an overlay that drops from the wisps pill (dungeon page, plushie machine),
+              tags on nails, ONE coral thread through them = today's strict chain.
+     ?look=B  the sewing box: a 4th page in the adventures switch, the bow (entrance) on the lid holds
+              three threads = the chain loosened into branches (a decision for Emilia).
+     ?state=mid (default: down to landing 30) | end (landing 41, plushie open, the tips show)
+     ?wisps=<n> to play with more. Numbers come from data/perks.json. */
+  :root { --wisp: #ff9e7d; --chalk: color-mix(in srgb, var(--text) 62%, transparent); }
+
+  /* the full tab row of this stage (as in dungeon.html) */
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+
+  .label-look { position: fixed; right: 12px; bottom: 8px; font: 400 12px/1 var(--display); color: var(--muted); }
+  .stage { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; user-select: none; }
+  .bar { display: flex; align-items: center; gap: 10px; }
+  .seg button { position: relative; }
+  .seg .new, .wispchip .new { position: absolute; top: -3px; right: -3px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); box-shadow: 0 0 0 2px var(--page); }
+  .wispchip { margin-left: auto; position: relative; display: flex; align-items: center; gap: 7px; padding: 2px 14px 2px 8px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--wisp) 40%, var(--line)); color: var(--wisp); cursor: pointer; font: inherit; }
+  .wispchip b { font: 400 18px/1 var(--display); color: var(--wisp); font-variant-numeric: tabular-nums; }
+  .wispchip.open { border-color: var(--wisp); background: color-mix(in srgb, var(--wisp) 16%, var(--deep)); }
+  .wispchip.bump b { animation: bump .5s var(--ease-out); }
+  @keyframes bump { 30% { transform: scale(1.2); color: var(--text); } }
+  .wispico { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; display: block; }
+  .h3 { margin: 0; font: 400 15px/1 var(--display); color: var(--lilac); white-space: nowrap; }
+  .x { margin-left: auto; width: 24px; height: 24px; border: 0; background: none; color: var(--muted); border-radius: 6px; cursor: pointer; }
+  .x:hover { color: var(--pink); background: var(--deep); }
+
+  /* the things (PerkNail.THINGS) */
+  .thing { display: block; flex: none; overflow: visible; }
+  .thing * { fill: color-mix(in srgb, var(--wisp) 30%, transparent); stroke: var(--wisp); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .thing.next * { fill: none; stroke: color-mix(in srgb, var(--wisp) 75%, var(--lilac-seam)); stroke-dasharray: 2.4 2.4; }
+  .thing.off * { fill: none; stroke: color-mix(in srgb, var(--lilac) 50%, var(--lilac-seam)); stroke-dasharray: 2.4 2.4; }
+  .thing.carrot * { fill: none; stroke: var(--chalk); stroke-dasharray: 2 3; }
+
+  .pips { display: flex; gap: 3px; }
+  .pips i { width: 7px; height: 7px; border-radius: 50%; border: 1.5px solid color-mix(in srgb, var(--wisp) 45%, var(--line)); }
+  .pips i.on { background: var(--wisp); border-color: var(--wisp); }
+  .lvpill { display: inline-block; padding: 0 6px; border-radius: 999px; font-size: 10px; line-height: 14px; color: var(--wisp); border: 2px solid color-mix(in srgb, var(--wisp) 45%, var(--line)); background: var(--deep); white-space: nowrap; }
+  .eff { font-size: 11px; line-height: 1.3; color: var(--text); font-variant-numeric: tabular-nums; }
+  .eff .what { color: var(--muted); }
+  .eff .ar { color: var(--muted); }
+  .eff b { font-weight: 400; color: var(--wisp); }
+  .meter { position: relative; height: 8px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--lilac) 40%, var(--line)); }
+  .meter i { position: absolute; inset: 0 auto 0 0; width: calc(var(--f) * 100%); background: var(--lilac); border-radius: 999px; }
+
+  /* buy: affordable = solid coral; short = sunk + muted; waiting on the one before = just the price, faint */
+  .buy { display: flex; align-items: center; gap: 5px; border-radius: 8px; border: 2px solid var(--line); background: var(--deep); color: var(--muted); font: inherit; font-size: 12px; white-space: nowrap; cursor: default; padding: 3px 9px; font-variant-numeric: tabular-nums; }
+  .buy .wispico { width: 15px; height: 15px; }
+  .buy.can { background: var(--wisp); border-color: var(--wisp); color: var(--deep); cursor: pointer; box-shadow: 0 3px 0 color-mix(in srgb, var(--wisp) 45%, var(--deep)); transition: transform .08s var(--ease-out); }
+  .buy.can:hover { background: color-mix(in srgb, var(--wisp) 85%, var(--text)); }
+  .buy.can:active { transform: translateY(2px) scale(.96); box-shadow: 0 1px 0 color-mix(in srgb, var(--wisp) 45%, var(--deep)); }
+  .buy.wait { border-style: dashed; border-color: var(--line); background: none; color: color-mix(in srgb, var(--muted) 70%, transparent); }
+  .done { font-size: 11px; color: var(--pink); border: 2px dashed var(--pink-seam); border-radius: 8px; padding: 2px 8px; white-space: nowrap; transform: rotate(-3deg); display: inline-block; }
+  @keyframes swing { 0% { transform: rotate(var(--r)) scale(1); } 20% { transform: rotate(calc(var(--r) + 7deg)) scale(1.06); } 45% { transform: rotate(calc(var(--r) - 5deg)); } 70% { transform: rotate(calc(var(--r) + 2deg)); } 100% { transform: rotate(var(--r)); } }
+
+  /* ================= look A: the well wall ================= */
+  .under { flex: 1; min-height: 0; display: grid; grid-template-columns: 236px 1fr 236px; gap: 10px; }
+  .under .panel { border-radius: var(--r-panel); border: 2px solid var(--line); background: var(--paper); padding: 10px 12px; }
+  .under .panel.r { background: var(--raised); }
+  .sheet { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 4px; padding: 8px 10px 6px 12px; border-radius: var(--r-panel); border: 2px solid color-mix(in srgb, var(--wisp) 45%, var(--lilac-seam)); box-shadow: var(--lift);
+    background-color: color-mix(in srgb, var(--deep) 40%, var(--paper));
+    background-image: radial-gradient(circle at 20% 30%, var(--line) 1.5px, transparent 2px), radial-gradient(circle at 70% 75%, var(--line) 2px, transparent 2.6px), radial-gradient(circle at 45% 55%, color-mix(in srgb, var(--line) 70%, transparent) 1px, transparent 1.5px);
+    background-size: 110px 84px, 150px 120px, 64px 58px; }
+  .sheet::before { content: ""; position: absolute; top: -9px; right: 46px; width: 14px; height: 14px; transform: rotate(45deg); background: color-mix(in srgb, var(--deep) 40%, var(--paper)); border-left: 2px solid color-mix(in srgb, var(--wisp) 45%, var(--lilac-seam)); border-top: 2px solid color-mix(in srgb, var(--wisp) 45%, var(--lilac-seam)); }
+  .sheet .head { display: flex; align-items: center; gap: 10px; }
+  .sheet .head .h3 { color: var(--wisp); }
+  .scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--lilac-seam) transparent; }
+  .board { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px 14px; padding: 2px 4px 8px; }
+  .board svg.thread { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 0; overflow: visible; }
+  .thread path { fill: none; stroke-width: 2; stroke-linecap: round; }
+  .thread .lit { stroke: var(--wisp); opacity: .8; }
+  .thread .dim { stroke: var(--chalk); stroke-dasharray: 3 5; opacity: .5; }
+  .tally { position: absolute; right: 14px; bottom: 10px; opacity: .22; pointer-events: none; }
+  .tally path { fill: none; stroke: var(--text); stroke-width: 1.6; stroke-linecap: round; }
+
+  .hang { position: relative; z-index: 1; padding-top: 12px; }
+  .hang .nailhead { position: absolute; left: 50%; top: 2px; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--muted); z-index: 3; }
+  .hang .string { position: absolute; left: 50%; top: 5px; width: 2px; height: 14px; margin-left: -1px; background: var(--muted); z-index: 3; }
+  .tag { --r: 0deg; position: relative; display: grid; grid-template-columns: 28px 1fr; gap: 5px 7px; padding: 12px 9px 8px; border-radius: 10px; background: var(--raised); border: 2px solid var(--lilac-seam); box-shadow: var(--lift); transform: rotate(var(--r)); transform-origin: 50% 0; }
+  .tag::after { content: ""; position: absolute; left: 50%; top: 4px; width: 8px; height: 8px; margin-left: -4px; border-radius: 50%; background: var(--deep); border: 2px solid var(--line); }
+  .tag .nm { font: 400 13px/1.1 var(--display); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tag .eff .what { display: block; }
+  .tag .eff .n { white-space: nowrap; }
+  .tag .foot .done { margin-left: auto; }
+  .tag.st-max { padding-bottom: 9px; }
+  .tag .who { display: flex; flex-direction: column; gap: 4px; justify-content: center; min-width: 0; }
+  .tag .eff { grid-column: 1 / -1; }
+  .tag .buy { grid-column: 1 / -1; justify-content: space-between; padding: 4px 10px; }
+  .tag .buy span.p { display: inline-flex; align-items: center; gap: 4px; }
+  .tag .foot { grid-column: 1 / -1; display: flex; align-items: center; min-height: 26px; }
+  .tag.st-buy { border-color: var(--wisp); }
+  .tag.st-max { border-color: color-mix(in srgb, var(--wisp) 40%, var(--lilac-seam)); }
+  .tag.st-wait { border-style: dashed; background: color-mix(in srgb, var(--raised) 55%, var(--page)); box-shadow: none; }
+  .tag.st-wait .nm { color: var(--muted); }
+  .tag.st-carrot { border: 2px dashed var(--chalk); background: color-mix(in srgb, var(--deep) 60%, var(--page)); box-shadow: none; }
+  .tag.st-carrot .nm { color: var(--chalk); }
+  .tag .goal { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 5px; font-size: 11px; color: var(--muted); }
+  .tag .goal .row { display: flex; align-items: center; gap: 8px; white-space: nowrap; }
+  .tag .goal .row .meter { flex: 1; }
+  .tag .goal .row b { font-weight: 400; color: var(--text); font-variant-numeric: tabular-nums; }
+  .tag.tip { border-color: color-mix(in srgb, var(--gold) 35%, var(--lilac-seam)); }
+  .tag.tip.st-buy { border-color: var(--wisp); }
+  .tag.pop { animation: swing .6s var(--ease-out); }
+
+  /* ================= look B: the sewing box ================= */
+  .box { position: relative; flex: 0 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 10px; padding: 10px 8px; border-radius: 16px; background: var(--raised); border: 3px solid var(--lilac-seam); box-shadow: var(--lift); }
+  .box svg.threads { position: absolute; left: 0; top: 0; pointer-events: none; z-index: 0; overflow: visible; }
+  .threads path { fill: none; stroke-width: 2; stroke-linecap: round; }
+  .threads .lit { stroke: var(--wisp); opacity: .85; }
+  .threads .dim { stroke: var(--chalk); stroke-dasharray: 3 5; opacity: .55; }
+  .lid { position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 300px 1fr; align-items: center; gap: 10px; }
+  .cushion { display: flex; align-items: center; gap: 8px; }
+  .cushion svg * { stroke-linecap: round; stroke-linejoin: round; }
+  .buttons { justify-self: end; }
+  .trays { position: relative; z-index: 1; min-height: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .col { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .tray { display: flex; flex-direction: column; gap: 6px; padding: 7px 5px 6px; border-radius: 12px; background: var(--deep); border: 2px solid var(--line); box-shadow: inset 0 3px 0 rgba(6, 2, 12, .45); }
+  .tray > .h3 { font-size: 13px; padding: 0 4px 1px; }
+  .slot { position: relative; display: grid; grid-template-columns: 30px 1fr auto; grid-template-rows: auto auto; gap: 2px 6px; align-items: center; padding: 5px 6px 5px 5px; border-radius: 10px; background: var(--raised); border: 2px solid var(--lilac-seam); }
+  .slot + .slot::before { content: ""; position: absolute; left: 18px; top: -10px; width: 0; height: 8px; border-left: 2px dashed var(--chalk); opacity: .6; }
+  .slot.linked + .slot.linked::before, .slot.linked + .slot.lit::before { border-left: 2px solid var(--wisp); opacity: .85; }
+  .slot .well { grid-row: 1 / 3; width: 30px; height: 38px; border-radius: 9px; background: var(--deep); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+  .slot .well .pips { gap: 2px; }
+  .slot .well .pips i { width: 5px; height: 5px; border-width: 1px; }
+  .slot .nm { font: 400 13px/1.15 var(--display); color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .slot .eff { grid-column: 2 / 4; font-size: 10.5px; }
+  .slot .buy { padding: 1px 7px; font-size: 11px; gap: 3px; }
+  .slot .buy .wispico { width: 13px; height: 13px; }
+  .slot .done { font-size: 10px; padding: 0 6px; }
+  .slot.st-buy { border-color: var(--wisp); }
+  .slot.st-wait { border-style: dashed; background: none; }
+  .slot.st-wait .nm { color: var(--muted); }
+  .slot.st-carrot { border: 2px dashed var(--chalk); background: none; }
+  .slot.st-carrot .nm { color: var(--chalk); }
+  .slot .goal { grid-column: 2 / 4; display: flex; align-items: center; gap: 8px; font-size: 10.5px; color: var(--muted); white-space: nowrap; min-width: 0; }
+  .slot > b.cnt { font-weight: 400; font-size: 11px; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .slot .goal .meter { flex: 1; min-width: 30px; }
+  .slot .goal b { font-weight: 400; color: var(--text); font-variant-numeric: tabular-nums; }
+  .slot.root { padding: 7px 9px 7px 7px; border-color: color-mix(in srgb, var(--wisp) 55%, var(--lilac-seam)); }
+  .slot.root.st-buy { border-color: var(--wisp); }
+  .slot.pop { animation: swing .5s var(--ease-out); --r: 0deg; }
+  .tips { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding-top: 10px; border-top: 2px dashed var(--line); position: relative; z-index: 1; }
+  .tips .slot::before { display: none; }
+  .tips .slot { border-color: color-mix(in srgb, var(--gold) 35%, var(--lilac-seam)); }
+  .tips .slot.st-buy { border-color: var(--wisp); }
+</style>
+</head>
+<body>
+<div class="app" data-tab="trips" data-say="i hung a little flag on the wall. for luck!"></div>
+<div class="label-look" id="look"></div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  // the game's tabs at this stage (as in dungeon.html)
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+  TABS.forEach(t => { t.news = false; });
+
+  const q = new URLSearchParams(location.search);
+  const LOOK = (q.get("look") || "A").toUpperCase() === "B" ? "B" : "A";
+  if (LOOK === "B") document.querySelector(".app").dataset.say = "i tidied the sewing box! every thread has its own spot.";
+  const content = mountFrame();
+  paintIcons();
+
+  // ---------------- data/perks.json (copied) ----------------
+  const CHAIN = [
+    { id: "entrance", name: "the entrance", thing: "bow", floor: 0, what: "fits", fmt: "num", count: "entrance", steps: [0, 300, 900, 2100, 4500], price: [100, 600, 1800, 5400] },
+    { id: "flag", name: "the little flag", thing: "flag", floor: 3, what: "front row", fmt: "x", steps: [1, 1.2, 1.4, 1.6, 1.8, 2], price: [150, 300, 700, 1500, 3200] },
+    { id: "bell", name: "the dinner bell", thing: "bell", floor: 6, what: "walking behind", fmt: "x", steps: [1, 1.15, 1.3, 1.45], price: [200, 700, 1600] },
+    { id: "spool", name: "the spool", thing: "spool", floor: 10, what: "lanterns", fmt: "x", steps: [1, 1.25, 1.5, 1.75, 2, 2.5], price: [300, 600, 1400, 3000, 6400] },
+    { id: "nightlight", name: "the nightlight", thing: "moon", floor: 13, what: "the cellar", fmt: "x", steps: [1, 1.3, 1.6, 2], price: [800, 2400, 7200] },
+    { id: "lunchbox", name: "the lunchbox", thing: "lunch", floor: 17, what: "pets/sec", fmt: "x", steps: [1, 1.25, 1.5, 2], price: [1500, 4000, 9000] },
+    { id: "scarf", name: "the woolly scarf", thing: "scarf", floor: 20, what: "the stairs", fmt: "x", steps: [1, 1.3, 1.6, 2], price: [2200, 6000, 14000] },
+    { id: "pinwheel", name: "the pinwheel", thing: "pinwheel", floor: 24, what: "front row", fmt: "cards", count: "front_row", steps: [0, 2, 4], price: [4000, 12000] },
+    { id: "musicbox", name: "the music box", thing: "musicbox", floor: 28, what: "while you're away", fmt: "hours", count: "away_hours", steps: [0, 1, 2, 4, 8], price: [6500, 16000, 40000, 90000] },
+    { id: "star", name: "the paper star", thing: "star", floor: 33, what: "the army", fmt: "x", steps: [1, 1.25, 1.5], price: [12000, 30000] },
+    { id: "thimble", name: "the thimble", thing: "thimble", floor: 36, what: "holds", fmt: "plus", count: "holds", needs: "plushie", steps: [0, 1, 2], price: [20000, 50000] },
+    { id: "ribbon", name: "the ribbon", thing: "ribbon", floor: 40, what: "nudges a pet", fmt: "plus", count: "nudges", needs: "plushie", steps: [0, 1, 2], price: [30000, 75000] },
+  ];
+  const TIPS = [
+    { id: "coin", name: "the lucky coin", thing: "coin", what: "coins", each: 0.04, base: 20000, grow: 3 },
+    { id: "rattle", name: "the rattle", thing: "rattle", what: "pets/sec", each: 0.04, base: 20000, grow: 3 },
+  ];
+  const BASE = { entrance: 300, front_row: 20 };  // data/dungeon.json entrance.start, front_row
+  // look B: the chain loosened. The bow (entrance) holds three threads; the plushie one sits under "down and down"
+  const BRANCHES = [
+    { name: "the army", col: 0, links: ["flag", "bell", "pinwheel", "star"] },
+    { name: "down and down", col: 1, links: ["nightlight", "scarf"] },
+    { name: "the plushie", col: 1, links: ["thimble", "ribbon"], from: "scarf" },
+    { name: "home", col: 2, links: ["spool", "lunchbox", "musicbox"] },
+  ];
+  const STATES = {
+    mid: { deep: 30, plushie: false, wisps: 2640, lv: { entrance: 3, flag: 5, bell: 2, spool: 3, nightlight: 1, lunchbox: 1 } },
+    end: { deep: 41, plushie: true, wisps: 48200, lv: { entrance: 4, flag: 5, bell: 3, spool: 5, nightlight: 3, lunchbox: 2, scarf: 2, pinwheel: 1, musicbox: 3, star: 1, thimble: 1, ribbon: 1, coin: 2, rattle: 1 } },
+  };
+  const S = structuredClone(STATES[q.get("state")] || STATES.mid);
+  if (q.get("wisps")) S.wisps = Number(q.get("wisps"));
+  const SAY = {
+    hang: ["so pretty! it glows a little!", "look, it's swinging on its nail! so cute ♡"],
+    entrance: ["the entrance got bigger! everyone fits now!", "the well got wider! more friends can squeeze in!"],
+    tip: ["another one! it jingles!", "jingle jingle! even shinier now."],
+  };
+
+  // ---------------- PerkNail.THINGS ----------------
+  const THINGS = {
+    bow: '<path d="M12 11 Q7 5.5 4.2 7.6 Q2.6 11 4.4 14.4 Q7.4 16 12 11 Z"/><path d="M12 11 Q17 5.5 19.8 7.6 Q21.4 11 19.6 14.4 Q16.6 16 12 11 Z"/><path d="M11 12.4 L8.4 20.4 M13 12.4 L15.6 20.4"/><circle cx="12" cy="11" r="2"/>',
+    flag: '<path d="M6 21 L6 3.4"/><path d="M6.6 4 L18.6 7.6 L6.6 11.6 Z"/>',
+    bell: '<path d="M5.6 17 Q5.4 8.6 12 7.4 Q18.6 8.6 18.4 17 Z"/><path d="M4 17.2 L20 17.2"/><circle cx="12" cy="19.6" r="1.6"/><path d="M12 7.4 L12 4.6"/>',
+    spool: '<rect x="6" y="3.6" width="12" height="3.2" rx="1.2"/><rect x="6" y="17.2" width="12" height="3.2" rx="1.2"/><path d="M8 6.8 L8 17.2 L16 17.2 L16 6.8 Z"/><path d="M8 9.4 L16 11.6 M8 12.6 L16 14.8"/>',
+    moon: '<path d="M15.6 4 A8.4 8.4 0 1 0 20.2 16.4 A6.8 6.8 0 0 1 15.6 4 Z"/>',
+    lunch: '<rect x="4" y="9" width="16" height="11" rx="2.6"/><path d="M9 9 L9 6.4 Q12 4 15 6.4 L15 9"/><path d="M4 13.6 L20 13.6"/>',
+    scarf: '<path d="M4 7 Q12 3.6 20 7 L20 10.6 Q12 7.2 4 10.6 Z"/><path d="M14.6 9 L16.6 19 L19.6 18.2 L17.8 8.6"/><path d="M16.2 19.8 L15.8 21.4 M18.8 19.2 L19.2 20.8"/>',
+    pinwheel: '<path d="M12 11 L12 3.6 Q16.6 5.4 12 11 Z"/><path d="M12 11 L19.4 11 Q17.6 15.6 12 11 Z"/><path d="M12 11 L12 18.4 Q7.4 16.6 12 11 Z"/><path d="M12 11 L4.6 11 Q6.4 6.4 12 11 Z"/>',
+    musicbox: '<rect x="3.6" y="10" width="15" height="10" rx="2"/><path d="M3.6 10 L6.2 6 L16 6 L18.6 10"/><path d="M18.6 15 L21.6 15 M21.6 13 L21.6 17"/>',
+    star: '<path d="M12 3 L14.4 9 L20.8 9.4 L15.8 13.4 L17.6 19.8 L12 16.2 L6.4 19.8 L8.2 13.4 L3.2 9.4 L9.6 9 Z"/>',
+    thimble: '<path d="M6.6 20 L7.6 9.4 Q8.2 4.2 12 4.2 Q15.8 4.2 16.4 9.4 L17.4 20 Z"/><path d="M5.4 20 L18.6 20"/><path d="M8.8 12.4 L15.2 12.4 M8.5 16 L15.5 16"/>',
+    ribbon: '<path d="M9.8 13.6 Q6.2 7.6 8.8 4.6 Q12 2.2 15.2 4.6 Q17.8 7.6 14.2 13.6"/><path d="M14.2 13.6 L7.6 20.8 M9.8 13.6 L16.4 20.8"/>',
+    coin: '<circle cx="12" cy="12" r="8"/><path d="M12 7.6 L13.2 10.6 L16.4 10.8 L13.9 12.8 L14.8 15.9 L12 14.2 L9.2 15.9 L10.1 12.8 L7.6 10.8 L10.8 10.6 Z"/>',
+    rattle: '<circle cx="12" cy="8.6" r="5.6"/><path d="M12 14.2 L12 19.2"/><circle cx="12" cy="20.6" r="1.5"/>',
+  };
+  const WISP = (s = 20) => `<svg class="wispico" viewBox="0 0 24 24" style="width:${s}px;height:${s}px"><path d="M5.2 15.6 Q3.2 11.4 7.4 10 Q8 5.8 12.6 6.2 Q17 6.4 17.4 10.6 Q20.6 11.8 19 15 Q17 17.6 12.6 16.6 Q8.4 18.4 5.2 15.6 Z" fill="currentColor" fill-opacity=".3"/><path d="M17.4 10.6 Q20.4 7.4 18.4 4.4 Q16.8 2.8 15.4 4.6"/><path d="M8.8 13.4 Q11 11.4 13.6 13"/></svg>`;
+  const thingSvg = (t, look, s) => `<svg class="thing ${look}" viewBox="-1 -1 26 26" width="${s}" height="${s}">${THINGS[t]}</svg>`;
+
+  // ---------------- rules (scripts/dungeon/perks.gd) ----------------
+  const ALL = [...CHAIN, ...TIPS];
+  const P = id => ALL.find(p => p.id === id);
+  const lv = id => S.lv[id] || 0;
+  const isTip = p => !p.steps;
+  const maxLv = p => p.steps ? p.steps.length - 1 : -1;
+  const maxed = p => !isTip(p) && lv(p.id) >= maxLv(p);
+  const val = (p, l) => isTip(p) ? 1 + p.each * l : (p.count ? (BASE[p.count] || 0) : 0) + p.steps[Math.min(l, p.steps.length - 1)];
+  const price = p => maxed(p) ? -1 : isTip(p) ? Math.round(p.base * Math.pow(p.grow, lv(p.id))) : p.price[lv(p.id)];
+  const open = p => !p.needs || S.plushie;
+  const reached = p => open(p) && p.floor <= S.deep;
+  const chainDone = () => CHAIN.every(p => lv(p.id) > 0);
+  const carrot = () => CHAIN.find(p => open(p) && p.floor > S.deep);
+  const parentA = p => { const i = CHAIN.indexOf(p); return i > 0 ? CHAIN[i - 1] : null; };
+  const parentB = p => {
+    if (p.id === "entrance" || isTip(p)) return null;
+    const b = BRANCHES.find(b => b.links.includes(p.id)), i = b.links.indexOf(p.id);
+    return i > 0 ? P(b.links[i - 1]) : P(b.from || "entrance");
+  };
+  const parent = p => isTip(p) ? null : (LOOK === "A" ? parentA(p) : parentB(p));
+  function status(p) {
+    if (maxed(p)) return "max";
+    const par = parent(p);
+    if (par && lv(par.id) === 0) return "wait";
+    return S.wisps >= price(p) ? "buy" : "poor";
+  }
+  const anyBuy = () => ALL.filter(p => isTip(p) ? chainDone() : reached(p)).some(p => status(p) === "buy");
+
+  const num = n => {
+    if (n < 10000) return Math.round(n).toLocaleString("en");
+    for (const [d, u] of [[1e3, "k"], [1e6, "M"], [1e9, "B"], [1e12, "T"]]) {
+      const v = n / d;
+      if (v < 1000) return (v < 100 ? (Math.round(v * 10) / 10) : Math.round(v)).toString().replace(/\.0$/, "") + u;
+    }
+    return n.toExponential(2);
+  };
+  const fv = (p, v) => {
+    switch (p.fmt) {
+      case "num": return num(v);
+      case "cards": return `${v} cards`;
+      case "hours": return `${v} h`;
+      case "plus": return `+${v}`;
+    }
+    return "x" + v.toFixed(2);
+  };
+  const effect = p => {
+    const l = lv(p.id), now = val(p, l);
+    if (maxed(p)) return `<div class="eff"><span class="what">${p.what}</span> <span class="n"><b>${fv(p, now)}</b></span></div>`;
+    return `<div class="eff"><span class="what">${p.what}</span> <span class="n">${fv(p, now)} <span class="ar">→</span> <b>${fv(p, val(p, l + 1))}</b></span></div>`;
+  };
+  const levels = p => isTip(p) ? `<span class="lvpill">lv ${lv(p.id)}</span>`
+    : `<span class="pips">${Array.from({ length: maxLv(p) }, (_, i) => `<i class="${i < lv(p.id) ? "on" : ""}"></i>`).join("")}</span>`;
+  const look = (p, st) => st === "carrot" ? "carrot" : (lv(p.id) > 0 || isTip(p)) ? "" : st === "wait" ? "off" : "next";
+
+  function say(kind) {
+    const lines = SAY[kind];
+    document.querySelector(".top .bubble").textContent = lines[Math.floor(Math.random() * lines.length)];
+  }
+  function buy(id) {
+    const p = P(id);
+    if (status(p) !== "buy") return;
+    S.wisps -= price(p);
+    S.lv[id] = lv(id) + 1;
+    say(p.id === "entrance" ? "entrance" : isTip(p) ? "tip" : "hang");
+    render();
+    const el = content.querySelector(`[data-id="${id}"]`);
+    if (el) { el.classList.remove("pop"); void el.offsetWidth; el.classList.add("pop"); }
+    const chip = content.querySelector(".wispchip");
+    chip.classList.add("bump"); setTimeout(() => chip.classList.remove("bump"), 500);
+  }
+
+  const chipHtml = (opened) => `<button class="wispchip${opened ? " open" : ""}" data-chip>${WISP(20)}<b>${num(S.wisps)}</b>${LOOK === "A" && anyBuy() ? `<span class="new"></span>` : ""}</button>`;
+  const switchHtml = pages => `<div class="seg">${pages.map(([n, on]) => `<button class="${on ? "on" : ""}">${n}${n === "perks" && anyBuy() ? `<span class="new"></span>` : ""}</button>`).join("")}</div>`;
+
+  // ================= look A: the well wall =================
+  let wallOpen = true;
+  function tagHtml(p, st, i) {
+    const r = [-1.4, 1.1, -0.6, 1.5, -1, 0.7][i % 6];
+    const tip = isTip(p) ? " tip" : "";
+    let foot;
+    if (st === "carrot") {
+      return `<div class="hang"><span class="nailhead"></span><span class="string"></span>
+        <div class="tag st-carrot" style="--r:${r}deg" data-id="${p.id}">
+          ${thingSvg(p.thing, "carrot", 28)}<div class="who"><div class="nm">${p.name}</div></div>
+          <div class="goal"><span>down to landing ${p.floor}</span><div class="row"><div class="meter" style="--f:${(S.deep / p.floor).toFixed(3)}"><i></i></div><b>${S.deep} / ${p.floor}</b></div></div>
+        </div></div>`;
+    }
+    if (st === "max") foot = `<div class="foot" style="min-height:0"><span class="done">all done!</span></div>`;
+    else if (st === "wait") foot = `<div class="buy wait"><span></span><span class="p">${WISP(15)}${num(price(p))}</span></div>`;
+    else foot = `<button class="buy ${st === "buy" ? "can" : ""}" data-buy="${p.id}"><span>${lv(p.id) > 0 || isTip(p) ? "one more" : "hang it up"}</span><span class="p">${WISP(15)}${num(price(p))}</span></button>`;
+    return `<div class="hang"><span class="nailhead"></span><span class="string"></span>
+      <div class="tag st-${st}${tip}" style="--r:${r}deg" data-id="${p.id}">
+        ${thingSvg(p.thing, look(p, st), 28)}
+        <div class="who"><div class="nm">${p.name}</div>${levels(p)}</div>
+        ${effect(p)}
+        ${foot}
+      </div></div>`;
+  }
+
+  function renderA() {
+    const items = CHAIN.filter(reached).map(p => [p, status(p)]);
+    const c = carrot();
+    if (c) items.push([c, "carrot"]);
+    if (chainDone()) TIPS.forEach(t => items.push([t, status(t)]));
+    // snake order: row 1 left to right, row 2 right to left... so one thread runs through them all
+    const COLS = 4, cells = [];
+    items.forEach(([p, st], i) => {
+      const row = Math.floor(i / COLS), k = i % COLS, col = row % 2 ? COLS - 1 - k : k;
+      cells.push(`<div style="grid-row:${row + 1};grid-column:${col + 1}">${tagHtml(p, st, i)}</div>`);
+    });
+    const lastLit = items.reduce((a, [p], i) => (lv(p.id) > 0 ? i : a), -1);
+    const under = `<div class="under"><div class="panel"><p class="h3">the old well</p></div><div class="panel"><p class="h3">front row</p></div><div class="panel r"><p class="h3">orders</p></div></div>`;
+    const wall = `<div class="sheet">
+        <div class="head"><p class="h3">the well wall</p><button class="x" data-close title="close">✕</button></div>
+        <div class="scroll"><div class="board" id="board"><svg class="thread"></svg>${cells.join("")}
+          <svg class="tally" width="54" height="22" aria-hidden="true"><path d="M3 3 L4 19 M9 3 L9.6 19 M15 3 L15 19 M21 2.6 L21.4 19 M1 15 Q12 7 25 6"/><path d="M33 3 L33.4 19 M39 3 L39 19"/></svg></div></div>
+      </div>`;
+    content.innerHTML = `<div class="stage">
+      <div class="bar">${switchHtml([["adventures"], ["upgrades"], ["dungeon", true]])}${chipHtml(wallOpen)}</div>
+      ${wallOpen ? wall : under}</div>`;
+    if (!wallOpen) return;
+    // the thread: nail to nail, sagging a little; coral up to the last thing with a level, chalk after
+    const board = content.querySelector("#board"), svg = board.querySelector("svg.thread");
+    const bb = board.getBoundingClientRect();
+    svg.setAttribute("width", board.scrollWidth); svg.setAttribute("height", board.scrollHeight);
+    const nails = [...board.querySelectorAll(".nailhead")].map(n => { const r = n.getBoundingClientRect(); return [r.left + r.width / 2 - bb.left, r.top + r.height / 2 - bb.top]; });
+    let d = "";
+    for (let i = 0; i + 1 < nails.length; i++) {
+      const [x1, y1] = nails[i], [x2, y2] = nails[i + 1];
+      const path = Math.abs(y1 - y2) < 4
+        ? `M${x1} ${y1} Q${(x1 + x2) / 2} ${y1 + 9} ${x2} ${y2}`
+        : `M${x1} ${y1} C${x1 + (x1 > bb.width / 2 ? 1 : -1) * 26} ${y1 + 30} ${x2 + (x2 > bb.width / 2 ? 1 : -1) * 26} ${y2 - 40} ${x2} ${y2}`;
+      d += `<path class="${i < lastLit ? "lit" : "dim"}" d="${path}"/>`;
+    }
+    svg.innerHTML = d;
+  }
+
+  // ================= look B: the sewing box =================
+  function slotHtml(p, st, extra = "") {
+    const linked = lv(p.id) > 0 ? " linked" : "";
+    if (st === "carrot") {
+      return `<div class="slot st-carrot" data-id="${p.id}">
+        <div class="well">${thingSvg(p.thing, "carrot", 24)}</div>
+        <div class="nm">${p.name}</div><b class="cnt">${S.deep} / ${p.floor}</b>
+        <div class="goal"><span>down to landing ${p.floor}</span><div class="meter" style="--f:${(S.deep / p.floor).toFixed(3)}"><i></i></div></div>
+      </div>`;
+    }
+    let right;
+    if (st === "max") right = `<span class="done">all done!</span>`;
+    else if (st === "wait") right = `<span class="buy wait">${WISP(13)}${num(price(p))}</span>`;
+    else right = `<button class="buy ${st === "buy" ? "can" : ""}" data-buy="${p.id}">${WISP(13)}${num(price(p))}</button>`;
+    return `<div class="slot st-${st}${linked}${extra}" data-id="${p.id}">
+      <div class="well">${thingSvg(p.thing, look(p, st), 24)}${isTip(p) ? "" : levels(p)}</div>
+      <div class="nm">${p.name}${isTip(p) ? ` <span class="lvpill">lv ${lv(p.id)}</span>` : ""}</div>${right}
+      ${effect(p)}
+    </div>`;
+  }
+
+  function renderB() {
+    const c = carrot();
+    const cols = [[], [], []];
+    for (const b of BRANCHES) {
+      const shown = b.links.map(P).filter(reached);
+      const hasCarrot = c && b.links.includes(c.id);
+      if (!shown.length && !hasCarrot) continue;  // hidden until earned: the plushie tray, a whole branch
+      cols[b.col].push(`<div class="tray" data-branch="${b.name}"><p class="h3">${b.name}</p>
+        ${shown.map(p => slotHtml(p, status(p))).join("")}${hasCarrot ? slotHtml(c, "carrot") : ""}</div>`);
+    }
+    const root = P("entrance");
+    const cushion = `<div class="cushion" aria-hidden="true"><svg width="62" height="40" viewBox="0 0 62 40">
+        <path d="M6 28 Q4 14 18 11 Q31 8 44 11 Q58 14 56 28 Q48 37 31 37 Q14 37 6 28 Z" fill="color-mix(in srgb, var(--pink) 28%, var(--raised))" stroke="var(--pink-seam)" stroke-width="2"/>
+        <path d="M31 9 Q29 22 31 37 M18 11 Q20 24 16 35 M44 11 Q42 24 46 35" fill="none" stroke="var(--pink-seam)" stroke-width="1.5" opacity=".7"/>
+        <path d="M27 9 Q31 4 35 9" fill="none" stroke="var(--mint)" stroke-width="2.4"/>
+        <path d="M14 18 L9 6 M24 15 L22 2 M38 16 L42 3 M48 19 L55 8" stroke="var(--muted)" stroke-width="1.4"/>
+        <circle cx="9" cy="6" r="2.4" fill="var(--wisp)"/><circle cx="22" cy="2.6" r="2.4" fill="var(--lilac)"/><circle cx="42" cy="3.4" r="2.4" fill="var(--wisp)"/><circle cx="55" cy="8" r="2.4" fill="var(--wisp)"/>
+      </svg></div>`;
+    // a little heap of loose buttons in the corner. never explained.
+    const buttons = `<svg class="buttons" width="58" height="30" viewBox="0 0 58 30" aria-hidden="true" opacity=".75">
+        <g fill="var(--deep)" stroke="var(--lilac-seam)" stroke-width="1.6"><circle cx="12" cy="18" r="7"/><circle cx="27" cy="22" r="6"/><circle cx="40" cy="16" r="7.5"/><circle cx="50" cy="24" r="4.5"/></g>
+        <g fill="var(--lilac-seam)"><circle cx="10" cy="17" r="1"/><circle cx="14" cy="19" r="1"/><circle cx="25.5" cy="22" r="1"/><circle cx="28.5" cy="22" r="1"/><circle cx="38" cy="15" r="1.1"/><circle cx="42" cy="15" r="1.1"/><circle cx="38" cy="18" r="1.1"/><circle cx="42" cy="18" r="1.1"/></g>
+        <path d="M44 9 Q52 2 56 8" fill="none" stroke="var(--wisp)" stroke-width="1.3" opacity=".7"/>
+      </svg>`;
+    const tips = chainDone() ? `<div class="tips">${TIPS.map(t => slotHtml(t, status(t))).join("")}</div>` : "";
+    content.innerHTML = `<div class="stage">
+      <div class="bar">${switchHtml([["adventures"], ["upgrades"], ["dungeon"], ["perks", true]])}${chipHtml(false)}</div>
+      <div class="box" id="box"><svg class="threads"></svg>
+        <div class="lid">${cushion}${slotHtml(root, status(root), " root")}${buttons}</div>
+        <div class="trays">${cols.map(c => `<div class="col">${c.join("")}</div>`).join("")}</div>
+        ${tips}
+      </div></div>`;
+    // threads from the bow down to each branch's first thing: coral once that thing has a level
+    const box = content.querySelector("#box"), svg = box.querySelector("svg.threads");
+    const bb = box.getBoundingClientRect();
+    svg.setAttribute("width", bb.width); svg.setAttribute("height", bb.height);
+    const rw = box.querySelector(".slot.root .well").getBoundingClientRect();
+    const x0 = rw.left + rw.width / 2 - bb.left, y0 = rw.bottom - bb.top;
+    let d = "";
+    for (const tray of box.querySelectorAll(".trays .tray")) {
+      const b = BRANCHES.find(b => b.name === tray.dataset.branch);
+      if (b.from) continue;  // the plushie tray hangs off the bottom of "down and down"
+      const first = tray.querySelector(".slot .well").getBoundingClientRect(), tr = tray.getBoundingClientRect();
+      const x = first.left + first.width / 2 - bb.left, y = tr.top - bb.top + 1;
+      const lit = lv(P("entrance").id) > 0 && lv(b.links[0]) > 0;
+      d += `<path class="${lit ? "lit" : "dim"}" d="M${x0} ${y0} C${x0} ${y0 + 16} ${x} ${y - 22} ${x} ${y}"/>`;
+    }
+    // the plushie tray: a thread from the last thing of "down and down"
+    const pl = box.querySelector('.tray[data-branch="the plushie"]');
+    if (pl) {
+      const dn = [...box.querySelectorAll('.tray[data-branch="down and down"] .slot .well')].pop().getBoundingClientRect();
+      const f = pl.querySelector(".slot .well").getBoundingClientRect();
+      d += `<path class="${lv("scarf") > 0 && lv("thimble") > 0 ? "lit" : "dim"}" d="M${dn.left + dn.width / 2 - bb.left} ${dn.bottom - bb.top} L${f.left + f.width / 2 - bb.left} ${f.top - bb.top}"/>`;
+    }
+    svg.innerHTML = d;
+  }
+
+  function render() { (LOOK === "A" ? renderA : renderB)(); }
+  content.addEventListener("click", e => {
+    const b = e.target.closest("[data-buy]");
+    if (b) return buy(b.dataset.buy);
+    if (LOOK === "A" && (e.target.closest("[data-chip]") || e.target.closest("[data-close]"))) { wallOpen = !wallOpen; render(); }
+  });
+  document.getElementById("look").textContent = LOOK === "A" ? "A: the well wall (one thread, the chain)" : "B: the sewing box (three threads, branches)";
+  document.fonts.ready.then(render);
+  render();
+</script>
+</body>
+</html>
