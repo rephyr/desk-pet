@@ -174,6 +174,9 @@ var automation := Automation.fresh()
 var dungeon := Dungeon.fresh(Catalog.shared())  # the old well, all the way down (see Dungeon)
 var dungeon_news := {}  # the army just came home: { got, floor, early, deepest, nail } (a sewing room run: { got, room, cleared, again }) for your pet to say (not saved)
 var sewing := Sewing.fresh()  # E3 the sewing room off the well's floor 20 (see Sewing)
+var sew_seats := {}  # the sewing room's seats for room sew_seats_room: mark -> uid of the pet sitting on it (not saved: tap a seat, then a pet)
+var sew_seats_room := -1
+var sew_last := {}  # the last room run home: { room, got, sent, back, cleared, first } for the sewing page's result (not saved)
 var perks := {}  # the wisps perk tree on the well wall: perk id -> level (see Perks, data/perks.json)
 var army_held := false  # the sewing room is open on screen: your pet leading the army waits at home for you (not saved)
 var _auto_at := 0.0  # unix time your pet's jobs have worked up to
@@ -1500,6 +1503,9 @@ func debug_new_game() -> void:
 	dungeon = Dungeon.fresh(catalog)
 	dungeon_news = {}
 	sewing = Sewing.fresh()
+	sew_seats = {}
+	sew_seats_room = -1
+	sew_last = {}
 	perks = {}
 	collection.keep_uids.clear()
 	whistle_seen()
@@ -3826,8 +3832,10 @@ func _home_again() -> void:
 func _run_losses(run: Dictionary) -> int:
 	var lost := Dungeon.run_lost(run)
 	var lost_cards: Array[String] = []
+	var keeper := _plushie_keeper_uid()
 	for uid in lost[0]:
-		if str(uid) != collection.active_uid and collection.get_pet(str(uid)) != null:
+		# your pet and the plushie machine's keeper always come home
+		if str(uid) != collection.active_uid and str(uid) != keeper and collection.get_pet(str(uid)) != null:
 			lost_cards.append(str(uid))
 	var lost_n := lost_cards.size()
 	collection.remove(lost_cards)
@@ -3916,52 +3924,187 @@ func sew_room(i: int) -> Dictionary:
 	return Sewing.room(catalog, i)
 
 
-## The front row the chalk locks look at: the army's strongest front_row cards (your pet with the
-## flag leads, it doesn't count).
+## The army's front row: its strongest front_row cards (your pet with the flag leads).
 func sew_front() -> Array[Pet]:
 	return army_cards().slice(0, front_row_size())
 
 
-## Which of room `i`'s marks the front row fills: [bool].
+## Whether a pet can sit on a sewing room seat: any card that isn't away on an adventure, down the
+## well with the army or leading a workers' party (ones on errands and machines come off when it
+## goes in; your active pet and the plushie machine's keeper may go too).
+func sew_can_sit(pet: Pet) -> bool:
+	return pet != null and not Herd.is_stand_in(pet.uid) and collection.get_pet(pet.uid) == pet and not _sew_gone().has(pet.uid)
+
+
+## Pets that can't sit down now: away, down there with the army, leading a party. uid -> true.
+func _sew_gone() -> Dictionary:
+	var out := away()
+	for uid in dungeon.run.get("cards", []):
+		out[str(uid)] = true
+	for uid in workers_of("adventures"):
+		out[str(uid)] = true
+	return out
+
+
+## The pets the seats can take, the strongest first.
+func sew_pickable() -> Array[Pet]:
+	var gone := _sew_gone()
+	var out: Array[Pet] = []
+	for pet in collection.pets:
+		if not gone.has(pet.uid) and not Herd.is_stand_in(pet.uid):
+			out.append(pet)
+	return _strongest_first(out)
+
+
+## The seats are for room `i` now: lining up another room starts with empty seats.
+func sew_pick_room(i: int) -> void:
+	if i != sew_seats_room and not (dungeon_running() and dungeon.run.has("room")):
+		sew_seats = {}
+		sew_seats_room = i
+
+
+## Puts a pet on room `i`'s seat for `mark` (it has to fit it); it sits on every other empty seat
+## it fits too. Returns whether it sat down.
+func sew_seat(i: int, mark: String, uid: String) -> bool:
+	var r := sew_room(i)
+	var pet := collection.get_pet(uid)
+	if dungeon_running() or not mark in r.marks or not sew_can_sit(pet) or not Sewing.mark_matches(mark, pet):
+		return false
+	sew_pick_room(i)
+	sew_seats[mark] = uid
+	_sew_fill(r)
+	return true
+
+
+## The pet on `mark`'s seat gets up (off every seat it was on); other seated pets that fit take the
+## empty seats.
+func sew_unseat(i: int, mark: String) -> void:
+	if dungeon_running() or i != sew_seats_room or not sew_seats.has(mark):
+		return
+	var uid := str(sew_seats[mark])
+	for m in sew_seats.keys():
+		if str(sew_seats[m]) == uid:
+			sew_seats.erase(m)
+	_sew_fill(sew_room(i))
+
+
+## Empty seats take a seated pet that fits them.
+func _sew_fill(r: Dictionary) -> void:
+	var seated := _sew_seated_pets(r)
+	for mark in r.marks:
+		if not sew_seats.has(mark):
+			for pet in seated:
+				if Sewing.mark_matches(str(mark), pet):
+					sew_seats[mark] = pet.uid
+					break
+
+
+## Room `i`'s seats: mark -> the pet on it (only pets still here, free and fitting; during its run,
+## the ones that went in).
+func sew_seat_pets(i: int) -> Dictionary:
+	var out := {}
+	if i != sew_seats_room:
+		return out
+	var running: bool = dungeon_running() and dungeon.run.has("room")
+	var gone := {} if running else _sew_gone()
+	for mark in sew_room(i).marks:
+		var pet := collection.get_pet(str(sew_seats.get(mark, "")))
+		if pet != null and Sewing.mark_matches(str(mark), pet) and (running or (not Herd.is_stand_in(pet.uid) and not gone.has(pet.uid))):
+			out[mark] = pet
+	return out
+
+
+func _sew_seated_pets(r: Dictionary) -> Array[Pet]:
+	var out: Array[Pet] = []
+	var seats := sew_seat_pets(int(r.i))
+	for mark in seats:
+		if not out.has(seats[mark]):
+			out.append(seats[mark])
+	return out
+
+
+## The pets sitting on room `i`'s seats (each once).
+func sew_seated(i: int) -> Array[Pet]:
+	return _sew_seated_pets(sew_room(i))
+
+
+## Which of room `i`'s marks have a pet on their seat: [bool].
 func sew_marks(i: int) -> Array:
-	return Sewing.marks_on(sew_room(i), sew_front())
+	var seats := sew_seat_pets(i)
+	return sew_room(i).marks.map(func(m): return seats.has(m))
 
 
-## Whether the army can go into room `i` now: a room that shows, every mark filled, pets in the army,
-## nobody down there already.
-func sew_can_go(i: int) -> bool:
-	return sewing_open() and i >= 0 and i < Sewing.shown(sewing) and not dungeon_running() and not tutorial_active() \
-		and int(army().sent) > 0 and Sewing.unlocked(sew_room(i), sew_front())
+## Who goes into room `i`: the seated pets first, then the army lined up (its cards, then its herd),
+## up to the entrance: { cards: [Pet] strongest first, keys: { count key: n }, sent, more: how many
+## walk in besides the seated ones }.
+func sew_party(i: int) -> Dictionary:
+	var seated := sew_seated(i)
+	var entrance := Dungeon.entrance(catalog, perk_level("entrance"))
+	var cards: Array[Pet] = seated.duplicate()
+	for pet in army_cards():
+		if not cards.has(pet):
+			cards.append(pet)
+	if cards.size() > maxi(entrance, seated.size()):
+		cards = cards.slice(0, maxi(entrance, seated.size()))
+	cards = _strongest_first(cards)
+	var keys := _cap_keys(army_herd_keys(), maxi(0, entrance - cards.size()))
+	var sent := cards.size() + Herd.total(keys)
+	return { "cards": cards, "keys": keys, "sent": sent, "more": sent - seated.size() }
 
 
-## The feeling word for room `i` against the army lined up now: [word, heat] ([] with nobody in it).
-func sew_word(i: int, rules: Dictionary = {}) -> Array:
-	if rules.is_empty():
-		if int(army().sent) <= 0:
-			return []
-		rules = army_rules()
-	return Dungeon.word(catalog, Dungeon.army_power(catalog, rules, "room") / Sewing.strength(catalog, sew_room(i)))
+## Herd counts cut down to `n` pets, the rarer ones kept first.
+func _cap_keys(keys: Dictionary, n: int) -> Dictionary:
+	if Herd.total(keys) <= n:
+		return keys.duplicate()
+	var order := keys.keys()
+	order.sort_custom(func(a, b): return catalog.rank(Herd.rarity_of(a)) > catalog.rank(Herd.rarity_of(b)))
+	var out := {}
+	for k in order:
+		var take := mini(n, int(keys[k]))
+		if take > 0:
+			out[k] = take
+			n -= take
+	return out
 
 
-## The army goes into room `i`: the fight is worked out now (Sewing.simulate), its pets stay busy
-## (it's the dungeon's run) until it's back. Returns whether it went.
+## Whether the army can go into room `i` now: a room that shows, a pet on every seat, nobody down
+## there already.
+## `party`: sew_party(i) when it's at hand.
+func sew_can_go(i: int, party := {}) -> bool:
+	if not (sewing_open() and i >= 0 and i < Sewing.shown(sewing) and not dungeon_running() and not tutorial_active()):
+		return false
+	return sew_marks(i).all(func(on): return on) and int((party if not party.is_empty() else sew_party(i)).sent) > 0
+
+
+## The feeling word for room `i` against who'd go in now: [word, heat] ([] with nobody going).
+## `party`: sew_party(i) when it's at hand.
+func sew_word(i: int, party := {}) -> Array:
+	if party.is_empty():
+		party = sew_party(i)
+	if int(party.sent) <= 0:
+		return []
+	return Dungeon.word(catalog, Dungeon.army_power(catalog, _army_rules(party.cards, party.keys), "room") / Sewing.strength(catalog, sew_room(i)))
+
+
+## The seated pets and the army go into room `i`: the fight is worked out now (Sewing.simulate), its
+## pets stay busy (it's the dungeon's run) until it's back. Seated pets come off their errands and
+## machines. Returns whether it went.
 func send_to_room(i: int) -> bool:
 	if not sew_can_go(i):
 		return false
-	var cards := army_cards()
-	var herd_keys := army_herd_keys()
-	var entrance := Dungeon.entrance(catalog, perk_level("entrance"))
-	if cards.size() > entrance:
-		cards = cards.slice(0, entrance)
-	var sent := cards.size() + Herd.total(herd_keys)
+	var party := sew_party(i)
+	var cards: Array = party.cards
+	var herd_keys: Dictionary = party.keys
+	_off_work(cards.map(func(p): return p.uid).filter(func(uid): return uid != collection.active_uid))
 	var rng := RandomNumberGenerator.new()
 	rng.seed = _rng.randi()
 	var orders := { "entrance": perk_level("entrance"), "pay_x": boost("lanterns"),
 		"first": str(dungeon.first) if Dungeon.first_earned(catalog, dungeon) else "" }
 	var result := Sewing.simulate(catalog, _army_rules(cards, herd_keys), sew_room(i), orders, rng)
 	dungeon.run = { "at": Time.get_unix_time_from_system(), "floors": result.floors, "why": result.why, "turned": 0,
-		"cards": cards.map(func(p): return p.uid), "herd": herd_keys.duplicate(), "sent": sent, "target": int(dungeon.target),
+		"cards": cards.map(func(p): return p.uid), "herd": herd_keys.duplicate(), "sent": int(party.sent), "target": int(dungeon.target),
 		"room": i, "door": int(catalog.sewing.get("door_floor", 20)), "seconds": Sewing.seconds(catalog) }
+	sew_last = {}
 	_rest_changed()
 	dungeon_changed.emit()
 	changed.emit()
@@ -3994,6 +4137,7 @@ func _finish_room_run(quiet := false) -> void:
 		_keep_lines_changed()
 	dungeon.last = { "floor": int(run.get("door", catalog.sewing.get("door_floor", 20))), "got": got,
 		"back": int(run.get("sent", 0)) - lost_n, "room": i }
+	sew_last = { "room": i, "got": got, "sent": int(run.get("sent", 0)), "back": int(run.get("sent", 0)) - lost_n, "cleared": cleared, "first": first }
 	dungeon.cards = dungeon.cards.filter(func(uid): return collection.get_pet(str(uid)) != null)
 	dungeon_news = { "got": got, "room": str(r.name), "cleared": cleared, "again": cleared and not first }
 	if not quiet:

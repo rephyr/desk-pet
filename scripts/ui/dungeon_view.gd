@@ -17,6 +17,8 @@ extends HBoxContainer
 ## hold; while it fills a meter, a ‹ n › per shelf with pets that may go, "hold on tight!"). Once a
 ## landing is fully held the orders card gets "start from ‹the top | landing N›".
 
+signal door_opened  # the sewing room's door was tapped: the adventures tab shows the sewing room (SewingPage)
+
 const PICK_PAGE := 20
 const PICK_COLUMNS := 5
 const HERD_STEP := 10
@@ -95,9 +97,7 @@ func _init() -> void:
 	_rooms.room_changed.connect(func(): _dirty = true)
 	wcol.add_child(_pan)
 	add_child(well)
-	_column.door_pressed.connect(func():
-		show_rooms(true)
-		PetBubble.say_line(self, "sewing_door"))
+	_column.door_pressed.connect(func(): door_opened.emit())
 	_column.nail_pressed.connect(pick_nail)
 	_column.hold_pressed.connect(pick_hold)
 	_mid.size_flags_horizontal = SIZE_EXPAND_FILL

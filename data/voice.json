@@ -722,6 +722,7 @@
 		"sewing_door": ["a tiny door! it smells like thread in there.", "ooh, it's all fluffy in here. mind the pins!"],
 		"sewing": ["it's so quiet in here. like a pocket.", "everything's so big in here! or are we small?", "shh. the thread is sleeping."],
 		"sewing_go": ["in we go! mind the pins!", "tiptoe, everyone! it's all pointy in here."],
+		"sewing_me": ["yay! i'll hold the thread.", "me? i'll be ever so careful!"],
 		"sewing_running": ["we're in {room}! it's so fluffy!", "{room}! nobody touch the pins!"],
 		"sewing_home": ["{room} is all tidy now! {got} wisps!", "we did {room}! {got} wisps, all glowy!"],
 		"sewing_again": ["{room} again! {got} wisps ♪", "back from {room}! {got} more wisps!"],

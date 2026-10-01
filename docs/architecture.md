@@ -262,7 +262,10 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   school share; pages are strings: `pet`, `workers`, `whistle`, `school`); the adventures tab's
   dungeon page is `DungeonView` (`WellColumn` draws the well's cross-section, `FrontRow` the front
   row; rules in `Dungeon`, state in `GameState.dungeon` and `GameState.wisps`; the sewing room: `SewDoor` on
-  the column, `SewingRoom` slid in beside it with `ChalkMark`s, rules in `Sewing`), `InventoryTab`
+  the column; `DungeonView.door_opened` has the adventures tab show `SewingPage` in its place:
+  the room strip, seats, the pet picker; seats in `GameState.sew_seats` (not saved), `sew_seat` /
+  `sew_unseat` / `sew_party` / `sew_last`; rules in `Sewing`. The old `SewingRoom` pane slid in
+  beside the column is no longer reachable and can go once the dungeon page redo is merged), `InventoryTab`
   (the bag and sewing) and `SettingsTab` (general and video pages).
   Tabs can be locked or hidden until something opens them (`data/unlocks.json`).
 - The full game is laid out at 920x600 (`home.gd` `EXPANDED_SIZE`) and scaled to the chosen

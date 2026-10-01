@@ -1,8 +1,9 @@
 class_name Sewing
 extends RefCounted
 ## E3 the sewing room, off the well's floor 20 (data/sewing.json): rooms, each one fight for the
-## dungeon's army (Dungeon's maths at the room's floor) behind a chalk lock of marks the front row
-## has to match. After the fixed rooms, rolled rooms with button locks go on forever. Also the rules
+## dungeon's army (Dungeon's maths at the room's floor) behind a chalk lock of marks: a seat each, and
+## every seat needs a pet that matches (GameState.sew_seat). After the fixed rooms, rolled rooms
+## with button locks go on forever. Also the rules
 ## of the sorting card's keep lines, which the first room teaches. Pure rules, no game state:
 ## GameState keeps the state from the save. The state:
 ##   { cleared: rooms cleared so far, in order (the fixed ones, then rolled ones) }
@@ -120,7 +121,7 @@ static func mark_matches(mark: String, pet: Pet) -> bool:
 	return false
 
 
-## Which of a room's marks the front row fills: [bool] in the marks' order.
+## Which of a room's marks some of `pets` fill: [bool] in the marks' order.
 static func marks_on(r: Dictionary, front: Array) -> Array:
 	var out: Array = []
 	for mark in r.get("marks", []):
@@ -157,6 +158,31 @@ static func many(catalog: Catalog, mark: String) -> String:
 		"part":
 			return str(catalog.part(p[1], p[2]).get("name", p[2])) + "s" if p.size() > 2 else mark
 	return mark
+
+
+## A mark's word for one pet, on its seat ("a halo", "lazy", "rare", "2 buttons").
+static func one(catalog: Catalog, mark: String) -> String:
+	var info: Dictionary = data(catalog).get("marks", {}).get(mark, {})
+	if info.has("one"):
+		return str(info.one)
+	var p := mark.split(":")
+	match p[0]:
+		"buttons":
+			var n := int(p[1]) if p.size() > 1 else 1
+			return "%d button%s" % [n, "" if n == 1 else "s"]
+		"part":
+			return str(catalog.part(p[1], p[2]).get("name", p[2])) if p.size() > 2 else mark
+	return many(catalog, mark)
+
+
+## A mark's word for the pets that fit it, over the pet picker ("halos", "lazy ones", "epic ones").
+static func ones(catalog: Catalog, mark: String) -> String:
+	match mark.get_slice(":", 0):
+		"trait", "finish", "tier":
+			return "%s ones" % many(catalog, mark)
+		"buttons":
+			return one(catalog, mark)
+	return many(catalog, mark)
 
 
 # ---- a run ------------------------------------------------------------------------
