@@ -841,6 +841,11 @@ func _show_postcard(trip: Dictionary) -> void:
 	speak()
 
 
+## A trip's postcard is up: unlock popups wait until it's closed.
+func busy() -> bool:
+	return _postcard.is_visible_in_tree()
+
+
 ## The letterbox on the map was tapped: the oldest postcard waiting in it.
 func _open_letterbox() -> void:
 	var trip := GameState.take_postcard()

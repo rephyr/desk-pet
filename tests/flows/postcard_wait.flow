@@ -1,0 +1,23 @@
+# An unlock popup waits while the trip postcard is up, then shows once it's closed.
+from after_tutorial
+view full
+tab adventures
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+answer
+click "dev: skip the walking"
+wait text "welcome back"
+click "welcome back"
+expect text "greetings from"
+find basket
+wait 2
+expect no-text "new: errands!"
+expect text "greetings from"
+click "lovely"
+wait popup
+expect text "new: errands!"
