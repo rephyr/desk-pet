@@ -1,9 +1,12 @@
-# E3 the sewing room (look A: the door on the column, the column slides sideways): nothing on floor
-# 20 until the tiny key is found, then a little pink door. Tap it: "‹ the sewing room", the button
-# tin with its chalk lock (dashed marks; a tap has your pet say where one comes from). Cards that
-# match fill the marks in and get chalk ticks on the front row; in we go! The first clear teaches
-# keep lines on the sorting card. The last room opens the plushie machine (a free button), then
-# rolled rooms with button locks go on forever. Everything stays inside the window.
+# E3 the sewing room, redone in P4 (look A: the seats). Nothing on floor 20 until the tiny key is
+# found, then a little pink door. Tap it: the sewing room as its own page (‹ the old well, the
+# wisps): the strip of rooms (the button tin picked, the pin cushion as a dashed carrot), the tin's
+# card with a seat per chalk mark and the pet picker. "where from? ›" has your pet say where a
+# seat's pets come from. Tap a seat, then a pet that fits (the fitting ones come first): one shiny
+# rare bunny sits on all three seats; the army walks in behind ("and 250 more"). In we go: the
+# clock and the tiny pets, then the result (wisps, came home, again / the pin cushion ›). The first
+# clear teaches keep lines; the last room opens the plushie machine (a free button on your pet),
+# then rolled rooms with button locks, where your pet can sit too. Everything stays in the window.
 from rich
 view full
 stickers off                  # new pets here can fill a book page: no sticker popups over the shots
@@ -40,21 +43,32 @@ shot door
 click SewDoor#1
 wait 1
 expect text "the sewing room"
+expect text "‹ the old well"
 expect text "the button tin"
+expect text "→ the pin cushion"      # the next room, the carrot
+expect no-text "the thread maze"     # rooms not reached yet stay hidden
+expect text "who's going in"
+expect text "bunny ears"
 expect text "in we go!"
+expect text "more"                   # the army walking in behind
 expect fits
-shot locked
-click ChalkMark#1                    # the bunny ears are dashed: where do they come from?
+shot room
+click "where from? ›"                # the bunny ears seat is tapped: where do they come from?
 wait 0.5
 expect text "bunny ears come on rare pets*"
 expect fits
-shot hint
+shot where_from
 card body=bunny rarity=rare finish=shiny 2
-army best
 wait 1
+click name:SewSeat2                  # the rare seat
+wait 0.5
+expect text "rare ones"
+shot seat_tapped                     # fitting pets first and lit up, the others dim
+click name:SewPick1
+wait 0.5
 expect fits
-shot ready
-in
+shot seated                          # one shiny rare bunny sits on all three seats
+click "in we go!"
 wait 1
 expect text "on the way…"
 expect fits
@@ -74,13 +88,19 @@ wait 1
 expect text "zoomy ones"
 expect fits
 shot keep_lines
-# back in the sewing room, the last time card knows the room
+# back in the sewing room: the result waits there
 tab adventures
-page adventures 2
 wait 1
-expect text "went to"
+expect text "the sewing room"
+expect text "again"
 expect fits
-shot tin_cleared
+shot result
+click "the pin cushion ›"
+wait 1
+expect text "the pin cushion"
+expect text "→ the thread maze"
+expect fits
+shot next_room
 # the last room: it opens the plushie machine and sews a button onto your pet
 sewn 8
 wait 1
@@ -88,6 +108,8 @@ sew-room 9
 card accessory=horns body=dragon finish=glitch rarity=mythic trait=lucky
 card body=dragon rarity=mythic finish=prismatic trait=brave 19
 army best
+wait 1
+sew-seat all
 wait 1
 expect text "the sewing basket"
 expect fits
@@ -101,10 +123,14 @@ shot plushie
 click "lovely"
 wait 1
 tab adventures
-page adventures 2
 wait 1
 sew-room 10                          # rolled rooms from here on: a button lock first
 wait 1
+click name:SewSeat1                  # the button seat: your pet has the free button
+wait 0.5
+click name:SewPick1
+wait 0.5
+expect text "1 button"
 expect fits
 shot rolled
 # the army down the well while the sewing room shows: the room's button isn't "on the way…"
@@ -116,7 +142,12 @@ shot well_run_rooms
 down-done
 wait 1
 expect fits
-shot well_home_rooms
+click "‹ the old well"
+wait 1
+expect text "the old well"
+expect no-text "who's going in"
+expect fits
+shot back_to_well
 # three keep lines by now (rooms 1, 4 and 7): they all fit on the sorting card
 tab collection
 wait 1

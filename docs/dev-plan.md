@@ -123,7 +123,16 @@ What she found, and what we're doing about it, in order (P1 first).
   machine + backyard ~3 h, coins/packs ~15 h, managing pets ~40 h, loop break ~60 h, late ~80 h).
   No new sims (tight schedule): tune by reasoning, Emilia playtests.
 - **P4 late-game redesigns** (plushie stakes BUILT 2026-10-01, see F2; flow plushie_stakes;
-  watch: perks now cost real well wisps, the chain was ~460k). **Emilia's picks (2026-10-01), all
+  watch: perks now cost real well wisps, the chain was ~460k). **The sewing room BUILT 2026-10-01
+  (lane sewing2, look A, the seats):** `SewingPage`, its own page in the dungeon's place (the door
+  on floor 20 opens it, "‹ the old well" goes back, wisps chip); room strip (pennants, the next one
+  picked, a dashed carrot after it, nothing further); the room's card with "→ next room", a
+  feeling word and a seat per mark; tap a seat, then a pet (fitting ones first and lit, the rest
+  dim; "where from? ›" for the hint); any card can sit, your active pet and the plushie keeper too
+  (both always come home), one pet fills every seat it fits; the army walks in behind ("and N
+  more"); the 60 s run with a clock and tiny pets; the result (wisps, came home, again / next room
+  ›). Seats are not saved (no save bump). The well page's old slide-in pane (`SewingRoom`) isn't
+  reachable now: delete it with the dungeon page redo. Flow sewing. **Emilia's picks (2026-10-01), all
   look A:** dungeon-redo.html A (slim well column + desk: fill up / all / pip slider per shelf,
   orders as choice rows, floor log during the run, came-home report); perks-redo.html A (the well
   wall sheet from the wisps pill, strict chain kept, the nails lane on the well goes); sewing-redo.html
@@ -623,7 +632,8 @@ What she found, and what we're doing about it, in order (P1 first).
   it comes from), each one army fight; keep lines from the tin (+1 at rooms 4 and 7, cap 50); the
   last room opens the plushie machine (F1) and sews a free button; rolled rooms with button locks
   forever. data/sewing.json, Sewing, SewingRoom, ChalkMark, SewDoor; flow sewing. While the room
-  shows, your pet leading the army waits at home so a room gets a turn. Open: exact vs "or better"
+  shows, your pet leading the army waits at home so a room gets a turn. **Redone in P4** (see
+  Playtest 1: SewingPage, seats instead of the front row). Open: exact vs "or better"
   marks, room names past the first five, room floors vs the pace sim.
 
 ---

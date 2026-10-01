@@ -141,7 +141,7 @@ func refresh(a: Dictionary, rules: Dictionary) -> void:
 	if cleared:
 		foot.add_child(_pennant())
 	else:
-		var word := GameState.sew_word(room, rules) if int(a.get("sent", 0)) > 0 else []
+		var word := GameState.sew_word(room) if int(a.get("sent", 0)) > 0 else []
 		if not word.is_empty():
 			foot.add_child(_feel(word))
 	foot.add_child(UiTheme.spacer())

@@ -2,7 +2,9 @@ class_name AdventuresTab
 extends VBoxContainer
 ## Sending pets on adventures ("trips"). Up to three pages, switched at the top: adventures,
 ## upgrades (gear for the trips, bought with xp: GearView; once the first xp is home) and the
-## dungeon (the old well, all the way down: DungeonView; once the rope find opens it).
+## dungeon (the old well, all the way down: DungeonView; once the rope find opens it). The well's
+## little pink door on floor 20 opens the sewing room (SewingPage) in the dungeon's place, switch
+## and all; its "‹ the old well" goes back.
 ## Your pet's crayon map of the world (MapView) fills the
 ## left; tapping a place sticks a card onto the map for picking who goes there. A hands-on trip
 ## can be watched up close on the trail (TrailView), in the map's place. The trips that are away
@@ -46,6 +48,7 @@ var _tick := 0.0
 var _voice_rng := RandomNumberGenerator.new()
 var gear_view := GearView.new()  # the upgrades page
 var dungeon_view := DungeonView.new()  # the dungeon page
+var sewing_page := SewingPage.new()  # the sewing room, through the door on the well's floor 20
 var _wisp_chip: PanelContainer  # the darker currency, by the switch on the dungeon page
 var _wisp_label: Label
 var _main := HBoxContainer.new()  # the adventures page: the map (or trail) and the trips away
@@ -92,6 +95,10 @@ func _init() -> void:
 	add_child(gear_view)
 	dungeon_view.visible = false
 	add_child(dungeon_view)
+	sewing_page.visible = false
+	add_child(sewing_page)
+	dungeon_view.door_opened.connect(func(): show_sewing(true))
+	sewing_page.back.connect(func(): show_sewing(false))
 	_location_id = GameState.open_locations()[0].id
 
 	# the map, with the place card stuck onto it and the trail in its place when watching
@@ -160,6 +167,9 @@ func _init() -> void:
 		if dungeon_view.visible:
 			dungeon_view.speak()
 			return
+		if sewing_page.visible:
+			sewing_page.speak()
+			return
 		speak()
 		# a hands-on trip is out: go along with it
 		for run in GameState.runs:
@@ -201,6 +211,7 @@ func show_named_page(page_name: String) -> void:
 
 
 func _show_page(page: int) -> void:
+	sewing_page.visible = false
 	_main.visible = page == 0
 	gear_view.visible = page == 1
 	dungeon_view.visible = page == 2
@@ -222,11 +233,31 @@ func _refresh_bar() -> void:
 	var dungeon_on := GameState.dungeon_open()
 	(row.get_child(1) as Control).visible = gear_on
 	(row.get_child(2) as Control).visible = dungeon_on
-	_bar.visible = gear_on or dungeon_on
+	_bar.visible = (gear_on or dungeon_on) and not sewing_page.visible  # (the sewing room has its own bar)
 	_wisp_chip.visible = dungeon_view.visible
 	_wisp_label.text = UiTheme.num(GameState.wisps)
-	if (gear_view.visible and not gear_on) or (dungeon_view.visible and not dungeon_on):
-		show_page(0, true)
+	if (gear_view.visible and not gear_on) or (dungeon_view.visible and not dungeon_on) or (sewing_page.visible and not GameState.sewing_open()):
+		show_page(0 if not dungeon_on else 2, true)
+
+
+## The sewing room (on) in the dungeon page's place, or back to the well. Hidden one first, so the
+## army waits at home only while the sewing room shows (GameState.army_held).
+func show_sewing(on: bool) -> void:
+	on = on and GameState.sewing_open()
+	if on:
+		dungeon_view.visible = false
+		_main.visible = false
+		gear_view.visible = false
+		sewing_page.open()
+		sewing_page.visible = true
+		PetBubble.say_line(self, "sewing_door")
+	else:
+		sewing_page.visible = false
+		dungeon_view.visible = GameState.dungeon_open()
+		_main.visible = not dungeon_view.visible
+		if dungeon_view.visible:
+			dungeon_view.speak()
+	_refresh_bar()
 
 
 ## The signpost at the edge was tapped: its card turns up in the right column.

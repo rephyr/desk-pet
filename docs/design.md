@@ -793,8 +793,24 @@ All opt-in, with odds shown before confirming:
 
 - **Built (look A: the door on the column, well-additions mockup):** once the tiny key from floor 20
   is found, a little pink arched door with a coral knob is cut through the right wall of floor 20
-  (nothing shows before). Tapping it slides the column sideways; its header reads "‹ the sewing
-  room" (‹ slides back). data/sewing.json, `Sewing`.
+  (nothing shows before). data/sewing.json, `Sewing`.
+- **Redone in P4 (sewing-redo.html look A, the seats; `SewingPage`):** the door opens the sewing
+  room as its own page in the dungeon's place (the adventures | upgrades | dungeon switch steps
+  aside): "‹ the old well" goes back, the wisps chip top right. A strip of picture tiles: every
+  room cleared (a coral pennant), the next one to clear on a pink stitched patch, the one after it
+  as a dashed carrot (not tappable; nothing past it shows). The picked room's card: its name,
+  "→ ‹the next room›", a feeling word, its drawing in an arched chamber, then **who's going in**:
+  a seat per chalk mark (the drawing, its word: "a halo", "rare", "2 buttons", and a dashed place).
+  Tap a seat, then a pet on the right: the picker (4 x 3 a page) puts the pets that fit first (the
+  ones that would fill the most empty seats, then the strongest), lit up with a chalk tick; the
+  others dim. A pet sits on every empty seat it fits (faded on the extra ones); ✕ takes it off all
+  of them. "where from? ›" under the picker has your pet say where the tapped seat's pets come from.
+  **Any card can sit** (not only the army's strongest), your active pet and the plushie machine's
+  keeper too; both always come home. The army lined up on the well page walks in behind the seated
+  pets ("and 2,860 more", up to the entrance). Seats aren't saved (they stay for "again" and while
+  the page is open). The run: a clock and tiny pets walking through the chamber, "on the way…",
+  the strip locked. The result in the seats' place: a pennant on a clear, the wisps, "254 of 263
+  came home", **again** (the same seats) and, after a first clear, "‹the next room› ›".
   - **Rooms:** 9 fixed rooms (the button tin, the pin cushion, the thread maze, the ribbon drawer,
     the thimble tower, the pattern book, the needle case, the big scissors, the sewing basket), each
     ONE fight for the dungeon's army (its cards, herd, entrance and "who goes first") against the
@@ -803,10 +819,9 @@ All opt-in, with odds shown before confirming:
     instead of the feeling word).
   - **The chalk lock:** 3-5 chalk drawings on a board: part pictures (bunny ears, a halo, horns, a
     crown, headphones, sparkly eyes...), trait icons, finish swatches, rarity circles in their tier's
-    colour. A drawing fills in solid when a pet in the front row (the army's best 20 cards; your pet
-    with the flag leads and doesn't count) matches it; matching front-row cards get a chalk tick.
-    Tapping a dashed drawing: your pet says where it comes from. "in we go!" only works when every
-    drawing is filled. No words on the board.
+    colour. A drawing fills in solid when the pet on its seat matches it. "in we go!" only works
+    when every seat has a pet. (Before P4: the army's best 20 cards counted, the board sat in the
+    well's column.)
   - **A run** takes 60 s (the army stands at the door on floor 20); losses as a well floor (stars,
     never mentioned); a room below 0.4 of its strength isn't cleared and pays nothing; a clear pays
     wisps like a well floor at the room's floor.

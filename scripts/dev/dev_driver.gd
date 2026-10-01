@@ -702,20 +702,34 @@ func _step(w: PackedStringArray) -> String:
 		"keeper":  # keeper next | prev
 			if not GameState.plushie_swap(1 if w[1] == "next" else -1):
 				return "can't swap the keeper now"
-		"door":  # the column slides over to the sewing room
+		"door":  # through the well's door: the sewing room page
 			home.full_game().show_tab("adventures")
 			home.full_game().adventures.show_page(2)
-			var view: DungeonView = home.full_game().adventures.dungeon_view
-			view.show_rooms(true)
-			if not view.in_rooms():
+			home.full_game().adventures.show_sewing(true)
+			if not home.full_game().adventures.sewing_page.is_visible_in_tree():
 				return "the sewing room isn't open"
-		"sew-room":  # sew-room <n>: the room shown
-			var view: DungeonView = home.full_game().adventures.dungeon_view
+		"sew-room":  # sew-room <n>: the room picked on the strip
 			var i := int(w[1]) - 1
 			if i < 0 or i >= Sewing.shown(GameState.sewing):
 				return "room %s doesn't show" % w[1]
-			view.rooms().room = i
-			view.rooms().room_changed.emit()
+			home.full_game().adventures.sewing_page.pick_room(i)
+		"sew-seat":  # sew-seat <mark | all>: the strongest pet that fits sits on that sewing room seat (all: on every empty one)
+			var page: SewingPage = home.full_game().adventures.sewing_page
+			var r := GameState.sew_room(page.room)
+			var marks: Array = r.marks if w[1] == "all" else [w[1]]
+			for mark in marks:
+				if not mark in r.marks:
+					return "%s has no %s seat" % [r.name, mark]
+				if GameState.sew_seat_pets(page.room).has(mark):
+					continue
+				var pet: Pet = null
+				for p in GameState.sew_pickable():
+					if Sewing.mark_matches(str(mark), p):
+						pet = p
+						break
+				if pet == null or not GameState.sew_seat(page.room, str(mark), pet.uid):
+					return "no pet fits the %s seat" % mark
+			page.refresh_seats()
 		"sewn":  # sewn <n>: the first n rooms are cleared
 			GameState.debug_sewn(int(w[1]))
 		"holders":  # holders <landing> <rarity> <n>: they go and hold that landing (for good)
@@ -739,10 +753,10 @@ func _step(w: PackedStringArray) -> String:
 		"start":  # start <landing>: the orders start from there
 			if not GameState.set_start(int(w[1])):
 				return "landing %s isn't held (or the army is out)" % w[1]
-		"in":  # the army goes into the room shown
-			var view: DungeonView = home.full_game().adventures.dungeon_view
-			if not GameState.send_to_room(view.rooms().room):
-				return "the army couldn't go into room %d" % (view.rooms().room + 1)
+		"in":  # the seated pets and the army go into the room picked
+			var room: int = home.full_game().adventures.sewing_page.room
+			if not GameState.send_to_room(room):
+				return "the army couldn't go into room %d" % (room + 1)
 		"card":  # card body=bunny rarity=rare finish=shiny trait=zoomy [n]
 			var n := 1
 			var fields := {}

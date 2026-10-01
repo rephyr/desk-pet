@@ -5419,6 +5419,10 @@ func _test_sewing(catalog: Catalog) -> void:
 	_check(Sewing.unlocked(tin, [other, pet]) and Sewing.ticks(tin, [other, pet]) == [false, true], "a matching front row pet fills every mark and gets a tick")
 	_check(Sewing.shown(Sewing.fresh()) == 1 and Sewing.shown({ "cleared": 3 }) == 4, "only the rooms cleared and the next one show")
 	_check(Sewing.clean({ "cleared": "x" }).cleared == 0 and Sewing.clean(null).cleared == 0 and Sewing.clean({ "cleared": -4 }).cleared == 0, "junk loads as a fresh sewing room")
+	_check(Sewing.one(catalog, "part:accessory:halo") == "a halo" and Sewing.one(catalog, "buttons:1") == "1 button" and Sewing.one(catalog, "buttons:3") == "3 buttons"
+		and Sewing.one(catalog, "trait:lazy") == "lazy", "a seat's word names one pet (%s)" % Sewing.one(catalog, "part:accessory:halo"))
+	_check(Sewing.ones(catalog, "part:accessory:halo") == "halos" and Sewing.ones(catalog, "trait:lazy") == "lazy ones" and Sewing.ones(catalog, "tier:epic") == "epic ones",
+		"the picker's word names the pets that fit (%s)" % Sewing.ones(catalog, "tier:epic"))
 
 	# keep lines: one from the tin, one more from rooms 4 and 7, capped
 	_check(Sewing.keep_lines(catalog, 0) == 0 and Sewing.keep_lines(catalog, 1) == 1 and Sewing.keep_lines(catalog, 4) == 2
@@ -5484,30 +5488,68 @@ func _test_sewing_game(catalog: Catalog) -> void:
 	_check(gs.sewing_open(), "the tiny key opens the sewing room's door")
 	gs.army_best()
 	gs.set_army_herd("common", 100)
-	_check(not gs.sew_can_go(0) and not gs.send_to_room(0), "the button tin's chalk lock keeps a front row of plain epic cats out")
+	_check(not gs.sew_can_go(0) and not gs.send_to_room(0), "the button tin's seats are empty: nobody goes in")
 	_check(not gs.sew_can_go(1), "the next room doesn't even show yet")
 	var front: Array = gs.sew_front()
 	front[0].parts.body = "bunny"
-	front[1].finish = "shiny"
-	front[2].rarity = "rare"
-	_check(gs.sew_marks(0) == [true, true, true] and gs.sew_can_go(0), "a bunny, a shiny one and a rare one fill the tin's marks")
+	_check(gs.sew_marks(0) == [false, false, false], "a bunny in the front row fills nothing by itself: marks count the pets on their seats")
+	_check(not gs.sew_seat(0, "tier:rare", front[0].uid) and gs.sew_seated(0).is_empty(), "an epic bunny can't sit on the rare seat")
+	_check(gs.sew_seat(0, "part:body:bunny", front[0].uid) and gs.sew_marks(0) == [true, false, false], "it sits on the bunny ears seat")
+	# any pet you seat counts, not only the army's strongest: a plain rare cat nobody lined up
+	var weak := _plain_pet(catalog, "rare", "holo", 900)
+	weak.parts.body = "cat"
+	weak.traits.clear()
+	gs.collection.add([weak] as Array[Pet])
+	_check(not gs.army_cards().any(func(p): return p.uid == weak.uid), "the rare cat isn't in the army")
+	_check(gs.sew_pickable().any(func(p): return p.uid == weak.uid) and gs.sew_seat(0, "tier:rare", weak.uid), "but it can sit on the rare seat")
+	# your active pet may go in too
+	var me: Pet = gs.collection.active()
+	me.finish = "shiny"
+	_check(gs.sew_pickable().has(me) and gs.sew_seat(0, "finish:shiny", me.uid), "your active pet sits on the shiny seat")
+	_check(gs.sew_marks(0) == [true, true, true] and gs.sew_can_go(0), "every seat has a pet: in we go")
+	var party: Dictionary = gs.sew_party(0)
+	_check(party.cards.has(me) and party.cards.has(weak) and int(party.sent) == 13 + 100 and int(party.more) == int(party.sent) - 3,
+		"the seated pets and the whole army go in (%d, %d more)" % [int(party.sent), int(party.more)])
+	gs.sew_unseat(0, "finish:shiny")
+	_check(gs.sew_marks(0) == [true, true, false], "taking your pet off empties its seat")
+	# one pet can fill several seats
+	var all_three := _plain_pet(catalog, "rare", "shiny", 901)
+	all_three.parts.body = "bunny"
+	all_three.fav = true  # (stays a card)
+	gs.collection.add([all_three] as Array[Pet])
+	gs.sew_pick_room(1)
+	gs.sew_pick_room(0)
+	_check(gs.sew_seated(0).is_empty(), "lining up another room starts with empty seats")
+	_check(gs.sew_seat(0, "tier:rare", all_three.uid) and gs.sew_marks(0) == [true, true, true] and gs.sew_seated(0).size() == 1, "a shiny rare bunny sits on all three seats")
+	gs.sew_unseat(0, "part:body:bunny")
+	_check(gs.sew_seated(0).is_empty(), "and gets up from all of them")
+	gs.sew_seat(0, "part:body:bunny", front[0].uid)
+	gs.sew_seat(0, "tier:rare", weak.uid)
+	gs.sew_seat(0, "finish:shiny", me.uid)
 	var busy_uid: String = front[3].uid
-	_check(gs.send_to_room(0) and gs.dungeon_running() and gs.dungeon.run.room == 0, "in we go: the army's in the button tin")
+	_check(gs.send_to_room(0) and gs.dungeon_running() and gs.dungeon.run.room == 0, "in we go: the seated pets and the army are in the button tin")
+	_check(me.uid in gs.dungeon.run.cards and weak.uid in gs.dungeon.run.cards, "your pet and the rare cat went in")
 	_check(not gs.resting_cards().any(func(p): return p.uid == busy_uid) and not gs.send_army(), "its pets are busy, and nobody else goes down meanwhile")
+	_check(not gs.sew_pickable().any(func(p): return p.uid == weak.uid), "pets in the room can't sit anywhere else")
 	var herd0: int = gs.collection.herd_count("common:normal")
 	gs.dungeon.run.at = 0.0
-	gs.dungeon.run.floors = [{ "f": 20, "cleared": true, "lost_cards": [busy_uid], "lost_herd": { "common:normal": 3 }, "pay": 7 }]
+	gs.dungeon.run.floors = [{ "f": 20, "cleared": true, "lost_cards": [busy_uid, me.uid], "lost_herd": { "common:normal": 3 }, "pay": 7 }]
 	var wisps0: int = gs.wisps
 	gs._dungeon_tick()
 	_check(not gs.dungeon_running() and gs.wisps == wisps0 + 7 and gs.sewing.cleared == 1, "back from the tin: its wisps paid, one room cleared")
 	_check(gs.collection.get_pet(busy_uid) == null and gs.collection.herd_count("common:normal") == herd0 - 3, "the ones that didn't come back are gone")
+	_check(gs.collection.get_pet(me.uid) != null, "your pet always comes home")
+	_check(int(gs.sew_last.get("room", -1)) == 0 and gs.sew_last.cleared and gs.sew_last.first and int(gs.sew_last.got) == 7
+		and int(gs.sew_last.back) == int(gs.sew_last.sent) - 4, "the page's result: the tin, cleared for the first time, 7 wisps, who came home (%s)" % [gs.sew_last])
+	_check(gs.sew_seated(0).size() == 3 and gs.sew_marks(0) == [true, true, true], "the seats stay for another go")
 	_check(gs.dungeon.last.get("room", -1) == 0 and gs.feature_on("keep_lines") and gs.keep_line_count() == 1, "the last time card knows the room; keep lines open")
 	_check(gs.sew_can_go(0) and Sewing.shown(gs.sewing) == 2, "the tin can be done again, and the pin cushion shows")
 	# a replay gives no firsts; a room too strong isn't cleared
-	gs.send_to_room(0)
+	_check(gs.send_to_room(0), "again: the same seats go in")
 	gs.dungeon.run.at = 0.0
+	gs.dungeon.run.floors = [{ "f": 20, "cleared": true, "lost_cards": [], "lost_herd": {}, "pay": 3 }]
 	gs._dungeon_tick()
-	_check(gs.sewing.cleared == 1, "doing the tin again doesn't count as a new room")
+	_check(gs.sewing.cleared == 1 and not gs.sew_last.first, "doing the tin again doesn't count as a new room")
 	# your pet leading the army waits at home while the sewing room is open on screen
 	gs.automation.taught["army"] = true
 	gs.automation.task = "army"
@@ -5553,6 +5595,20 @@ func _test_sewing_game(catalog: Catalog) -> void:
 	var buttons0 := Plushie.total(active)
 	gs.debug_sewn(Sewing.fixed_count(catalog))
 	_check(gs.plushie_open() and Plushie.total(active) == buttons0 + 1, "the last room opens the plushie machine and sews a button onto your pet")
+	gs.plushie.keeper = all_three.uid
+	var rolled_i: int = gs.sewing.cleared
+	gs.sew_pick_room(rolled_i)
+	var keeper_ok: bool = not gs.army_choices().any(func(p): return p.uid == all_three.uid) and gs.sew_pickable().any(func(p): return p.uid == all_three.uid)
+	_check(keeper_ok, "the plushie keeper never joins the army, but it can sit on a seat")
+	all_three.buttons = { "body": 1 }
+	var lock: String = gs.sew_room(rolled_i).marks[0]
+	if Sewing.mark_matches(lock, all_three):
+		_check(gs.sew_seat(rolled_i, lock, all_three.uid), "the keeper sits on the button seat")
+	gs.dungeon.run = { "at": 0.0, "floors": [{ "f": 20, "cleared": false, "lost_cards": [all_three.uid], "lost_herd": {}, "pay": 0 }],
+		"why": "stuck", "turned": 0, "cards": [all_three.uid], "herd": {}, "sent": 1, "target": 5, "room": rolled_i, "door": 20, "seconds": 60.0 }
+	gs._dungeon_tick()
+	_check(gs.collection.get_pet(all_three.uid) != null and str(gs.plushie.keeper) == all_three.uid, "the keeper always comes home too")
+	_check(not gs.sew_last.cleared and int(gs.sew_last.got) == 0, "a room too strong: no pennant, nothing paid")
 	_check(gs.keep_line_count() == 3, "three keep lines by then")
 	var next: Dictionary = gs.sew_room(int(gs.sewing.cleared))
 	_check(next.rolled and str(next.marks[0]).begins_with("buttons:"), "the room after the last is rolled, with a button lock")
