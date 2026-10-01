@@ -122,7 +122,8 @@ What she found, and what we're doing about it, in order (P1 first).
   (time the game is open; stretch existing content first, then add content; back-loaded split:
   machine + backyard ~3 h, coins/packs ~15 h, managing pets ~40 h, loop break ~60 h, late ~80 h).
   No new sims (tight schedule): tune by reasoning, Emilia playtests.
-- **P4 late-game redesigns**: the plushie machine has no stake (sewn buttons are safe, misses pay
+- **P4 late-game redesigns** (plushie stakes BUILT 2026-10-01, see F2; flow plushie_stakes;
+  watch: perks now cost real well wisps, the chain was ~460k): the plushie machine has no stake (sewn buttons are safe, misses pay
   wisps, cracks pay double; one mythic ≈ the whole wisps economy). **Decided:** cracks can pop
   sewn buttons, misses pay nothing, each next button needs better fed pets, holding stakes
   buttons. Dungeon: 10-pet steppers (~480 clicks), 20 s/floor waits, strength never shown,
@@ -660,7 +661,11 @@ What she found, and what we're doing about it, in order (P1 first).
     stitches...).
   - **Per pet** (a deep chase), not per part kind.
   - **Shows odds**, like boxes and the workbench sacrifice (it's a machine).
-  - **A failed try costs only the fed pets and held upgrades.** The keeper is always safe.
+  - ~~A failed try costs only the fed pets and held upgrades. The keeper is always safe.~~
+    **Changed after playtest 1 (2026-10-01):** a crack knocks a sewn button off its part (one
+    more if the reel was on hold; a nudge off the crack puts them back), misses puff nothing,
+    and each next button needs a better fed pet (data/plushie.json "needs": common, common,
+    rare, epic, mythic for the 1st..5th). Wisps now only come from the well and its rooms.
   - **Handoff:** later you give pets rules (bank at 3, never risk the body) and they play worse
     than you.
   - One layer now; a second whole-pet axis can come much later (ideas in docs/brainstorms.md).
