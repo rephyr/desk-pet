@@ -793,6 +793,7 @@
 		"plushie_hop": ["{name} hops in! wheee!", "in you go, {name}! have fun!", "{name}'s turn! look at it wiggle!"],
 		"plushie_cheer": ["wheee!", "go go go!!", "round and round!", "spin spin spin!", "ooh, here it comes!"],
 		"plushie_yay": ["a new button!! so pretty!", "ooh! ooh! a button! look!", "another button! best day ever!"],
+		"plushie_popped": ["oh no, a button popped off!", "it came unstitched!! i'll find it later...", "pop! there goes a button."],
 		"plushie_fluff": ["oops, a bit of fluff! so soft!", "fluff everywhere, like snow!", "it's just stuffing! it's fine!"],
 		"plushie_kept": ["sewn on tight!", "that one's staying forever!", "all snug now!"],
 		"plushie_keeper": ["can i help? i'll hold the thread!", "ooh, this one's so cuddly!", "we'll make it the fluffiest!"],

@@ -59,6 +59,8 @@ var _rows_shown := ""  # what _rows holds now: the rarities shown, or the picker
 var _t := 0.0
 var _busy_until := 0.0
 var _landing := {}  # reel index (WILD for the wild reel) -> [time it lands, symbol, wisps puffed]
+var _lost_any := false  # a crack knocked a button off this spin (your pet says so once it's all landed)
+var _popped := {}  # reel index (WILD for the wild reel) -> sewn buttons the last spin's crack knocked off
 var _pending_wisps := 0  # puffed by reels still rolling (the number catches up as they land)
 var _was_busy := false
 
@@ -491,8 +493,13 @@ func _refresh_reel(i: int, keeper: Pet) -> void:
 	_reels[i].nudge.visible = keeper != null and Plushie.can_nudge(catalog, st, keeper, i) and not busy()
 	_marks[i].set_marks(Plushie.buttons(keeper, slot), int(r.held), Plushie.max_buttons(catalog))
 	var o := Plushie.odds(catalog, st, keeper, i) if keeper else {}
-	_odds_box[i].visible = not full
-	_full[i].visible = full
+	# a fed pet too weak for this part's next button leaves the reel still: the rarity it needs shows
+	var need := Plushie.need_for(catalog, Plushie.buttons(keeper, slot)) if keeper else ""
+	var still := not full and keeper != null and Plushie.blocked(catalog, st, keeper, slot)
+	_odds_box[i].visible = not full and not still
+	_full[i].visible = full or still
+	_full[i].text = "full!" if full else "needs %s" % catalog.tier_at(catalog.rank(need)).name if still else ""
+	_full[i].add_theme_color_override("font_color", UiTheme.PINK if full else catalog.tier_color(need) if still else UiTheme.PINK)
 	for k in Plushie.SYMBOLS.size():
 		_odds[i][k].text = "%d%%" % int(o.get(Plushie.SYMBOLS[k], 0))
 	var going: bool = not full and not r.banked
@@ -770,6 +777,9 @@ func _on_spun(result: Dictionary) -> void:
 			_sparks(Catalog.SLOTS.find(slot), auto)
 	var landed: Dictionary = result.get("landed", {})
 	var puffed: Dictionary = result.get("puffed", {})
+	_popped = result.get("popped", {}).duplicate()
+	if int(wild.get("popped", 0)) > 0:
+		_popped[WILD] = int(wild.popped)
 	var k := 0
 	_pending_wisps = int(result.get("wisps", 0))
 	for i in range(Catalog.SLOTS.size()):
@@ -816,7 +826,8 @@ func _land(i: int, sym: String, puffed: int) -> void:
 			any_button = any_button or (r.fresh and str(r.strip[1]) == Plushie.BUTTON)
 		if not st.try.wild.is_empty() and str(st.try.wild.strip[1]) == Plushie.BUTTON:
 			any_button = true
-		PetBubble.say_line(self, "plushie_yay" if any_button else "plushie_fluff")
+		PetBubble.say_line(self, "plushie_popped" if _lost_any else ("plushie_yay" if any_button else "plushie_fluff"))
+		_lost_any = false
 
 
 # ---- effects ---------------------------------------------------------------------------------
@@ -844,6 +855,11 @@ func _puffs(i: int, n: int, crack: bool) -> void:
 		_wisps.text = UiTheme.num(GameState.wisps - _pending_wisps)
 	if crack:
 		(_wild_reel if i == WILD else _reels[i]).rip()
+		var popped := int(_popped.get(i, 0))
+		if popped > 0:  # sewn buttons knocked off
+			_fx.float_text(at + Vector2(0, -44), "-%d" % popped, "button", UiTheme.PINK)
+			_popped.erase(i)
+			_lost_any = true
 
 
 # ---- pieces ----------------------------------------------------------------------------------

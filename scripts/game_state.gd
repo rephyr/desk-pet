@@ -4470,6 +4470,8 @@ func plushie_spin() -> Dictionary:
 		if result.is_empty():
 			return {}
 		grant_wisps(int(result.wisps), true)
+		if not result.popped.is_empty() or int(result.wild.get("popped", 0)) > 0:
+			_plushie_sewn(keeper, { "popped": true })  # a crack knocked buttons off: its knacks shrank
 	_plushie_sewn(keeper, result.sewn)
 	plushie_spun.emit(result)
 	_plushie_saved()
@@ -4501,6 +4503,7 @@ func plushie_nudge(i: int) -> String:
 	var keeper := plushie_keeper()
 	var got := Plushie.nudge(catalog, plushie, keeper, i, _rng) if keeper != null else ""
 	if got != "":
+		_plushie_sewn(keeper, { "nudged": true })  # landing again can knock buttons off, or put them back
 		plushie_spun.emit({ "nudged": i, "landed": { i: got } })
 		_plushie_saved()
 	return got

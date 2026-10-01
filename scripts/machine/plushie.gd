@@ -5,10 +5,12 @@ extends RefCounted
 ## many spins it gives, its finish adds nudges, its traits tilt the reels. One reel per part (in
 ## Catalog.SLOTS order); each spin lands on a button, a blank or a crack. A button adds one to what
 ## that reel holds (two if the reel was on HOLD and already held one); a crack takes what it holds
-## away; a blank keeps it. You BANK a reel (its held buttons are sewn on and it stops for this pet)
+## away AND knocks sewn buttons off that part (more when it was on hold); a blank keeps it. Each
+## next button on a part needs a fed pet of at least its "needs" rarity (a weaker one leaves that
+## reel still). You BANK a reel (its held buttons are sewn on and it stops for this pet)
 ## or HOLD it for the next spin (a few at once). A reel holding buttons that isn't on hold banks by
 ## itself at the next spin, and whatever is held when the spins run out is banked too. Misses puff
-## WISPS, the darker currency, which buy nudges, holds and a wild 6th reel (its button goes straight
+## nothing now (puff 0 in the data); WISPS from the well buy nudges, holds and a wild 6th reel (its button goes straight
 ## onto the part you pick). A part holds 0..max_buttons buttons; each makes its knack bigger (see
 ## Knacks) and they stay on the part when it's grafted (see Grafting).
 ## Pure rules: the machine's state is a plain dictionary (saved as it is, see fresh()), the keeper
@@ -47,7 +49,7 @@ static func fresh_try() -> Dictionary:
 ## for this pet), fresh (just landed: a nudge can move it), and what it held before the last spin
 ## and whether it was on hold then (a nudge lands it again from there).
 static func fresh_reel() -> Dictionary:
-	return { "strip": [BLANK, BLANK, BLANK], "held": 0, "hold": false, "banked": false, "fresh": false, "before": 0, "was_hold": false }
+	return { "strip": [BLANK, BLANK, BLANK], "held": 0, "hold": false, "banked": false, "fresh": false, "before": 0, "was_hold": false, "popped": 0 }
 
 
 ## A machine from a save: anything odd falls back to a fresh value.
@@ -85,7 +87,8 @@ static func clean(raw, catalog: Catalog) -> Dictionary:
 					strip = s.map(func(x): return str(x))
 				out.try.reels[i] = { "strip": strip, "held": clampi(int(r.get("held", 0)), 0, max_buttons(catalog)),
 					"hold": bool(r.get("hold", false)), "banked": bool(r.get("banked", false)), "fresh": bool(r.get("fresh", false)),
-					"before": clampi(int(r.get("before", 0)), 0, max_buttons(catalog)), "was_hold": bool(r.get("was_hold", false)) }
+					"before": clampi(int(r.get("before", 0)), 0, max_buttons(catalog)), "was_hold": bool(r.get("was_hold", false)),
+					"popped": maxi(0, int(r.get("popped", 0))) }
 		var wild = t.get("wild", {})
 		if wild is Dictionary and str(wild.get("slot", "")) in Catalog.SLOTS and not out.try.fed.is_empty():
 			var ws = wild.get("strip", [])
@@ -227,9 +230,23 @@ static func roll(o: Dictionary, rng: RandomNumberGenerator) -> String:
 	return BLANK
 
 
-## Whether reel i still spins for this pet: not banked, and its part isn't full.
+## Whether reel i still spins for this pet: not banked, its part isn't full, and the fed pet is
+## good enough for that part's next button.
 static func active(catalog: Catalog, state: Dictionary, keeper: Pet, i: int) -> bool:
-	return not state.try.reels[i].banked and not full(catalog, keeper, Catalog.SLOTS[i])
+	var slot: String = Catalog.SLOTS[i]
+	return not state.try.reels[i].banked and not full(catalog, keeper, slot) and not blocked(catalog, state, keeper, slot)
+
+
+## The rarity a fed pet must be (at least) to spin for a part's next button, with `n` buttons on it.
+static func need_for(catalog: Catalog, n: int) -> String:
+	var needs: Array = data(catalog).get("needs", [])
+	return "" if needs.is_empty() else str(needs[clampi(n, 0, needs.size() - 1)])
+
+
+## Whether the fed pet is too weak for that part's next button (its reel stays still).
+static func blocked(catalog: Catalog, state: Dictionary, keeper: Pet, slot: String) -> bool:
+	var need := need_for(catalog, buttons(keeper, slot))
+	return need != "" and not fed(state).is_empty() and catalog.rank(str(fed(state).get("rarity", "common"))) < catalog.rank(need)
 
 
 static func anything_held(state: Dictionary) -> bool:
@@ -258,7 +275,7 @@ static func puff(catalog: Catalog, state: Dictionary, keeper: Pet, crack: bool) 
 	if crack:
 		n *= float(d.get("crack_puff", 2))
 	n *= perfection(catalog, keeper) * _trait_x(catalog, _traits(state), "wisps")
-	return maxi(1, roundi(n))
+	return maxi(0, roundi(n))
 
 
 ## How much more misses puff for a keeper with buttons (x1 with none).
@@ -276,7 +293,7 @@ static func spin(catalog: Catalog, state: Dictionary, keeper: Pet, rng: RandomNu
 	if keeper == null or needs_next(state):
 		return {}
 	var t: Dictionary = state.try
-	var out := { "sewn": {}, "landed": {}, "puffed": {}, "wisps": 0, "wild": {} }
+	var out := { "sewn": {}, "landed": {}, "puffed": {}, "popped": {}, "wisps": 0, "wild": {} }
 	for i in t.reels.size():
 		var r: Dictionary = t.reels[i]
 		if not r.banked and int(r.held) > 0 and not r.hold:
@@ -286,7 +303,7 @@ static func spin(catalog: Catalog, state: Dictionary, keeper: Pet, rng: RandomNu
 		if active(catalog, state, keeper, i):
 			live.append(i)
 	var wild: Dictionary = t.wild
-	var wild_live := not wild.is_empty() and not full(catalog, keeper, str(wild.slot))
+	var wild_live := not wild.is_empty() and not full(catalog, keeper, str(wild.slot)) and not blocked(catalog, state, keeper, str(wild.slot))
 	if live.is_empty() and not wild_live:
 		t.spins = 0  # everything's banked or full: on to the next pet
 		out.stopped = true
@@ -303,11 +320,15 @@ static func spin(catalog: Catalog, state: Dictionary, keeper: Pet, rng: RandomNu
 		var mid := str(forced.get(Catalog.SLOTS[i], roll(o, rng)))
 		r.strip = [roll(o, rng), mid, roll(o, rng)]
 		r.fresh = true
+		r.popped = 0
 		_resolve(catalog, state, keeper, i)
 		out.landed[i] = mid
+		if int(r.popped) > 0:
+			out.popped[i] = int(r.popped)
 		if mid != BUTTON:
 			var n := puff(catalog, state, keeper, mid == CRACK)
-			out.puffed[i] = n
+			if n > 0:
+				out.puffed[i] = n
 			out.wisps += n
 	if wild_live:
 		var slot := str(wild.slot)
@@ -325,24 +346,42 @@ static func spin(catalog: Catalog, state: Dictionary, keeper: Pet, rng: RandomNu
 			if int(r.held) == 0:
 				r.hold = false
 		else:
+			if mid == CRACK:  # the wild reel's crack knocks a button off its part too
+				out.wild.popped = _pop(catalog, keeper, slot, int(data(catalog).get("crack_pops", 0)))
 			var n := puff(catalog, state, keeper, mid == CRACK)
 			out.wild.wisps = n
 			out.wisps += n
 	return out
 
 
-## What reel i holds after landing, from what it held before the spin.
+## What reel i holds after landing, from what it held before the spin. A crack knocks sewn buttons
+## off the part (crack_pops, + hold_pops if it was on hold): r.popped says how many, so a nudge can
+## put them back before it lands again.
 static func _resolve(catalog: Catalog, state: Dictionary, keeper: Pet, i: int) -> void:
 	var r: Dictionary = state.try.reels[i]
+	var slot: String = Catalog.SLOTS[i]
+	if int(r.get("popped", 0)) > 0:  # landing again (a nudge): the last landing's pops go back on
+		sew(catalog, keeper, slot, int(r.popped))
+		r.popped = 0
 	var h := int(r.before)
 	match str(r.strip[1]):
 		BUTTON:
 			h += 2 if r.was_hold and int(r.before) > 0 else 1
 		CRACK:
 			h = 0
+			var d := data(catalog)
+			r.popped = _pop(catalog, keeper, slot, int(d.get("crack_pops", 0)) + (int(d.get("hold_pops", 0)) if r.was_hold else 0))
 	r.held = clampi(h, 0, max_buttons(catalog) - buttons(keeper, Catalog.SLOTS[i]))
 	if int(r.held) == 0:
 		r.hold = false
+
+
+## Knocks up to n sewn buttons off a part. Returns how many came off.
+static func _pop(_catalog: Catalog, keeper: Pet, slot: String, n: int) -> int:
+	var got := mini(maxi(n, 0), buttons(keeper, slot))
+	if got > 0:
+		keeper.buttons[slot] = buttons(keeper, slot) - got
+	return got
 
 
 ## Banks reel i: its held buttons are sewn on and it stops for this pet. Returns how many.

@@ -1,0 +1,32 @@
+# The plushie machine's stakes: a weak pet leaves the reels of well-buttoned parts still ("needs
+# rare"), a crack knocks a sewn button off, misses puff no wisps.
+from after_tutorial
+view full
+stickers off
+unlock feature:parts
+dress body=bunny palette=toxic pattern=stars eyes=cyclops accessory=crown
+pets 4
+herd common normal 10
+herd mythic normal 2
+unlock tab:inventory
+open-plushie
+wait popup
+click "show me"
+wait 1
+buttons body=2 palette=4 eyes=1
+hopper common 1
+spin
+wait 0.5
+expect text "needs rare"
+expect text "needs mythic"
+shot needs
+expect fits
+hopper mythic 1
+spin
+spin
+wait 0.5
+land palette=crack body=blank pattern=blank eyes=blank accessory=blank
+spin
+wait 0.8
+shot cracked
+expect fits

@@ -4270,7 +4270,7 @@ func _test_plushie(catalog: Catalog) -> void:
 	var most := Plushie.max_buttons(catalog)
 	_check(most == 5 and d.button.size() == most and d.crack.size() == most, "a part holds 0-5 buttons, with odds for 0-4")
 	for t in catalog.tiers:
-		_check(int(d.spins.get(t.id, 0)) >= 1 and int(d.puff.get(t.id, 0)) >= 1, "every rarity gives spins and puffs wisps (%s)" % t.id)
+		_check(int(d.spins.get(t.id, 0)) >= 1 and int(d.puff.get(t.id, 0)) == 0, "every rarity gives spins, misses puff nothing (%s)" % t.id)
 	for f in catalog.finishes:
 		_check(d.nudges.has(f.id), "every finish has nudges (%s)" % f.id)
 	for tr in d.traits:
@@ -4304,7 +4304,7 @@ func _test_plushie(catalog: Catalog) -> void:
 	var reels: Array = st.try.reels
 	_check(r1.landed.size() == 5 and reels[0].held == 1 and reels[1].held == 0 and reels[2].held == 0 and reels[3].held == 1,
 		"a button holds one, a crack and a blank hold nothing")
-	_check(r1.puffed.size() == 3 and r1.puffed[1] == 24 and r1.puffed[2] == 12 and r1.wisps == 48, "misses puff wisps by rarity, a crack twice as much (%s)" % [r1.puffed])
+	_check(r1.puffed.is_empty() and r1.wisps == 0, "misses and cracks puff nothing (%s)" % [r1.puffed])
 	_check(st.try.spins == 2 and Plushie.total(keeper) == 0, "a spin used, nothing sewn on yet")
 	_check(Plushie.toggle_hold(catalog, st, 0) and reels[0].hold, "hold the body reel")
 	_check(not Plushie.toggle_hold(catalog, st, 2), "a reel holding nothing can't be held")
@@ -4349,7 +4349,8 @@ func _test_plushie(catalog: Catalog) -> void:
 	st_b.try = Plushie.fresh_try()
 	Plushie.next_pet(catalog, st_b, keeper_b)
 	_check(not st_b.try.reels.any(func(r): return r.banked), "the next pet starts every reel again")
-	# caps, full parts, bank, the hold limit
+	# caps, full parts, bank, the hold limit (a mythic: good enough for any part's next button)
+	st.try.fed.rarity = "mythic"
 	keeper.buttons["body"] = 4
 	Plushie.spin(catalog, st, keeper, rng, { "body": "button", "palette": "button", "pattern": "button", "eyes": "button", "accessory": "button" })
 	_check(reels[0].held == 1, "a part with 4 buttons can only hold 1 more")
@@ -4364,7 +4365,7 @@ func _test_plushie(catalog: Catalog) -> void:
 	_check(Plushie.price(catalog, st, keeper, "nudge") == 60 and Plushie.price(catalog, st, keeper, "hold") == 400, "a nudge 60 wisps, a hold 400")
 	Plushie.buy(catalog, st, keeper, "nudge")
 	_check(Plushie.price(catalog, st, keeper, "nudge") == 78 and st.nudges == 1, "a bought nudge goes in the pool, the next costs more")
-	_check(Plushie.price(catalog, st, keeper, "wild") == 500, "the wild reel: 250 x the fed pet's rarity step (uncommon: 500)")
+	_check(Plushie.price(catalog, st, keeper, "wild") == 250 * (catalog.rank("mythic") + 1), "the wild reel: 250 x the fed pet's rarity step (mythic: %d)" % (250 * (catalog.rank("mythic") + 1)))
 	_check(Plushie.wild_default(catalog, keeper) == "palette", "the wild reel starts on the part with the fewest buttons")
 	var stuffed := Pet.from_dict(keeper.to_dict(), catalog)
 	for slot in Catalog.SLOTS:
@@ -4389,10 +4390,10 @@ func _test_plushie(catalog: Catalog) -> void:
 	var gifted := Pet.new()
 	gifted.buttons = { "body": 5, "eyes": 5 }
 	st.try.fed = { "rarity": "epic", "traits": [] }
-	_check(Plushie.puff(catalog, st, plain, false) == 40 and Plushie.puff(catalog, st, plain, true) == 80, "an epic's miss puffs 40, a crack 80")
-	_check(Plushie.puff(catalog, st, gifted, false) == 80, "perfection: a keeper with 10 buttons makes misses puff twice as much")
+	_check(Plushie.puff(catalog, st, plain, false) == 0 and Plushie.puff(catalog, st, gifted, true) == 0, "a miss puffs nothing, not even a crack on a perfect keeper")
 	st.try.fed = { "rarity": "epic", "traits": ["greedy"] }
-	_check(Plushie.puff(catalog, st, plain, false) == 60, "greedy pets puff half as much again")
+	_check(Plushie.puff(catalog, st, plain, false) == 0, "greedy pets puff nothing either")
+	_test_plushie_stakes(catalog)
 	# saved and loaded
 	var round_trip := Plushie.clean(JSON.parse_string(JSON.stringify(st)), catalog)
 	_check(round_trip.try.reels.size() == 5 and int(round_trip.nudges) == int(st.nudges) and round_trip.hopper.size() == st.hopper.size(),
@@ -4527,7 +4528,7 @@ func _test_plushie_game(catalog: Catalog) -> void:
 	gs.debug_land = { "body": "button", "palette": "crack", "pattern": "blank", "eyes": "button", "accessory": "blank" }
 	var wisps_before: int = gs.wisps
 	res = gs.plushie_spin()
-	_check(res.landed.size() == 5 and gs.wisps > wisps_before, "a spin lands every reel and misses puff wisps")
+	_check(res.landed.size() == 5 and gs.wisps == wisps_before, "a spin lands every reel; misses puff no wisps")
 	_check(gs.plushie_hold(0), "hold the body")
 	gs.save_game()
 	var gs2: Node = load("res://scripts/game_state.gd").new()
@@ -6397,3 +6398,47 @@ func _test_goals_game(catalog: Catalog) -> void:
 	gs.check_unlocks()
 	_check(gs.tab_open("errands") and not Goals.list(gs).any(func(g): return g.id == "errands"), "once it's found the goal is done and gone")
 	gs.free()
+
+
+## The plushie machine's stakes (playtest 1): cracks knock sewn buttons off (more on a held reel),
+## a nudge off a crack puts them back, and each next button needs a better fed pet.
+func _test_plushie_stakes(catalog: Catalog) -> void:
+	var d: Dictionary = catalog.plushie
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 11
+	var keeper := Pet.new()
+	keeper.uid = "1"
+	keeper.parts = { "body": "bunny", "palette": "gold", "pattern": "stars", "eyes": "cyclops", "accessory": "horns" }
+	keeper.buttons = { "body": 2, "palette": 2 }
+	var st := Plushie.fresh()
+	Plushie.feed(catalog, st, { "rarity": "mythic", "finish": "normal", "traits": [] })
+	Plushie.next_pet(catalog, st, keeper)
+	var r := Plushie.spin(catalog, st, keeper, rng, { "body": "crack", "palette": "blank", "pattern": "blank", "eyes": "blank", "accessory": "blank" })
+	_check(Plushie.buttons(keeper, "body") == 2 - int(d.crack_pops) and int(r.popped.get(0, 0)) == int(d.crack_pops),
+		"a crack knocks %d sewn button off its part (%s)" % [int(d.crack_pops), r.popped])
+	var reels: Array = st.try.reels
+	reels[0].strip = ["blank", "crack", "button"]
+	Plushie.spin(catalog, st, keeper, rng, { "body": "button", "palette": "blank", "pattern": "blank", "eyes": "blank", "accessory": "blank" })
+	_check(Plushie.toggle_hold(catalog, st, 0), "hold the body (it holds a button)")
+	var body := Plushie.buttons(keeper, "body")
+	Plushie.spin(catalog, st, keeper, rng, { "body": "crack", "palette": "blank", "pattern": "blank", "eyes": "blank", "accessory": "blank" })
+	var pops := int(d.crack_pops) + int(d.hold_pops)
+	_check(Plushie.buttons(keeper, "body") == maxi(0, body - pops) and int(reels[0].held) == 0, "a crack on a held reel loses what it held and %d sewn ones" % pops)
+	reels[0].strip = ["blank", "crack", "button"]
+	st.nudges = 1
+	var after_crack := Plushie.buttons(keeper, "body")
+	_check(Plushie.nudge(catalog, st, keeper, 0, rng) == "blank" and Plushie.buttons(keeper, "body") == after_crack + int(reels[0].get("popped", 0)) + (body - after_crack),
+		"a nudge off the crack puts its buttons back")
+	# who's good enough: a common spins a part's 1st and 2nd button, not its 3rd
+	var weak := Pet.new()
+	weak.parts = keeper.parts.duplicate()
+	weak.buttons = { "body": 2 }
+	var ws := Plushie.fresh()
+	Plushie.feed(catalog, ws, { "rarity": "common", "finish": "normal", "traits": [] })
+	Plushie.next_pet(catalog, ws, weak)
+	_check(Plushie.need_for(catalog, 2) == "rare" and Plushie.blocked(catalog, ws, weak, "body") and not Plushie.active(catalog, ws, weak, 0),
+		"a part with 2 buttons needs a rare: a common leaves its reel still")
+	_check(Plushie.active(catalog, ws, weak, 1), "the common still spins a part with none")
+	var res := Plushie.spin(catalog, ws, weak, rng)
+	_check(not res.landed.has(0) and res.landed.has(1), "the still reel doesn't land")
+	_check(Plushie.need_for(catalog, 4) == "mythic", "the 5th button needs a mythic")
