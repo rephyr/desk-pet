@@ -83,7 +83,11 @@ What she found, and what we're doing about it, in order (P1 first).
   favourite: up to 48 slots) and stretches the toys page past the window; huge cards; raw numbers
   (x288000). Spare toys past max level are dead. Workbench toy bench: one strip of 48 chips, no
   bulk actions, 2 of 3 benches empty late. **Decided:** spare toys feed into a sink (which one: to
-  design). Needs a layout fix + a workbench mockup.
+  design). Toys page layout FIXED 2026-10-01 (favourites folded into one "48 favourites, always
+  on" spot, "3 free spots", cards keep their size, 72k-style numbers, rebuilds every 3 s from
+  background changes; flow toys_late). Workbench mockup: design/mockups/screens/workbench-toys.html
+  (one row per toy, bench per toy, bulk risk x1/x10/all; sink ?look=A toy chest for workers,
+  B shine past max with stars, C stuffing for the plushie machine). Waiting on Emilia's pick.
 - **P3 unlocks are luck / invisible**: beyond the fence opens ~80 min before anything there pays
   (far fields gives no bits); automation needs an unpointed return to the fields; cart and hay
   wagon are random finds; whistle/rope need well trips with nothing to see; hidden counters (200

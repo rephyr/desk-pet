@@ -1,0 +1,157 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Toy Bench</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* workbench, toys page, late game: every toy maxed, tens of thousands of spares.
+     left: one row per toy (not per edition). right: the picked toy's bench. ?look=A|B|C picks
+     what the spares are for (the bottom card). */
+  .bench { display: grid; grid-template-columns: 292px 1fr; gap: 14px; height: 100%; min-height: 0; }
+  .list { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+  .chips { display: flex; gap: 6px; }
+  .chip2 { padding: 3px 10px; border-radius: 999px; border: 2px solid var(--line); font-size: 11px; color: var(--muted); background: var(--deep); }
+  .chip2.on { border-color: var(--pink); color: var(--text); background: var(--pink-pressed); }
+  .rows { display: flex; flex-direction: column; gap: 6px; overflow: auto; padding-right: 4px; min-height: 0; scrollbar-width: thin; scrollbar-color: var(--lilac-seam) transparent; }
+  .row { display: grid; grid-template-columns: 40px 1fr auto; gap: 0 8px; align-items: center; padding: 5px 9px; border-radius: 10px; background: var(--raised); border: 2px solid var(--line); cursor: pointer; }
+  .row.on { border: 2px dashed var(--pink); }
+  .row .nm { font-size: 12px; color: var(--text); }
+  .row .ct { font: 400 12px/1 var(--display); color: var(--muted); }
+  .row .eds { display: flex; gap: 4px; margin-top: 3px; }
+  .ed { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--line); background: var(--deep); display: inline-block; }
+  .ed.normal { background: var(--text); border-color: var(--text); }
+  .ed.holo { background: linear-gradient(135deg, var(--pink), var(--gold), var(--mint), var(--cyan)); border-color: var(--lilac); }
+  .ed.foil { background: linear-gradient(135deg, #8a6a1f, var(--gold), #fff6d6); border-color: var(--gold); }
+  .ed.ghost { background: color-mix(in srgb, var(--cyan) 40%, transparent); border-color: var(--cyan); box-shadow: 0 0 4px var(--cyan); }
+  .ed.max { outline: 2px solid var(--gold); outline-offset: 1px; }
+  .row .tag { font-size: 10px; padding: 0 6px; border-radius: 999px; background: var(--gold); color: var(--deep); margin-left: 4px; }
+
+  .right { display: flex; flex-direction: column; gap: 10px; min-height: 0; }
+  .head { display: flex; align-items: center; gap: 12px; }
+  .head h2 { margin: 0; font: 400 20px/1 var(--display); color: var(--pink); }
+  .head .sub { font-size: 12px; color: var(--muted); }
+  .head .big { margin-left: auto; font: 400 15px/1 var(--display); color: var(--text); }
+  .eds4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .edcard { padding: 7px 8px; border-radius: 10px; background: var(--deep); border: 2px solid var(--line); font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+  .edcard .t { display: flex; align-items: center; gap: 6px; color: var(--text); }
+  .edcard .lv { margin-left: auto; font: 400 12px/1 var(--display); color: var(--gold); }
+  .edcard small { color: var(--muted); font-size: 11px; }
+  .edcard small b { color: var(--gold); font-weight: 400; }
+  .edcard.up { border-color: var(--mint); }
+  .edcard .mini { margin-top: 2px; padding: 2px 6px; border-radius: 7px; background: var(--mint); color: var(--deep); font-size: 11px; text-align: center; }
+
+  .card { border-radius: 12px; background: var(--raised); border: 2px dashed var(--line); padding: 9px 12px; }
+  .card h3 { margin: 0 0 6px; font: 400 14px/1 var(--display); }
+  .risk h3 { color: var(--pink); }
+  .risk { border-color: color-mix(in srgb, var(--pink) 45%, var(--line)); }
+  .riskrow { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--muted); }
+  .odds { display: flex; gap: 10px; font-size: 11px; }
+  .odds span b { color: var(--text); font-weight: 400; }
+  .btns { display: flex; gap: 6px; margin-left: auto; }
+  .b { white-space: nowrap; padding: 4px 11px; border-radius: 8px; border: 2px solid var(--line); background: var(--deep); color: var(--text); font-size: 12px; }
+  .b.main { border-color: var(--pink); background: var(--pink-pressed); }
+  .tally { margin-top: 6px; font-size: 11px; color: var(--muted); display: flex; flex-wrap: wrap; gap: 4px 10px; white-space: nowrap; }
+  .tally b { color: var(--mint); font-weight: 400; }
+
+  .sink { flex: 1; min-height: 0; display: grid; grid-template-columns: 96px 1fr; gap: 4px 14px; align-items: center; border-color: color-mix(in srgb, var(--lilac) 45%, var(--line)); }
+  .sink h3 { color: var(--lilac); grid-column: 2; margin: 0; }
+  .sink .art { grid-row: span 4; display: grid; place-items: center; }
+  .sink p { margin: 0; grid-column: 2; font-size: 12px; color: var(--text); }
+  .sink .meter { grid-column: 2; height: 10px; border-radius: 5px; background: var(--deep); border: 2px solid var(--line); overflow: hidden; }
+  .sink .meter i { display: block; height: 100%; background: var(--lilac); }
+  .sink .line { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; white-space: nowrap; font-size: 12px; color: var(--muted); }
+  .sink .line b { color: var(--mint); font-weight: 400; }
+  .stars { font-size: 18px; letter-spacing: 2px; color: var(--gold); }
+  .stars i { color: var(--line); font-style: normal; }
+  .label-look { position: fixed; right: 12px; bottom: 8px; font: 400 12px/1 var(--display); color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="app" data-tab="inventory" data-say="so many acorns! what do we do with them all?">
+  <div class="bench">
+    <div class="list">
+      <div class="chips"><span class="chip2 on">backyard friends</span><span class="chip2">sunset friends</span></div>
+      <div class="rows" id="rows"></div>
+    </div>
+    <div class="right">
+      <div class="head" id="head"></div>
+      <div class="eds4" id="eds"></div>
+      <div class="card risk">
+        <h3>risk spares</h3>
+        <div class="riskrow">
+          <span>3 normal spares for a shot at a fancy one</span>
+          <div class="btns"><span class="b">x1</span><span class="b">x10</span><span class="b main">all 24k</span></div>
+        </div>
+        <div class="odds" style="margin-top: 4px"><span>holo <b>25%</b></span><span>gold foil <b>8%</b></span><span>ghost <b>2%</b></span><span>nothing <b>65%</b></span></div>
+        <div class="tally">last time: <b>+6,012 holo</b><b>+1,930 foil</b><b>+481 ghost</b><span>15,577 tries came up empty</span></div>
+      </div>
+      <div class="card sink" id="sink"></div>
+    </div>
+  </div>
+</div>
+<div class="label-look" id="look"></div>
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script src="../shared/toys.js"></script>
+<script>
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  const content = mountFrame();
+  const q = new URLSearchParams(location.search);
+  const look = (q.get("look") || "A").toUpperCase();
+  const fmt = n => n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : n >= 1e4 ? Math.round(n / 1e3) + "k" : n.toLocaleString("en");
+  // late game: every edition maxed (lv 5), lots of spares
+  const SPARES = { snail: 304, ladybug: 4, mushroom: 4, acorn: 72000, bee: 4, frog: 4, gnome: 4, moth: 4 };
+  const picked = "acorn";
+  content.querySelector("#rows").innerHTML = TOY_SET.toys.map(t => `
+    <div class="row ${t.id === picked ? "on" : ""}">
+      <div>${toySvg(t.id, "normal", 38)}</div>
+      <div><span class="nm">${t.name}</span>${t.id === "snail" ? `<span class="tag">2 can level up</span>` : ""}
+        <div class="eds">${Object.keys(TOY_FINISHES).map(f => `<i class="ed ${f} max" title="${f} lv 5"></i>`).join("")}</div></div>
+      <span class="ct">x${fmt((SPARES[t.id] || 4))}</span>
+    </div>`).join("");
+  const t = TOY_SET.toys.find(t => t.id === picked);
+  content.querySelector("#head").innerHTML = `${toySvg(picked, "normal", 46)}<div><h2>${t.name}</h2><span class="sub">all four at max level: always on</span></div><span class="big">72k spares</span>`;
+  const EDS = [["normal", "normal", 71100], ["holo", "holo", 610], ["foil", "gold foil", 240], ["ghost", "ghost", 50]];
+  content.querySelector("#eds").innerHTML = EDS.map(([f, nm, n]) => `
+    <div class="edcard"><span class="t"><i class="ed ${f}"></i>${nm}<span class="lv">lv 5</span></span>
+      <small>${fmt(n)} spare</small><small><b>max</b></small></div>`).join("");
+
+  const SINKS = {
+    A: {
+      name: "A: the toy chest (workers play while they work)",
+      html: `<div class="art">${toySvg("acorn", "normal", 54)}${toySvg("snail", "holo", 40)}</div>
+        <h3>the toy chest</h3>
+        <p>spares go in the chest. your workers grab one each and work faster while it lasts. they wear them out.</p>
+        <div class="meter"><i style="width: 62%"></i></div>
+        <div class="line"><span>44,640 toys in the chest</span><b>workers x1.18</b><span>lasts ~3 h for 1,240 workers</span><span class="b main" style="margin-left:auto">put all spares in</span></div>`,
+    },
+    B: {
+      name: "B: shine it past max (stars)",
+      html: `<div class="art">${toySvg("acorn", "foil", 70)}</div>
+        <h3>shine it up</h3>
+        <p>past max level, spares shine a toy. each star takes ten times more, and makes its boost a little bigger.</p>
+        <div class="stars">★★★★<i>★</i></div>
+        <div class="line"><span>72k of 100k for the 5th star</span><b>x1.6 → x1.75</b><span class="b main" style="margin-left:auto">shine</span></div>`,
+    },
+    C: {
+      name: "C: stuffing for the plushie machine",
+      html: `<div class="art">${toySvg("acorn", "normal", 54)}</div>
+        <h3>stuff the plushie</h3>
+        <p>spares get stuffed into the plushie machine's hopper. rarer toys and fancy finishes pay more spins.</p>
+        <div class="meter"><i style="width: 35%"></i></div>
+        <div class="line"><span>100 spares = 1 spin (a ghost one: 25)</span><b>720 spins waiting</b><span class="b main" style="margin-left:auto">stuff all</span></div>`,
+    },
+  };
+  const s = SINKS[look] || SINKS.A;
+  content.querySelector("#sink").innerHTML = s.html;
+  document.getElementById("look").textContent = s.name;
+  applyLook(loadLook());
+</script>
+</body>
+</html>

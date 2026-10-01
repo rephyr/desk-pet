@@ -10,6 +10,7 @@ extends HBoxContainer
 signal workbench_requested(edition: String)
 
 const TILTS := [-1.5, 1.2, 2.0, -1.0, 1.6, -2.0, 1.0, -1.4]
+const FAVS_SHOWN := 4  # favourites drawn in the playing row (the rest are counted)
 const WEAR_WORDS := [[0.01, "good as new"], [0.25, "a bit scuffed"], [0.6, "well-loved"], [1.1, "worn out"]]
 
 var _playing_row := HBoxContainer.new()
@@ -24,6 +25,9 @@ var _set_id := ""  # the set shown (a later globe's set shows once its hatch is 
 var _set_tabs := HBoxContainer.new()
 var _edition := ""  # "toy:finish" picked in the detail
 var _dirty := true
+var _stale := false  # toys or coins changed by themselves: built again at most every STALE_EVERY s
+var _stale_at := 0.0
+const STALE_EVERY := 3.0
 var _tick := 0.0
 var _time_labels := {}  # edition -> Label (time left)
 
@@ -94,8 +98,11 @@ func _init() -> void:
 	side.add_child(dscroll)
 	add_child(side)
 
-	GameState.toys_changed.connect(func(): _dirty = true)
-	GameState.changed.connect(func(): _dirty = true)
+	# toys keep coming from the machines (every second late on): the page catches up every few
+	# seconds; what you do here rebuilds it right away
+	GameState.toys_changed.connect(func(): _stale = true)
+	GameState.changed.connect(func(): _stale = true)
+	GameState.play_ended.connect(func(_e): _dirty = true)
 	visibility_changed.connect(func():
 		if is_visible_in_tree():
 			_rebuild())
@@ -108,7 +115,8 @@ func speak() -> void:
 func _process(delta: float) -> void:
 	if not is_visible_in_tree():
 		return
-	if _dirty:
+	_stale_at -= delta
+	if _dirty or (_stale and _stale_at <= 0.0):
 		_rebuild()
 	_tick -= delta
 	if _tick <= 0.0:
@@ -122,6 +130,8 @@ func _process(delta: float) -> void:
 
 func _rebuild() -> void:
 	_dirty = false
+	_stale = false
+	_stale_at = STALE_EVERY
 	var catalog := Catalog.shared()
 	var state: Dictionary = GameState.toys
 	var now := Time.get_unix_time_from_system()
@@ -159,13 +169,14 @@ func _rebuild() -> void:
 	var busy: Array = state.playing.filter(func(p): return float(p.until) > now)
 	for p in busy:
 		_playing_row.add_child(_playing_slot(str(p.key), now))
-	for i in Toys.slots(state, catalog) - busy.size():
-		var free := UiTheme.label("a free spot", UiTheme.LOCKED, UiTheme.SMALL + 1)
+	var open := Toys.slots(state, catalog) - busy.size()
+	if open > 0:
+		var free := UiTheme.label("a free spot" if open == 1 else "%d free spots" % open, UiTheme.LOCKED, UiTheme.SMALL + 1)
 		free.size_flags_vertical = SIZE_SHRINK_CENTER
 		_playing_row.add_child(free)
 	var favs: Array = state.owned.keys().filter(func(k): return Toys.is_favourite(state, catalog, k))
-	for k in favs:
-		_playing_row.add_child(_playing_slot(str(k), now))
+	if not favs.is_empty():
+		_playing_row.add_child(_favourites(favs))
 
 	UiTheme.clear(_grid)
 	for i in shown.size():
@@ -206,8 +217,30 @@ func _playing_slot(edition: String, now: float) -> Control:
 			if GameState.built("shelf") and not Toys.is_favourite(GameState.toys, catalog, edition) \
 					and str(_play_of(edition)) != "":
 				PetBubble.say_line(self, "toy_again" if GameState.toy_again(edition) else "toy_last")
+				_dirty = true
 			else:
 				PetBubble.say_line(self, "toy_busy"))
+	return row
+
+
+## Every favourite in one spot (there can be dozens): a few of them side by side and how many are
+## always on.
+func _favourites(favs: Array) -> Control:
+	var row := HBoxContainer.new()
+	row.name = "favourites"
+	row.add_theme_constant_override("separation", 6)
+	var pile := HBoxContainer.new()
+	pile.add_theme_constant_override("separation", -14)  # a little crowd, overlapping
+	for k in favs.slice(maxi(0, favs.size() - FAVS_SHOWN)):
+		var bits := Toys.split(str(k))
+		pile.add_child(ToyView.new(bits[0], bits[1], 3))
+	row.add_child(pile)
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 0)
+	col.size_flags_vertical = SIZE_SHRINK_CENTER
+	col.add_child(UiTheme.label(_edition_name(str(favs[0])) if favs.size() == 1 else "%d favourites" % favs.size(), UiTheme.MINT, UiTheme.SMALL + 1))
+	col.add_child(UiTheme.label("always on", UiTheme.GOLD, UiTheme.SMALL))
+	row.add_child(col)
 	return row
 
 
@@ -268,13 +301,13 @@ func _card(t: Dictionary, tilt: float, now: float) -> Control:
 			busy = busy or Toys.playing(state, e, now)
 			ready = ready or Toys.can_combine(state, catalog, e)
 		b.add_child(_badge("lv %d" % level, UiTheme.GOLD, Vector2(6, 4), false))
-		b.add_child(_badge("x%d" % count, UiTheme.TEXT, Vector2(-6, -8), true))
+		b.add_child(_badge("x" + UiTheme.num(count), UiTheme.TEXT, Vector2(-6, -8), true))
 		if busy:
 			b.add_child(_ribbon("playing!", UiTheme.MINT))
 		elif ready:
 			b.add_child(_ribbon("level up ready!", UiTheme.GOLD))
 	var holder := Tilted.new(b, tilt)
-	holder.size_flags_horizontal = SIZE_EXPAND_FILL
+	holder.size_flags_horizontal = SIZE_SHRINK_CENTER  # a card keeps its size: the grid's cells share out what's left
 	return holder
 
 
@@ -366,6 +399,7 @@ func _build_detail(now: float) -> void:
 			var label := "%s (%s)" % [p.name, _minutes(float(p.minutes))]
 			var btn := UiTheme.button(label, func():
 				if GameState.play_toy(_edition, p.id):
+					_rebuild()
 					PetBubble.say_line(self, "toy_play"))
 			btn.disabled = not free
 			btn.tooltip_text = "" if free else "your pet's busy playing: wait until it's done"
@@ -406,7 +440,7 @@ func _edition_row(edition: String) -> Control:
 	col.add_theme_constant_override("separation", 0)
 	col.mouse_filter = MOUSE_FILTER_IGNORE
 	var spares := int(e.spares)
-	col.add_child(UiTheme.label("%s%s" % [fin.name, "  +%d spare" % spares if spares > 0 else ""], UiTheme.TEXT, UiTheme.SMALL + 1))
+	col.add_child(UiTheme.label("%s%s" % [fin.name, "  +%s spare" % UiTheme.num(spares) if spares > 0 else ""], UiTheme.TEXT, UiTheme.SMALL + 1))
 	var need := Toys.combine_cost(state, catalog, edition)
 	var note := "max level" if need == 0 else ("ready to level up!" if spares >= need else "%d more for level %d" % [need - spares, int(e.level) + 1])
 	if float(e.wear) >= 0.01:

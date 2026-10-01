@@ -1,0 +1,67 @@
+# Late-game toys: every edition a favourite and tens of thousands of spares. The toys page and the
+# workbench stay inside the window.
+from after_tutorial
+view full
+unlock feature:toys
+unlock tab:inventory
+favourite snail normal
+favourite snail holo
+favourite snail foil
+favourite snail ghost
+favourite ladybug normal
+favourite ladybug holo
+favourite ladybug foil
+favourite ladybug ghost
+favourite mushroom normal
+favourite mushroom holo
+favourite mushroom foil
+favourite mushroom ghost
+favourite acorn normal
+favourite acorn holo
+favourite acorn foil
+favourite acorn ghost
+favourite bee normal
+favourite bee holo
+favourite bee foil
+favourite bee ghost
+favourite frog normal
+favourite frog holo
+favourite frog foil
+favourite frog ghost
+favourite gnome normal
+favourite gnome holo
+favourite gnome foil
+favourite gnome ghost
+favourite moth normal
+favourite moth holo
+favourite moth foil
+favourite moth ghost
+favourite firefly normal
+favourite firefly holo
+favourite firefly foil
+favourite firefly ghost
+favourite hedgehog normal
+favourite hedgehog holo
+favourite hedgehog foil
+favourite hedgehog ghost
+favourite owl normal
+favourite owl holo
+favourite owl foil
+favourite owl ghost
+favourite lantern normal
+favourite lantern holo
+favourite lantern foil
+favourite lantern ghost
+toy acorn normal 72000
+toy snail holo 300
+tab collection
+click "toys"
+wait 0.5
+shot toys
+expect fits
+click "workbench →"
+wait 1
+expect tab inventory
+wait 0.5
+shot bench
+expect fits
