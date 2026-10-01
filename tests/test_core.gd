@@ -5214,6 +5214,29 @@ func _test_dungeon(catalog: Catalog) -> void:
 	_check(got[0].is_empty() and Herd.total(got[1]) == 3, "'plain ones' go first: the herd")
 	got = Dungeon._take(3, "the front row", cards.duplicate(), {}, herd.duplicate(), {}, 20, rng)
 	_check(got[0].size() == 3 and Herd.total(got[1]) == 0, "'the front row' goes first: the cards")
+	# floors the army had cleared before it set off walk cleared_x times faster; new ones take seconds_per_floor
+	var per := float(d.seconds_per_floor)
+	var fast := per / float(d.cleared_x)
+	_check(float(d.cleared_x) > 1.0, "cleared floors are faster (x%.1f)" % float(d.cleared_x))
+	var walk_floors: Array = range(1, 7).map(func(f): return { "f": f, "cleared": true, "lost_cards": [], "lost_herd": {}, "pay": 1 })
+	var walk := { "floors": walk_floors, "start": 0, "known": 4, "sent": 10 }
+	_check(is_equal_approx(Dungeon.run_seconds(catalog, walk), 4 * fast + 2 * per),
+		"4 floors cleared before and 2 new ones take %.1f s (%.1f)" % [4 * fast + 2 * per, Dungeon.run_seconds(catalog, walk)])
+	_check(is_equal_approx(Dungeon.run_floor(catalog, walk, 4 * fast), 4.0) and is_equal_approx(Dungeon.run_floor(catalog, walk, 4 * fast + per / 2.0), 4.5),
+		"the army walks the known floors quickly, then slows down on the new ones")
+	_check(Dungeon.floors_done(catalog, walk, 2 * fast + 0.01) == 2 and Dungeon.floors_done(catalog, walk, 1.0e6) == 6, "the floors behind it are done")
+	walk.known = 0
+	_check(is_equal_approx(Dungeon.run_seconds(catalog, walk), 6 * per), "a run with nothing cleared before walks every floor at seconds_per_floor")
+	var held_walk := { "floors": walk_floors.slice(0, 2).map(func(fl): return fl.merged({ "f": int(fl.f) + 10 }, true)), "start": 10, "known": 11 }
+	_check(is_equal_approx(Dungeon.run_seconds(catalog, held_walk), fast + per) and is_equal_approx(Dungeon.run_floor(catalog, held_walk, fast), 11.0),
+		"from a held landing only the floors walked count, known ones fast")
+	# every floor of a run says who got bumped and who stayed below, as it happens
+	var tally := Dungeon.run_tally(hurt.merged({ "sent": 300 }), hurt.floors.size())
+	var lost_all := Dungeon.run_lost(hurt)
+	_check(hurt.floors.all(func(fl): return fl.has("hurt_herd") and fl.has("hurt_cards") and fl.has("ratio")), "each floor keeps who was bumped and how it went")
+	_check(int(tally.lost) == lost_all[0].size() + Herd.total(lost_all[1]) and int(tally.walking) == 300 - int(tally.lost) and int(tally.got) == Dungeon.run_pay(hurt),
+		"the run's tally adds up its floors (%d lost, %d walking)" % [int(tally.lost), int(tally.walking)])
+	_check(int(tally.hurt) > 0 and int(Dungeon.run_tally(hurt, 1).hurt) <= int(tally.hurt), "a weak army gets bumped on the way (%d)" % int(tally.hurt))
 	var no_gear := RegEx.create_from_string("Gear\\.[a-z_]+\\(|\\bgear\\b")
 	_check(no_gear.search(FileAccess.get_file_as_string("res://scripts/dungeon/dungeon.gd")) == null, "gear never counts in the dungeon")
 	_test_dungeon_game(catalog)
@@ -5298,11 +5321,36 @@ func _test_dungeon_game(catalog: Catalog) -> void:
 	_check(int(gs.army().herd.get("common", 0)) == 100 and gs.job_size("coin_hunt") == hunt_all - 100,
 		"the army's herd comes off the errands (%d in it, %d off)" % [int(gs.army().herd.get("common", 0)), hunt_all - gs.job_size("coin_hunt")])
 	gs.take_off_job("coin_hunt", -1)
+	# fill up: the plainest shelf first, up to the entrance; empty: nobody walks behind
+	gs.collection.add_plain("uncommon:normal", 100)
+	gs.set_army_herd("common", 0)
+	gs.set_army_herd("uncommon", 10)
+	gs.army_fill_up()
+	army = gs.army()
+	_check(int(army.sent) == 300 and int(army.herd.get("common", 0)) == 270 and int(army.herd.get("uncommon", 0)) == 10,
+		"fill up tops the entrance up with commons first (%s)" % [army.herd])
+	gs.set_army_herd("common", 0)
+	gs.set_army_herd("uncommon", 0)
+	gs.collection.add_plain("common:holo", 50)  # (past the keep line: never taken)
+	gs.homes.rule.keep = "holo"
+	var room_common: int = gs.army_herd_room("common")
+	gs.army_fill_up()
+	army = gs.army()
+	_check(int(army.herd.get("common", 0)) == mini(room_common, 280) and not gs.army_herd_keys().has("common:holo"),
+		"fill up only takes pets that may go (%s)" % [gs.army_herd_keys()])
+	gs.dungeon.cards.clear()
+	gs.army_fill_up()
+	_check(int(gs.army().herd.get("common", 0)) == mini(room_common, 300) and gs.army().cards.is_empty(),
+		"fill up never adds cards to the front row (%d)" % gs.army().cards.size())
+	gs.army_empty()
+	_check(Herd.total(gs.army_herd_keys()) == 0, "empty: nobody from the shelves walks behind")
+	gs.army_best()
 	gs.set_army_herd("common", 280)
 	_check(gs.floor_words(1, 3).size() == 3, "the next floors get feeling words")
 
 	# a run: it goes, its pets stay busy, it comes home
 	_check(gs.send_army() and gs.dungeon_running(), "the army goes down")
+	_check(int(gs.dungeon.run.get("known", -1)) == int(gs.dungeon.deep), "the run knows how deep the army had been (cleared floors go faster)")
 	_check(not gs.set_army_card("2", true) and gs.dungeon_floor_now() >= 0.0, "the army can't change while it's down there")
 	var sent_uids: Array = gs.dungeon.run.cards.duplicate()
 	var lost_uid: String = sent_uids[5]
@@ -5329,6 +5377,13 @@ func _test_dungeon_game(catalog: Catalog) -> void:
 	_check(gs.collection.get_pet(lost_uid) == null and gs.collection.fallen_n == stars + 6, "pets that didn't come back are stars now (%d)" % (gs.collection.fallen_n - stars))
 	_check(gs.collection.herd_count("common:normal") == 495 and gs.collection.plain_count() == plain - 5, "and they leave the room")
 	_check(not lost_uid in gs.dungeon.cards and gs.dungeon.last.back == 294, "the army and the last run know (%d came home)" % int(gs.dungeon.last.back))
+	var report: Dictionary = gs.dungeon_report
+	_check(not report.is_empty() and int(report.tally.lost) == 6 and int(report.got) == 20 and bool(report.new_deep) and report.front.size() == 20,
+		"the came home report has the run's losses, wisps and the front row that went (%s)" % [report.get("tally", {})])
+	_check(report.front.any(func(p): return p.uid == lost_uid) and report.tally.lost_cards.has(lost_uid), "a front row pet that stayed below is still in the report (as a face)")
+	_check(str(report.best.get("kind", "")) == "part" and int(report.best.f) == 10, "the best bit is the first find: floor 10's part (%s)" % [report.best])
+	gs.drop_dungeon_report()
+	_check(gs.dungeon_report.is_empty(), "changing the army puts the report away")
 	var parts_after := 0
 	for k in gs.parts:
 		parts_after += int(gs.parts[k])

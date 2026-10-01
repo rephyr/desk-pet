@@ -62,6 +62,8 @@ static func clean(catalog: Catalog, raw) -> Dictionary:
 	var last = raw.get("last", {})
 	if last is Dictionary and last.has("floor"):
 		out.last = { "floor": int(last.floor), "got": int(last.get("got", 0)), "back": int(last.get("back", 0)) }
+		if last.has("sent"):  # (how many went down: older saves don't know)
+			out.last.sent = maxi(0, int(last.sent))
 		if last.has("room"):  # a sewing room run (its room's number)
 			out.last.room = maxi(0, int(last.room))
 	var firsts = raw.get("firsts", {})
@@ -396,10 +398,11 @@ static func simulate(catalog: Catalog, army: Dictionary, orders: Dictionary, rng
 		if safe > 0.0 and ratio < safe:
 			why = "safe"  # losses only happen while you're here
 			break
-		var gone := [[], {}] if safe > 0.0 else _fight(catalog, ratio, first, cards, hurt, herd, herd_hurt, rng, front_n(catalog, army))
+		var gone := [[], {}, [], {}] if safe > 0.0 else _fight(catalog, ratio, first, cards, hurt, herd, herd_hurt, rng, front_n(catalog, army))
 		lost_n += gone[0].size() + Herd.total(gone[1])
 		var cleared := ratio >= float(d.get("stuck", 0.4))
 		floors.append({ "f": f, "cleared": cleared, "lost_cards": gone[0], "lost_herd": gone[1],
+			"hurt_cards": gone[2], "hurt_herd": gone[3], "ratio": snappedf(ratio, 0.001),
 			"pay": pay(catalog, f, sent, int(orders.get("entrance", 0)), float(orders.get("pay_x", 1.0))) if cleared else 0 })
 		if not cleared:
 			why = "stuck"
@@ -416,16 +419,18 @@ static func simulate(catalog: Catalog, army: Dictionary, orders: Dictionary, rng
 
 ## One fight at `ratio` (the army's power over what it's up against): some get hurt (they fight at
 ## injured_x from now on), some don't come back, by who goes first. The army's pools change in place.
-## Returns [lost card uids, { count key: n }].
+## Returns [lost card uids, { count key: n }, hurt card uids, { count key: n hurt }] (the ones bumped
+## on this floor; some of them may be lost on it too).
 static func _fight(catalog: Catalog, ratio: float, first: String, cards: Array, hurt: Dictionary, herd: Dictionary,
 		herd_hurt: Dictionary, rng: RandomNumberGenerator, front := -1) -> Array:
 	var d := data(catalog)
 	var l: Dictionary = d.losses
 	var alive := cards.size() + Herd.total(herd)
 	var fresh := alive - hurt.size() - Herd.total(herd_hurt)
-	_injure(_round(fresh * minf(float(l.max_share), float(l.injure) / maxf(ratio, 0.01)), rng), cards, hurt, herd, herd_hurt, rng)
+	var bumped := _injure(_round(fresh * minf(float(l.max_share), float(l.injure) / maxf(ratio, 0.01)), rng), cards, hurt, herd, herd_hurt, rng)
 	var n_lost := mini(alive, _round(alive * minf(float(l.max_share), float(l.lose) / maxf(ratio * ratio, 0.0001)), rng))
-	return _take(n_lost, first, cards, hurt, herd, herd_hurt, front if front >= 0 else int(Perks.count_at(catalog, "front_row", 0)), rng)
+	var gone := _take(n_lost, first, cards, hurt, herd, herd_hurt, front if front >= 0 else int(Perks.count_at(catalog, "front_row", 0)), rng)
+	return [gone[0], gone[1], bumped[0].map(func(c): return c.uid), bumped[1]]
 
 
 ## A room of the sewing room (see Sewing): one fight against `strength` where everyone fights (no
@@ -445,7 +450,8 @@ static func simulate_room(catalog: Catalog, army: Dictionary, strength: float, p
 	var ratio := _power(catalog, cards, {}, herd, {}, info, "room", army) / maxf(strength, 0.001)
 	var gone := _fight(catalog, ratio, first, cards, {}, herd, {}, rng, front_n(catalog, army))
 	var cleared := ratio >= float(d.get("stuck", 0.4))
-	return { "floors": [{ "f": door, "cleared": cleared, "lost_cards": gone[0], "lost_herd": gone[1], "pay": pay if cleared else 0 }],
+	return { "floors": [{ "f": door, "cleared": cleared, "lost_cards": gone[0], "lost_herd": gone[1], "hurt_cards": gone[2], "hurt_herd": gone[3],
+		"ratio": snappedf(ratio, 0.001), "pay": pay if cleared else 0 }],
 		"why": "target" if cleared else "stuck", "turned": 0 }
 
 
@@ -477,25 +483,101 @@ static func run_lost(run: Dictionary) -> Array:
 	return [cards, herd]
 
 
-## How long a run takes: a floor at a time, and back from a floor they turned at. A run from a held
-## landing takes only the floors it walked (the skipped ones take no time).
+## How long one floor of a run takes: seconds_per_floor, and a floor the army had cleared before it
+## set off (run.known, the deepest floor then) cleared_x times faster.
+static func floor_seconds(catalog: Catalog, run: Dictionary, f: int) -> float:
+	var per := float(data(catalog).get("seconds_per_floor", 20))
+	if f <= int(run.get("known", 0)):
+		per /= maxf(1.0, float(data(catalog).get("cleared_x", 1.0)))
+	return per
+
+
+## The floors a run walks, in order: the ones it fought, and the one it turned back at when that
+## isn't one of them (a knock-back door nobody answered).
+static func _walked(run: Dictionary) -> Array[int]:
+	var out: Array[int] = []
+	var start := int(run.get("start", 0))
+	for fl in run.get("floors", []):
+		out.append(int(fl.f) if fl is Dictionary else start + out.size() + 1)
+	var turned := int(run.get("turned", 0))
+	if turned > 0 and start + out.size() < turned:
+		out.append(turned)
+	return out
+
+
+## How long a run takes: a floor at a time (floors cleared before go faster, see floor_seconds), and
+## back from a floor they turned at. A run from a held landing takes only the floors it walked (the
+## skipped ones take no time).
 static func run_seconds(catalog: Catalog, run: Dictionary) -> float:
 	if run.has("seconds"):  # a sewing room run takes its own time
 		return float(run.seconds)
-	var walked: int = run.get("floors", []).size()
-	var start := int(run.get("start", 0))
-	var floors := maxi(1, walked + (1 if int(run.get("turned", 0)) > 0 and start + walked < int(run.turned) else 0))
-	return floors * float(data(catalog).get("seconds_per_floor", 20))
+	var total := 0.0
+	for f in _walked(run):
+		total += floor_seconds(catalog, run, f)
+	return total if total > 0.0 else float(data(catalog).get("seconds_per_floor", 20))
 
 
 ## Where the army is now (floors from the top, 0 at the well mouth), `seconds` after it set off.
 static func run_floor(catalog: Catalog, run: Dictionary, seconds: float) -> float:
 	if run.has("room"):  # in the sewing room: the army stands at its door the whole time
 		return float(run.get("door", data(catalog).get("door_floor", 20)))
-	var per := float(data(catalog).get("seconds_per_floor", 20))
 	var start := float(run.get("start", 0))  # from a held landing: it pops out there
-	var deepest := maxf(float(run.get("turned", 0)), start + run.get("floors", []).size())
-	return clampf(start + seconds / per, start, deepest)
+	var at := start
+	var left := maxf(seconds, 0.0)
+	for f in _walked(run):
+		var t := floor_seconds(catalog, run, f)
+		if left < t:
+			return at + left / t
+		left -= t
+		at += 1.0
+	return at
+
+
+## How many of a run's fought floors are behind the army `seconds` after it set off (their losses
+## and wisps have happened: the page shows them as they do).
+static func floors_done(catalog: Catalog, run: Dictionary, seconds: float) -> int:
+	var at := run_floor(catalog, run, seconds) - float(run.get("start", 0))
+	return clampi(floori(at + 0.0001), 0, run.get("floors", []).size())
+
+
+## What the first `n` floors of a run came to: { walking (still with the army), lost, hurt (bumped),
+## got (wisps), lost_rarity / hurt_rarity ({ rarity: n }), lost_cards / hurt_cards ({ uid: true }) }.
+## `rarity_of`: a card uid's rarity ("" when it isn't known), for the cards' share by rarity.
+static func run_tally(run: Dictionary, n: int, rarity_of := Callable()) -> Dictionary:
+	var out := { "walking": int(run.get("sent", 0)), "lost": 0, "hurt": 0, "got": 0, "lost_rarity": {}, "hurt_rarity": {},
+		"lost_cards": {}, "hurt_cards": {} }
+	var floors: Array = run.get("floors", [])
+	for i in mini(n, floors.size()):
+		var fl: Dictionary = floors[i]
+		for uid in fl.get("lost_cards", []):
+			out.lost_cards[str(uid)] = true
+			if rarity_of.is_valid():
+				Herd.put(out.lost_rarity, str(rarity_of.call(str(uid))), 1)
+		var lh: Dictionary = fl.get("lost_herd", {})
+		for k in lh:
+			Herd.put(out.lost_rarity, Herd.rarity_of(str(k)), int(lh[k]))
+		for uid in fl.get("hurt_cards", []):
+			out.hurt_cards[str(uid)] = true
+			if rarity_of.is_valid():
+				Herd.put(out.hurt_rarity, str(rarity_of.call(str(uid))), 1)
+		var hh: Dictionary = fl.get("hurt_herd", {})
+		for k in hh:
+			Herd.put(out.hurt_rarity, Herd.rarity_of(str(k)), int(hh[k]))
+		var c := floor_counts(fl)
+		out.lost += int(c.lost)
+		out.hurt += int(c.hurt)
+		out.got += int(fl.get("pay", 0))
+	out.walking = maxi(0, int(out.walking) - int(out.lost))
+	out.lost_rarity.erase("")
+	out.hurt_rarity.erase("")
+	return out
+
+
+## One floor of a run in numbers: { lost, hurt } (the pets that stayed below and the ones bumped).
+static func floor_counts(fl: Dictionary) -> Dictionary:
+	var lost: int = fl.get("lost_cards", []).size() + Herd.total(fl.get("lost_herd", {}))
+	var hurt: int = fl.get("hurt_cards", []).size() + Herd.total(fl.get("hurt_herd", {}))
+	return { "lost": lost, "hurt": hurt }
 
 
 static func _round(x: float, rng: RandomNumberGenerator) -> int:
@@ -503,8 +585,8 @@ static func _round(x: float, rng: RandomNumberGenerator) -> int:
 	return whole + (1 if rng.randf() < x - whole else 0)
 
 
-## Hurts `n` pets that aren't hurt yet, anyone.
-static func _injure(n: int, cards: Array, hurt: Dictionary, herd: Dictionary, herd_hurt: Dictionary, rng: RandomNumberGenerator) -> void:
+## Hurts `n` pets that aren't hurt yet, anyone. Returns who: [cards, { count key: n }].
+static func _injure(n: int, cards: Array, hurt: Dictionary, herd: Dictionary, herd_hurt: Dictionary, rng: RandomNumberGenerator) -> Array:
 	var pool_cards: Array = cards.filter(func(c): return not hurt.has(c.uid))
 	var pool_herd := {}
 	for k in herd:
@@ -516,6 +598,7 @@ static func _injure(n: int, cards: Array, hurt: Dictionary, herd: Dictionary, he
 		hurt[c.uid] = true
 	for k in picked[1]:
 		herd_hurt[k] = int(herd_hurt.get(k, 0)) + int(picked[1][k])
+	return picked
 
 
 ## Takes `n` pets out of the army, by who goes first. Returns [lost card uids, { key: n }].

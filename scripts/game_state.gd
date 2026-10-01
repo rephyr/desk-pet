@@ -175,6 +175,11 @@ var dungeon := Dungeon.fresh(Catalog.shared())  # the old well, all the way down
 var dungeon_news := {}  # the army just came home: { got, floor, early, deepest, nail } (a sewing room run: { got, room, cleared, again }) for your pet to say (not saved)
 var sewing := Sewing.fresh()  # E3 the sewing room off the well's floor 20 (see Sewing)
 var perks := {}  # the wisps perk tree on the well wall: perk id -> level (see Perks, data/perks.json)
+## The last run home from the well while you were here (for the page's "came home" report; not saved):
+## { run (its floors and orders), tally (Dungeon.run_tally of all of it), front ([Pet] the front row that
+## went, the strongest first), lead (your pet, or null), deepest, new_deep, got, best: { tag, text } }.
+## {} once you change the army or a new run goes down.
+var dungeon_report := {}
 var army_held := false  # the sewing room is open on screen: your pet leading the army waits at home for you (not saved)
 var _auto_at := 0.0  # unix time your pet's jobs have worked up to
 var _hold_saves := false  # automation's tick is running: saves wait for the end of it
@@ -1499,6 +1504,7 @@ func debug_new_game() -> void:
 	automation = Automation.fresh()
 	dungeon = Dungeon.fresh(catalog)
 	dungeon_news = {}
+	dungeon_report = {}
 	sewing = Sewing.fresh()
 	perks = {}
 	collection.keep_uids.clear()
@@ -3574,6 +3580,38 @@ func set_army_herd(rarity: String, n: int) -> void:
 	_army_changed()
 
 
+## "fill up": pets from the shelves join the army until the entrance is full, the plainest shelf
+## first (commons, then uncommons...), as many as each has that may go (army_herd_room: below the keep
+## line, never pets away; the herd never holds favourites or your pet). The front row stays as it is.
+func army_fill_up() -> void:
+	if dungeon_running():
+		return
+	var a := army()
+	var left := int(a.entrance) - int(a.sent)
+	var tiers: Array = catalog.tiers.duplicate()
+	tiers.sort_custom(func(x, y): return catalog.rank(str(x.id)) < catalog.rank(str(y.id)))
+	for tier in tiers:
+		if left <= 0:
+			break
+		var have := int(a.herd.get(tier.id, 0))
+		var more := mini(left, army_herd_room(str(tier.id)) - have)
+		if more <= 0:
+			continue
+		_free_for_army(str(tier.id), more)
+		dungeon.herd[str(tier.id)] = have + more
+		left -= more
+		_rest_changed()
+	_army_changed()
+
+
+## "empty": nobody from the shelves walks behind any more (the front row stays).
+func army_empty() -> void:
+	if dungeon_running() or dungeon.herd.is_empty():
+		return
+	dungeon.herd = {}
+	_army_changed()
+
+
 ## `more` pets of a rarity are joining the army's herd: past the resting ones, they come off their
 ## errands and machines (the finishes the army takes first, see _army_herd).
 func _free_for_army(rarity: String, more: int) -> void:
@@ -3737,7 +3775,10 @@ func send_army(quiet := false, away := false) -> bool:
 		orders.safe = float(Dungeon.data(catalog).get("away_safe", 2.0))
 	var result := Dungeon.simulate(catalog, _army_rules(cards, herd_keys), orders, rng)
 	dungeon.run = { "at": Time.get_unix_time_from_system(), "floors": result.floors, "why": result.why, "turned": result.turned,
-		"cards": cards.map(func(p): return p.uid), "herd": herd_keys.duplicate(), "sent": sent, "target": int(dungeon.target), "start": start }
+		"cards": cards.map(func(p): return p.uid), "herd": herd_keys.duplicate(), "sent": sent, "target": int(dungeon.target), "start": start,
+		"known": int(dungeon.deep) }  # (floors cleared before go faster, see Dungeon.floor_seconds)
+	if not quiet:
+		dungeon_report = {}
 	_rest_changed()  # (only drops the busy-pets cache: the next army_cards() needs it fresh)
 	if quiet:
 		return true
@@ -3779,6 +3820,12 @@ func _finish_dungeon_run(quiet := false) -> void:
 	if run.has("room"):
 		_finish_room_run(quiet)
 		return
+	var front: Array[Pet] = []
+	if not quiet:
+		front.assign(army_cards().slice(0, front_row_size()))  # (before the lost ones leave)
+	var tally := {} if quiet else Dungeon.run_tally(run, run.get("floors", []).size(), func(uid: String):
+		var pet := collection.get_pet(uid)
+		return pet.rarity if pet else "")
 	dungeon.run = {}
 	_rest_changed()
 	var lost_n := _run_losses(run)
@@ -3792,14 +3839,20 @@ func _finish_dungeon_run(quiet := false) -> void:
 	for id in Dungeon.shown_bands(catalog, dungeon):
 		if not id in dungeon.bands:
 			dungeon.bands.append(id)
-	dungeon.last = { "floor": to, "got": got, "back": int(run.get("sent", 0)) - lost_n }
+	var deep_before := int(dungeon.deep)
+	dungeon.last = { "floor": to, "got": got, "back": int(run.get("sent", 0)) - lost_n, "sent": int(run.get("sent", 0)) }
+	var firsts: Array[int] = []  # what a floor gave the first time, on this run
 	for f in range(start + 1, to + 1):  # (only floors walked: a skipped floor's thing waits)
 		var first: Dictionary = catalog.dungeon.get("firsts", {}).get(str(f), {})
 		if not first.is_empty() and not dungeon.firsts.has(str(f)):
 			if first.has("part") and not feature_on("parts"):
 				continue  # parts come much later: this floor's part waits for a clear after that
 			dungeon.firsts[str(f)] = true
+			firsts.append(f)
 			_dungeon_first(first)
+	if not quiet:
+		dungeon_report = { "run": run, "tally": tally, "front": front, "lead": collection.active(), "deepest": to,
+			"new_deep": deepest, "got": got, "best": _best_bit(run, firsts, deep_before, deepest, to) }
 	dungeon.cards = dungeon.cards.filter(func(uid): return collection.get_pet(str(uid)) != null)
 	dungeon.target = mini(int(dungeon.target), Dungeon.target_max(catalog, dungeon))
 	if not int(dungeon.start) in Dungeon.starts(catalog, dungeon):
@@ -3808,6 +3861,35 @@ func _finish_dungeon_run(quiet := false) -> void:
 		"nail": perks_shown().size() > nails }  # a new nail showed on the wall down there
 	if not quiet:
 		_home_again()
+
+
+## The best bit of a run for its "came home" report: a first find (what a floor gave the first time),
+## else the deepest floor yet, else the floor that brought the most wisps. { kind (find | part | deep |
+## wisps), f (its floor), what (the find's name or the part's rarity), was (the deepest before), pay }.
+func _best_bit(run: Dictionary, firsts: Array[int], deep_before: int, deepest: bool, to: int) -> Dictionary:
+	for f in firsts:
+		var first: Dictionary = catalog.dungeon.get("firsts", {}).get(str(f), {})
+		if first.has("find"):
+			return { "kind": "find", "f": f, "what": str(catalog.finds.get(str(first.find), {}).get("name", "something shiny")) }
+		if first.has("part"):
+			return { "kind": "part", "f": f, "what": str(catalog.tier_at(catalog.rank(str(first.part))).name) }
+	if deepest:
+		return { "kind": "deep", "f": to, "was": deep_before }
+	var top := {}
+	for fl in run.get("floors", []):
+		if int(fl.get("pay", 0)) > int(top.get("pay", 0)):
+			top = fl
+	if top.is_empty():
+		return {}
+	return { "kind": "wisps", "f": int(top.f), "pay": int(top.pay) }
+
+
+## The "came home" report is put away (you change the army): the page lines up the next one.
+func drop_dungeon_report() -> void:
+	if dungeon_report.is_empty():
+		return
+	dungeon_report = {}
+	dungeon_changed.emit()
 
 
 ## After an army is home: cards home again may fold into the herd, unlocks, the pages refresh.
@@ -4078,6 +4160,26 @@ func perk_price(id: String) -> int:
 ## Whether a perk can be bought now, wisps aside: it shows, it isn't maxed, the one above has a level.
 func perk_available(id: String) -> bool:
 	return dungeon_open() and Perks.available(catalog, perks, id, int(dungeon.deep), is_open)
+
+
+## Whether a perk on the well wall can be bought right now with the wisps you hold (the perks
+## button's gold dot).
+func perks_affordable() -> bool:
+	for id in perks_shown():
+		if perk_available(id) and wisps >= perk_price(id):
+			return true
+	return false
+
+
+## The next perk down the chain the army hasn't been deep enough for yet (its "needs" open): the
+## wall's carrot ({} when there's none).
+func perk_carrot() -> Dictionary:
+	if not dungeon_open():
+		return {}
+	for p in Perks.chain(catalog):
+		if int(p.get("floor", 0)) > int(dungeon.deep) and (str(p.get("needs", "")) == "" or is_open(str(p.needs))):
+			return p
+	return {}
 
 
 ## Buys a perk's next level with wisps. False when it can't (not there yet, maxed, not enough wisps).
