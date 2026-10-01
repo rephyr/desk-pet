@@ -4006,9 +4006,10 @@ func sew_seat_pets(i: int) -> Dictionary:
 	if i != sew_seats_room:
 		return out
 	var running: bool = dungeon_running() and dungeon.run.has("room")
+	var gone := {} if running else _sew_gone()
 	for mark in sew_room(i).marks:
 		var pet := collection.get_pet(str(sew_seats.get(mark, "")))
-		if pet != null and Sewing.mark_matches(str(mark), pet) and (running or sew_can_sit(pet)):
+		if pet != null and Sewing.mark_matches(str(mark), pet) and (running or (not Herd.is_stand_in(pet.uid) and not gone.has(pet.uid))):
 			out[mark] = pet
 	return out
 
@@ -4068,14 +4069,18 @@ func _cap_keys(keys: Dictionary, n: int) -> Dictionary:
 
 ## Whether the army can go into room `i` now: a room that shows, a pet on every seat, nobody down
 ## there already.
-func sew_can_go(i: int) -> bool:
-	return sewing_open() and i >= 0 and i < Sewing.shown(sewing) and not dungeon_running() and not tutorial_active() \
-		and sew_marks(i).all(func(on): return on) and int(sew_party(i).sent) > 0
+## `party`: sew_party(i) when it's at hand.
+func sew_can_go(i: int, party := {}) -> bool:
+	if not (sewing_open() and i >= 0 and i < Sewing.shown(sewing) and not dungeon_running() and not tutorial_active()):
+		return false
+	return sew_marks(i).all(func(on): return on) and int((party if not party.is_empty() else sew_party(i)).sent) > 0
 
 
 ## The feeling word for room `i` against who'd go in now: [word, heat] ([] with nobody going).
-func sew_word(i: int) -> Array:
-	var party := sew_party(i)
+## `party`: sew_party(i) when it's at hand.
+func sew_word(i: int, party := {}) -> Array:
+	if party.is_empty():
+		party = sew_party(i)
 	if int(party.sent) <= 0:
 		return []
 	return Dungeon.word(catalog, Dungeon.army_power(catalog, _army_rules(party.cards, party.keys), "room") / Sewing.strength(catalog, sew_room(i)))

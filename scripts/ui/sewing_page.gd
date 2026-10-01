@@ -49,6 +49,9 @@ var _body := HBoxContainer.new()
 var _pics := {}  # "id|w" -> texture
 var _scroll_frames := 0  # frames left to keep the picked tile in view
 var _scrolled_for := ""  # the picked room and the strip's size the strip last scrolled for
+var _party := {}  # who'd go in (GameState.sew_party), worked out once a rebuild
+var _pickable: Array[Pet] = []  # the pets that can sit, strongest first (kept until pets come or go)
+var _pickable_ok := false
 static var _flags := {}  # px -> the coral pennant
 
 
@@ -108,18 +111,39 @@ func _init() -> void:
 	add_child(_body)
 	GameState.dungeon_changed.connect(func():
 		_dirty = true
+		_pickable_ok = false
 		if is_visible_in_tree() and not GameState.dungeon_news.is_empty():
 			speak())
-	GameState.collection.pets_added.connect(func(_p): _maybe = true)
-	GameState.collection.pets_removed.connect(func(_u): _maybe = true)
-	GameState.collection.active_changed.connect(func(_p): _dirty = true)
+	GameState.collection.pets_added.connect(func(_p): _pets_changed())
+	GameState.collection.pets_removed.connect(func(_u): _pets_changed())
+	GameState.collection.active_changed.connect(func(_p):
+		_pickable_ok = false
+		_dirty = true)
 	GameState.jobs_changed.connect(func(): _maybe = true)
-	GameState.adventures_changed.connect(func(): _maybe = true)
+	GameState.adventures_changed.connect(func(): _pets_changed())
 	visibility_changed.connect(func():
 		GameState.army_held = is_visible_in_tree()  # your pet leading the army waits at home while this shows
 		if is_visible_in_tree():
+			_pickable_ok = false
 			_dirty = true)
 	tree_exiting.connect(func(): GameState.army_held = false)
+
+
+func _pets_changed() -> void:
+	_pickable_ok = false
+	_maybe = true
+
+
+## The pets that can sit now, strongest first (sorted once until pets come or go).
+func _pickable_pets() -> Array[Pet]:
+	if not _pickable_ok:
+		_pickable = GameState.sew_pickable()
+		_pickable_ok = true
+	var out: Array[Pet] = []
+	for p in _pickable:
+		if GameState.collection.get_pet(p.uid) == p:
+			out.append(p)
+	return out
 
 
 ## The door was opened: the room running, else the one just done, else the next one to clear.
@@ -240,7 +264,7 @@ func _first_open() -> String:
 
 ## What pets coming and going can change here: the picker's pets, the army walking in.
 func _key() -> String:
-	return "%d|%d|%d|%d" % [GameState.collection.pets.size(), GameState.runs.size(), int(GameState.sew_party(room).sent), GameState.sew_seated(room).size()]
+	return "%d|%d|%d|%d|%d" % [GameState.collection.pets.size(), GameState.runs.size(), GameState.dungeon.cards.size(), Herd.total(GameState.army_herd_keys()), GameState.sew_seated(room).size()]
 
 
 func _rebuild() -> void:
@@ -256,6 +280,7 @@ func _rebuild() -> void:
 	if _sel != "" and (not _sel in r.marks or bool(GameState.sew_marks(room)[r.marks.find(_sel)])):
 		_sel = _first_open()
 	_build_strip(shown)
+	_party = GameState.sew_party(room)
 	UiTheme.clear(_body)
 	_body.add_child(_room_card(r))
 	_body.add_child(_picker(r))
@@ -315,7 +340,7 @@ func _room_card(r: Dictionary) -> Control:
 	elif room < cleared and result.is_empty():
 		head.add_child(_pennant(13))
 	head.add_child(UiTheme.spacer())
-	var word := GameState.sew_word(room)
+	var word := GameState.sew_word(room, _party)
 	if not word.is_empty():
 		head.add_child(_feel(word))
 	col.add_child(head)
@@ -369,7 +394,7 @@ func _room_card(r: Dictionary) -> Control:
 	col.add_child(push)
 	var foot := HBoxContainer.new()
 	foot.add_theme_constant_override("separation", 10)
-	var party := GameState.sew_party(room)
+	var party := _party
 	var more := int(party.more)
 	if more > 0:
 		var seated := GameState.sew_seated(room)
@@ -390,7 +415,7 @@ func _room_card(r: Dictionary) -> Control:
 		if GameState.send_to_room(room):
 			_sel = ""
 			PetBubble.say_line(self, "sewing_go"))
-	go.disabled = not GameState.sew_can_go(room)
+	go.disabled = not GameState.sew_can_go(room, _party)
 	go.size_flags_vertical = SIZE_SHRINK_CENTER
 	var on_sb := UiTheme.box(UiTheme.DEEP, UiTheme.PINK_SEAM, 8, 2, 0)
 	var off_sb := UiTheme.box(UiTheme.DEEP, UiTheme.PINK_SEAM if running else UiTheme.MUTED_SEAM, 8, 2, 0)
@@ -476,7 +501,7 @@ func _picker(r: Dictionary) -> Control:
 			going[pet.uid] = true
 
 	# the pets, the ones that fit the seat first
-	var pets := GameState.sew_pickable()
+	var pets := _pickable_pets()
 	if running:
 		var gone: Array[Pet] = GameState.army_cards()
 		gone.append_array(pets)
