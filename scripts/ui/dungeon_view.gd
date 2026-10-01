@@ -63,6 +63,7 @@ var _hold_scroll_f := 0  # the landing that list belongs to
 var _done_shown := -1  # the run's floors behind the army at the last rebuild
 var _walk_bar: ProgressBar = null  # the run card's walking bar and floor number (moved every frame)
 var _floor_label: Label = null
+var _floor_done := false  # a floor of the run just finished: the desk (not the wall) builds again
 
 
 func _init() -> void:
@@ -258,6 +259,9 @@ func _process(delta: float) -> void:
 		_rebuild()
 		if _wall.visible:
 			_wall.refresh()
+	elif _floor_done:  # a floor of the run is behind the army: only the desk changes
+		_floor_done = false
+		_build_desk(GameState.army(), {})
 	if not _followed and _scroll.size.y > 0.0 and _column.size.y >= _column.custom_minimum_size.y - 0.5:
 		_followed = true  # once the column has its size: scroll to where the army is
 		_follow()
@@ -831,7 +835,7 @@ func _tick_run() -> void:
 	var run: Dictionary = GameState.dungeon.run
 	var done := Dungeon.floors_done(GameState.catalog, run, _run_seconds())
 	if done != _done_shown:
-		_dirty = true
+		_floor_done = true
 		return
 	if is_instance_valid(_walk_bar):
 		_walk_bar.value = _walk_frac(run)
@@ -1643,7 +1647,7 @@ class _PipSlider extends Control:
 				_drag = (k - 1) / 10.0 if k == cur else k / 10.0
 				queue_redraw()
 			elif _drag >= 0.0:
-				var n := roundi(_have * _drag)
+				var n := ceili(_have * _drag - 0.0001) if _have < 10 else roundi(_have * _drag)  # (a small shelf: every pip counts)
 				_drag = -1.0
 				_on_set.call(n)
 			accept_event()

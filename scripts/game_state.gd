@@ -177,8 +177,8 @@ var sewing := Sewing.fresh()  # E3 the sewing room off the well's floor 20 (see 
 var perks := {}  # the wisps perk tree on the well wall: perk id -> level (see Perks, data/perks.json)
 ## The last run home from the well while you were here (for the page's "came home" report; not saved):
 ## { run (its floors and orders), tally (Dungeon.run_tally of all of it), front ([Pet] the front row that
-## went, the strongest first), lead (your pet, or null), deepest, new_deep, got, best: { tag, text } }.
-## {} once you change the army or a new run goes down.
+## went, the strongest first), lead (your pet, or null), deepest, new_deep, got, best (see _best_bit) }.
+## {} once you change the army or the orders ("change the army", a tap on a floor), or a new run goes down.
 var dungeon_report := {}
 var army_held := false  # the sewing room is open on screen: your pet leading the army waits at home for you (not saved)
 var _auto_at := 0.0  # unix time your pet's jobs have worked up to
@@ -3698,6 +3698,7 @@ func set_order(key: String, step: int) -> void:
 func set_order_to(key: String, value) -> bool:
 	if dungeon_running():
 		return false
+	dungeon_report = {}  # (new orders: the page lines up the next run)
 	var d: Dictionary = catalog.dungeon
 	match key:
 		"start":
@@ -3803,7 +3804,7 @@ func send_army(quiet := false, away := false) -> bool:
 	var result := Dungeon.simulate(catalog, _army_rules(cards, herd_keys), orders, rng)
 	dungeon.run = { "at": Time.get_unix_time_from_system(), "floors": result.floors, "why": result.why, "turned": result.turned,
 		"cards": cards.map(func(p): return p.uid), "herd": herd_keys.duplicate(), "sent": sent, "target": int(dungeon.target), "start": start,
-		"known": int(dungeon.deep) }  # (floors cleared before go faster, see Dungeon.floor_seconds)
+		"known": 0 if away else int(dungeon.deep) }  # (floors cleared before go faster, see Dungeon.floor_seconds; the music box's away runs keep their old pace)
 	if not quiet:
 		dungeon_report = {}
 	_rest_changed()  # (only drops the busy-pets cache: the next army_cards() needs it fresh)
@@ -4057,6 +4058,7 @@ func sew_word(i: int, rules: Dictionary = {}) -> Array:
 func send_to_room(i: int) -> bool:
 	if not sew_can_go(i):
 		return false
+	dungeon_report = {}  # (a well run's report never comes back after a room run)
 	var cards := army_cards()
 	var herd_keys := army_herd_keys()
 	var entrance := Dungeon.entrance(catalog, perk_level("entrance"))
