@@ -23,6 +23,7 @@ var icon_style := ""
 var resolution := 0  # index into RESOLUTIONS
 var max_fps := 0  # frame rate cap, 0 for none
 var vsync := true
+var show_fps := false  # a small frame rate readout in the full game's corner
 var music_volume := 0.8  # 0 to 1: the hum under pack openings (and music later)
 var sound_volume := 0.8  # 0 to 1: everything else you hear
 ## How much your pet acts out its job out on your windows (QuietPaws): 0 off, 1 big things,
@@ -43,6 +44,7 @@ func _init() -> void:
 	resolution = clampi(int(data.get("resolution", resolution)), 0, RESOLUTIONS.size() - 1)
 	max_fps = int(data.get("max_fps", max_fps))
 	vsync = bool(data.get("vsync", vsync))
+	show_fps = bool(data.get("show_fps", show_fps))
 	music_volume = clampf(float(data.get("music_volume", music_volume)), 0.0, 1.0)
 	sound_volume = clampf(float(data.get("sound_volume", sound_volume)), 0.0, 1.0)
 	paws = paws_from(data)
@@ -100,6 +102,7 @@ func set_value(key: String, value: Variant) -> void:
 		"resolution": resolution,
 		"max_fps": max_fps,
 		"vsync": vsync,
+		"show_fps": show_fps,
 		"music_volume": music_volume,
 		"sound_volume": sound_volume,
 		"paws": paws,

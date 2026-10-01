@@ -134,6 +134,7 @@ func _video() -> Control:
 	s.body.add_child(_choice("frame rate", Settings.FPS_CAPS.map(func(f): return "no cap" if f == 0 else "%d fps" % f),
 		maxi(0, Settings.FPS_CAPS.find(Settings.max_fps)), func(i): Settings.set_value("max_fps", Settings.FPS_CAPS[i])))
 	s.body.add_child(_switch("vsync", Settings.vsync, func(on): Settings.set_value("vsync", on)))
+	s.body.add_child(_switch("show fps", Settings.show_fps, func(on): Settings.set_value("show_fps", on)))
 	return s.panel
 
 
