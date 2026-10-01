@@ -3692,6 +3692,33 @@ func set_order(key: String, step: int) -> void:
 	save_game()
 
 
+## Sets an order to a value (a row of choices on the orders card): "target" (a floor, kept between the
+## floor under the start and target_max), "home" (a step of data home_at), "first" (a line of data
+## first, once earned), "start" (see set_start). Returns whether it took.
+func set_order_to(key: String, value) -> bool:
+	if dungeon_running():
+		return false
+	var d: Dictionary = catalog.dungeon
+	match key:
+		"start":
+			return set_start(int(value))
+		"target":
+			dungeon.target = clampi(int(value), int(dungeon.start) + 1, Dungeon.target_max(catalog, dungeon))
+		"home":
+			if not int(value) in d.home_at.map(func(v): return int(v)):
+				return false
+			dungeon.home_at = int(value)
+		"first":
+			if not Dungeon.first_earned(catalog, dungeon) or not str(value) in d.first.lines:
+				return false
+			dungeon.first = str(value)
+		_:
+			return false
+	dungeon_changed.emit()
+	save_game()
+	return true
+
+
 ## The orders start from landing `f` (0: the top, or a fully held landing); the target moves down
 ## under it if it has to. Returns whether it could (not while the army is out, not a landing that
 ## isn't held).
@@ -3832,14 +3859,14 @@ func _finish_dungeon_run(quiet := false) -> void:
 	var got := Dungeon.run_pay(run)
 	var start := int(run.get("start", 0))  # from a held landing: they got at least that far
 	var to := maxi(Dungeon.cleared_to(run), start)
-	var deepest := to > int(dungeon.deep)
+	var deep_before := int(dungeon.deep)
+	var deepest := to > deep_before
 	var nails := perks_shown().size()
 	grant_wisps(got, true)
 	dungeon.deep = maxi(int(dungeon.deep), to)
 	for id in Dungeon.shown_bands(catalog, dungeon):
 		if not id in dungeon.bands:
 			dungeon.bands.append(id)
-	var deep_before := int(dungeon.deep)
 	dungeon.last = { "floor": to, "got": got, "back": int(run.get("sent", 0)) - lost_n, "sent": int(run.get("sent", 0)) }
 	var firsts: Array[int] = []  # what a floor gave the first time, on this run
 	for f in range(start + 1, to + 1):  # (only floors walked: a skipped floor's thing waits)

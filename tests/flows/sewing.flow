@@ -78,7 +78,7 @@ shot keep_lines
 tab adventures
 page adventures 2
 wait 1
-expect text "went to"
+expect text "last time"            # (and the room it went to)
 expect fits
 shot tin_cleared
 # the last room: it opens the plushie machine and sews a button onto your pet

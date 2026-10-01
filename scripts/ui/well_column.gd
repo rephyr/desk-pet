@@ -7,27 +7,24 @@ extends Control
 ## (never a number); the target has a pink flag; while the army is down there it walks down.
 ## Once the tiny key is found, a little pink door (SewDoor) is cut through the right wall of floor 20:
 ## the sewing room (see Sewing). Drawn from GameState.dungeon, see Dungeon for the rules.
-## Down the left lane of the soil hang the wisps perks (PerkNail, see Perks): coral things on nails,
-## one per landing, the bow on the roof post first, joined by a coral thread (solid down to the last
-## one bought, dashed chalk after); the 2 endless tips hang at the bottom once the chain is done.
-## Nails deeper than the army has been stay hidden.
+## Slim (look A of design/mockups/screens/dungeon-redo.html): the wisps perks hang on the well wall
+## sheet now (WellWall), not down the soil. Tapping a floor the orders may aim for moves the target's
+## flag there (floor_pressed); a start from a held landing shades the shaft above it.
 ## Every 10th landing the army has cleared can be held (HoldSpot): a crowd holding the rope, propping
 ## the door or sitting on the stairs, with a coral count pill ('N/M' dashed while it fills). A fully held
 ## stairs landing has no guard any more.
 
 signal door_pressed  # the sewing room's door was tapped
-signal nail_pressed(id: String)  # a perk's nail was tapped
+signal floor_pressed(f: int)  # a floor the orders may aim for was tapped
 signal hold_pressed(f: int)  # a held landing (its crowd or its pill) was tapped
 
 const GROUND := 70.0  # the grass line
 const TAIL := 26.0  # the shaft fades out below the last floor drawn
 const FLOOR_H := { "rope": 18.0, "doors": 23.0, "stairs": 19.0 }
-const WIDTH := { "rope": 58.0, "doors": 98.0, "stairs": 80.0 }
+const WIDTH := { "rope": 42.0, "doors": 70.0, "stairs": 60.0 }
 const WORDS_AHEAD := 6  # floors past the deepest that get a feeling word
 const MORE_BELOW := 8  # floors drawn past the deepest one in a band that goes on forever
-const LANE_X := 40.0  # the nails' lane down the left of the soil
-const LANE := Vector2(20, 62)  # the lane's left and right edge (no pebbles in it)
-const TIPS_H := 56.0  # room for the 2 tips under the last floor drawn
+const BAND_LANE := 26.0  # the band names' strip down the left (no pebbles in it)
 
 var _ys: Array[float] = [GROUND]  # floor -> the y of its landing (0 is the grass)
 var _to := 10  # the last floor drawn
@@ -35,22 +32,17 @@ var _words := {}  # floor -> [word, heat]
 var _party: Array[Texture2D] = []  # the army's first few faces while it's down there
 var _pos := -1.0  # where the army is (floors), -1 when home
 var _sew_door := SewDoor.new()
-var _nails := {}  # perk id -> PerkNail
-var _shown: Array[String] = []  # the perks on the wall, in order (see GameState.perks_shown)
-var _picked := ""  # the perk whose card is open
-var _tips_y := -1.0  # where the tips hang (-1: not yet)
 var _holds := {}  # landing -> HoldSpot
 var _hold_picked := 0  # the landing whose card is open (0: none)
 
 
 func _init() -> void:
-	mouse_filter = MOUSE_FILTER_IGNORE
+	mouse_filter = MOUSE_FILTER_PASS  # (a tap on a floor moves the flag; the wheel still scrolls)
 	texture_filter = TEXTURE_FILTER_NEAREST
 	_sew_door.visible = false
 	_sew_door.pressed.connect(func(): door_pressed.emit())
 	add_child(_sew_door)
 	resized.connect(_place_door)
-	resized.connect(_place_nails)
 	resized.connect(_place_holds)
 
 
@@ -87,10 +79,7 @@ func refresh(a: Dictionary = {}, rules: Dictionary = {}) -> void:
 	_ys = [GROUND]
 	for f in range(1, _to + 1):
 		_ys.append(_ys[f - 1] + float(FLOOR_H.get(str(Dungeon.band_of(catalog, f).kind), 20.0)))
-	_shown = GameState.perks_shown()
-	var tips := _shown.any(func(id): return Perks.is_tip(catalog, id))
-	_tips_y = _ys[_to] + 14.0 if tips else -1.0
-	custom_minimum_size = Vector2(200, _ys[_to] + TAIL + (TIPS_H if tips else 0.0))
+	custom_minimum_size = Vector2(150, _ys[_to] + TAIL)
 	# feeling words on the next few floors (and the target), for the army lined up (none: no words)
 	_words = {}
 	if a.is_empty():
@@ -116,7 +105,6 @@ func refresh(a: Dictionary = {}, rules: Dictionary = {}) -> void:
 				_party.append(PetLook.texture_for(pet.parts, false, pet.sewn))
 	_pos = GameState.dungeon_floor_now()
 	_place_door()
-	_build_nails()
 	_build_holds()
 	queue_redraw()
 
@@ -173,66 +161,6 @@ func _place_holds() -> void:
 		_holds[f].picked = f == _hold_picked
 
 
-## The perk whose card is open gets a ring ("" for none).
-func set_picked(id: String) -> void:
-	if id == _picked:
-		return
-	_picked = id
-	for k in _nails:
-		_nails[k].show_state(_nails[k].look, _nails[k].level, k == _picked)
-
-
-## A perk's nail (null when it isn't on the wall).
-func nail(id: String) -> PerkNail:
-	return _nails.get(id)
-
-
-## A perk's nail wiggles (just bought).
-func pop(id: String) -> void:
-	if _nails.has(id):
-		_nails[id].pop()
-
-
-## The nails for the perks that show (made once each, kept while they show), and their looks.
-func _build_nails() -> void:
-	var catalog := GameState.catalog
-	for id in _nails.keys():
-		if not id in _shown:
-			_nails[id].queue_free()
-			_nails.erase(id)
-	for id in _shown:
-		if not _nails.has(id):
-			var p := Perks.perk(catalog, id)
-			var n := PerkNail.new(id, str(p.get("thing", "bow")), Perks.is_tip(catalog, id))
-			n.scale_thing = 0.76 if int(p.get("floor", -1)) == 0 else 0.9
-			n.picked.connect(func(which: String): nail_pressed.emit(which))
-			add_child(n)
-			_nails[id] = n
-		var lv := GameState.perk_level(id)
-		var look := "on" if lv > 0 or Perks.is_tip(catalog, id) else ("next" if GameState.perk_available(id) else "off")
-		_nails[id].show_state(look, lv, id == _picked)
-	_place_nails()
-
-
-## Where a perk's nail head is: the bow on the well's left roof post, the others on their landing
-## in the lane, the tips side by side at the bottom.
-func nail_at(id: String) -> Vector2:
-	var catalog := GameState.catalog
-	var p := Perks.perk(catalog, id)
-	if Perks.is_tip(catalog, id):
-		var i := Perks.tips(catalog).map(func(t): return str(t.id)).find(id)
-		return Vector2(LANE_X - 14.0 + i * 30.0, _tips_y)
-	var f := int(p.get("floor", 0))
-	if f <= 0:
-		return Vector2(_cx() - _half(1) - 9.0 - 3.0, GROUND - 30.0)
-	return Vector2(LANE_X, _ys[mini(f, _to)] - 20.0)
-
-
-func _place_nails() -> void:
-	for id in _nails:
-		_nails[id].hang(nail_at(id))
-
-
 ## The sewing room's door on its floor, through the right wall (only once the key is found).
 func _place_door() -> void:
 	var f := int(GameState.catalog.sewing.get("door_floor", 20))
@@ -270,7 +198,36 @@ func party_y() -> float:
 
 
 func _cx() -> float:
-	return roundf(size.x * 0.55)  # right of the middle: the nails' lane is down the left
+	return roundf(size.x * 0.46)  # a little left of the middle: the feeling words go on the right
+
+
+## The floor under a point (0 when it isn't one the orders may aim for).
+func floor_at(p: Vector2) -> int:
+	if GameState.dungeon_running() or p.y <= GROUND:
+		return 0
+	var state: Dictionary = GameState.dungeon
+	var f := _floor_at(p.y)
+	if p.y > _ys[_to] or f <= int(state.start) or f > Dungeon.target_max(GameState.catalog, state):
+		return 0
+	return f
+
+
+## A tap on floor `f` (for flows): what a click there does. Returns whether it moved the flag.
+func tap_floor(f: int) -> bool:
+	if f < 1 or f > _to:
+		return false
+	if floor_at(Vector2(_cx(), (_ys[f - 1] + _ys[f]) / 2.0)) != f:
+		return false
+	floor_pressed.emit(f)
+	return true
+
+
+func _gui_input(event: InputEvent) -> void:
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and not event.pressed:
+		var f := floor_at(event.position)
+		if f > 0:
+			floor_pressed.emit(f)
+			accept_event()
 
 
 func _half(f: int) -> float:
@@ -304,7 +261,7 @@ func _draw() -> void:
 		var rx := 2.0 + rng.randf() * 2.0
 		var ry := 1.5 + rng.randf()
 		var f_here := _floor_at(p.y)
-		if (absf(p.x - cx) < _half(f_here) + 10.0 and p.y < bottom + 6.0) or p.x < LANE.y:
+		if (absf(p.x - cx) < _half(f_here) + 10.0 and p.y < bottom + 6.0) or p.x < BAND_LANE or (p.x > cx and p.y < bottom):
 			continue
 		if root:
 			_curve(p, p + Vector2(6, 4), p + Vector2(3, 10), UiTheme.LINE, 2.0)
@@ -330,6 +287,13 @@ func _draw() -> void:
 	back.reverse()
 	shaft.append_array(back)
 	draw_colored_polygon(shaft, UiTheme.DEEP)
+	var start := int(state.start)
+	if start > 0 and start <= _to:  # the orders start from a held landing: the floors above are skipped
+		var y_cut := _ys[start]
+		var skip := PackedVector2Array()
+		for pt in shaft:
+			skip.append(Vector2(pt.x, minf(pt.y, y_cut)))
+		draw_colored_polygon(skip, Color(lamp, 0.07))
 	var cut := _ys[_to] + 4.0
 	for side in [left, right]:
 		var solid := PackedVector2Array()
@@ -458,42 +422,12 @@ func _draw() -> void:
 		draw_set_transform(Vector2.ZERO)
 
 	_well_mouth(cx, w)
-	_thread()
 
 	# the army on its way down: your pet leads
 	if _pos >= 0.0 and not _party.is_empty():
 		var py := y_at(_pos) - 18.0
 		for i in _party.size():
 			draw_texture_rect(_party[i], Rect2(Vector2(cx - 22.0 + i * 12.0, py), Vector2(16, 18)), false)
-
-
-## The coral thread from nail to nail down the lane: solid into a thing that's bought, dashed chalk
-## into one that isn't; from the last nail on to each tip.
-func _thread() -> void:
-	var catalog := GameState.catalog
-	var links: Array[String] = []
-	var tips: Array[String] = []
-	for id in _shown:
-		if Perks.is_tip(catalog, id):
-			tips.append(id)
-		else:
-			links.append(id)
-	if links.is_empty():
-		return
-	var on := Color(UiTheme.WISP, 0.55)
-	var off := Color(UiTheme.LILAC_SEAM, 0.8)
-	var prev := nail_at(links[0])
-	for id in links.slice(1):
-		var p := nail_at(id)
-		var pts := _quad(prev, Vector2((prev.x + p.x) / 2.0 - 8.0, (prev.y + p.y) / 2.0), p, 12)
-		if GameState.perk_level(id) > 0:
-			draw_polyline(pts, on, 1.6, true)
-		else:
-			_dashed(pts, off, 1.6, 2.0, 4.0)
-		prev = p
-	for id in tips:
-		var t := nail_at(id)
-		draw_polyline(_quad(prev, Vector2(prev.x, t.y - 20.0), t, 12), on, 1.6, true)
 
 
 func _floor_at(y: float) -> int:

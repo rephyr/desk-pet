@@ -480,10 +480,31 @@ signals, save, refold or unlock check; `_home_again()` does those once after), n
 with no `saved_at`; wisps into `idle_log.wisps` and `dungeon_news`). `boost("pets")` speeds box opening
 (`_open_in_background`, `PackJob`'s rest, the workers' box tables). `GameState.perks_shown()` /
 `perk_available` / `perk_price` / `buy_perk` / `debug_perk`, the pages rebuild on
-`dungeon_changed`. UI: `PerkNail` (a Button; `PerkNail.texture(thing, look, px)` renders the SVG
-things) placed by `WellColumn` (lane x 40, `nail_at`, `_thread`, tips under the last floor drawn,
-`nail_pressed(id)`); `DungeonView.pick_nail(id)` / `_nail_card` in the side column. The well panel
-is 236 wide (the column's middle at 0.55), the page's gaps 10, FrontRow's gap 3, the picker's 5.
+`dungeon_changed`. UI (P4 redo, perks-redo.html look A): `WellWall`, a sheet over the whole dungeon
+page opened by the "perks" toggle by the wisps chip in `AdventuresTab` (a gold dot while
+`GameState.perks_affordable()`); every shown perk is a `PerkTag` (state buy | poor | wait | max |
+carrot; buy buttons named `buy_<id>`) in a snake of 4 columns on one thread (`WellWall._Board` lays
+them out and draws nails + thread, coral up to the last tag with a level); `GameState.perk_carrot()`
+is the next chain link not reached yet (its needs open). `PerkNail` is only the things' textures now
+(`PerkNail.texture(thing, look, px)`, looks on | next | off | carrot).
+
+Dungeon page redo (P4, dungeon-redo.html look A): `DungeonView` (a Control: the body HBox + the
+`WellWall` over it) has the slim well (180 px, 236 while it shows the sewing room; `WellColumn`
+without the nails lane, its middle at 0.46, `floor_pressed(f)` on a tap = `set_order_to("target", f)`,
+`tap_floor(f)` for flows) and the desk: ready = the army card (`_Gate` the entrance by shelf,
+"fill up" = `GameState.army_fill_up()` plainest shelf first up to the entrance through
+`army_herd_room` / `_free_for_army`, "empty" = `army_empty()`, `FrontRow` 11 wide, a `_PipSlider` +
+"all" per shelf, set on release) + the orders (`_pick` rows of choices through
+`GameState.set_order_to(key, value)`, the target the one stepper) + the last line (`dungeon.last.sent`
+when known); a well run = the run card (`Dungeon.floors_done` / `run_tally` / `floor_counts`, rebuilt
+when a floor is done, the walking bar moved every frame); home = the report from
+`GameState.dungeon_report` (in memory, not saved: run, tally, front [Pet] taken before the losses
+leave, lead, deepest, new_deep, got, best { kind find | part | deep | wisps, f, what, was, pay });
+`drop_dungeon_report()` ("change the army") and any new run put it away. `Dungeon.simulate` floors
+carry `hurt_cards`, `hurt_herd` and `ratio` (the floor's feeling word); `_fight` returns who was hurt
+too. Runs keep `known` (the deepest floor at set-off): `Dungeon.floor_seconds` divides
+seconds_per_floor by data `cleared_x` (4) for those floors; `run_seconds` / `run_floor` walk the floor
+list (`_walked`, plus the knock floor they turned at).
 
 Save v37 (built as v29 in the sewing lane) adds held landings: `dungeon.held` `{ "10": { count key: n } }`
 and `dungeon.start` (0 or a fully held landing). `Dungeon.hold_every / hold_need / hold_what / held_n /

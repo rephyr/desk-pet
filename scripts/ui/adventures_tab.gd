@@ -48,6 +48,8 @@ var gear_view := GearView.new()  # the upgrades page
 var dungeon_view := DungeonView.new()  # the dungeon page
 var _wisp_chip: PanelContainer  # the darker currency, by the switch on the dungeon page
 var _wisp_label: Label
+var _perks: Button  # "perks" by the wisps: the well wall's sheet over the dungeon page (a gold dot: one you can afford)
+var _perks_dot := false
 var _main := HBoxContainer.new()  # the adventures page: the map (or trail) and the trips away
 var _bar := HBoxContainer.new()
 var _mode: PanelContainer
@@ -83,6 +85,39 @@ func _init() -> void:
 	_wisp_chip.tooltip_text = str(Catalog.shared().dungeon.get("currency", {}).get("word", "wisps"))
 	_wisp_chip.visible = false
 	_bar.add_child(_wisp_chip)
+	_perks = Button.new()
+	_perks.name = "perks"
+	_perks.text = "perks"
+	_perks.focus_mode = FOCUS_NONE
+	_perks.icon = PerkNail.texture("bow", "on", 16)
+	_perks.add_theme_constant_override("h_separation", 5)
+	_perks.add_theme_font_size_override("font_size", UiTheme.SMALL + 1)
+	var pk := UiTheme.stitched(UiTheme.WISP.lerp(UiTheme.LINE, 0.5), UiTheme.DEEP, 999, 3)
+	pk.content_margin_left = 9
+	pk.content_margin_right = 12
+	var pk_on := UiTheme.stitched(UiTheme.WISP, UiTheme.DEEP.lerp(UiTheme.WISP, 0.16), 999, 3)
+	pk_on.content_margin_left = 9
+	pk_on.content_margin_right = 12
+	var pk_hover := pk.duplicate()
+	pk_hover.dash_color = UiTheme.PINK
+	_perks.add_theme_stylebox_override("normal", pk)
+	_perks.add_theme_stylebox_override("hover", pk_hover)
+	_perks.add_theme_stylebox_override("pressed", pk_on)
+	_perks.add_theme_stylebox_override("hover_pressed", pk_on)
+	_perks.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	_perks.add_theme_color_override("font_color", UiTheme.TEXT)
+	_perks.add_theme_color_override("font_hover_color", UiTheme.PINK)
+	_perks.add_theme_color_override("font_pressed_color", UiTheme.TEXT)
+	_perks.toggle_mode = true
+	_perks.size_flags_vertical = SIZE_SHRINK_CENTER
+	_perks.visible = false
+	_perks.toggled.connect(func(on: bool):
+		dungeon_view.show_wall(on)
+		_perks.set_pressed_no_signal(dungeon_view.wall_open()))
+	_perks.draw.connect(func():  # the gold dot: a perk you can afford
+		if _perks_dot:
+			_perks.draw_circle(Vector2(_perks.size.x - 3.0, 3.0), 4.0, UiTheme.GOLD))
+	_bar.add_child(_perks)
 	_refresh_bar()
 	add_child(_bar)
 	_main.add_theme_constant_override("separation", 14)
@@ -225,6 +260,12 @@ func _refresh_bar() -> void:
 	_bar.visible = gear_on or dungeon_on
 	_wisp_chip.visible = dungeon_view.visible
 	_wisp_label.text = UiTheme.num(GameState.wisps)
+	_perks.visible = dungeon_view.visible and not GameState.perks_shown().is_empty()
+	_perks.set_pressed_no_signal(_perks.visible and dungeon_view.wall_open())
+	var dot := _perks.visible and GameState.perks_affordable()
+	if dot != _perks_dot:
+		_perks_dot = dot
+		_perks.queue_redraw()
 	if (gear_view.visible and not gear_on) or (dungeon_view.visible and not dungeon_on):
 		show_page(0, true)
 

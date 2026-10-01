@@ -122,7 +122,8 @@ What she found, and what we're doing about it, in order (P1 first).
   (time the game is open; stretch existing content first, then add content; back-loaded split:
   machine + backyard ~3 h, coins/packs ~15 h, managing pets ~40 h, loop break ~60 h, late ~80 h).
   No new sims (tight schedule): tune by reasoning, Emilia playtests.
-- **P4 late-game redesigns** (plushie stakes BUILT 2026-10-01, see F2; flow plushie_stakes;
+- **P4 late-game redesigns** (plushie stakes BUILT 2026-10-01, see F2; flow plushie_stakes; the
+  dungeon page and the perk wall BUILT 2026-10-01, lane dunperks, see below;
   watch: perks now cost real well wisps, the chain was ~460k). **Emilia's picks (2026-10-01), all
   look A:** dungeon-redo.html A (slim well column + desk: fill up / all / pip slider per shelf,
   orders as choice rows, floor log during the run, came-home report); perks-redo.html A (the well
@@ -141,6 +142,17 @@ What she found, and what we're doing about it, in order (P1 first).
   run. Sewing room: crammed into the 236 px well column, marks only count the 20 strongest, the
   keeper/active pet can't count. Parts: knacks are real but only your active pet gets them fully,
   herd pets get nothing, and the sewing table even says "no change". All need mockups + picks.
+  **Dungeon + perks BUILT (2026-10-01, lane dunperks, no save bump):** the dungeon page look A (slim
+  well column, tap a floor to move the flag; the army card with fill up / empty, the entrance by shelf,
+  the front row 11 wide, a 10-pip slider + all per shelf; orders as rows of choices, the target the
+  one stepper; the run card: floor N of M, walking bar, walking / bumped / stayed below / wisps so far,
+  the front row's faces, a log row per floor as it happens; the came home report: 4 numbers, faces
+  faded / plastered, by shelf, floor by floor, best bit, same again! / change the army). Cleared floors
+  walk 4x faster (dungeon.json cleared_x, runs keep `known`); fill up takes the plainest shelf first,
+  never the front row. The perk wall look A: the "perks" button by the wisps (gold dot: one you can
+  afford) opens the well wall sheet (WellWall + PerkTag), the nails lane is gone. Flows dungeon,
+  perks, held, sewing. Still open: the report isn't saved (a restart shows "last time" only); the
+  sewing room (sewing-redo A) and parts are separate steps.
 
 ## Phase A: finish the early game (stage 1 → 2)
 
@@ -573,7 +585,7 @@ What she found, and what we're doing about it, in order (P1 first).
   endless tips (the lucky coin, the rattle; x3 a level from 20k) once every link is bought once.
   Boost source `perks` (front, herd_power, cellar, stairs, lanterns, pets); the music box runs the
   army while away. data/perks.json, Perks, PerkNail; `dungeon.entrance` moved into `perks`. Flow
-  perks.
+  perks. (P4, 2026-10-01: the nails lane went; the perks hang on the well wall sheet, WellWall.)
 - **Held landings** (F3): crowds hold well landings 10/20/30 (crowds + count pills on the
   landings), armies can start from the deepest held one (skipped floors pay no lanterns).
   **Built (lane sewing, HELD, merged as save v37):** every 10th cleared landing is held by a crowd

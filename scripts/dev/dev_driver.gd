@@ -101,7 +101,10 @@ extends Node
 ##   army-herd <rarity> <n>  n pets of that shelf from the herd go in the army (as many as fit)
 ##   orders <floor> <home%> [first]  the orders card: go down to floor, come home when home% are gone,
 ##                         who goes first (e.g. "plain ones", once earned)
+##   flag <floor>          taps that floor of the well: the orders' target moves there (fails if it can't)
+##   fill-up               the army card's "fill up" (the shelves fill the entrance, plainest first)
 ##   down                  the army goes down the well (fails if it can't)
+##   down-at <n>           the army's run has n floors behind it (halfway along the next one)
 ##   down-done             the army's run is over now: it comes home
 ##   deep <n>              the army has been down to floor n before (bands and orders open up)
 ##   wisps <n>             you have exactly n wisps
@@ -605,9 +608,26 @@ func _step(w: PackedStringArray) -> String:
 					return "can't pick who goes first: %s" % w[3]
 				d.first = w[3]
 			GameState.dungeon_changed.emit()
+		"flag":  # flag <floor>: a tap on that floor of the well (the orders' target moves there)
+			var view: DungeonView = home.full_game().adventures.dungeon_view
+			if not view.tap_floor(int(w[1])):
+				return "floor %s can't be aimed for" % w[1]
+		"fill-up":  # the army card's "fill up"
+			GameState.army_fill_up()
 		"down":  # the army goes down the well
 			if not GameState.send_army():
 				return "the army couldn't go"
+		"down-at":  # down-at <n>: the army is halfway along its run's floor n+1 (n floors behind it)
+			if not GameState.dungeon_running():
+				return "the army isn't down there"
+			var run: Dictionary = GameState.dungeon.run
+			var t := 0.0
+			var floors: Array = run.get("floors", [])
+			for i in mini(int(w[1]), floors.size()):
+				t += Dungeon.floor_seconds(GameState.catalog, run, int(floors[i].f))
+			if int(w[1]) < floors.size():
+				t += Dungeon.floor_seconds(GameState.catalog, run, int(floors[int(w[1])].f)) / 2.0
+			run.at = Time.get_unix_time_from_system() - t
 		"down-done":  # the run is over now
 			if not GameState.dungeon_running():
 				return "the army isn't down there"

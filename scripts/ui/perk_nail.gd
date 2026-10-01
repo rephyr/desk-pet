@@ -1,13 +1,9 @@
 class_name PerkNail
-extends Button
-## A coral thing hanging on a nail on the well wall (WellColumn places one per wisps perk that
-## shows, see Perks): a nail head, a bit of string and the thing. Bought = solid coral, not yet =
-## a dashed outline (the next one you can buy a bit brighter), picked = a dashed pink ring round it.
-## The 2 endless tips at the bottom carry their level under them. Tap it: its card goes into the
-## side column (DungeonView).
-## Design: lanes/mockups2 design/mockups/screens/well-additions.html Look A (on the walls).
-
-signal picked(id: String)
+extends RefCounted
+## The wisps perks' things (the bow, the little flag, the dinner bell...), drawn for the well wall
+## (WellWall's tags, see Perks): bought = solid coral, the next one you can buy = a brighter dashed
+## outline, one waiting on the perk before = a faint dashed one, the carrot (not reached yet) = chalk.
+## Design: design/mockups/screens/perks-redo.html look A (the well wall).
 
 ## The things, drawn in a 24 x 24 box (the mockup's paths; the thimble and the ribbon are new).
 const THINGS := {
@@ -26,98 +22,11 @@ const THINGS := {
 	"coin": '<circle cx="12" cy="12" r="8"/><path d="M12 7.6 L13.2 10.6 L16.4 10.8 L13.9 12.8 L14.8 15.9 L12 14.2 L9.2 15.9 L10.1 12.8 L7.6 10.8 L10.8 10.6 Z"/>',
 	"rattle": '<circle cx="12" cy="8.6" r="5.6"/><path d="M12 14.2 L12 19.2"/><circle cx="12" cy="20.6" r="1.5"/>',
 }
-const HIT := Vector2(32, 30)  # a chain nail's tap area; the nail head sits 4 px down its middle
-const TIP_HIT := Vector2(30, 42)  # a tip's (its level under it)
-
 static var _textures := {}  # "thing|look|px|colours" -> texture
 
-var id := ""
-var thing := "bow"
-var look := "on"  # on (bought) | next (the next one you can buy) | off (not yet)
-var tip := false
-var level := 0
-var chosen := false
-var scale_thing := 0.9  # the thing's size (x 24 px)
-var _pop := 0.0  # a little wiggle after a buy (1 -> 0)
-var _tween: Tween
 
-
-func _init(perk_id: String, perk_thing: String, is_tip: bool) -> void:
-	id = perk_id
-	thing = perk_thing
-	tip = is_tip
-	focus_mode = FOCUS_NONE
-	flat = true
-	mouse_default_cursor_shape = CURSOR_POINTING_HAND
-	texture_filter = TEXTURE_FILTER_LINEAR
-	tooltip_text = ""
-	var empty := StyleBoxEmpty.new()
-	for state in ["normal", "hover", "pressed", "focus", "disabled"]:
-		add_theme_stylebox_override(state, empty)
-	custom_minimum_size = TIP_HIT if tip else HIT
-	size = custom_minimum_size
-	pressed.connect(func(): picked.emit(id))
-
-
-## Shows its state: `look` on | next | off, `lv` (tips show it), picked or not.
-func show_state(new_look: String, lv: int, is_chosen: bool) -> void:
-	look = new_look
-	level = lv
-	chosen = is_chosen
-	queue_redraw()
-
-
-## Hangs it with its nail head at `nail` (in the column).
-func hang(nail: Vector2) -> void:
-	position = (nail - Vector2(size.x / 2.0, 4.0)).round()
-
-
-## A little wiggle (just bought).
-func pop() -> void:
-	if _tween:
-		_tween.kill()
-	_tween = create_tween()
-	_tween.tween_method(func(t: float):
-		_pop = t
-		queue_redraw(), 1.0, 0.0, 0.5)
-
-
-func _draw() -> void:
-	var head := Vector2(size.x / 2.0, 4.0)
-	var px := roundf(24.0 * scale_thing)
-	var center := head + Vector2(0, 2.0 + px / 2.0)
-	if chosen:
-		_ring(center, px / 2.0 + 3.5)
-	draw_circle(head, 1.8, UiTheme.MUTED)
-	draw_line(head, head + Vector2(0, 3), UiTheme.MUTED, 1.2)
-	var hover := is_hovered()
-	var tex := texture(thing, look, int(px), hover, chosen)
-	# the wiggle swings it on its nail
-	var angle := sin(_pop * TAU * 1.5) * 0.35 * _pop
-	var grow := 1.0 + 0.25 * _pop
-	draw_set_transform(head + Vector2(0, 2), angle, Vector2(grow, grow))
-	draw_texture_rect(tex, Rect2(Vector2(-px / 2.0, 0), Vector2(px, px)), false)
-	draw_set_transform(Vector2.ZERO)
-	if tip:
-		var font := UiTheme.BODY_FONT if UiTheme.BODY_FONT else get_theme_default_font()
-		var t := "lv %d" % level
-		var tw := font.get_string_size(t, HORIZONTAL_ALIGNMENT_LEFT, -1, 9).x
-		draw_string(font, Vector2((size.x - tw) / 2.0, size.y - 2.0), t, HORIZONTAL_ALIGNMENT_LEFT, -1, 9, UiTheme.WISP)
-
-
-func _ring(c: Vector2, r: float) -> void:
-	var n := 20
-	for i in n:
-		if i % 2 == 0:
-			draw_arc(c, r, TAU * i / n, TAU * (i + 1) / n, 4, UiTheme.PINK, 2.0, true)
-
-
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_MOUSE_ENTER or what == NOTIFICATION_MOUSE_EXIT:
-		queue_redraw()
-
-
-## A thing drawn at `px` x `px`: on (solid coral), next (a brighter dashed outline), off (dashed).
+## A thing drawn at `px` x `px`: on (solid coral), next (a brighter dashed outline), off (dashed),
+## carrot (chalk, dashed).
 static func texture(thing_id: String, thing_look: String, px: int, hover := false, bold := false) -> Texture2D:
 	var stroke := UiTheme.WISP
 	var fill := "none"
@@ -128,6 +37,9 @@ static func texture(thing_id: String, thing_look: String, px: int, hover := fals
 		"next":
 			stroke = UiTheme.WISP.lerp(UiTheme.LILAC_SEAM, 0.3)
 			dash = ' stroke-dasharray="2.4 2.4"'
+		"carrot":
+			stroke = UiTheme.TEXT.lerp(UiTheme.RAISED, 0.4)
+			dash = ' stroke-dasharray="2 3"'
 		_:
 			stroke = UiTheme.LILAC.lerp(UiTheme.LILAC_SEAM, 0.5)
 			dash = ' stroke-dasharray="2.4 2.4"'
