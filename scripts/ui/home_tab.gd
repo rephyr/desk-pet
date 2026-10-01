@@ -36,6 +36,7 @@ var _mood := UiTheme.bar(UiTheme.LILAC, Care.line(Catalog.shared(), "mood"))
 var _feed: Button
 var _card := PanelContainer.new()
 var _notes := GridContainer.new()
+var _goals := GoalsNote.new()  # "next up": the closest goals, beside the notes
 var _note_parts := {}  # name -> { panel, line, hint, accent }
 var _finds := {}  # find id -> an invisible control over its drawing, for the tooltip
 var _rng := RandomNumberGenerator.new()
@@ -148,6 +149,8 @@ func _init() -> void:
 	var tilts := { "adventures": -2.0, "boxes": 1.5, "parts": 2.0, "map": -1.5 }
 	for n in ["adventures", "boxes", "parts", "map"]:
 		_notes.add_child(Tilted.new(_note(n), tilts[n]))
+	_goals.go.connect(func(tab_name: String): go.emit(tab_name))
+	add_child(Tilted.new(_goals, 1.0))
 	add_child(_prize)  # a toy out of a present: over everything in the room
 
 	resized.connect(_layout)
@@ -571,6 +574,9 @@ func _layout() -> void:
 	card_holder.size = card_holder.get_combined_minimum_size()
 	_notes.position = Vector2(size.x - _notes.get_combined_minimum_size().x - 18, 18)
 	_notes.size = _notes.get_combined_minimum_size()
+	var goals_holder := _goals.get_parent() as Control
+	goals_holder.size = goals_holder.get_combined_minimum_size()
+	goals_holder.position = Vector2(_notes.position.x - goals_holder.size.x - 16, 22)
 	var basket := Vector2(size.x * 0.8, floor_y + (size.y - floor_y) * 0.62)
 	_finds.cushion.position = feet - Vector2(62, 18)
 	_finds.cushion.size = Vector2(124, 34)
@@ -785,6 +791,8 @@ func _refresh() -> void:
 	var ready := GameState.spotted.size() + GameState.rumours.size()
 	_set_note("map", "somewhere new to go!" if ready > 0 else "nothing new spotted", "", ready > 0)
 	_show_note("map", _tab_shown("adventures"))
+
+	_goals.refresh()
 
 	for id in _spots:
 		_spots[id].visible = GameState.rummage_open()

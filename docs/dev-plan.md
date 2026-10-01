@@ -102,6 +102,17 @@ What she found, and what we're doing about it, in order (P1 first).
   trip. **Decided (overrides Hidden Until Earned for unlock triggers):** show the next unlocks as
   goal + progress with the reward named, e.g. "rope: 37 / 100 pets sent -> the dungeon". Still no
   copy explaining how a mechanic works.
+  BUILT 2026-10-01: Goals (scripts/core/goals.gd: a goal per unlock in reach, steps with progress,
+  "goal" names in unlocks.json), GoalsNote "next up" on the home wall (closest 3, tap = its tab),
+  "→ errands  0/3" tags on place cards, finds turn up for sure on the 3rd trip that could meet them
+  (adventures.json find_sure_by, GameState.find_tries, save v43), far fields bring bolts + springs
+  and the orchard gears + glass (beyond the fence pays right away), your pet asks for another
+  party when others are home (voice send_more, every 5 min at most), gold dots on machine /
+  adventures / errands / automation for a new affordable upgrade (GameState.buyable /
+  upgrade_news / saw_upgrades). DESIGN.md: the Carrot Rule. Flow goals. Pace (steady, 5 runs):
+  lights 73 -> 60 min, better drops 113 -> 104, automation 124 -> 115; new glass still waits
+  ~27 min on 1 glass (few pets early). NOT done: the midnight globe (porch_machine find + its
+  nodes porch_dust / porch_hatch don't exist yet: content to build).
 - **P4 late-game redesigns**: the plushie machine has no stake (sewn buttons are safe, misses pay
   wisps, cracks pay double; one mythic ≈ the whole wisps economy). **Decided:** cracks can pop
   sewn buttons, misses pay nothing, each next button needs better fed pets, holding stakes

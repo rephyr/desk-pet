@@ -82,6 +82,7 @@ func _init() -> void:
 	_test_workshop(catalog)
 	_test_workshop_game(catalog)
 	_test_room(catalog)
+	_test_goals_game(catalog)
 	(load("res://scripts/game_state.gd") as GDScript).set("tool_saves", false)  # the autoload made after this never touches a save
 	var result := "ALL PASSED" if _failures == 0 else "%d FAILED" % _failures
 	if not _skipped.is_empty():
@@ -4600,7 +4601,7 @@ func _test_merged_lanes(catalog: Catalog) -> void:
 	var gs: Node = load("res://scripts/game_state.gd").new()
 	var c: Collection = gs.collection
 	var newest: int = load("res://scripts/game_state.gd").SAVE_VERSION
-	_check(newest == 42, "the save chain ends at v42 (herd + new homes 28, dungeon 33, plushie 34, the sewing room 35, perks 36, held landings 37, the wishing jar 38, the shed workshop 39, room steps 40, join up to 41, toy stars 42)")
+	_check(newest == 43, "the save chain ends at v43 (herd + new homes 28, dungeon 33, plushie 34, the sewing room 35, perks 36, held landings 37, the wishing jar 38, the shed workshop 39, room steps 40, join up to 41, toy stars 42, find tries 43)")
 	_check(gs.room_cap() >= c.plain_count() and (gs.room == 0 or Herd.room_cap(catalog, gs.room - 1) < ceili(c.plain_count() * 1.1)),
 		"v40: a v23 save's room is the fewest steps with room for its pets (%d steps, %d / %d)" % [gs.room, c.plain_count(), gs.room_cap()])
 	_check(gs.workshop == Workshop.fresh(catalog) and not gs.workshop_open(), "v39: an old save gets a fresh workshop, still closed")
@@ -6357,3 +6358,42 @@ func _test_room(catalog: Catalog) -> void:
 	gs2.free()
 	gs.free()
 	clear.call()
+
+
+## Goals (the next up note) and finds that turn up for sure: the basket at the meadow.
+func _test_goals_game(catalog: Catalog) -> void:
+	if not DevProfile.active():
+		print("  skipped the goals in the game: they need a profile (-- --profile=test_core)")
+		return
+	var path := DevProfile.path("save.json")
+	for f in [path, path + ".bak", path + ".tmp"]:
+		if FileAccess.file_exists(f):
+			DirAccess.remove_absolute(ProjectSettings.globalize_path(f))
+	var pets := []
+	for i in 5:
+		var p := _plain_pet(catalog, "common", "normal", 400 + i)
+		p.uid = str(i + 1)
+		pets.append(p.to_dict())
+	SaveFile.write(path, { "version": 42, "coins": 1000, "tutorial": "done", "saved_at": Time.get_unix_time_from_system(),
+		"unlocks": ["location:meadow"], "collection": { "pets": pets, "active": "1", "next_id": 6, "seen": {} } })
+	var gs: Node = load("res://scripts/game_state.gd").new()
+	_check(not Goals.list(gs).any(func(g): return g.id == "errands"), "no errands goal before the flap is fixed")
+	gs.machine.bought["flap"] = 1
+	var errands: Array = Goals.list(gs).filter(func(g): return g.id == "errands")
+	_check(errands.size() == 1 and str(errands[0].name) == "errands", "fixing the flap puts errands on the goals")
+	var step: Dictionary = errands[0].steps[0] if errands.size() == 1 else {}
+	_check(step.get("place", "") == "meadow" and int(step.get("need", 0)) == catalog.find_sure_by, "its step: trips to the meadow (%s)" % step)
+	_check(Goals.at_place(gs, "meadow").size() >= 1 and Goals.at_place(gs, "garden").is_empty(), "the meadow's card shows it, the garden's doesn't")
+	var met := false
+	for i in catalog.find_sure_by:
+		var going: Array[Pet] = [gs.collection.get_pet(str(i + 2))]
+		var run: RunState = gs.send_on_adventure("meadow", going)
+		met = run != null and "meadow_basket" in run.events
+	_check(met, "the %d-th trip to the meadow meets the basket for sure" % catalog.find_sure_by)
+	_check(int(gs.find_tries.get("basket", 0)) == catalog.find_sure_by, "every trip that could meet it counted (%s)" % gs.find_tries)
+	gs.save_game()
+	_check(int(SaveFile.read(path).get("find_tries", {}).get("basket", 0)) == catalog.find_sure_by, "the tries are saved (v43)")
+	gs.finds["basket"] = true
+	gs.check_unlocks()
+	_check(gs.tab_open("errands") and not Goals.list(gs).any(func(g): return g.id == "errands"), "once it's found the goal is done and gone")
+	gs.free()

@@ -31,7 +31,9 @@ const HOME_OPTION := {
 ## `ours`: the place is ours (see Ours): safer, pays a bit more, and the locals don't turn up.
 ## `workers` is how many workers you have (the automation tab), for events that wait for them.
 ## `sent`: pets sent to this place before this party, every party added up (events with "after_sent").
-static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: int, catalog: Catalog, found := {}, fixed := {}, gear := {}, knacks := {}, workers := 0, ours := false, sent := 0) -> RunState:
+## `sure`: events this trip meets for sure if they still can (a find's event after enough trips that
+## could have met it, see GameState.find_tries).
+static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: int, catalog: Catalog, found := {}, fixed := {}, gear := {}, knacks := {}, workers := 0, ours := false, sent := 0, sure: Array = []) -> RunState:
 	var location := catalog.location(location_id)
 	var s := RunState.new()
 	s.location_id = location_id
@@ -39,7 +41,7 @@ static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: i
 	s.chooser = Chooser.kind_for(pets.size())
 	s.rng_seed = rng_seed
 	s.ours = ours
-	s.events = pick_events(location, rng_seed, found, catalog, fixed, workers, ours, sent)
+	s.events = pick_events(location, rng_seed, found, catalog, fixed, workers, ours, sent, sure)
 	s.started = now
 	s.gear = gear
 	s.knacks = knacks
@@ -50,26 +52,11 @@ static func start(location_id: String, pets: Array[Pet], now: float, rng_seed: i
 
 ## The events a trip will meet: a place's fixed list, or a draw from its pool (weighted, no
 ## repeats), so trips to the same place go differently. On an `ours` trip the locals' trace
-## events ("local": true) don't turn up.
-static func pick_events(location: Dictionary, rng_seed: int, found := {}, catalog: Catalog = null, fixed := {}, workers := 0, ours := false, sent := 0) -> Array[String]:
+## events ("local": true) don't turn up. `sure` pool events that can turn up are drawn first.
+static func pick_events(location: Dictionary, rng_seed: int, found := {}, catalog: Catalog = null, fixed := {}, workers := 0, ours := false, sent := 0, sure: Array = []) -> Array[String]:
 	var out: Array[String] = []
-	# a find's event stops once it's found, one with "after" waits until that find is home, one
-	# with "after_machine" until that node on the capsule machine's tree is fixed, one with
-	# "after_workers" until you have that many workers, and one with "after_sent" until that many
-	# pets have been sent to this place before (every party added up)
 	var still := func(id) -> bool:
-		if catalog == null:
-			return true
-		var e: Dictionary = catalog.events.get(id, {})
-		if e.has("after_machine") and int(fixed.get(str(e.after_machine), 0)) <= 0:
-			return false
-		if workers < int(e.get("after_workers", 0)):
-			return false
-		if sent < int(e.get("after_sent", 0)):
-			return false
-		if ours and e.get("local", false):
-			return false
-		return not found.has(str(e.get("find", ""))) and (not e.has("after") or found.has(str(e.after)))
+		return catalog == null or can_meet(catalog.events.get(id, {}), found, fixed, workers, ours, sent)
 	if not location.has("pool"):
 		out.assign(location.get("events", []).filter(still))
 		return out
@@ -79,11 +66,32 @@ static func pick_events(location: Dictionary, rng_seed: int, found := {}, catalo
 	for entry in location.pool:
 		if still.call(entry.event):
 			weights[entry.event] = float(entry.get("weight", 1.0))
-	for i in mini(int(location.get("draws", 3)), weights.size()):
+	for id in sure:
+		if weights.has(id) and out.size() < int(location.get("draws", 3)):
+			weights.erase(id)
+			out.append(str(id))
+	for i in mini(int(location.get("draws", 3)) - out.size(), weights.size()):
 		var id: String = Weighted.pick(weights, rng)
 		weights.erase(id)
 		out.append(id)
 	return out
+
+
+## Whether an event can turn up yet: a find's event stops once it's found, one with "after" waits
+## until that find is home, one with "after_machine" until that node on the capsule machine's tree
+## is fixed, one with "after_workers" until you have that many workers, and one with "after_sent"
+## until that many pets have been sent to its place before (every party added up). On an `ours`
+## trip the locals ("local") don't.
+static func can_meet(e: Dictionary, found := {}, fixed := {}, workers := 0, ours := false, sent := 0) -> bool:
+	if e.has("after_machine") and int(fixed.get(str(e.after_machine), 0)) <= 0:
+		return false
+	if workers < int(e.get("after_workers", 0)):
+		return false
+	if sent < int(e.get("after_sent", 0)):
+		return false
+	if ours and e.get("local", false):
+		return false
+	return not found.has(str(e.get("find", ""))) and (not e.has("after") or found.has(str(e.after)))
 
 
 ## The share of the walking a trip's gear (comfy boots) and "trip" knacks take off: the boots take

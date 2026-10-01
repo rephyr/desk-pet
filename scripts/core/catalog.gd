@@ -21,6 +21,7 @@ var adventure_types: Array[Dictionary] = []  # see data/adventures.json
 var locations: Array[Dictionary] = []  # in the order they're listed, safe to deadly
 var events := {}  # event id -> event, shared by the locations
 var rumours: Array[Dictionary] = []  # what exploration can bring back
+var find_sure_by := 3  # a find's event turns up for sure on this many-th trip that could meet it (data/adventures.json)
 var ours := {}  # places that become "ours" (next door's lights, the backyard after many visits), see data/adventures.json
 var voice := {}  # what the active pet says, see data/voice.json
 var tutorial := {}  # the first few minutes of a new game, see data/tutorial.json
@@ -110,6 +111,7 @@ func _init() -> void:
 	events = _index(adventures.events)
 	rumours.assign(adventures.rumours)
 	ours = adventures.get("ours", {})
+	find_sure_by = int(adventures.get("find_sure_by", 3))
 	_rumour_by_id = _index(rumours)
 	voice = _load("voice.json")
 	tutorial = _load("tutorial.json")

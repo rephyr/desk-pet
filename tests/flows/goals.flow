@@ -1,0 +1,23 @@
+# The next up note: the closest goals, with what to do for each. Early on: fix the flap for errands.
+from after_tutorial
+view full
+tab home
+wait 0.5
+shot early
+fix flap
+unlock location:meadow
+wait 0.5
+expect text "next up"
+expect text "errands"
+shot flap
+expect fits
+tab adventures
+place meadow
+wait 0.4
+expect text "→ errands  0/3"
+shot meadow
+expect fits
+tab home
+coins 100000
+wait 0.5
+shot dots

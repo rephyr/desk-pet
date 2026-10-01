@@ -160,7 +160,7 @@ func _refresh_tabs() -> void:
 			"boxes": news = GameState.box_news()
 			"adventures": news = back
 			"machine": news = GameState.globe_news() != ""
-		spine.set_tab_state(tab_id, tab_id in shown and GameState.tab_open(tab_id), news)
+		spine.set_tab_state(tab_id, tab_id in shown and GameState.tab_open(tab_id), news or _upgrade_news(tab_id))
 	# the very start: the capsule machine
 	if GameState.tutorial == "pull":
 		show_tab("machine")
@@ -255,8 +255,24 @@ func _refresh() -> void:
 	bubble.visible = GameState.collection.active() != null
 	# news dots: boxes waiting in the bag, trips waiting for you
 	spine.set_news("boxes", GameState.box_news())
-	spine.set_news("machine", GameState.globe_news() != "")
-	spine.set_news("adventures", GameState.runs.any(func(r: RunState): return r.status != RunState.Status.WALKING))
+	spine.set_news("machine", GameState.globe_news() != "" or _upgrade_news("machine"))
+	spine.set_news("adventures", GameState.runs.any(func(r: RunState): return r.status != RunState.Status.WALKING) or _upgrade_news("adventures"))
+	for tab_id in UPGRADE_TABS.slice(2):
+		spine.set_news(tab_id, _upgrade_news(tab_id))
+
+
+## Tabs whose dot also says there's a new upgrade you can afford (GameState.upgrade_news).
+const UPGRADE_TABS := ["machine", "adventures", "errands", "automation"]
+
+
+## A tab's new-upgrade dot; the tab you're on has seen its upgrades already (out of the tutorial only).
+func _upgrade_news(tab_id: String) -> bool:
+	if not tab_id in UPGRADE_TABS or GameState.tutorial_active():
+		return false
+	if tab_id == _current and visible:
+		GameState.saw_upgrades(tab_id)
+		return false
+	return GameState.upgrade_news(tab_id)
 
 
 static func _thousands(n: int) -> String:

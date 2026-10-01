@@ -42,7 +42,7 @@ static var testing := false
 ## one the script makes) loads or saves the real or profile save, unless the script sets this (the
 ## GameState tests do, on their own profile's save). See tool_run().
 static var tool_saves := false
-const SAVE_VERSION := 42
+const SAVE_VERSION := 43
 const PINNED_MAX := 10  # good pulls waiting to be seen: older ones stop waiting (and may fold into the herd)
 const SPARE_FRESH_MS := 1000  # spare_shelves() is worked out again at least this often
 const WORKER_BOXES_MAX := 2000  # box workers open at most this many boxes in one go (every pet is rolled)
@@ -79,6 +79,8 @@ var visited := {}
 ## Places a pet spotted on a trip, waiting for you: location id -> { by, from }
 var spotted := {}
 var visits := {}  # location id -> trips welcomed back from there (next door's lights go out one a visit, see Ours)
+var _seen_buyable := {}  # tab id -> { "id:level": true } affordable when you last looked (not saved, see upgrade_news)
+var find_tries := {}  # find id -> trips that could have met its event so far (it turns up for sure at catalog.find_sure_by)
 var sent := {}  # location id -> pets ever sent there, every party added up (the rope at the well waits for enough, see after_sent)
 var unshown_ours := {}  # location id -> true: it became ours and the map hasn't coloured it in yet (MapView, then ours_shown; not saved)
 var spot_tries := {}  # location id -> trips that could have spotted it but didn't (the safety net)
@@ -1121,6 +1123,30 @@ func check_unlocks() -> void:
 	rumours.assign(rumours.filter(func(id): return not catalog.rumour(id).get("unlocks", []).all(func(u): return is_open(str(u)))))
 
 
+## The find events at a place that a party of `n` could meet now (see AdventureRunner.can_meet).
+func find_events_at(location: Dictionary, n := 1 << 30) -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	var ids: Array = location.get("events", []) + location.get("pool", []).map(func(p): return p.event)
+	for id in ids:
+		var e: Dictionary = catalog.events.get(str(id), {})
+		if e.has("find") and n >= int(e.get("min_party", 1)) and AdventureRunner.can_meet(e, finds, machine.bought,
+				workers_total(), is_ours(str(location.id)), sent_to(str(location.id))):
+			out.append(e)
+	return out
+
+
+## A party of `n` sets off for this place: every find it could meet counts the try. Returns the
+## events it meets for sure (their find has waited find_sure_by tries).
+func _count_find_tries(location: Dictionary, n: int) -> Array:
+	var sure := []
+	for e in find_events_at(location, n):
+		var f := str(e.find)
+		find_tries[f] = int(find_tries.get(f, 0)) + 1
+		if int(find_tries[f]) >= catalog.find_sure_by:
+			sure.append(str(e.id))
+	return sure
+
+
 ## Opens an unlock: what it opens, its pet, your pet's news, its popup (the unlocked signal).
 func _open_entry(entry: Dictionary) -> void:
 	for o in entry.opens:
@@ -1483,6 +1509,7 @@ func debug_new_game() -> void:
 	visited.clear()
 	visits.clear()
 	sent.clear()
+	find_tries.clear()
 	unshown_ours.clear()
 	saved_boxes.clear()
 	reserve_capsules = default_reserve()
@@ -4614,6 +4641,7 @@ func debug_lock_all() -> void:
 	spot_tries.clear()
 	visits.clear()
 	sent.clear()
+	find_tries.clear()
 	unshown_ours.clear()
 	adventures_changed.emit()
 	changed.emit()
@@ -4850,7 +4878,8 @@ func send_on_adventure(location_id: String, pets: Array[Pet], by_you := true) ->
 	# every trip packs the gear you have when it sets off (yours, your pet's and the workers' parties;
 	# never dungeons, see Gear.for_trip)
 	var run := AdventureRunner.start(location_id, going, Time.get_unix_time_from_system(), _rng.randi(), catalog, finds, machine.bought,
-		Gear.for_trip(catalog, gear, location), trip_knacks(going), workers_total(), is_ours(location_id), sent_to(location_id))
+		Gear.for_trip(catalog, gear, location), trip_knacks(going), workers_total(), is_ours(location_id), sent_to(location_id),
+		_count_find_tries(location, going.size()))
 	sent[location_id] = sent_to(location_id) + going.size()
 	run.parts = feature_on("parts")
 	# auto parties (your pet's, the workers') never take a note: skip the looking around for them
@@ -5949,6 +5978,48 @@ func bit_hint(bit: String) -> String:
 	return "pets find %s on adventures" % plural
 
 
+## What can be bought on a tab right now, each as "id:level it would take" (the tab's news dot:
+## something you can afford that you haven't seen yet, see upgrade_news).
+func buyable(tab_id: String) -> Array[String]:
+	var out: Array[String] = []
+	match tab_id:
+		"machine":
+			for n in catalog.machine_tree.nodes:
+				if Machine.blocker(machine, catalog, str(n.id), coins, bits) == "":
+					out.append("%s:%d" % [n.id, Machine.owned(machine, str(n.id))])
+		"adventures":
+			if gear_page_open():
+				for g in shown_gear():
+					if gear_block(str(g.id)) == "" and xp >= gear_price(str(g.id)):
+						out.append("%s:%d" % [g.id, gear_level(str(g.id))])
+		"errands":
+			for t in Jobs.all_tools(catalog):
+				if errand_tool_block(str(t.id)) == "" and coins >= int(errand_tool_plan(str(t.id), 1)[1]):
+					out.append("%s:%d" % [t.id, errand_tool_level(str(t.id))])
+		"automation":
+			for j in auto_jobs():
+				if not knows_job(str(j.id)) and coins >= int(j.coins):
+					out.append("teach:" + str(j.id))
+			for t in Automation.all_tools(catalog):
+				if auto_tool_block(str(t.id)) == "" and coins >= auto_tool_cost(str(t.id)):
+					out.append("%s:%d" % [t.id, Automation.tool_level(automation, str(t.id))])
+	return out
+
+
+## Whether a tab has something new to buy: affordable, and not there yet the last time you looked.
+func upgrade_news(tab_id: String) -> bool:
+	var seen: Dictionary = _seen_buyable.get(tab_id, {})
+	return buyable(tab_id).any(func(k): return not seen.has(k))
+
+
+## You're looking at a tab: what it can buy now is seen (its dot goes out until something new).
+func saw_upgrades(tab_id: String) -> void:
+	var seen := {}
+	for k in buyable(tab_id):
+		seen[k] = true
+	_seen_buyable[tab_id] = seen
+
+
 ## Seconds of fever left on the machine (0 when there's none).
 func fever_left() -> float:
 	return maxf(0.0, fever_until - Time.get_unix_time_from_system())
@@ -6033,6 +6104,7 @@ func save_game() -> void:
 		"visited": visited.keys(),
 		"visits": visits,
 		"sent": sent,
+		"find_tries": find_tries,
 		"buying_on": buying_on,
 		"pinned": pinned,
 		"join_up_to": join_up_to,
@@ -6220,6 +6292,11 @@ func _load_save() -> bool:
 			sent[id] = int(visits[id])
 		for run in runs:
 			sent[run.location_id] = sent_to(run.location_id) + run.party.setting_out()
+	find_tries.clear()
+	var saved_find_tries: Dictionary = data.get("find_tries", {})  # v43 added them
+	for id in saved_find_tries:
+		if catalog.finds.has(str(id)):
+			find_tries[str(id)] = maxi(0, int(saved_find_tries[id]))
 	saved_boxes.clear()
 	for id in data.get("saved_boxes", []):
 		saved_boxes[str(id)] = true

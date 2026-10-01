@@ -644,6 +644,7 @@
 		"toy_combined": ["it's so much better now!", "level up!! i felt that."],
 		"toy_sacrificed_win": ["it's SHINY!!", "look how it sparkles!"],
 		"toy_sacrificed_lose": ["oh. they went somewhere nicer, i think.", "hmm. nothing. they must be off having fun."],
+		"send_more": ["{who} wants to go on an adventure too!", "{who} is bored at home. another trip?", "look, {who} packed a little bag too!"],
 		"toy_shined": ["so shiny!! i can see my face in it.", "a new star! it's glowing!"],
 		"machine_fix": ["fixed! it's working better already!", "ooh, it hums nicer now.", "one more thing fixed! good as… well, better!"],
 		"machine_fix_tape": ["taped! no more capsules rolling out the side."],

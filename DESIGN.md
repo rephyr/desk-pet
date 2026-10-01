@@ -221,6 +221,14 @@ when moving the pet stops the job it left. Labels name things; they don't descri
 (the unlock popup is its introduction). Exception: something the player is already working
 towards, like the next node on the machine tree.
 
+**The Carrot Rule** (Emilia, playtest 1, 2026-10-01). What earns the next few unlocks is shown,
+with its progress and the reward named: "next up" on the home wall (GoalsNote: the closest 3) and a
+"→ errands  0/3" tag on the place card it's about. Only goals in reach (Goals: their other unlocks
+open, their place open, their machine node on the tree). It names what to do ("trips to the
+meadow", "pets sent to the old well 37/100"), never how the reward works. Unlocks don't come from
+luck alone: a find's event turns up for sure on the 3rd trip that could meet it. A gold dot on a
+tab also means a new upgrade there you can afford.
+
 **The Display Is A Moment Rule.** The display size (headline and up) never sets a paragraph
 or a button row; one or two uses per screen.
 
@@ -234,7 +242,7 @@ sky sewn to the page with a row of stitches. Tiny dim stars dot the sky, one per
 came back, tinted from that pet; never explained or counted. Your active pet sits on a little
 moon at the top. Under it the tabs stand in a column (icon with the name below), settings at the
 bottom. The active tab is a stitched-on patch (dashed pink border, tilted -3deg); a small gold
-dot on a tab means news; locked tabs show a padlock and "???". The page on the right starts
+dot on a tab means news (or a new upgrade you can afford). The page on the right starts
 with the pet's speech bubble, then coins, xp and the window buttons, then the tab's content.
 Content often uses a wide main area and a narrower sticker on the right (about 248px, e.g. the
 chosen pet).
@@ -352,7 +360,8 @@ lilac for mood and trip progress.
 - **Don't** show odds, percentages or anything that hints the game is dark in pet speech.
 - **Don't** set paragraphs or button rows in the display size.
 - **Don't** over-explain: no hint lines about how a mechanic works; let play teach it.
-- **Don't** show later features in plain sight (locked tabs, columns, "???" slots) before they unlock.
+- **Don't** show later features in plain sight (locked tabs, columns, "???" slots) before they unlock;
+  a goal on "next up" names one only once it's in reach (the Carrot Rule).
 - **Don't** use a dot or bullet (·, •) as a separator between pieces of text.
 - **Don't** let anything spill past the window: one-line labels shrink with "…" or wrap, and
   layouts drop columns instead of growing wider.

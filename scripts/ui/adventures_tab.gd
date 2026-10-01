@@ -36,6 +36,8 @@ var _runs := VBoxContainer.new()
 var _run_rows: Array[Dictionary] = []  # { run, bar, time } or { run, countdown }
 var _postcard := Postcard.new()  # what a trip brought home, after "welcome back"
 var _dirty := true
+var _nudge_at := 0  # ticks (ms) before your pet asks again for another party (see _nudge_more)
+const NUDGE_EVERY_MS := 300000
 var _estimate_key := ""  # which picks the cached estimate is for
 var _knacks_key := ""  # which picks (and knacks) the cached trip knacks are for (see _trip_key)
 var _knacks := {}  # what the picked pets would pack (GameState.trip_knacks), kept for big swarms
@@ -571,12 +573,27 @@ func _send_picked() -> void:
 		_picked.clear()
 		if run.scouted:
 			PetBubble.say_line(self, "trip_scouted", { "trip": run.party.who() })
+		else:
+			_nudge_more()
 		# small parties go along with you on the trail; big swarms get on by themselves
 		if _watchable(run):
 			_show_trail(run)
 		else:
 			_show_map(true)
 		_rebuild()
+
+
+## A party just left and others are still at home: now and then your pet says one wants to go too
+## (nothing ever tells you more than one party can be out at once, so a pet asks).
+func _nudge_more() -> void:
+	var now := Time.get_ticks_msec()
+	if now < _nudge_at:
+		return
+	var home := GameState.sendable_pets()
+	if home.is_empty():
+		return
+	_nudge_at = now + NUDGE_EVERY_MS
+	PetBubble.say_line(self, "send_more", { "who": home[0].display_name(GameState.catalog) })
 
 
 # ---- building -----------------------------------------------------------------
@@ -643,6 +660,13 @@ func _refresh_send() -> void:
 		var brings := UiTheme.chip("bit_" + bit, "brings home %s" % MachineTab.bit_name(bit, 2), MapView.bit_color(bit))
 		(brings.find_child("Amount", true, false) as Label).add_theme_font_size_override("font_size", UiTheme.SMALL)
 		_facts.add_child(brings)
+	# what a trip here works towards (Goals): the carrot, with how far along it is
+	for g in Goals.at_place(GameState, _location_id):
+		for st in g.steps:
+			if st.place == _location_id and float(st.have) < float(st.need):
+				var count := "  %d/%d" % [int(st.have), int(st.need)] if float(st.need) > 1.0 else ""
+				_facts.add_child(UiTheme.tag("→ %s%s" % [g.name, count], UiTheme.GOLD))
+				break
 	if d.get("risky", false) and not ours:
 		_facts.add_child(UiTheme.tag("risky", UiTheme.PINK))
 	if ours:
