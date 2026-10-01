@@ -1,0 +1,16 @@
+# The settings tab is built again on a look change: the old one's GameState hookups must go with it
+# (a lambda left connected called into freed nodes on every automation change).
+from rich
+view full
+tab settings
+click "blueberry night"
+wait 1
+tab settings
+click "midnight plum"
+wait 1
+teach machine
+auto-tool crank
+wait 1
+tab settings
+expect fits
+shot settings

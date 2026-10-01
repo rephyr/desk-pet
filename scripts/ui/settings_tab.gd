@@ -3,6 +3,13 @@ extends ScrollContainer
 ## Player preferences (see the Settings autoload), on two pages. general: the look (colours, font,
 ## icons), opening boxes, what your pet does while you work, and sound volumes. video: resolution,
 ## frame rate, vsync. Everything applies straight away.
+## GameState signals connect to methods here, not lambdas: a lambda that never uses self stays
+## connected after the tab is freed (a look change rebuilds it) and calls into freed nodes.
+
+var _boxes_switch: CheckButton
+var _work_panel: Control
+var _paws: Control
+var _kept: Label
 
 
 func _init() -> void:
@@ -46,11 +53,9 @@ func _init() -> void:
 	work.body.add_child(boxes_switch)
 	# nothing to switch yet: the section stays out of sight
 	work.panel.visible = GameState.knows_job("boxes") or GameState.feature_on("shopping")
-	GameState.automation_changed.connect(func():
-		if is_instance_valid(boxes_switch):
-			boxes_switch.visible = GameState.knows_job("boxes")
-			boxes_switch.set_pressed_no_signal(GameState.packs_on)
-			work.panel.visible = GameState.knows_job("boxes") or GameState.feature_on("shopping"))
+	_boxes_switch = boxes_switch
+	_work_panel = work.panel
+	GameState.automation_changed.connect(_show_work)
 	# quiet paws: how much your pet acts out its job out on your windows (only what's drawn: it's
 	# not another switch for opening boxes). There once there's something to act out.
 	# stacked, so a wide font or a long label never pushes the half-width section past the window
@@ -58,21 +63,15 @@ func _init() -> void:
 	paws.name = "PawsRow"
 	paws.visible = QuietPaws.has_something(GameState)
 	work.body.add_child(paws)
-	var show_paws := func():
-		if is_instance_valid(paws):
-			paws.visible = QuietPaws.has_something(GameState)
-	GameState.automation_changed.connect(show_paws)
-	GameState.tutorial_changed.connect(show_paws)
+	_paws = paws
+	GameState.automation_changed.connect(_show_paws)
+	GameState.tutorial_changed.connect(_show_paws)
 	if GameState.feature_on("shopping"):  # once it has the piggy bank, it buys boxes too
 		work.body.add_child(_switch("buy boxes when the pile runs out", GameState.buying_on, func(on): GameState.set_job("buying", on)))
-		# the reserve is kept in capsules like box prices, shown in coins at what a capsule is worth now
-		var in_coins := func(v): return UiTheme.num(roundi(v * GameState.capsule_value()))
-		var kept := _slider_row(work.body, "coins %s always keeps" % who, 0, GameState.reserve_max(), GameState.reserve_step(),
-			GameState.reserve_capsules, in_coins, func(v): GameState.set_reserve(int(v)))
-		kept.add_theme_color_override("font_color", UiTheme.CYAN)
-		GameState.changed.connect(func():  # a machine fix makes a capsule worth more while this is open
-			if is_instance_valid(kept):
-				kept.text = in_coins.call(GameState.reserve_capsules))
+		_kept = _slider_row(work.body, "coins %s always keeps" % who, 0, GameState.reserve_max(), GameState.reserve_step(),
+			GameState.reserve_capsules, _in_coins, func(v): GameState.set_reserve(int(v)))
+		_kept.add_theme_color_override("font_color", UiTheme.CYAN)
+		GameState.changed.connect(_show_kept)  # a machine fix makes a capsule worth more while this is open
 
 	var sound := _section("sound")
 	col.add_child(sound.panel)
@@ -110,6 +109,25 @@ func _init() -> void:
 		visibility_changed.connect(func(): if is_visible_in_tree(): show_times.call())
 		show_times.call()
 		dev.body.add_child(times)
+
+
+func _show_work() -> void:
+	_boxes_switch.visible = GameState.knows_job("boxes")
+	_boxes_switch.set_pressed_no_signal(GameState.packs_on)
+	_work_panel.visible = GameState.knows_job("boxes") or GameState.feature_on("shopping")
+
+
+func _show_paws() -> void:
+	_paws.visible = QuietPaws.has_something(GameState)
+
+
+## The reserve is kept in capsules like box prices, shown in coins at what a capsule is worth now.
+func _in_coins(v: float) -> String:
+	return UiTheme.num(roundi(v * GameState.capsule_value()))
+
+
+func _show_kept() -> void:
+	_kept.text = _in_coins(GameState.reserve_capsules)
 
 
 func speak() -> void:
