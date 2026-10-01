@@ -123,7 +123,17 @@ What she found, and what we're doing about it, in order (P1 first).
   machine + backyard ~3 h, coins/packs ~15 h, managing pets ~40 h, loop break ~60 h, late ~80 h).
   No new sims (tight schedule): tune by reasoning, Emilia playtests.
 - **P4 late-game redesigns** (plushie stakes BUILT 2026-10-01, see F2; flow plushie_stakes;
-  watch: perks now cost real well wisps, the chain was ~460k): the plushie machine has no stake (sewn buttons are safe, misses pay
+  watch: perks now cost real well wisps, the chain was ~460k). **Emilia's picks (2026-10-01), all
+  look A:** dungeon-redo.html A (slim well column + desk: fill up / all / pip slider per shelf,
+  orders as choice rows, floor log during the run, came-home report); perks-redo.html A (the well
+  wall sheet from the wisps pill, strict chain kept, the nails lane on the well goes); sewing-redo.html
+  A (room strip, seats: tap a mark then a pet that fits); parts-redo.html A (knacks on every part
+  tile, before/after on the sewing table) + **every card pet gets its FULL knacks on its own work**
+  (was 1/4; herd pets still none). Defaults Claude picked (change if wrong): cleared floors walk
+  4x faster, new ones 20 s; "fill up" takes the plainest first; lost front-row pets show as faded
+  faces, no names; no coming home early mid-run; best bit = a first find, else deepest yet, else
+  most wisps; any pet you seat counts for a mark (not only the 20 strongest), your active pet and the
+  plushie keeper may go in, one pet can fill two marks; bag tiles show the short "+40% automation". the plushie machine has no stake (sewn buttons are safe, misses pay
   wisps, cracks pay double; one mythic ≈ the whole wisps economy). **Decided:** cracks can pop
   sewn buttons, misses pay nothing, each next button needs better fed pets, holding stakes
   buttons. Dungeon: 10-pet steppers (~480 clicks), 20 s/floor waits, strength never shown,
