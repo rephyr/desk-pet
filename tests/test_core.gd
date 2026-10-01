@@ -4770,13 +4770,24 @@ func _test_knacks(catalog: Catalog) -> void:
 	var all_open := func(_gate: String) -> bool: return true
 	_check(Knacks.of(catalog, pet, all_open).any(func(k): return k.kind == "power"), "the demon horns' power knack shows once the dungeon is open")
 	_check(Knacks.of(catalog, pet, shut).is_empty(), "no knacks at all before parts open")
+	# a bag part's row (the workbench's tiles and sewing table) is the same row the pet shows
+	var same := true
+	for k in Knacks.of(catalog, pet, all_open):
+		same = same and Knacks.row(catalog, k.slot, k.part, all_open, pet.finish, int(k.buttons)) == k
+	_check(same, "Knacks.row gives the same rows as Knacks.of")
+	_check(Knacks.row(catalog, "accessory", "crown", all_open, "holo", 2).n == Knacks.size(catalog, "automation", "legendary", "holo", 2),
+		"a bag tile's size counts the pet's finish and the part's buttons")
+	_check(Knacks.row(catalog, "accessory", "horns", open).is_empty(), "a hidden kind has no row")
+	_check(Knacks.row(catalog, "accessory", "crown", all_open).short == "automation", "the short word for small tiles")
+	for kind: String in d.kinds:
+		_check(str(d.kinds[kind].get("short", "")) != "", "knack kind %s has a short word" % kind)
 	var spots := Knacks.parts(catalog, pet, "spots", open)
 	_check(spots.size() == 1 and spots[0].source == "knacks" and spots[0].id == "body:bunny+eyes:cyclops" and is_equal_approx(float(spots[0].x), 1.32),
 		"big ears + one big eye add up: one part, +32% spotting")
 	_check(is_equal_approx(Boosts.total(Knacks.parts(catalog, pet, "coins", open)), 1.40), "golden touch: +40% coins")
 	_check(Knacks.parts(catalog, pet, "fever", open).is_empty(), "no fever knack, no fever part")
 	_check(Knacks.best(catalog, pet, open).slot == "palette", "the best badge: the legendary one (golden touch)")
-	_check(is_equal_approx(Knacks.own(catalog, pet, "spots", open), 1.08), "other pets count a quarter: +8% spotting on their own trips")
+	_check(is_equal_approx(Knacks.own(catalog, pet, "spots", open), 1.32), "a card pet counts its knacks in full on its own work: +32% spotting on its own trips")
 	_check(is_equal_approx(Knacks.own(catalog, pet, "spots", shut), 1.0), "and nothing before parts open")
 	var hum := Pet.new()
 	hum.parts = { "body": "void", "palette": "toxic", "pattern": "plain", "eyes": "sparkle", "accessory": "none" }
@@ -4788,7 +4799,7 @@ func _test_knacks(catalog: Catalog) -> void:
 	_check(not Knacks.of(catalog, hum, no_fever).any(func(k): return k.kind == "fever") and Knacks.of(catalog, hum, open).any(func(k): return k.kind == "fever"),
 		"glow in the dark shows once the lights (fever) are fixed")
 	var party: Array = [pet, hum]
-	_check(is_equal_approx(Knacks.party(catalog, party, "spots", open), 1.04), "a party's own share is the average (8% and 0%)")
+	_check(is_equal_approx(Knacks.party(catalog, party, "spots", open), 1.16), "a party's own knacks are the average (32% and 0%)")
 	_check(is_equal_approx(Knacks.party(catalog, [], "spots", open), 1.0), "nobody, x1")
 	# the lean totals (no display rows) agree with the rows the badges show
 	var roll_rng := RandomNumberGenerator.new()
@@ -5093,6 +5104,18 @@ func _test_herd_knacks(catalog: Catalog) -> void:
 	_check(gs._pet_speed(card, job) > Jobs.pet_speed(card, job), "minty fresh makes the card faster on errands (%.3f)" % gs._pet_speed(card, job))
 	_check(template.uid == "" and gs.knack_own(template, "errands") == 1.0 and gs.knack_own(template, "automation") == 1.0,
 		"a count's template counts no knacks")
+	# a card pet's own work gets its FULL knacks (playtest 1, P4): the same size its badge shows
+	var mint_n := int(Knacks.row(catalog, "palette", "mint", gs.knack_gate, card.finish).n)
+	var crown_n := int(Knacks.row(catalog, "accessory", "crown", gs.knack_gate, card.finish).n)
+	_check(mint_n == 8 and crown_n == 60, "a holo card's badges: minty fresh 5 x1.5 = 8%%, royal 40 x1.5 = 60%% (%d, %d)" % [mint_n, crown_n])
+	_check(is_equal_approx(gs._pet_speed(card, job), Jobs.pet_speed(card, job) * (1.0 + mint_n / 100.0)),
+		"the card's errand speed gets minty fresh in full (x%.3f)" % (gs._pet_speed(card, job) / Jobs.pet_speed(card, job)))
+	_check(is_equal_approx(gs.knack_own(card, "automation"), 1.0 + crown_n / 100.0), "its worker speed gets royal in full (x%.2f)" % gs.knack_own(card, "automation"))
+	var horned := Pet.from_dict(card.to_dict())
+	horned.parts.accessory = "horns"  # little horns: the army's power
+	var dungeon_open := func(_gate: String) -> bool: return true
+	_check(is_equal_approx(Knacks.own(catalog, horned, "power", dungeon_open), 1.0 + Knacks.size(catalog, "power", "mythic", "holo") / 100.0),
+		"a card's power knack counts in full for its own army power")
 	gs.put_on_job("coin_hunt", 1)
 	_check(gs.job_crew("coin_hunt") == ["2"] and gs.job_herd("coin_hunt").is_empty(), "+1 picks the dressed card ahead of an equal count")
 	gs.put_on_job("coin_hunt", -1)

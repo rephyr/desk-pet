@@ -4,8 +4,9 @@ extends RefCounted
 ## (+spotting). Its size n (a %) is the kind's step x the part's rarity x the pet's finish x the
 ## part's buttons (the plushie machine: x 1 + knack_per_button per button, see Plushie), and it
 ## multiplies by 1 + n/100. Nothing is saved: a pet's knacks come from its parts and finish.
-## Your active pet's knacks are the "knacks" boost source (GameState.boost_parts); other pets'
-## count a share ("own") on their own errands, worker jobs and trips.
+## Your active pet's knacks are the "knacks" boost source (GameState.boost_parts); every card pet's
+## count on its own work too (errands, worker jobs, the dungeon army's power, its trips) at the
+## "own" share (1.0: in full). Pets from the herd have no parts of their own and count none.
 ## Pure rules: `open` is a Callable(gate: String) -> bool that says whether a gate is open
 ## ("feature:parts", "machine:wires", "adventures", ...), so this knows no game state.
 
@@ -50,27 +51,35 @@ static func kind_open(catalog: Catalog, kind: String, open: Callable) -> bool:
 
 
 ## A pet's knacks that show right now, in slot order:
-##   [ { slot, part, part_name, name, kind, tier, n, x, text, icon } ]
+##   [ { slot, part, part_name, name, kind, tier, n, x, text, short, icon, buttons } ]
 ## [] when the system is shut.
 static func of(catalog: Catalog, pet: Pet, open: Callable) -> Array[Dictionary]:
 	var out: Array[Dictionary] = []
 	if pet == null or not system_open(catalog, open):
 		return out
 	for slot in Catalog.SLOTS:
-		var id := str(pet.parts.get(slot, ""))
-		var k := of_part(catalog, slot, id)
-		var kind := str(k.get("kind", ""))
-		if kind == "" or not kind_open(catalog, kind, open):
-			continue
-		var p := catalog.part(slot, id)
-		var tier := str(p.get("rarity", "common"))
-		var b := Plushie.buttons(pet, slot)
-		var n := size(catalog, kind, tier, pet.finish, b)
-		var info := kind_info(catalog, kind)
-		out.append({ "slot": slot, "part": id, "part_name": str(p.get("name", id)), "name": str(k.get("name", "")),
-			"kind": kind, "tier": tier, "n": n, "x": 1.0 + n / 100.0, "buttons": b,
-			"text": str(info.get("text", "")).replace("{n}", str(n)), "icon": str(info.get("icon", "")) })
+		var k := row(catalog, slot, str(pet.parts.get(slot, "")), open, pet.finish, Plushie.buttons(pet, slot))
+		if not k.is_empty():
+			out.append(k)
 	return out
+
+
+## One part's knack as `of` shows it, on a pet of this finish, with `buttons` buttons on the part
+## (a part in the bag: the finish of the pet it would go on). {} when it has none that shows (the
+## whole system's gate is the caller's, as for kind_open).
+static func row(catalog: Catalog, slot: String, id: String, open: Callable, finish := "normal", buttons := 0) -> Dictionary:
+	var k := of_part(catalog, slot, id)
+	var kind := str(k.get("kind", ""))
+	if kind == "" or not kind_open(catalog, kind, open):
+		return {}
+	var p := catalog.part(slot, id)
+	var tier := str(p.get("rarity", "common"))
+	var n := size(catalog, kind, tier, finish, buttons)
+	var info := kind_info(catalog, kind)
+	return { "slot": slot, "part": id, "part_name": str(p.get("name", id)), "name": str(k.get("name", "")),
+		"kind": kind, "tier": tier, "n": n, "x": 1.0 + n / 100.0, "buttons": buttons,
+		"text": str(info.get("text", "")).replace("{n}", str(n)), "short": str(info.get("short", kind)),
+		"icon": str(info.get("icon", "")) }
 
 
 ## The pet's best knack (highest part rarity, then biggest), or {} with none showing.
@@ -178,8 +187,8 @@ static func part_names(catalog: Catalog, id: String) -> String:
 	return " + ".join(names)
 
 
-## What a pet's own knacks of a kind do for its own work (errands, worker jobs, its trips): a share
-## ("own") of their size. 1.0 with none.
+## What a pet's own knacks of a kind do for its own work (errands, worker jobs, the army's power,
+## its trips): the "own" share of their size (1.0 in data: in full). 1.0 with none.
 static func own(catalog: Catalog, pet: Pet, kind: String, open: Callable) -> float:
 	return own_in(catalog, pet, counting(catalog, kind, open))
 

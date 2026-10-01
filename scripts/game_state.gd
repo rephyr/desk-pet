@@ -5632,9 +5632,10 @@ func _knack_counting(kind: String) -> Dictionary:
 	return _knack_steps[kind]
 
 
-## What a pet's own knacks of a kind do for its own work (see Knacks.own), kept per pet until its
-## parts or a gate change, so big crews and parties stay quick. Herd counts work at their plain
-## template's speed (no uid, no knack share); stand-ins are whole pets and count theirs.
+## What a card pet's own knacks of a kind do for its own work (see Knacks.own: in full, data
+## "own"), kept per pet until its parts or a gate change, so big crews and parties stay quick. Herd
+## counts work at their plain template's speed (no uid, no knacks); stand-ins are whole pets and
+## count theirs.
 func knack_own(pet: Pet, kind: String) -> float:
 	if pet == null or pet.uid == "":  # a count's template (see Herd.template): pets from the herd have no knacks
 		return 1.0
