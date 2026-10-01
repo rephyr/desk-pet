@@ -15,9 +15,8 @@ extends Control
 ## GameState: this only shows them and passes on clicks.
 ## The perks hang on the well wall (WellWall), a sheet over the whole page from the "perks" button by
 ## the wisps (AdventuresTab).
-## Once the tiny key is found, the well's floor 20 has a little pink door: tapping it slides the column
-## over to the sewing room (SewingRoom, header "‹ the sewing room"; ‹ slides back; the column is wider
-## there). The front row's cards that match the room's chalk lock get a chalk tick then.
+## Once the tiny key is found, the well's floor 20 has a little pink door: tapping it opens the sewing
+## room (SewingPage, in this page's place: door_opened, see AdventuresTab.show_sewing).
 ## Held landings (HoldSpot on the column, every 10th landing cleared): tapping one puts the hold card
 ## in the army card's place ("landing 20" + ✕, a coral pennant once it's held, the crowd, how many,
 ## what they hold; while it fills a meter, a ‹ n › per shelf with pets that may go, "hold on tight!").
@@ -28,20 +27,13 @@ signal door_opened  # the sewing room's door was tapped: the adventures tab show
 const PICK_PAGE := 30
 const PICK_COLUMNS := 10
 const WELL_W := 180.0  # the well's column (look A: slim)
-const ROOMS_W := 236.0  # the column while it shows the sewing room
 const TIER_W := 118.0  # a shelf's name on the army card
 
 var _body := HBoxContainer.new()
 var _well := PanelContainer.new()
 var _column := WellColumn.new()
 var _scroll := ScrollContainer.new()
-var _pan := Control.new()  # the column: the well, and the sewing room slid in beside it
-var _rooms := SewingRoom.new()
 var _title: Label
-var _back: Button
-var _in_rooms := false  # the column shows the sewing room
-var _slide := 0.0  # 0 = the well, 1 = the sewing room
-var _tween: Tween
 var _desk := VBoxContainer.new()
 var _wall := WellWall.new()
 var _picking := false
@@ -84,15 +76,6 @@ func _init() -> void:
 		head.add_theme_constant_override("margin_" + side[0], side[1])
 	var hrow := HBoxContainer.new()
 	hrow.add_theme_constant_override("separation", 2)
-	_back = UiTheme.small_button("‹", func(): show_rooms(false))
-	_back.custom_minimum_size = Vector2(14, 0)
-	_back.add_theme_font_size_override("font_size", UiTheme.SMALL + 1)
-	_back.add_theme_color_override("font_color", UiTheme.MUTED)
-	_back.add_theme_color_override("font_hover_color", UiTheme.PINK)
-	for state in ["normal", "hover", "pressed", "focus"]:
-		_back.add_theme_stylebox_override(state, StyleBoxEmpty.new())
-	_back.visible = false
-	hrow.add_child(_back)
 	_title = UiTheme.title("the old well", 16)
 	hrow.add_child(_title)
 	head.add_child(hrow)
@@ -102,13 +85,8 @@ func _init() -> void:
 	_column.size_flags_horizontal = SIZE_EXPAND_FILL
 	_column.size_flags_vertical = SIZE_EXPAND_FILL  # the soil goes all the way down
 	_scroll.add_child(_column)
-	_pan.size_flags_vertical = SIZE_EXPAND_FILL
-	_pan.clip_contents = true
-	_pan.add_child(_scroll)
-	_pan.add_child(_rooms)
-	_pan.resized.connect(_lay_pan)
-	_rooms.room_changed.connect(func(): _dirty = true)
-	wcol.add_child(_pan)
+	_scroll.size_flags_vertical = SIZE_EXPAND_FILL
+	wcol.add_child(_scroll)
 	_body.add_child(_well)
 	_column.door_pressed.connect(func(): door_opened.emit())
 	_column.hold_pressed.connect(pick_hold)
@@ -131,16 +109,12 @@ func _init() -> void:
 	GameState.collection.pets_removed.connect(func(_u): _maybe = true)
 	GameState.jobs_changed.connect(func(): _maybe = true)
 	GameState.adventures_changed.connect(func(): _maybe = true)
-	tree_exiting.connect(func(): GameState.army_held = false)
 	visibility_changed.connect(func():
-		_hold()
 		if is_visible_in_tree():
 			_followed = false
 			_picking = false
 			_drop_hold()
 			show_wall(false)
-			if not GameState.sewing_open():
-				show_rooms(false, false)
 			_rebuild())
 
 
@@ -166,59 +140,6 @@ func wall() -> WellWall:
 	return _wall
 
 
-## The column slides over to the sewing room (or back to the well).
-func show_rooms(on: bool, animate := true) -> void:
-	on = on and GameState.sewing_open()
-	if on == _in_rooms:
-		return
-	_in_rooms = on
-	_hold()
-	if on:
-		_rooms.to_next()
-		_drop_hold()
-	_back.visible = on
-	_title.text = "the sewing room" if on else "the old well"
-	_well.custom_minimum_size = Vector2(ROOMS_W if on else WELL_W, 0)
-	_dirty = true
-	if _tween:
-		_tween.kill()
-	if animate and is_visible_in_tree():
-		_tween = create_tween().set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
-		_tween.tween_method(func(t: float):
-			_slide = t
-			_lay_pan(), _slide, 1.0 if on else 0.0, 0.45)
-	else:
-		_slide = 1.0 if on else 0.0
-		_lay_pan()
-
-
-## While the sewing room shows, your pet leading the army waits at home instead of taking it down
-## the well again (so there's a turn for the room).
-func _hold() -> void:
-	GameState.army_held = _in_rooms and is_visible_in_tree()
-
-
-## Whether the column shows the sewing room.
-func in_rooms() -> bool:
-	return _in_rooms
-
-
-## The sewing room pane (for flows).
-func rooms() -> SewingRoom:
-	return _rooms
-
-
-## The well and the sewing room side by side in the column, slid `_slide` of the way over.
-func _lay_pan() -> void:
-	var sz := _pan.size
-	_scroll.size = sz
-	_rooms.size = sz
-	_scroll.position = Vector2(-_slide * sz.x, 0)
-	_rooms.position = Vector2((1.0 - _slide) * sz.x, 0)
-	_scroll.visible = _slide < 0.999
-	_rooms.visible = _slide > 0.001
-
-
 ## Your pet says something about the dungeon: news first, then how the army's doing.
 func speak() -> void:
 	var news := GameState.take_announcement()
@@ -235,9 +156,6 @@ func speak() -> void:
 		return
 	if GameState.dungeon_running() and GameState.dungeon.run.has("room"):
 		PetBubble.say_line(self, "sewing_running", { "room": str(GameState.sew_room(int(GameState.dungeon.run.room)).name) })
-		return
-	if _in_rooms and n.is_empty() and not GameState.dungeon_running():
-		PetBubble.say_line(self, "sewing")
 		return
 	if not n.is_empty():
 		var key := "dungeon_deepest" if n.deepest else ("dungeon_home_early" if n.early else "dungeon_home")
@@ -325,9 +243,6 @@ func _rebuild() -> void:
 	var rules := GameState.army_rules(a) if int(a.sent) > 0 else {}
 	_last_key = _key(a)
 	_column.refresh(a, rules)
-	if not GameState.sewing_open() and _in_rooms:
-		show_rooms(false, false)
-	_rooms.refresh(a, rules)
 	_build_desk(a, rules)
 	var door := GameState.sewing_open()
 	if door and not _door_seen and (_built or int(GameState.sewing.cleared) == 0):
@@ -415,8 +330,7 @@ func _army_card(a: Dictionary) -> Control:
 	# the front row: your pet's flag, the strongest front_n; best ones, pick
 	var front := HBoxContainer.new()
 	front.add_theme_constant_override("separation", 14)
-	var ticks: Array = Sewing.ticks(GameState.sew_room(_rooms.room), a.cards.slice(0, front_n)) if _in_rooms else []
-	var row := FrontRow.new(GameState.collection.active(), a.cards, not _running, front_n, ticks, 11)
+	var row := FrontRow.new(GameState.collection.active(), a.cards, not _running, front_n, [], 11)
 	row.pressed.connect(_open_picker)
 	front.add_child(row)
 	var side := VBoxContainer.new()
@@ -542,7 +456,7 @@ func _picker(a: Dictionary) -> Control:
 	var pages := maxi(1, ceili(choices.size() / float(PICK_PAGE)))
 	_page = clampi(_page, 0, pages - 1)
 	var grid := GridContainer.new()
-	grid.columns = PICK_COLUMNS - (1 if _in_rooms else 0)
+	grid.columns = PICK_COLUMNS
 	grid.add_theme_constant_override("h_separation", 5)
 	grid.add_theme_constant_override("v_separation", 6)
 	for pet in choices.slice(_page * PICK_PAGE, (_page + 1) * PICK_PAGE):
@@ -598,8 +512,8 @@ func _orders(a: Dictionary, rules: Dictionary) -> Control:
 	sb.content_margin_right = 12
 	sb.content_margin_top = 9
 	card.add_theme_stylebox_override("panel", sb)
-	var grid: BoxContainer = VBoxContainer.new() if _in_rooms else HBoxContainer.new()  # (the narrow desk by the sewing room: "down we go!" under the lines)
-	grid.add_theme_constant_override("separation", 4 if _in_rooms else 14)
+	var grid := HBoxContainer.new()
+	grid.add_theme_constant_override("separation", 14)
 	card.add_child(grid)
 	var lines := VBoxContainer.new()
 	lines.add_theme_constant_override("separation", 6)
@@ -782,7 +696,7 @@ func _run_card(a: Dictionary) -> Control:
 	trow.add_child(so_far)
 	col.add_child(tallies)
 	# the front row's faces: faded once they stayed below, a plaster when bumped
-	col.add_child(_faces(a.cards.slice(0, GameState.front_row_size()), tally, 20 if _in_rooms else 22))
+	col.add_child(_faces(a.cards.slice(0, GameState.front_row_size()), tally, 22))
 	# a row per floor behind them, newest first
 	var rows_box := VBoxContainer.new()
 	rows_box.add_theme_constant_override("separation", 5)

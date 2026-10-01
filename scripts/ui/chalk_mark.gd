@@ -1,6 +1,6 @@
 class_name ChalkMark
 extends Button
-## One mark of a sewing room's chalk lock (SewingRoom): a chalk drawing of what the room asks for,
+## One mark of a sewing room's chalk lock (SewingPage): a chalk drawing of what the room asks for,
 ## a part (bunny ears, a halo, horns...), a trait, a finish swatch, a rarity circle in its tier's
 ## colour, or a button with how many. Dashed chalk until a front-row pet matches it, then filled in
 ## solid. No words on it: tapping a dashed one has your pet say where it comes from.

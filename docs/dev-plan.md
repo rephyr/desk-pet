@@ -132,8 +132,7 @@ What she found, and what we're doing about it, in order (P1 first).
   dim; "where from? ›" for the hint); any card can sit, your active pet and the plushie keeper too
   (both always come home), one pet fills every seat it fits; the army walks in behind ("and N
   more"); the 60 s run with a clock and tiny pets; the result (wisps, came home, again / next room
-  ›). Seats are not saved (no save bump). The well page's old slide-in pane (`SewingRoom`) isn't
-  reachable now: delete it with the dungeon page redo. Flow sewing. **Emilia's picks (2026-10-01), all
+  ›). Seats are not saved (no save bump). The old slide-in pane (`SewingRoom`) is deleted. Flow sewing. **Emilia's picks (2026-10-01), all
   look A:** dungeon-redo.html A (slim well column + desk: fill up / all / pip slider per shelf,
   orders as choice rows, floor log during the run, came-home report); perks-redo.html A (the well
   wall sheet from the wisps pill, strict chain kept, the nails lane on the well goes); sewing-redo.html
