@@ -21,6 +21,7 @@ extends Node
 ##                         | ours <place> | not-ours <place>
 ##                         | lights <place> <n> (lights still on behind a next-door place)
 ##                         | built <drawing> | postcards <n> (waiting: the bell rope, the letterbox)
+##                         | node <name> | no-node <name> (a node with that name is on screen, or not)
 ##   shot <name>           a screenshot of the game, from inside it (works while it's off-screen)
 ##   say "<text>"          your pet says it (for testing the bubble)
 ##   answer                every adventure waiting at an event takes its first choice
@@ -872,6 +873,10 @@ func _expect(w: PackedStringArray) -> String:
 			return "" if _find('"%s"' % w[2]) != null else "no \"%s\" on screen" % w[2]
 		"no-text":
 			return "" if _find('"%s"' % w[2]) == null else "\"%s\" is on screen" % w[2]
+		"node":  # node <name>: a node with that name is on screen (text that changes, like the fps readout)
+			return "" if _find("name:" + w[2]) != null else "no %s on screen" % w[2]
+		"no-node":
+			return "" if _find("name:" + w[2]) == null else "%s is on screen" % w[2]
 		"pile":  # pile <box> <n>: exactly n of that box on the pile ("<n>+": at least n)
 			var have := GameState.in_bag(w[2])
 			var ok := have >= int(w[3].trim_suffix("+")) if w[3].ends_with("+") else have == int(w[3])
