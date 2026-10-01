@@ -118,7 +118,10 @@ What she found, and what we're doing about it, in order (P1 first).
   real early bottleneck was one party at a time (the sim, and players nobody told). Many parties,
   5 runs: new glass 14.5 min, lights 38, better drops 64, automation 72; but trips-gated unlocks
   jump ahead (parts at 40 trips lands at 48 min, before better drops): retune those for the
-  200 h curve. **Emilia's target (2026-10-01): ~200 hours of game before any prestige layer.**
+  200 h curve. **Emilia's target (2026-10-01): ~200 hours of game before any prestige layer**
+  (time the game is open; stretch existing content first, then add content; back-loaded split:
+  machine + backyard ~3 h, coins/packs ~15 h, managing pets ~40 h, loop break ~60 h, late ~80 h).
+  No new sims (tight schedule): tune by reasoning, Emilia playtests.
 - **P4 late-game redesigns**: the plushie machine has no stake (sewn buttons are safe, misses pay
   wisps, cracks pay double; one mythic ≈ the whole wisps economy). **Decided:** cracks can pop
   sewn buttons, misses pay nothing, each next button needs better fed pets, holding stakes
