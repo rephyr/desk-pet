@@ -644,6 +644,7 @@
 		"toy_combined": ["it's so much better now!", "level up!! i felt that."],
 		"toy_sacrificed_win": ["it's SHINY!!", "look how it sparkles!"],
 		"toy_sacrificed_lose": ["oh. they went somewhere nicer, i think.", "hmm. nothing. they must be off having fun."],
+		"toy_shined": ["so shiny!! i can see my face in it.", "a new star! it's glowing!"],
 		"machine_fix": ["fixed! it's working better already!", "ooh, it hums nicer now.", "one more thing fixed! good as… well, better!"],
 		"machine_fix_tape": ["taped! no more capsules rolling out the side."],
 		"machine_fix_oil": ["no more squeak! it glides now!", "the lever's so smooth now!"],

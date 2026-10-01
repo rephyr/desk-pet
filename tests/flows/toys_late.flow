@@ -65,3 +65,15 @@ expect tab inventory
 wait 0.5
 shot bench
 expect fits
+click name:toy_acorn
+wait 0.3
+expect text "shine it up"
+shot acorn
+click "shine"
+wait 0.3
+expect text "★☆"
+click "all 24k"
+wait 0.5
+expect text "came up empty"
+shot risked
+expect fits

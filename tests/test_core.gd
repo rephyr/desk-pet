@@ -1502,8 +1502,9 @@ func _test_globes_game(catalog: Catalog) -> void:
 	var job: String = str(catalog.errands.jobs[0].id)
 	_check(is_equal_approx(float(gs.job_boost(job).coin_value), sunny_v), "errands pay at the globe behind yours")
 	var total := 0
+	var ctx: Dictionary = gs._crank_context()
 	for i in 200:
-		total += int(gs._pet_capsule().loot.get("coins", 0))
+		total += int(gs._pet_capsule(ctx).loot.get("coins", 0))
 	_check(total > 0 and total < roundi(200 * Machine.coin_value(gs.machine, catalog, "sunset") * 0.5), "your pet cranks the globe behind yours (%d coins from 200)" % total)
 	gs.free()
 	# an old save (v29, no globes) loads with just the first globe, already seen
@@ -1572,6 +1573,24 @@ func _test_toys(catalog: Catalog) -> void:
 	_check(int(state.owned["acorn:normal"].spares) == 0, "sacrifice uses the spares either way")
 	_check(got == "" or state.owned.size() >= before, "a lucky sacrifice gives a special edition")
 	_check(not Toys.can_sacrifice(state, catalog, "acorn"), "no spares, no sacrifice")
+	# shining: past max level the spares buy stars, each ten times dearer, each a bit more boost
+	var shine: Dictionary = d.shine
+	var plain_x := Toys.boost(state, catalog, "acorn:normal")
+	state.owned["acorn:normal"].spares = int(shine.first) - 1
+	_check(not Toys.shine(state, catalog, "acorn:normal"), "a star needs its spares")
+	state.owned["acorn:normal"].spares = int(shine.first) * (1 + int(shine.x))
+	_check(Toys.shine(state, catalog, "acorn:normal") and Toys.shine(state, catalog, "acorn:normal") and Toys.stars(state, "acorn:normal") == 2,
+		"spares shine a favourite: two stars")
+	_check(int(state.owned["acorn:normal"].spares) == 0, "the second star cost %d times the first" % int(shine.x))
+	_check(Toys.boost(state, catalog, "acorn:normal") > plain_x, "stars make the boost bigger")
+	_check(Toys.shine_cost(state, catalog, "acorn:ghost") == 0 or Toys.is_favourite(state, catalog, "acorn:ghost"), "only a favourite shines")
+	# risking lots at once: each try takes the same spares, and the tally adds up
+	state.owned["acorn:normal"].spares = int(d.sacrifice.spares) * 50 + 1
+	var tally := Toys.sacrifice_many(state, catalog, "acorn", 1000, rng)
+	var tries := 0
+	for k in tally:
+		tries += int(tally[k])
+	_check(tries == 50 and int(state.owned["acorn:normal"].spares) == 1, "risking all is as many tries as the spares pay for (%d)" % tries)
 	var full := Toys.fresh()
 	for t in catalog.toys.sets[0].toys:
 		Toys.add(full, t.id, "normal")
@@ -4581,7 +4600,7 @@ func _test_merged_lanes(catalog: Catalog) -> void:
 	var gs: Node = load("res://scripts/game_state.gd").new()
 	var c: Collection = gs.collection
 	var newest: int = load("res://scripts/game_state.gd").SAVE_VERSION
-	_check(newest == 41, "the save chain ends at v41 (herd + new homes 28, dungeon 33, plushie 34, the sewing room 35, perks 36, held landings 37, the wishing jar 38, the shed workshop 39, room steps 40, join up to 41)")
+	_check(newest == 42, "the save chain ends at v42 (herd + new homes 28, dungeon 33, plushie 34, the sewing room 35, perks 36, held landings 37, the wishing jar 38, the shed workshop 39, room steps 40, join up to 41, toy stars 42)")
 	_check(gs.room_cap() >= c.plain_count() and (gs.room == 0 or Herd.room_cap(catalog, gs.room - 1) < ceili(c.plain_count() * 1.1)),
 		"v40: a v23 save's room is the fewest steps with room for its pets (%d steps, %d / %d)" % [gs.room, c.plain_count(), gs.room_cap()])
 	_check(gs.workshop == Workshop.fresh(catalog) and not gs.workshop_open(), "v39: an old save gets a fresh workshop, still closed")

@@ -87,7 +87,12 @@ What she found, and what we're doing about it, in order (P1 first).
   on" spot, "3 free spots", cards keep their size, 72k-style numbers, rebuilds every 3 s from
   background changes; flow toys_late). Workbench mockup: design/mockups/screens/workbench-toys.html
   (one row per toy, bench per toy, bulk risk x1/x10/all; sink ?look=A toy chest for workers,
-  B shine past max with stars, C stuffing for the plushie machine). Waiting on Emilia's pick.
+  B shine past max with stars, C stuffing for the plushie machine). **Emilia picked B.** BUILT
+  2026-10-01: ToyBench = a row per toy (finish dots, "ready!" tag, count) | the picked toy's
+  edition cards (combine as far as the spares go, fix), sacrifice x1 / x10 / all with a tally,
+  and for a favourite "shine it up": star n costs shine.first x shine.x^(n-1) spares (10, 100,
+  1000...), each star counts like shine.levels more levels (data/toys.json "shine", Toys.stars /
+  shine / combine_all / sacrifice_many, save v42 field owned[ed].stars). Flow toys_late.
 - **P3 unlocks are luck / invisible**: beyond the fence opens ~80 min before anything there pays
   (far fields gives no bits); automation needs an unpointed return to the fields; cart and hay
   wagon are random finds; whistle/rope need well trips with nothing to see; hidden counters (200

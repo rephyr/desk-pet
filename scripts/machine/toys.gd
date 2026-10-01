@@ -113,7 +113,7 @@ static func boost(state: Dictionary, catalog: Catalog, edition: String) -> float
 	var bits := split(edition)
 	var t := toy(catalog, bits[0])
 	var tier: Dictionary = data(catalog).tiers[t.tier]
-	var extra := float(tier.base) - 1.0 + float(tier.per_level) * (int(e.level) - 1)
+	var extra := float(tier.base) - 1.0 + float(tier.per_level) * (int(e.level) - 1 + stars(state, edition) * float(data(catalog).shine.levels))
 	extra *= float(finish(catalog, bits[1]).get("boost", 1.0))
 	if not is_favourite(state, catalog, edition):
 		extra *= lerpf(1.0, float(data(catalog).worn_floor), clampf(float(e.wear), 0.0, 1.0))
@@ -288,6 +288,58 @@ static func combine(state: Dictionary, catalog: Catalog, edition: String) -> boo
 	e.spares = int(e.spares) - combine_cost(state, catalog, edition)
 	e.level = int(e.level) + 1
 	return true
+
+
+## Stars a favourite has been shined to (past max level, see shine).
+static func stars(state: Dictionary, edition: String) -> int:
+	return int(state.owned.get(edition, {}).get("stars", 0))
+
+
+## Spares the next star takes (0 before it's a favourite: spares level it up first).
+static func shine_cost(state: Dictionary, catalog: Catalog, edition: String) -> int:
+	if not is_favourite(state, catalog, edition):
+		return 0
+	var rule: Dictionary = data(catalog).shine
+	return roundi(float(rule.first) * pow(float(rule.x), stars(state, edition)))
+
+
+static func can_shine(state: Dictionary, catalog: Catalog, edition: String) -> bool:
+	var need := shine_cost(state, catalog, edition)
+	return need > 0 and int(state.owned[edition].spares) >= need
+
+
+## Spares go in, the favourite gets a star. Always works.
+static func shine(state: Dictionary, catalog: Catalog, edition: String) -> bool:
+	if not can_shine(state, catalog, edition):
+		return false
+	var e: Dictionary = state.owned[edition]
+	e.spares = int(e.spares) - shine_cost(state, catalog, edition)
+	e.stars = stars(state, edition) + 1
+	return true
+
+
+## Combines as many levels as the spares pay for. Returns the levels it went up.
+static func combine_all(state: Dictionary, catalog: Catalog, edition: String) -> int:
+	var n := 0
+	while combine(state, catalog, edition):
+		n += 1
+	return n
+
+
+## Tries of sacrifice the normal spares pay for (each try takes data's "spares").
+static func sacrifice_tries(state: Dictionary, catalog: Catalog, id: String) -> int:
+	var e: Dictionary = state.owned.get(key(id, "normal"), {})
+	return 0 if e.is_empty() else int(e.spares) / int(data(catalog).sacrifice.spares)
+
+
+## Up to `tries` sacrifices at once. Returns what came out: finish id (or "nothing") -> how many.
+static func sacrifice_many(state: Dictionary, catalog: Catalog, id: String, tries: int, rng: RandomNumberGenerator) -> Dictionary:
+	var out := {}
+	for i in mini(tries, sacrifice_tries(state, catalog, id)):
+		var got := sacrifice(state, catalog, id, rng)
+		var k := got if got != "" else "nothing"
+		out[k] = int(out.get(k, 0)) + 1
+	return out
 
 
 static func can_sacrifice(state: Dictionary, catalog: Catalog, id: String) -> bool:

@@ -42,7 +42,7 @@ static var testing := false
 ## one the script makes) loads or saves the real or profile save, unless the script sets this (the
 ## GameState tests do, on their own profile's save). See tool_run().
 static var tool_saves := false
-const SAVE_VERSION := 41
+const SAVE_VERSION := 42
 const PINNED_MAX := 10  # good pulls waiting to be seen: older ones stop waiting (and may fold into the herd)
 const SPARE_FRESH_MS := 1000  # spare_shelves() is worked out again at least this often
 const WORKER_BOXES_MAX := 2000  # box workers open at most this many boxes in one go (every pet is rolled)
@@ -5896,6 +5896,33 @@ func sacrifice_toy(id: String) -> String:
 	return got
 
 
+## Up to `tries` sacrifices at once (Toys.sacrifice_many). Returns finish (or "nothing") -> how many.
+func sacrifice_toys(id: String, tries: int) -> Dictionary:
+	var got := Toys.sacrifice_many(toys, catalog, id, tries, _rng)
+	if not got.is_empty():
+		toys_changed.emit()
+		save_game()
+	return got
+
+
+## Levels an edition up as far as its spares go (Toys.combine_all). Returns the levels.
+func combine_toy_all(edition: String) -> int:
+	var n := Toys.combine_all(toys, catalog, edition)
+	if n > 0:
+		toys_changed.emit()
+		save_game()
+	return n
+
+
+## Shines a favourite one star (Toys.shine). Returns whether it could.
+func shine_toy(edition: String) -> bool:
+	if not Toys.shine(toys, catalog, edition):
+		return false
+	toys_changed.emit()
+	save_game()
+	return true
+
+
 ## Where pets find a machine bit, for the upgrade card when you're short of one: the open places
 ## whose treat bag holds it, or, before any of those is found, a place that leads there.
 func bit_hint(bit: String) -> String:
@@ -6251,7 +6278,8 @@ func _load_save() -> bool:
 		if bits.size() == 2 and not Toys.toy(catalog, bits[0]).is_empty() and not Toys.finish(catalog, bits[1]).is_empty():
 			var e: Dictionary = owned[k]
 			toys.owned[str(k)] = { "level": clampi(int(e.get("level", 1)), 1, int(catalog.toys.max_level)),
-				"spares": maxi(0, int(e.get("spares", 0))), "wear": clampf(float(e.get("wear", 0.0)), 0.0, 1.0) }
+				"spares": maxi(0, int(e.get("spares", 0))), "wear": clampf(float(e.get("wear", 0.0)), 0.0, 1.0),
+				"stars": maxi(0, int(e.get("stars", 0))) }  # v42 added stars (shining a favourite)
 	for p in saved_toys.get("playing", []):
 		if p is Dictionary and toys.owned.has(str(p.get("key", ""))):
 			toys.playing.append({ "key": str(p.key), "until": float(p.get("until", 0.0)), "wear": float(p.get("wear", 0.0)),
