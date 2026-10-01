@@ -19,6 +19,7 @@ var _cushion := PanelContainer.new()
 var _cushion_row := HBoxContainer.new()
 var _case := PanelContainer.new()
 var _planks := VBoxContainer.new()
+var _cushion_key := ""  # who sits on the cushion now (uids)
 
 ## A plank never gets taller than this: with only a shelf or two the bookcase stays short
 ## instead of stretching one plank over the whole page.
@@ -75,11 +76,41 @@ func _fit_planks() -> void:
 			plank.custom_minimum_size.y = h
 
 
-func rebuild() -> void:
+## Builds what changed: the cushion when other pets sit on it, a plank when what it shows changed
+## (only its numbers move otherwise). `all`: everything again (a pet's look or the knacks changed).
+func rebuild(all := false) -> void:
 	var c := GameState.collection
 	var catalog := Catalog.shared()
-	UiTheme.clear(_cushion_row)
 	var on_top := cushion_pets(CUSHION_NARROW if stall_on else -1)
+	var cushion_key := ",".join(on_top.map(func(p: Pet): return p.uid))
+	if all or cushion_key != _cushion_key:
+		_cushion_key = cushion_key
+		_build_cushion(on_top)
+	var looks: Array[String] = []
+	for tier in catalog.tiers:
+		if c.count_of(tier.id) > 0:  # hidden until found: no empty mythic shelf
+			looks.append(ShelfPlank.look_of(str(tier.id), stall_on))
+	var planks := _planks.get_children().filter(func(n): return n is ShelfPlank and not n.is_queued_for_deletion())
+	if not all and planks.map(func(p: ShelfPlank): return p.look) == looks:
+		for plank: ShelfPlank in planks:
+			plank.refresh_numbers()
+		pick(picked)
+		return
+	UiTheme.clear(_planks)
+	var i := 0
+	for tier in catalog.tiers:
+		if c.count_of(tier.id) <= 0:
+			continue
+		var plank := ShelfPlank.new(str(tier.id), i, stall_on)
+		plank.picked = stall_on and str(tier.id) == picked
+		plank.opened.connect(_plank_tapped)
+		_planks.add_child(plank)
+		i += 1
+	_fit_planks.call_deferred()
+
+
+func _build_cushion(on_top: Array[Pet]) -> void:
+	UiTheme.clear(_cushion_row)
 	for i in on_top.size():
 		var mini := MiniCard.new(on_top[i])
 		mini.pressed.connect(func(p: Pet): shelf_opened.emit(p.rarity, p))
@@ -87,17 +118,6 @@ func rebuild() -> void:
 		holder.size_flags_vertical = SIZE_SHRINK_END
 		_cushion_row.add_child(holder)
 	_cushion.visible = not on_top.is_empty()
-	UiTheme.clear(_planks)
-	var i := 0
-	for tier in catalog.tiers:
-		if c.count_of(tier.id) <= 0:
-			continue  # hidden until found: no empty mythic shelf
-		var plank := ShelfPlank.new(str(tier.id), i, stall_on)
-		plank.picked = stall_on and str(tier.id) == picked
-		plank.opened.connect(_plank_tapped)
-		_planks.add_child(plank)
-		i += 1
-	_fit_planks.call_deferred()
 
 
 ## A plank was tapped: with the stall there, the first tap picks it and a tap on the picked one

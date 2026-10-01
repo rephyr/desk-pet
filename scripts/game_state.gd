@@ -177,7 +177,6 @@ var army_held := false  # the sewing room is open on screen: your pet leading th
 var _auto_at := 0.0  # unix time your pet's jobs have worked up to
 var _hold_saves := false  # automation's tick is running: saves wait for the end of it
 var _loading := false  # load_game is running: the book waits (collection signals fire halfway through)
-var _save_held := false  # a save was asked for while they were held
 var started_at := 0.0  # unix time this game was started (0 for saves from before it was noted)
 var milestones := {}  # what -> minutes into the game it happened (first pet, adventures, ...)
 var debug_next_prize := ""  # debug builds: the next capsule is this prize id (dev driver "next-prize")
@@ -2727,12 +2726,10 @@ func _work_automation(until: float) -> void:
 	_release_saves()
 
 
-## Saves once if anything asked to while automation held the saves.
+## Lets saves through again. What automation asked to save during its tick waits for the autosave
+## (every 30 s, and on quit): a big save written every second was a hitch every second.
 func _release_saves() -> void:
 	_hold_saves = false
-	if _save_held:
-		_save_held = false
-		save_game()
 
 
 ## Everything automation does in `seconds` (also time spent away, when the game loads).
@@ -3219,9 +3216,13 @@ func _pet_cranks(pulls: int, show := true) -> Dictionary:
 	var total := {}
 	var rolls := mini(pulls, PET_CRANK_ROLLS)
 	var last := {}
+	var ctx := _crank_context()
 	for i in rolls:
-		last = _pet_capsule()
+		last = _pet_capsule(ctx)
 		Rewards.add(total, last.loot)
+	if ctx.toys:  # once for the whole batch, not once a toy
+		toys_changed.emit()
+		check_unlocks()
 	if pulls > rolls:  # the rest pay coins, xp and boxes like these (toys only come from the rolled ones)
 		for key: String in total.keys():
 			if key == "coins" or key == "xp" or key.begins_with("box:"):
@@ -3239,26 +3240,44 @@ func _pet_cranks(pulls: int, show := true) -> Dictionary:
 ## One capsule from your pet's own machine (or a worker's): like a plain one from the globe one step
 ## behind your hand (worth the same, shiny as often, toys too), but no lucky lights, fever or pet
 ## boxes: those stay with your lever. Toys are yours right away; the rest is handed out by _pet_cranks.
-func _pet_capsule() -> Dictionary:
-	var luck := boost("luck")
-	var g := Machine.behind(machine, catalog)
-	var prize := Machine.roll(machine, catalog, _rng, false, luck, boost("toys"), 1.0, g)
-	if not _machine_gives(str(prize.kind)) or prize.kind in ["pet", "pet_box"]:
-		prize = _machine_prize("coins")
-	var shiny: bool = prize.kind in ["coins", "golden", "box", "part"] and _rng.randf() < Machine.shiny_chance(machine, catalog, g) * boost("shiny")
-	var loot := Machine.loot(prize, machine, catalog, _rng, 1.0, g)
+## `ctx` (from _crank_context) holds what every capsule of a batch shares; `ctx.toys` turns true
+## when one held a toy (_pet_cranks tells everyone once).
+func _pet_capsule(ctx: Dictionary) -> Dictionary:
+	var prize := Machine.pick(catalog, ctx.weights, _rng)
+	if not ctx.gives.get(str(prize.kind), true) or prize.kind in ["pet", "pet_box"]:
+		prize = ctx.fallback
+	var shiny: bool = prize.kind in ["coins", "golden", "box", "part"] and _rng.randf() < ctx.shiny
+	var loot := Machine.loot(prize, machine, catalog, _rng, 1.0, ctx.g, ctx.value)
 	if loot.has("coins"):
-		loot.coins = roundi(int(loot.coins) * boost("coins"))
+		loot.coins = roundi(int(loot.coins) * ctx.coins_x)
 	if shiny:
 		for k in loot:
-			loot[k] = roundi(int(loot[k]) * Machine.shiny_pay(machine, catalog, g))
+			loot[k] = roundi(int(loot[k]) * ctx.shiny_pay)
 	var toy := {}
 	if prize.kind == "toy":
-		var t := Toys.roll(catalog, _rng, luck, Machine.toy_sets(machine, catalog, g))
+		var t := Toys.roll(catalog, _rng, ctx.luck, ctx.sets)
 		toy = { "id": t.id, "finish": t.finish, "new": Toys.add(toys, t.id, t.finish) }
-		toys_changed.emit()
-		check_unlocks()
+		ctx.toys = true
 	return { "prize": prize, "loot": loot, "shiny": shiny, "toy": toy }  # _pet_cranks hands it out
+
+
+## What every capsule of one batch from your pet's machine shares: the globe one step behind your
+## hand, its odds, values and the boosts, worked out once (a new toy only adds spares, so no boost
+## moves halfway through).
+func _crank_context() -> Dictionary:
+	var g := Machine.behind(machine, catalog)
+	var luck := boost("luck")
+	var gives := {}
+	for p: Dictionary in catalog.machine.prizes:
+		gives[str(p.kind)] = _machine_gives(str(p.kind))
+	return {
+		"g": g, "luck": luck, "gives": gives, "fallback": _machine_prize("coins"),
+		"weights": Machine.weights(machine, catalog, false, luck, boost("toys"), 1.0, g),
+		"shiny": Machine.shiny_chance(machine, catalog, g) * boost("shiny"),
+		"shiny_pay": Machine.shiny_pay(machine, catalog, g),
+		"value": Machine.coin_value(machine, catalog, g), "coins_x": boost("coins"),
+		"sets": Machine.toy_sets(machine, catalog, g), "toys": false,
+	}
 
 
 func _load_automation(saved: Dictionary) -> void:
@@ -5940,8 +5959,7 @@ func set_pet_out(value: bool) -> void:
 func save_game() -> void:
 	if not _can_save:
 		return
-	if _hold_saves:  # automation is working through a tick (or loading): it saves once at the end
-		_save_held = true
+	if _hold_saves:  # automation is working through a tick (or loading): the next autosave has it
 		return
 	var data := {
 		"version": SAVE_VERSION,
@@ -6148,7 +6166,6 @@ func _load_save() -> bool:
 	_hold_saves = true  # no saving halfway through loading
 	_clamp_herd_places()
 	_hold_saves = false
-	_save_held = false
 	visited.clear()
 	for id in data.get("visited", []):
 		visited[str(id)] = true
@@ -6274,7 +6291,6 @@ func _load_save() -> bool:
 		_hold_saves = true  # no saving halfway through loading: the next autosave has it all
 		_work_for_automation(cranked, false)
 		_hold_saves = false
-		_save_held = false
 	_auto_at = Time.get_unix_time_from_system()
 	# presents came while the game was closed, the same as if it had been open (only the clock counts)
 	_tick_gifts(Time.get_unix_time_from_system(), false)
@@ -6282,7 +6298,6 @@ func _load_save() -> bool:
 	_hold_saves = true
 	_army_while_away(float(data.get("saved_at", 0.0)), Time.get_unix_time_from_system())
 	_hold_saves = false
-	_save_held = false
 
 	# v28: plain pets fold into the herd (old saves: crews and workers of uids become counts here)
 	_rest_changed()

@@ -17,7 +17,7 @@ const SILHOUETTE_MODE := 6  # see shaders/finish.gdshader
 @export var animated := true:
 	set(value):
 		animated = value
-		set_process(value)
+		set_process(value and is_visible_in_tree())
 
 var pet: Pet:
 	set(value):
@@ -65,7 +65,12 @@ func _init() -> void:
 
 
 func _ready() -> void:
-	set_process(animated)
+	set_process(animated and is_visible_in_tree())
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_VISIBILITY_CHANGED:  # hidden (its tab closed): it stops bobbing and redrawing
+		set_process(animated and is_visible_in_tree())
 
 
 func _process(delta: float) -> void:

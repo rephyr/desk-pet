@@ -419,8 +419,14 @@ static func spring_seconds(_state: Dictionary, catalog: Catalog) -> float:
 ## Prizes that need better drops ("drops") only join once it's fixed. `toy_luck` (your toys' luck)
 ## makes lucky prizes weigh more, `toy_rate` makes toys weigh more, `pet_rate` pet boxes.
 static func roll(state: Dictionary, catalog: Catalog, rng: RandomNumberGenerator, lucky := false, toy_luck := 1.0, toy_rate := 1.0, pet_rate := 1.0, g := "") -> Dictionary:
+	return pick(catalog, weights(state, catalog, lucky, toy_luck, toy_rate, pet_rate, g), rng)
+
+
+## The weights roll() picks from (prize index -> weight). Worked out once, they can roll many
+## capsules with pick() (your pet's machine rolls hundreds a second).
+static func weights(state: Dictionary, catalog: Catalog, lucky := false, toy_luck := 1.0, toy_rate := 1.0, pet_rate := 1.0, g := "") -> Dictionary:
 	var drops := add(state, catalog, "drops", g)
-	var weights := {}
+	var out := {}
 	var prizes: Array = catalog.machine.prizes
 	for i in prizes.size():
 		var p: Dictionary = prizes[i]
@@ -428,8 +434,12 @@ static func roll(state: Dictionary, catalog: Catalog, rng: RandomNumberGenerator
 			continue
 		if drops < float(p.get("drops", 0)):
 			continue
-		weights[i] = float(p.weight) * (toy_luck if p.get("lucky", false) else 1.0) * (toy_rate if p.kind == "toy" else 1.0) * (pet_rate if p.kind == "pet_box" else 1.0)
-	return prizes[Weighted.pick(weights, rng)]
+		out[i] = float(p.weight) * (toy_luck if p.get("lucky", false) else 1.0) * (toy_rate if p.kind == "toy" else 1.0) * (pet_rate if p.kind == "pet_box" else 1.0)
+	return out
+
+
+static func pick(catalog: Catalog, w: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
+	return catalog.machine.prizes[Weighted.pick(w, rng)]
 
 
 ## The chance of each prize (by id) in one capsule, adding up to 1: the same weights roll() uses.
@@ -455,11 +465,12 @@ static func odds(state: Dictionary, catalog: Catalog, gives: Callable, lucky := 
 ## What a prize pays, e.g. { "coins": 4 }, { "xp": 1 }, { "part:eyes:round": 1 }, { "box:starter": 1 }.
 ## `pay` multiplies coins (fever); coins are also worth the globe's coin value, and a box is the
 ## globe's box tier (box_of). A toy or a pet pays {} here: GameState makes those.
-static func loot(prize: Dictionary, state: Dictionary, catalog: Catalog, rng: RandomNumberGenerator, pay := 1.0, g := "") -> Dictionary:
+## `value`: the globe's coin value when it's already worked out (-1: worked out here).
+static func loot(prize: Dictionary, state: Dictionary, catalog: Catalog, rng: RandomNumberGenerator, pay := 1.0, g := "", value := -1.0) -> Dictionary:
 	match str(prize.kind):
 		"coins", "golden":
 			var n := rng.randi_range(int(prize.coins[0]), int(prize.coins[1]))
-			return { "coins": maxi(1, roundi(n * coin_value(state, catalog, g) * pay)) }
+			return { "coins": maxi(1, roundi(n * (coin_value(state, catalog, g) if value < 0.0 else value) * pay)) }
 		"xp":
 			return { "xp": int(prize.get("amount", 1)) }
 		"part":

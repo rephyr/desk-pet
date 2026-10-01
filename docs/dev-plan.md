@@ -67,6 +67,41 @@ node labels are fixed: names wrap to their room.)
 
 ---
 
+## Playtest 1 (2026-10-01): Emilia played start to end with dev tools
+
+What she found, and what we're doing about it, in order (P1 first).
+
+- **P1 lag** (BUILT 2026-10-01): a late save hitched ~150 ms every second. Fixed: the pet's
+  crank works its odds/boosts out once a batch and tells toys/unlocks once (not per capsule);
+  automation's saves wait for the 30 s autosave; the night sky paints into a picture and only adds
+  new stars; window reads go through Hyprland's socket (hyprctl was ~5 ms a call); hidden pet
+  pictures stop animating; the tutorial ring stops redrawing when gone; the bookcase only rebuilds
+  planks whose look changed (numbers update in place); the errands board catches up on pets
+  coming and going every 3 s. Still to do: toys/workbench rebuild per tick (part of P2), a tab's
+  first build (collection ~100 ms headless).
+- **P2 toys + workbench broken**: the "playing" row never wraps (every max-level edition is a
+  favourite: up to 48 slots) and stretches the toys page past the window; huge cards; raw numbers
+  (x288000). Spare toys past max level are dead. Workbench toy bench: one strip of 48 chips, no
+  bulk actions, 2 of 3 benches empty late. **Decided:** spare toys feed into a sink (which one: to
+  design). Needs a layout fix + a workbench mockup.
+- **P3 unlocks are luck / invisible**: beyond the fence opens ~80 min before anything there pays
+  (far fields gives no bits); automation needs an unpointed return to the fields; cart and hay
+  wagon are random finds; whistle/rope need well trips with nothing to see; hidden counters (200
+  packs by hand, 40 trips, 500 packs, 300 pets to homes, pets sent). Midnight globe is unreachable
+  (porch_machine has no event). Early bits come only from solo backyard trips (~1 per trip), so
+  the lever waits on bits; nothing teaches sending several parties; guidance ends after the first
+  trip. **Decided (overrides Hidden Until Earned for unlock triggers):** show the next unlocks as
+  goal + progress with the reward named, e.g. "rope: 37 / 100 pets sent -> the dungeon". Still no
+  copy explaining how a mechanic works.
+- **P4 late-game redesigns**: the plushie machine has no stake (sewn buttons are safe, misses pay
+  wisps, cracks pay double; one mythic ≈ the whole wisps economy). **Decided:** cracks can pop
+  sewn buttons, misses pay nothing, each next button needs better fed pets, holding stakes
+  buttons. Dungeon: 10-pet steppers (~480 clicks), 20 s/floor waits, strength never shown,
+  thin result card. Perk wall: tiny nails down a 40 px lane, one card at a time, hides the last
+  run. Sewing room: crammed into the 236 px well column, marks only count the 20 strongest, the
+  keeper/active pet can't count. Parts: knacks are real but only your active pet gets them fully,
+  herd pets get nothing, and the sewing table even says "no change". All need mockups + picks.
+
 ## Phase A: finish the early game (stage 1 → 2)
 
 ### A1. Pacing simulator for the whole early game  (BUILT, merged; report in docs/reports/pace.md)

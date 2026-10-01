@@ -20,6 +20,9 @@ var picked := false:
 		picked = value
 		queue_redraw()
 var _hover := false
+var look := ""  # what it shows besides its numbers (see look_of): a plank with a new look is built again
+var _count_n: Label
+var _shiny_n: Label
 var _today_n: Label  # the "sorted today" number (updated in place, the plank is not rebuilt for it)
 
 
@@ -56,7 +59,8 @@ func _init(p_rarity: String, index: int, narrow := false) -> void:
 	words.add_theme_constant_override("separation", -2)
 	words.mouse_filter = MOUSE_FILTER_IGNORE
 	words.add_child(UiTheme.label(catalog.tier_at(catalog.rank(rarity)).name, color, UiTheme.SMALL - 1))
-	words.add_child(UiTheme.title(ExpandedView._thousands(c.count_of(rarity)), 17, UiTheme.TEXT))
+	_count_n = UiTheme.title(ExpandedView._thousands(c.count_of(rarity)), 17, UiTheme.TEXT)
+	words.add_child(_count_n)
 	tag.add_child(words)
 	var holder := Tilted.new(tag, TILTS[index % TILTS.size()])
 	holder.mouse_filter = MOUSE_FILTER_IGNORE
@@ -78,21 +82,13 @@ func _init(p_rarity: String, index: int, narrow := false) -> void:
 	stand.size_flags_horizontal = SIZE_EXPAND_FILL
 	stand.mouse_filter = MOUSE_FILTER_IGNORE
 	row.add_child(stand)
-	var standing := int(catalog.herd.get("standing", 4)) - (1 if narrow else 0)
-	var sorted := GameState.feature_on("sorting") and NewHomes.below_line(catalog, GameState.homes.rule, rarity)
-	var cards := c.cards_of(rarity)
-	var faces: Array = []  # newest first: cards, then stand-ins for the counts
-	for i in range(cards.size() - 1, -1, -1):
-		faces.append(cards[i].uid)
-		if faces.size() >= standing + int(catalog.herd.get("mound_max", 60)):
-			break
-	var counts := {}
-	for f in catalog.finishes:
-		var k := Herd.key(rarity, f.id)
-		if c.herd_count(k) > 0:
-			counts[k] = c.herd_count(k)
-	var herd_faces := GameState.herd_faces(counts, int(catalog.herd.get("mound_max", 60)), catalog.rank(rarity))
-	var standing_faces: Array = (faces + herd_faces).slice(0, standing)
+	var at := _layout(rarity, narrow)
+	look = at.look
+	var sorted: bool = at.sorted
+	var faces: Array = at.faces
+	var herd_faces: Array = at.herd_faces
+	var standing_faces: Array = at.standing_faces
+	var standing: int = at.standing
 	for i in standing_faces.size():
 		var portrait := PetPortrait.new(2, false)
 		portrait.mouse_filter = MOUSE_FILTER_IGNORE
@@ -119,9 +115,9 @@ func _init(p_rarity: String, index: int, narrow := false) -> void:
 		GameState.changed.connect(_refresh_today)
 	var shiny := c.shiny_of(rarity)
 	if shiny > 0:
-		var sh := UiTheme.label("✦ " + ExpandedView._thousands(shiny), UiTheme.GOLD, UiTheme.SMALL)
-		sh.size_flags_vertical = SIZE_SHRINK_CENTER
-		stand.add_child(sh)
+		_shiny_n = UiTheme.label("✦ " + ExpandedView._thousands(shiny), UiTheme.GOLD, UiTheme.SMALL)
+		_shiny_n.size_flags_vertical = SIZE_SHRINK_CENTER
+		stand.add_child(_shiny_n)
 	custom_minimum_size = Vector2(0, MIN_H)
 	mouse_entered.connect(func():
 		_hover = true
@@ -129,6 +125,51 @@ func _init(p_rarity: String, index: int, narrow := false) -> void:
 	mouse_exited.connect(func():
 		_hover = false
 		queue_redraw())
+
+
+## Who stands on a rarity's plank and how big its mound is: { look, sorted, faces, herd_faces,
+## standing_faces, standing }. `look` sums up everything but the numbers, so the bookcase can tell
+## whether a plank has to be built again or only its numbers move (pets come and go every second).
+static func _layout(p_rarity: String, narrow: bool) -> Dictionary:
+	var catalog := Catalog.shared()
+	var c := GameState.collection
+	var standing := int(catalog.herd.get("standing", 4)) - (1 if narrow else 0)
+	var sorted := GameState.feature_on("sorting") and NewHomes.below_line(catalog, GameState.homes.rule, p_rarity)
+	var cards := c.cards_of(p_rarity)
+	var faces: Array = []  # newest first: cards, then stand-ins for the counts
+	for i in range(cards.size() - 1, -1, -1):
+		faces.append(cards[i].uid)
+		if faces.size() >= standing + int(catalog.herd.get("mound_max", 60)):
+			break
+	var counts := {}
+	for f in catalog.finishes:
+		var k := Herd.key(p_rarity, f.id)
+		if c.herd_count(k) > 0:
+			counts[k] = c.herd_count(k)
+	var herd_faces := GameState.herd_faces(counts, int(catalog.herd.get("mound_max", 60)), catalog.rank(p_rarity))
+	var standing_faces: Array = (faces + herd_faces).slice(0, standing)
+	var rest := c.count_of(p_rarity) - standing_faces.size()
+	var key := "%s|%s|%s|%d|%s|%s" % [p_rarity, narrow, sorted, Herd.mound_size(catalog, rest) if rest > 0 else 0,
+		",".join(standing_faces), c.shiny_of(p_rarity) > 0]
+	return { "look": key, "sorted": sorted, "faces": faces, "herd_faces": herd_faces,
+		"standing_faces": standing_faces, "standing": standing }
+
+
+## What the plank for this rarity would show, besides its numbers (compare with `look`).
+static func look_of(p_rarity: String, narrow: bool) -> String:
+	return _layout(p_rarity, narrow).look
+
+
+## The plank's numbers again (its count and shiny count), without building it again.
+func refresh_numbers() -> void:
+	var c := GameState.collection
+	var text := ExpandedView._thousands(c.count_of(rarity))
+	if _count_n.text != text:
+		_count_n.text = text
+	if _shiny_n:
+		text = "✦ " + ExpandedView._thousands(c.shiny_of(rarity))
+		if _shiny_n.text != text:
+			_shiny_n.text = text
 
 
 ## "sorted today 1,204": a dashed tag on shelves under the sorting rule's line.

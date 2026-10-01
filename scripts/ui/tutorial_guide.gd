@@ -9,6 +9,7 @@ var _bubble := PanelContainer.new()
 var _line := UiTheme.label("", UiTheme.TEXT, UiTheme.SMALL + 1)
 var _target: Control
 var _time := 0.0
+var _shown := false  # the ring was drawn last frame
 var _ring := UiTheme.stitched(UiTheme.PINK, Color(0, 0, 0, 0), 14, 0)
 
 
@@ -29,7 +30,9 @@ func _process(delta: float) -> void:
 	_target = target_for.call() if not info.is_empty() and target_for.is_valid() else null
 	var showing := _target != null and _target.is_visible_in_tree()
 	_bubble.visible = showing
-	queue_redraw()
+	if showing or _shown:  # the ring breathes while it shows (and is wiped once when it goes)
+		queue_redraw()
+	_shown = showing
 	if not showing:
 		return
 	# pointing at a tab to get somewhere first: "tap here…", then the step's own line once there

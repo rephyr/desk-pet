@@ -33,6 +33,7 @@ var _toys_button: Button
 var _dirty := true
 var _knacks_seen := ""  # which knack kinds showed when the grid was last drawn (see _knacks_key)
 var _queued := false  # a rebuild is waiting for the end of the frame
+var _all := false  # the next rebuild builds the whole bookcase again (see _mark_dirty)
 
 
 func _init() -> void:
@@ -87,22 +88,22 @@ func _init() -> void:
 
 	var c := GameState.collection
 	c.pets_added.connect(func(pets: Array[Pet]): _mark_dirty(pets.map(func(p): return p.rarity)))
-	c.pet_changed.connect(func(pet: Pet): _mark_dirty([pet.rarity]))
+	c.pet_changed.connect(func(pet: Pet): _mark_dirty([pet.rarity], true))
 	c.herd_changed.connect(func(keys: Array): _mark_dirty(keys.map(func(k): return Herd.rarity_of(k))))
 	c.pets_removed.connect(func(_u): _mark_dirty())
-	c.active_changed.connect(func(_p): _mark_dirty())
-	GameState.unlocked.connect(func(_e): _mark_dirty())
+	c.active_changed.connect(func(_p): _mark_dirty([], true))
+	GameState.unlocked.connect(func(_e): _mark_dirty([], true))
 	GameState.changed.connect(func():  # the sorting rule changed: the planks under its line change
 		if _homes_state() != _homes_key:
 			_mark_dirty())
 	GameState.new_game.connect(func():
 		close_shelf()
-		_mark_dirty())
+		_mark_dirty([], true))
 	GameState.room_full.connect(func(): _room.refresh())
 	# knacks showing up (parts open, a machine fix, the tutorial moving on) redraw the badges
 	GameState.knacks_changed.connect(func():
 		if _knacks_key() != _knacks_seen:
-			_mark_dirty())
+			_mark_dirty([], true))
 	visibility_changed.connect(func():
 		if not is_visible_in_tree():
 			_room.hide_card()
@@ -116,8 +117,11 @@ func _init() -> void:
 
 ## Something changed for these rarities ([]: anything). The rebuild waits for the end of the frame,
 ## so a burst of changes (a box opened: pets added, then folded) rebuilds once. An open shelf of
-## another rarity is left alone (the bookcase rebuilds when the shelf closes).
-func _mark_dirty(rarities: Array = []) -> void:
+## another rarity is left alone (the bookcase rebuilds when the shelf closes). `all`: something
+## every card shows changed (a pet's look, the knacks), not only who's there: the bookcase builds
+## everything again, not only what moved.
+func _mark_dirty(rarities: Array = [], all := false) -> void:
+	_all = _all or all
 	if _shelf.visible and is_visible_in_tree() and not rarities.is_empty() and not _shelf.rarity in rarities:
 		return
 	_dirty = true
@@ -259,7 +263,8 @@ func _rebuild() -> void:
 		_shelf.visible = false
 		_bookcase.visible = true
 		_side.visible = homes
-		_bookcase.rebuild()
+		_bookcase.rebuild(_all)
+		_all = false
 
 
 ## Which knack kinds show right now, as a word ("" while knacks are shut).

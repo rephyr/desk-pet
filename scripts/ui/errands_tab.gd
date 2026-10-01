@@ -28,6 +28,9 @@ var _tick := 0.0  # seconds until the countdowns move on
 var _step := 1
 var _picked := ""  # uid of a resting pet waiting to be put on a job (a stand-in's: one from its count)
 var _dirty := true
+var _stale := false  # pets came or went: built again at most every STALE_EVERY seconds
+var _stale_at := 0.0
+const STALE_EVERY := 3.0
 var _resting: Array = []  # uids of the resting pets shown (cards, then stand-ins), worked out once per rebuild
 var _resting_n := 0  # everyone resting, cards and herd
 var _away_count := -1  # pets on adventures at the last rebuild
@@ -129,9 +132,11 @@ func _init() -> void:
 	GameState.adventures_changed.connect(func():
 		if GameState.away().size() != _away_count:
 			_dirty = true)
-	GameState.collection.pets_added.connect(func(_p): _dirty = true)
-	GameState.collection.pets_removed.connect(func(_u): _dirty = true)
-	GameState.collection.herd_changed.connect(func(_keys): _dirty = true)
+	# pets coming and going (boxes opened, sent off: every second late on) only move the counts
+	# and faces: the board catches up every few seconds instead of building itself every time
+	GameState.collection.pets_added.connect(func(_p): _stale = true)
+	GameState.collection.pets_removed.connect(func(_u): _stale = true)
+	GameState.collection.herd_changed.connect(func(_keys): _stale = true)
 	GameState.collection.active_changed.connect(func(_p): _dirty = true)
 	GameState.job_paid.connect(_paid)
 	visibility_changed.connect(func():
@@ -213,7 +218,8 @@ func _process(delta: float) -> void:
 		_update_income()
 	if not _jobs_page.visible:
 		return
-	if _dirty:
+	_stale_at -= delta
+	if _dirty or (_stale and _stale_at <= 0.0):
 		_rebuild()
 	for job_id in _meters:
 		_meters[job_id].fill = GameState.job_fill_now(job_id)
@@ -229,6 +235,8 @@ func _process(delta: float) -> void:
 
 func _rebuild() -> void:
 	_dirty = false
+	_stale = false
+	_stale_at = STALE_EVERY
 	_meters.clear()
 	_countdowns.clear()
 	_resting_n = GameState.resting_count()

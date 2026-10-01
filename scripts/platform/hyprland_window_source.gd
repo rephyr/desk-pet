@@ -17,6 +17,9 @@ var _zero_scaling := false  # XWayland windows get real pixels on scaled monitor
 ## so testing never covers what you're doing.
 var _parked := DevProfile.parked()
 const PARKED_AT := Vector2i(-4000, 3000)
+const SOCKET_WAIT_MS := 200  # longest a socket read may take before hyprctl is asked instead
+var _socket := ""  # Hyprland's command socket
+const NO_SOCKET := "-"
 
 
 func setup(home: Window, overlay: Window) -> void:
@@ -218,8 +221,8 @@ func _poll(force := false) -> void:
 	if not force and now - _last_poll < 0.05:
 		return
 	_last_poll = now
-	var clients = JSON.parse_string(_run(["clients", "-j"]))
-	var monitors = JSON.parse_string(_run(["monitors", "-j"]))
+	var clients = JSON.parse_string(_read("clients"))
+	var monitors = JSON.parse_string(_read("monitors"))
 	if typeof(clients) != TYPE_ARRAY or typeof(monitors) != TYPE_ARRAY:
 		return
 	_clients = clients
@@ -254,6 +257,32 @@ func _to_local(r: Rect2, me: Dictionary, overlay: Window) -> Rect2:
 	var origin := Vector2(me.at[0], me.at[1])
 	var scale := Vector2(overlay.size) / Vector2(maxf(1, me.size[0]), maxf(1, me.size[1]))
 	return Rect2((r.position - origin) * scale, r.size * scale)
+
+
+## A query's JSON ("clients", "monitors") straight from Hyprland's socket: hyprctl is a new process
+## each time (about 5 ms of a blocked frame, several times a second), the socket well under 1 ms.
+## Falls back to hyprctl when the socket can't be reached.
+func _read(what: String) -> String:
+	if _socket == "":
+		_socket = "%s/hypr/%s/.socket.sock" % [OS.get_environment("XDG_RUNTIME_DIR"), OS.get_environment("HYPRLAND_INSTANCE_SIGNATURE")]
+	var peer := StreamPeerUDS.new()
+	if _socket == NO_SOCKET or peer.connect_to_host(_socket) != OK:
+		_socket = NO_SOCKET  # not there: hyprctl from now on (and no error every read)
+	else:
+		peer.put_data(("j/" + what).to_utf8_buffer())
+		var buf := PackedByteArray()
+		var until := Time.get_ticks_msec() + SOCKET_WAIT_MS
+		while Time.get_ticks_msec() < until:
+			peer.poll()
+			if peer.get_status() != StreamPeerUDS.STATUS_CONNECTED:  # Hyprland hangs up once it has answered
+				if not buf.is_empty():
+					return buf.get_string_from_utf8()
+				break
+			var n := peer.get_available_bytes()
+			if n > 0:
+				buf.append_array(peer.get_data(n)[1])
+		peer.disconnect_from_host()
+	return _run([what, "-j"])
 
 
 func _run(args: Array) -> String:
