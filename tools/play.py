@@ -11,7 +11,7 @@ ever shows up on your desktop and Hyprland doesn't shuffle your windows around. 
 1x scale. Your own game keeps running.
 Set DESK_PETS_LANE=<name> to give the profile its own suffix, so several copies of the repo
 (git worktrees) can play the same flow at once without sharing a save.
-Exits with the game's result: 0 when every step passed.
+Exits with the game's result: 0 when every step passed (3 when they did but a script error was printed).
 """
 import os
 import shutil
@@ -73,6 +73,8 @@ try:
         break
     code = result.returncode
     errors = [l for l in out.splitlines() if "ERROR" in l or "SCRIPT ERROR" in l or "Xvfb failed" in l]
+    if code == 0 and any("SCRIPT ERROR" in l for l in errors):
+        code = 3  # every step passed, but a script broke along the way
 except subprocess.TimeoutExpired:
     code, errors = 2, ["timed out after 300s"]
 log = folder / "play.log"

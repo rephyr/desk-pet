@@ -1,0 +1,12 @@
+# The corner panel during the tutorial's machine step (a step with no guide line): no guide, and no
+# script errors (the guide used to point at the grow button and read a line the step doesn't have)
+from new
+expect tutorial pull
+pull 3 1.5
+expect tutorial machine
+view corner
+wait 2
+shot corner
+view full
+wait 1
+expect fits

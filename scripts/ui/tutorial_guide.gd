@@ -27,7 +27,8 @@ func _init() -> void:
 func _process(delta: float) -> void:
 	_time += delta
 	var info := GameState.tutorial_info()
-	_target = target_for.call() if not info.is_empty() and target_for.is_valid() else null
+	# a step without a line has no guide at all (the machine step: you build it up yourself)
+	_target = target_for.call() if info.has("say") and target_for.is_valid() else null
 	var showing := _target != null and _target.is_visible_in_tree()
 	_bubble.visible = showing
 	if showing or _shown:  # the ring breathes while it shows (and is wiped once when it goes)
