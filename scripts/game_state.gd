@@ -308,7 +308,8 @@ func _process(delta: float) -> void:
 
 	# the once-a-second work, a quarter on each of four frames a quarter second apart: late in the
 	# game errands, your pet's crank and the workers' boxes each take several ms, and all at once
-	# they were a hitch every second
+	# they were a hitch every second (smaller batches more often cost more: every batch tells the
+	# views)
 	_run_timer -= delta
 	if _run_timer <= 0.0:
 		_run_timer = TICK_PHASE
@@ -732,11 +733,36 @@ func spare_shelves() -> Dictionary:
 	if _spare.is_empty() or Time.get_ticks_msec() - _spare_at > fresh:
 		_spare = { "shelves": {} }
 		_spare_at = Time.get_ticks_msec()
+		# the same counts as spare_pick(rarity, -1) for every rarity, in one pass and without lists
 		var ctx := _spare_ctx()
+		var busy: Dictionary = ctx.busy
+		var resting: Dictionary = ctx.resting
+		var may := {}
+		for f in catalog.finishes:
+			if may_go_finish(str(f.id)):
+				may[f.id] = true
+		var counts := {}  # rarity -> [may go, of them working]
+		var keep_uids: Dictionary = collection.keep_uids
+		var active_uid := collection.active_uid
+		for pet in collection.pets:  # Collection.kept written out: this runs over every card
+			if may.has(pet.finish) and not busy.has(pet.uid) and not (pet.fav or pet.new_part or not pet.buttons.is_empty() \
+					or pet.uid == active_uid or keep_uids.has(pet.uid)):
+				var c: Array = counts.get_or_add(pet.rarity, [0, 0])
+				c[0] += 1
+				if not resting.has(pet.uid):
+					c[1] += 1
 		for tier in catalog.tiers:
-			var plan := spare_pick(str(tier.id), -1, ctx)
-			if int(plan.n) > 0:
-				_spare.shelves[tier.id] = { "n": int(plan.n), "working": int(plan.working) }
+			var c: Array = counts.get(tier.id, [0, 0])
+			var n: int = c[0]
+			var working: int = c[1]
+			for f in may:
+				var k := Herd.key(str(tier.id), str(f))
+				var rest := int(ctx.free_rest.get(k, 0))
+				var work := maxi(0, collection.herd_count(k) - rest - int(ctx.out_now.get(k, 0)))
+				n += rest + work
+				working += work
+			if n > 0:
+				_spare.shelves[tier.id] = { "n": n, "working": working }
 	return _spare.shelves
 
 

@@ -205,6 +205,8 @@ func _test_numbers() -> void:
 	for n: float in cases:
 		_check(NumFormat.short(n) == cases[n], "NumFormat.short(%s) is %s (got %s)" % [n, cases[n], NumFormat.short(n)])
 	_check(NumFormat.full(-1234567) == "-1,234,567", "NumFormat.full puts in commas")
+	_check(NumFormat.apart(4.21e12, 4.23e12) == ["4.21T", "4.23T"], "before → after shows the change (%s)" % [NumFormat.apart(4.21e12, 4.23e12)])
+	_check(NumFormat.apart(4.2e12, 5.0e12) == ["4.2T", "5T"], "before → after stays short when it can")
 
 
 ## Box tiers (B1): the shop sells a tier once its map page is open, a better tier holds more pets,
@@ -3290,6 +3292,7 @@ func _test_new_homes_game(catalog: Catalog) -> void:
 	_check("4" in with_holo.cards and not with_holo.cards.any(func(u): return u in ["1", "2", "3"]),
 		"the keep line at ghost: holo may go, never the active pet, a favourite or a new part")
 	_check(int(gs.spare_shelves().common.n) == int(with_holo.n), "the shelves count what may go (%d)" % int(with_holo.n))
+	_check(int(gs.spare_shelves().common.working) == int(with_holo.working), "... and how many of them work (%d, the shelf says %d)" % [int(with_holo.working), int(gs.spare_shelves().common.working)])
 	gs.set_rule("keep", "shiny")
 	_check(not gs.may_go_finish("shiny") and gs.may_go_finish("normal") and not gs.spare_pick("common").cards.has("4"), "the keep line at shiny: shinies and holo stay")
 	gs.set_rule("keep", "holo")

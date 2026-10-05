@@ -70,6 +70,24 @@ and the 250-500 ms collection spikes are gone; what's left is one ~120-170 ms fr
 - Sewing a rarer part on moves your pet to its new shelf (`Collection.retier`; the shelf counts
   were already off before this).
 
+## Round 2 (same day)
+
+- `frames` also fails when the UI needed more room than the window in any frame, even one. It
+  found two: the collection tab grew to 620 px for a frame on every rebuild (a new shelf plank
+  went in before the old one left; fixed), and errands with 5M pets resting wrote "5,000,000" in
+  the display font and pushed the window to 930 px (big pile counts are short now: 5M).
+- The night sky (behind the panel and on the spine) painted itself again from scratch on every
+  resize signal, several times a frame; now at most once a frame, and only for a real new size.
+- The open book catches up on new pets at most every 3 s (it rebuilt every second, ~30 ms).
+- The cushion's "best cards" works out each finish once, not once per card.
+- The new homes stall's counts: one pass over the cards, counts only (it built lists of every
+  card for six rarities).
+- Errand upgrades: "a minute 4.2T → 4.2T" shows enough decimals to see the change (4.21T →
+  4.23T, `NumFormat.apart`).
+- Corner panel: "busy managing" hides while your pet holds up a good pull (they overlapped).
+- Tried and dropped: opening the workers' boxes in four smaller batches a second. Every batch
+  tells the views, so it cost more.
+
 ## Flows and tests
 
 - Every flow passes; test_core ALL PASSED (6114 checks: number format, back_one lines, the

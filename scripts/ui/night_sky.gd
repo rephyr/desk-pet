@@ -17,16 +17,25 @@ const BAND_MAX := 6000  # stars drawn into the band at most
 var _img: Image
 var _tex: ImageTexture
 var _drawn := 0  # stars painted into the picture so far
+var _queued := false  # _add_stars waits for the end of the frame
 
 
 func _init() -> void:
 	mouse_filter = MOUSE_FILTER_IGNORE
-	resized.connect(_repaint)
-	GameState.collection.pets_removed.connect(func(_uids): _add_stars())
-	GameState.collection.pets_left.connect(func(_n): _add_stars())
-	GameState.collection.stars_added.connect(func(_n): _add_stars())
-	GameState.dungeon_changed.connect(_add_stars)  # the army's lost herd pets are stars too
+	# at most once a frame: pets leave in bursts, and layouts settling send resized again and again
+	# (_add_stars starts the picture over itself when the size really changed)
+	resized.connect(_queue)
+	GameState.collection.pets_removed.connect(func(_uids): _queue())
+	GameState.collection.pets_left.connect(func(_n): _queue())
+	GameState.collection.stars_added.connect(func(_n): _queue())
+	GameState.dungeon_changed.connect(_queue)  # the army's lost herd pets are stars too
 	GameState.new_game.connect(_repaint)
+
+
+func _queue() -> void:
+	if not _queued:
+		_queued = true
+		_add_stars.call_deferred()
 
 
 ## Paints the whole sky again (a new size, a new game).
@@ -38,6 +47,7 @@ func _repaint() -> void:
 
 ## Paints the stars that aren't in the picture yet.
 func _add_stars() -> void:
+	_queued = false
 	var c := GameState.collection
 	var w := int(size.x)
 	var h := int(size.y)

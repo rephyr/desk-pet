@@ -105,9 +105,11 @@ func rebuild(all := false) -> void:
 			var fresh := ShelfPlank.new(shown[i], i, stall_on)
 			fresh.opened.connect(_plank_tapped)
 			fresh.custom_minimum_size.y = plank.custom_minimum_size.y
-			_planks.add_child(fresh)
-			_planks.move_child(fresh, plank.get_index())
+			var at := plank.get_index()
+			_planks.remove_child(plank)  # out first: never two planks at once (the page would grow a frame)
 			plank.queue_free()
+			_planks.add_child(fresh)
+			_planks.move_child(fresh, at)
 			swapped = true
 		pick(picked)
 		if swapped:
@@ -174,11 +176,16 @@ static func cushion_pets(most := -1) -> Array[Pet]:
 	# the best few, kept as a short list while going through the cards once (there can be lots)
 	var room := most - out.size()
 	var best: Array = []  # [score, pet], best first
+	var plain := {}  # finish -> whether it's plain (asked once per finish: there can be lots of cards)
+	var finish_score := {}
+	for f in catalog.finishes:
+		plain[f.id] = Herd.plain(catalog, str(f.id))
+		finish_score[f.id] = catalog.finish_rank(str(f.id)) * 10
 	for i in range(c.pets.size() - 1, -1, -1):  # newest first: on a tie the newer one wins
 		var pet := c.pets[i]
-		if pet.fav or pet.uid == c.active_uid or (Herd.plain(catalog, pet.finish) and not pet.new_part):
+		if pet.fav or pet.uid == c.active_uid or (plain.get(pet.finish, true) and not pet.new_part):
 			continue
-		var score := catalog.finish_rank(pet.finish) * 10 + catalog.rank(pet.rarity) * 3 + (1 if pet.new_part else 0)
+		var score: int = finish_score.get(pet.finish, 0) + catalog.rank(pet.rarity) * 3 + (1 if pet.new_part else 0)
 		if best.size() >= room and score <= best[-1][0]:
 			continue
 		var at := best.size()

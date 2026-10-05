@@ -349,7 +349,7 @@ func _job_note(job: Dictionary) -> Control:
 		col.add_child(_row("crew of %d" % size, "%.1fx" % (rate * float(job.seconds)) if size > 0 else "stopped", color))
 		col.add_child(_crew_photos(job, GameState.job_faces(job.id, POLAROIDS), color))
 	else:
-		col.add_child(_pile_and_count(GameState.job_faces(job.id, 3), color, ExpandedView._thousands(size), "pets on it"))
+		col.add_child(_pile_and_count(GameState.job_faces(job.id, 3), color, UiTheme.num(size), "pets on it"))
 		var crowd := Crowd.new()
 		crowd.set_pets(GameState.job_faces(job.id, Crowd.MOST), size)
 		col.add_child(crowd)
@@ -425,7 +425,7 @@ func _rebuild_box() -> void:
 			grid.add_child(Tilted.new(photo, PHOTO_TILTS[(i + 3) % PHOTO_TILTS.size()]))
 		_box.add_child(grid)
 	else:
-		_box.add_child(_pile_and_count(_resting.slice(0, 3), UiTheme.PINK, ExpandedView._thousands(_resting_n), "having a nap"))
+		_box.add_child(_pile_and_count(_resting.slice(0, 3), UiTheme.PINK, UiTheme.num(_resting_n), "having a nap"))
 		var share := UiTheme.button("share them out", func():
 			GameState.share_out()
 			PetBubble.say_line(self, "errands_share"))

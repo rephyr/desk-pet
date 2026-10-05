@@ -17,6 +17,9 @@ const TILTS := [-2.5, 1.5, -1.0, 2.2, -1.8, 1.0, 2.6, -2.2, 0.8, -1.4]
 
 var _found_label := UiTheme.label("", UiTheme.MUTED, UiTheme.SMALL + 1)
 var _marks := HBoxContainer.new()
+var _built_ms := -100000  # when the spread was last built (ticks, ms)
+var _waiting := false  # a catch-up is on its timer
+const CHURN_MS := 3000
 var _spread := HBoxContainer.new()
 var _pages: Array[Dictionary] = []  # { title, bookmark, sticker (its data/book.json page, or {}), tiles: [{ parts, finish, name, tier, seen }] }
 var _at := 0  # which spread is open
@@ -56,7 +59,7 @@ func _init() -> void:
 			_spread.draw_line(Vector2(x, y), Vector2(x, y + 6.0), UiTheme.PINK_SEAM, 2.0)
 			y += 11.0)
 	add_child(book)
-	GameState.collection.pets_added.connect(func(_p): _mark_dirty())
+	GameState.collection.pets_added.connect(func(_p): _mark_dirty(true))
 	GameState.sticker_opened.connect(func(_id): _mark_dirty())
 	GameState.collection.seen_changed.connect(_mark_dirty)
 	GameState.unlocked.connect(func(_e): _mark_dirty())  # a new box tier brings its looks into the book
@@ -66,15 +69,24 @@ func _init() -> void:
 	visibility_changed.connect(_rebuild_if_needed)
 
 
-func _mark_dirty() -> void:
+## `churn`: new pets (every second late on, and they rarely change a page): the open book catches
+## up at most every CHURN_MS instead of straight away.
+func _mark_dirty(churn := false) -> void:
 	_dirty = true
-	_rebuild_if_needed()
+	if not churn or Time.get_ticks_msec() - _built_ms >= CHURN_MS:
+		_rebuild_if_needed()
+	elif not _waiting and is_inside_tree():
+		_waiting = true
+		get_tree().create_timer((CHURN_MS - (Time.get_ticks_msec() - _built_ms)) / 1000.0).timeout.connect(func():
+			_waiting = false
+			_rebuild_if_needed())
 
 
 func _rebuild_if_needed() -> void:
 	if not _dirty or not is_visible_in_tree():
 		return
 	_dirty = false
+	_built_ms = Time.get_ticks_msec()
 	_collect()
 	_show_spread()
 

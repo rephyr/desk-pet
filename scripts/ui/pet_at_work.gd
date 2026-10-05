@@ -63,7 +63,7 @@ func _process(delta: float) -> void:
 ## A small note by the pile when your pet isn't opening packs, so it never looks stuck.
 func _refresh_saving() -> void:
 	var text := ""
-	if not GameState.knows_job("boxes"):
+	if not GameState.knows_job("boxes") or _work.said != "":  # a pull held up says its own line up there
 		text = ""
 	elif not GameState.packs_on:
 		text = "busy %s" % AutomationTab.doing(str(GameState.automation.task)) if GameState.automation.task != "" else "packs are off"

@@ -207,7 +207,8 @@ func _rebuild_card() -> void:
 		else:
 			var before := GameState.errands_per_minute()
 			var after := GameState.errands_per_minute_with(_picked, plan[0])
-			_add_row(now, "a minute", UiTheme.num(before) + (" → " + UiTheme.num(after) if after > before + 0.5 else ""), UiTheme.MINT if after > before + 0.5 else UiTheme.TEXT)
+			var shown := NumFormat.apart(before, after)  # 4.21T → 4.23T, not 4.2T → 4.2T
+			_add_row(now, "a minute", shown[0] + (" → " + shown[1] if after > before + 0.5 else ""), UiTheme.MINT if after > before + 0.5 else UiTheme.TEXT)
 	_card.add_child(box)
 
 	var label := "all done! ♡"

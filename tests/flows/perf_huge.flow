@@ -15,6 +15,8 @@ shot collection
 expect fits
 tab errands
 wait 3
+shot errands
+expect fits
 frames 6 errands
 tab adventures
 wait 3

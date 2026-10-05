@@ -358,7 +358,8 @@ func always_card(pet: Pet) -> bool:
 
 
 ## Whether a pet never leaves, whatever its finish: a favourite, your active pet, one with a part new
-## to the book, one with buttons, or one a keep line keeps.
+## to the book, one with buttons, or one a keep line keeps (GameState.spare_shelves writes this out:
+## change both).
 func kept(pet: Pet) -> bool:
 	return pet.fav or pet.new_part or not pet.buttons.is_empty() or pet.uid == active_uid or keep_uids.has(pet.uid)
 

@@ -24,7 +24,8 @@ extends Node
 ##                         | node <name> | no-node <name> (a node with that name is on screen, or not)
 ##   shot <name>           a screenshot of the game, from inside it (works while it's off-screen)
 ##   say "<text>"          your pet says it (for testing the bubble)
-##   frames <seconds> [label]  logs frame times for that long (avg / p95 / worst ms, and the spikes)
+##   frames <seconds> [label]  logs frame times for that long (avg / p95 / worst ms, and the spikes);
+##                         fails if the UI needed more room than the window in any frame
 ##   answer                every adventure waiting at an event takes its first choice
 ##   pets <n> [seed]       n more pets from starter boxes (for testing crowds; a seed makes the rolls the same every run)
 ##   find <id>             a pet brings home this find (data/unlocks.json), opening what it opens
@@ -216,6 +217,8 @@ func _write(line: String) -> void:
 func _frames(seconds: float, label: String) -> String:
 	var whole: Array[float] = []
 	var spikes: Array[String] = []  # frames over 25 ms: when (s into the step) and how long
+	var spills := 0  # frames where what's showing needed more room than the window (even for a moment)
+	var home := get_parent()
 	var start := Time.get_ticks_usec()
 	var last := start
 	var end := last + int(seconds * 1000000.0)
@@ -225,6 +228,11 @@ func _frames(seconds: float, label: String) -> String:
 		whole.append((now - last) / 1000.0)
 		if whole[-1] > 25.0:
 			spikes.append("%.1fs:%dms" % [(now - start) / 1000000.0, roundi(whole[-1])])
+		var shown: Control = home.full_game() if home.full_game().is_visible_in_tree() else home.corner_panel()
+		var need := shown.get_combined_minimum_size()
+		var room := shown.get_viewport_rect().size
+		if need.x > room.x + 0.5 or need.y > room.y + 0.5:
+			spills += 1
 		last = now
 	var stats := func(a: Array[float]) -> String:
 		var s := a.duplicate()
@@ -234,6 +242,8 @@ func _frames(seconds: float, label: String) -> String:
 			sum += v
 		return "avg %.1f p95 %.1f max %.1f" % [sum / maxi(1, s.size()), s[int(s.size() * 0.95)] if s.size() > 0 else 0.0, s[-1] if s.size() > 0 else 0.0]
 	_write("frames %s: %d frames, whole %s, spikes %s" % [label, whole.size(), stats.call(whole), " ".join(spikes)])
+	if spills > 0:
+		return "the UI needed more room than the window in %d frames" % spills
 	return ""
 
 
