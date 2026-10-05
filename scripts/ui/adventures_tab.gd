@@ -45,6 +45,9 @@ var _knacks_key := ""  # which picks (and knacks) the cached trip knacks are for
 var _knacks := {}  # what the picked pets would pack (GameState.trip_knacks), kept for big swarms
 var _estimate := 1.0
 var _tick := 0.0
+var _pets_dirty := false  # pets came or went since the picker was built
+var _pets_wait := 0.0  # seconds until the open picker may catch up on them again
+const PETS_EVERY := 3.0
 var _voice_rng := RandomNumberGenerator.new()
 var gear_view := GearView.new()  # the upgrades page
 var dungeon_view := DungeonView.new()  # the dungeon page
@@ -186,11 +189,15 @@ func _init() -> void:
 		# a trip your pet sent was welcomed back by itself: nothing left to watch
 		if _trail.visible and _trail.run != null and _trail.run.auto and not _trail.run in GameState.runs:
 			_show_map(true))
-	GameState.collection.pets_added.connect(func(_p): _dirty = true)
-	GameState.collection.pets_removed.connect(func(_u): _dirty = true)
+	# pets come and go every second late in the game (workers open boxes, the herd folds them in):
+	# only the open picker shows them, and it catches up every few seconds (see _process)
+	GameState.collection.pets_added.connect(func(_p): _pets_dirty = true)
+	GameState.collection.pets_removed.connect(func(_u): _pets_dirty = true)
 	GameState.collection.active_changed.connect(func(_p): _dirty = true)
 	visibility_changed.connect(func():
 		_rebuild_if_dirty()
+		if _pets_dirty and _picker.is_visible_in_tree():
+			_rebuild_picker()
 		_drop_stale_trail()
 		_watch()
 		if not is_visible_in_tree():
@@ -248,6 +255,8 @@ func show_named_page(page_name: String) -> void:
 func _show_page(page: int) -> void:
 	sewing_page.visible = false
 	_main.visible = page == 0
+	if page == 0 and _pets_dirty and _picker.visible:
+		_rebuild_picker()
 	gear_view.visible = page == 1
 	dungeon_view.visible = page == 2
 	_refresh_bar()
@@ -381,6 +390,8 @@ func _choose_place(location_id: String, as_place := false) -> void:
 func _show_map(on: bool) -> void:
 	_map.visible = true
 	_picker.visible = not on
+	if not on and _pets_dirty:
+		_rebuild_picker()
 	_trail.visible = false
 	if on:
 		_shop_stuck.visible = false
@@ -681,11 +692,15 @@ func _rebuild() -> void:
 		_location_id = GameState.open_locations()[0].id
 		_show_map(true)
 	_map.refresh()
-	_rebuild_picker()
+	if _picker.is_visible_in_tree():
+		_rebuild_picker()
+	else:
+		_pets_dirty = true  # built when it shows (_show_map)
 	_rebuild_runs()
 
 
 func _rebuild_picker() -> void:
+	_pets_dirty = false
 	UiTheme.clear(_grid)
 	var pets := _available()
 	var still := {}  # forget picks of pets that are gone or already sent
@@ -967,6 +982,10 @@ func _process(delta: float) -> void:
 		_refresh_bar()
 		_refresh_edge_card()
 		_drop_stale_trail()
+		_pets_wait -= 0.5
+		if _pets_dirty and _picker.is_visible_in_tree() and _pets_wait <= 0.0:
+			_pets_wait = PETS_EVERY
+			_rebuild_picker()
 		if _shop_stuck.visible and not GameState.workshop_shown():
 			_show_map(true)  # the last drawing is built: the shed is just the shed again
 		# trips the bell rope welcomed back: their postcards, one at a time, when you're not busy on a

@@ -202,7 +202,7 @@ static func fmt(p: Dictionary, v: float) -> String:
 		"num":
 			return UiTheme.num(v)
 		"cards":
-			return "%d cards" % int(v)
+			return "%s cards" % UiTheme.num(int(v))
 		"hours":
 			return "%s h" % (str(int(v)) if is_equal_approx(v, roundf(v)) else "%.1f" % v)
 		"plus":

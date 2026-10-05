@@ -27,6 +27,8 @@ static func situation(news: Dictionary, rumours: Array[String], runs: Array[RunS
 		var sent := int(news.sent)
 		var home := int(news.home)
 		var kind := "back_all" if home >= sent else ("back_none" if home == 0 else "back_some")
+		if kind == "back_all" and sent <= 1:
+			kind = "back_one"  # a lone pet home: no "all 1 home!" (those lines count the party)
 		var then: Array[String] = []
 		if int(news.get("parts", 0)) > 0:
 			then.append("part_found")

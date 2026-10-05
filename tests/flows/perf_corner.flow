@@ -1,0 +1,6 @@
+# hitches on a late save while only the corner panel is open (the desktop pet's usual state)
+from late_playtest
+wait 8
+view corner
+wait 2
+frames 40 corner

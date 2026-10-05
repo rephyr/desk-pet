@@ -168,6 +168,11 @@ func full_game() -> ExpandedView:
 	return _expanded
 
 
+## The small corner panel, for the dev driver.
+func corner_panel() -> CompactView:
+	return _compact
+
+
 ## Debug-build shortcuts for testing, see DevArgs.
 func _apply_dev_args() -> void:
 	if DevArgs.value("play") != "":
@@ -202,7 +207,7 @@ func _apply_dev_args() -> void:
 
 
 func _quit() -> void:
-	GameState.save_game()
+	GameState.save_game(true)
 	get_tree().quit()
 
 

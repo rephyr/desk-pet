@@ -248,7 +248,7 @@ func _general_line() -> void:
 
 func _refresh() -> void:
 	(_coins.find_child("Amount", true, false) as Label).text = UiTheme.num(GameState.coins)
-	(_xp.find_child("Amount", true, false) as Label).text = _thousands(GameState.xp)
+	(_xp.find_child("Amount", true, false) as Label).text = UiTheme.num(GameState.xp)
 	bubble.visible = GameState.collection.active() != null
 	# news dots: boxes waiting in the bag, trips waiting for you
 	spine.set_news("boxes", GameState.box_news())

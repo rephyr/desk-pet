@@ -21,6 +21,7 @@ extends VBoxContainer
 
 const SIDE_WIDTH := 236
 const CARD_WIDTH := 172  # three cards and the side card fit the window
+const ROW_MAX := 3  # more job cards than this go in a grid two wide (_card_row)
 
 var _where := Label.new()
 var _where_pet := PetPortrait.new(1, false)
@@ -375,11 +376,25 @@ func _rebuild() -> void:
 	if not jobs.any(func(j): return j.id == _picked):
 		var task := str(GameState.automation.task)
 		_picked = task if jobs.any(func(j): return j.id == task) else str(jobs[0].id)
+	var row := _card_row(jobs.size())
 	for j in jobs:
 		var card := JobCard.new(j, j.id == _picked, self)
 		_scenes[j.id] = card.scene
-		_cards.add_child(card)
+		row.add_child(card)
 	_rebuild_side(Automation.job(catalog, _picked), pet, who)
+
+
+## Where `n` job cards go: the row itself while they fit beside the side card (three), else a
+## grid two cards wide, so a fourth job never pushes the page past the window.
+func _card_row(n: int) -> Container:
+	if n <= ROW_MAX:
+		return _cards
+	var grid := GridContainer.new()
+	grid.columns = 2
+	grid.add_theme_constant_override("h_separation", 12)
+	grid.add_theme_constant_override("v_separation", 12)
+	_cards.add_child(grid)
+	return grid
 
 
 ## What a job's card says under its picture.
@@ -552,8 +567,9 @@ func _change_worker_party(slot: int, step_place: int, step_n: int) -> void:
 func _rebuild_workers(jobs: Array[Dictionary]) -> void:
 	if not jobs.any(func(j): return j.id == _picked):
 		_picked = str(jobs[0].id)
+	var row := _card_row(jobs.size())
 	for j in jobs:
-		_cards.add_child(WorkerCard.new(j, j.id == _picked, self))
+		row.add_child(WorkerCard.new(j, j.id == _picked, self))
 	_rebuild_worker_side(Automation.job(GameState.catalog, _picked))
 
 

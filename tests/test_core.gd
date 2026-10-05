@@ -22,6 +22,7 @@ func _init() -> void:
 	_test_odds_match_box(catalog, "sunset")
 	_test_odds_match_box(catalog, "midnight")
 	_test_box_tiers(catalog)
+	_test_numbers()
 	var tutorial_roller := PetRoller.new(catalog)
 	for i in 500:
 		var first := tutorial_roller.roll("tutorial")
@@ -195,6 +196,15 @@ func _test_odds_match_box(catalog: Catalog, box_id: String) -> void:
 		var got := float(tier_counts.get(t, 0)) / ROLLS
 		print("  %-10s %8.3f%% %8.3f%%" % [t, expected[t] * 100.0, got * 100.0])
 		_check(absf(got - expected[t]) < _tolerance(expected[t]), "%s rarity %s odds" % [box_id, t])
+
+
+## How numbers read on screen (NumFormat, what UiTheme.num shows).
+func _test_numbers() -> void:
+	var cases := { 9999.0: "9,999", 12345.0: "12.3k", 99940.0: "99.9k", 999400.0: "999k", 999960.0: "1M", 99960.0: "100k",
+		3.1e15: "3.1Qa", 4.2e21: "4.2Sx", -25000.0: "-25k" }
+	for n: float in cases:
+		_check(NumFormat.short(n) == cases[n], "NumFormat.short(%s) is %s (got %s)" % [n, cases[n], NumFormat.short(n)])
+	_check(NumFormat.full(-1234567) == "-1,234,567", "NumFormat.full puts in commas")
 
 
 ## Box tiers (B1): the shop sells a tier once its map page is open, a better tier holds more pets,
@@ -448,7 +458,7 @@ func _test_adventures(catalog: Catalog) -> void:
 ## The pet's voice: every eye gives a personality with something to say in every situation,
 ## every accessory has a tic (even if empty), and lines never show a {placeholder}.
 func _test_voice(catalog: Catalog) -> void:
-	var situations := ["idle", "away", "needs_you", "someone_back", "back_all", "back_some", "back_none", "part_found", "rumour", "spotted", "at_work"]
+	var situations := ["idle", "away", "needs_you", "someone_back", "back_all", "back_one", "back_some", "back_none", "part_found", "rumour", "spotted", "at_work"]
 	var ids: Array = catalog.voice.personalities.map(func(p): return p.id)
 	_check(catalog.voice.default in ids, "the default personality exists")
 	for eyes in catalog.slots.eyes:
@@ -2519,6 +2529,19 @@ func _test_crank_catch_up(catalog: Catalog) -> void:
 		want = fposmod((60.0 if stool == 0 else 3600.0) / cs, 1.0)
 		_check(absf(float(gs.automation.fill) - want) < 0.01, "after a sleep %s (fill %.3f, want %.3f)" % ["a minute counts without the stool" if stool == 0 else "the stool's hour counts", float(gs.automation.fill), want])
 		gs.free()
+	# the running game works the crank and the workers' boxes on frames apart (_process): each keeps
+	# its own clock, so neither loses time to the other
+	gs = _crank_state(0, 3, 0, -60.0)
+	var t0 := Time.get_unix_time_from_system() - 10.0
+	gs._auto_at = t0
+	gs._boxes_at = t0
+	gs._work_automation(t0 + 1.0, "crank")
+	_check(is_equal_approx(gs._auto_at, t0 + 1.0) and is_equal_approx(gs._boxes_at, t0), "the crank's frame leaves the boxes' clock alone")
+	gs._work_automation(t0 + 1.25, "boxes")
+	_check(is_equal_approx(gs._boxes_at, t0 + 1.25) and is_equal_approx(gs._auto_at, t0 + 1.0), "the boxes' frame works their own 1.25 s")
+	gs._work_automation(t0 + 2.0)
+	_check(is_equal_approx(gs._auto_at, t0 + 2.0) and is_equal_approx(gs._boxes_at, t0 + 2.0), "working everything at once moves both clocks")
+	gs.free()
 
 
 ## The adventures job: parties go out with the right pets, never wait, come home quietly and go

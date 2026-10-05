@@ -134,7 +134,7 @@ func _play_many(pets: Array[Pet]) -> void:
 		pad.add_theme_constant_override("margin_" + side, 6)
 	pad.add_child(flow)
 	scroll.add_child(pad)
-	_title.text = "opening %d boxes…" % _count
+	_title.text = "opening %s boxes…" % UiTheme.num(_count)
 	_best.text = ""
 	UiTheme.clear(_counts)
 	UiTheme.clear(_actions)
@@ -155,7 +155,7 @@ func _announce(pets: Array[Pet]) -> void:
 	var catalog := Catalog.shared()
 	var best: Pet = _best_first(pets)[0]
 	var tier_name: String = catalog.tier_at(catalog.rank(best.rarity)).name
-	_title.text = "%d pets!" % pets.size() if pets.size() > 1 else best.display_name(catalog)
+	_title.text = "%s pets!" % UiTheme.num(pets.size()) if pets.size() > 1 else best.display_name(catalog)
 	_best.text = "best: %s (%s)" % [best.display_name(catalog), tier_name]
 	UiTheme.clear(_counts)
 	var counts := {}
@@ -164,9 +164,9 @@ func _announce(pets: Array[Pet]) -> void:
 	for tier in catalog.tiers:
 		if counts.has(tier.id):
 			var color := catalog.tier_color(tier.id)
-			_counts.add_child(UiTheme.tag("%d %s" % [counts[tier.id], tier.name], color, color.lerp(UiTheme.LINE, 0.55)))
+			_counts.add_child(UiTheme.tag("%s %s" % [UiTheme.num(counts[tier.id]), tier.name], color, color.lerp(UiTheme.LINE, 0.55)))
 	UiTheme.clear(_actions)
-	_again = UiTheme.button("open %d more" % _count, func(): again.emit(_count))
+	_again = UiTheme.button("open %s more" % UiTheme.num(_count), func(): again.emit(_count))
 	_actions.add_child(_again)
 	set_can_open(_can)
 	_actions.add_child(UiTheme.button("lovely!", func(): done.emit()))
@@ -183,7 +183,7 @@ func set_can_open(can: int) -> void:
 		return
 	var n := mini(_count, can)
 	_again.disabled = n < 1
-	_again.text = "open %d more" % n if n > 1 else ("open 1 more" if n == 1 else "the pile is empty")
+	_again.text = "open %s more" % UiTheme.num(n) if n > 1 else ("open 1 more" if n == 1 else "the pile is empty")
 	_again.tooltip_text = "buy more at the counter" if n < 1 else ""
 
 

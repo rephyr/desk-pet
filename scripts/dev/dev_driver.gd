@@ -16,7 +16,7 @@ extends Node
 ##                         | wait packing <p> (your pet's background opening is between p and p + 0.1)
 ##                         | wait dig (the desktop pet is digging up a present) | wait worn (it wears one)
 ##   expect <what>         tutorial <step> | tab <id> | text "..." | no-text "..." | pile <box> <n>
-##                         | fits (the full game fits its window); in "...", \n is a line break
+##                         | fits (the full game, or the corner panel, fits its window); in "...", \n is a line break
 ##                         | gifts <n> (presents in the pocket)
 ##                         | ours <place> | not-ours <place>
 ##                         | lights <place> <n> (lights still on behind a next-door place)
@@ -24,6 +24,7 @@ extends Node
 ##                         | node <name> | no-node <name> (a node with that name is on screen, or not)
 ##   shot <name>           a screenshot of the game, from inside it (works while it's off-screen)
 ##   say "<text>"          your pet says it (for testing the bubble)
+##   frames <seconds> [label]  logs frame times for that long (avg / p95 / worst ms, and the spikes)
 ##   answer                every adventure waiting at an event takes its first choice
 ##   pets <n> [seed]       n more pets from starter boxes (for testing crowds; a seed makes the rolls the same every run)
 ##   find <id>             a pet brings home this find (data/unlocks.json), opening what it opens
@@ -210,6 +211,32 @@ func _write(line: String) -> void:
 	_log.flush()
 
 
+## Logs how long frames took over `seconds`: average / 95th percentile / worst, in ms, and when the
+## frames over 25 ms came (on Xvfb a frame includes slow software drawing).
+func _frames(seconds: float, label: String) -> String:
+	var whole: Array[float] = []
+	var spikes: Array[String] = []  # frames over 25 ms: when (s into the step) and how long
+	var start := Time.get_ticks_usec()
+	var last := start
+	var end := last + int(seconds * 1000000.0)
+	while Time.get_ticks_usec() < end:
+		await get_tree().process_frame
+		var now := Time.get_ticks_usec()
+		whole.append((now - last) / 1000.0)
+		if whole[-1] > 25.0:
+			spikes.append("%.1fs:%dms" % [(now - start) / 1000000.0, roundi(whole[-1])])
+		last = now
+	var stats := func(a: Array[float]) -> String:
+		var s := a.duplicate()
+		s.sort()
+		var sum := 0.0
+		for v in s:
+			sum += v
+		return "avg %.1f p95 %.1f max %.1f" % [sum / maxi(1, s.size()), s[int(s.size() * 0.95)] if s.size() > 0 else 0.0, s[-1] if s.size() > 0 else 0.0]
+	_write("frames %s: %d frames, whole %s, spikes %s" % [label, whole.size(), stats.call(whole), " ".join(spikes)])
+	return ""
+
+
 ## A line as words, "quoted bits" kept together (without the quotes).
 static func _words(line: String) -> PackedStringArray:
 	var out := PackedStringArray()
@@ -248,6 +275,8 @@ func _step(w: PackedStringArray) -> String:
 			await _shot(w[1])
 		"say":
 			PetBubble.say(home, w[1])
+		"frames":  # frames <seconds> [label]: logs the frame times (script time and whole frame) for that long
+			return await _frames(float(w[1]), w[2] if w.size() > 2 else "")
 		"answer":
 			# every adventure waiting at an event takes its first choice
 			for run in GameState.runs:
@@ -936,8 +965,11 @@ func _expect(w: PackedStringArray) -> String:
 		"postcards":
 			return "" if GameState.postcards.size() == int(w[2]) else "%d postcards waiting" % GameState.postcards.size()
 		"fits":
-			# nothing on screen needs more room than the window has (it would spill past the edge)
+			# nothing on screen needs more room than the window has (it would spill past the edge);
+			# with the corner panel showing, the panel
 			var game: Control = get_parent().full_game()
+			if not game.is_visible_in_tree():
+				game = get_parent().corner_panel()
 			var room := game.get_viewport_rect().size
 			var need := game.get_combined_minimum_size()
 			if need.x > room.x + 0.5 or need.y > room.y + 0.5:

@@ -107,7 +107,7 @@ expect fits
 shot home_deep                       # the report after a run your pet led
 click name:change_army
 wait 1
-orders 27 30 "plain ones"
+orders 27 90 "plain ones"   # 90: losses are random, a run home early has nothing at floor 22
 wait 1
 expect text "who goes first"
 expect fits

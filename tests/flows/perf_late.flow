@@ -1,0 +1,89 @@
+# frame times on a late save (Emilia's playtest 1 save): every tab, then the corner panel
+from late_playtest
+wait 8
+view full
+wait 2
+frames 8 home
+shot home
+expect fits
+tab machine
+wait 2
+frames 8 machine
+shot machine
+expect fits
+page machine 1
+wait 2
+frames 6 machine-upgrades
+shot machine-upgrades
+expect fits
+tab automation
+wait 2
+frames 8 automation
+shot automation
+expect fits
+tab errands
+wait 2
+frames 8 errands
+shot errands
+expect fits
+tab collection
+wait 2
+frames 8 collection
+shot collection
+expect fits
+click "book"
+wait 2
+frames 6 book
+shot book
+expect fits
+click "toys"
+wait 2
+frames 6 toys
+shot toys
+expect fits
+tab boxes
+wait 2
+frames 8 boxes
+shot boxes
+expect fits
+tab adventures
+wait 2
+frames 8 adventures
+shot adventures
+expect fits
+page adventures 2
+wait 2
+frames 8 dungeon
+shot dungeon
+expect fits
+tab inventory
+wait 2
+frames 8 workbench
+shot workbench
+expect fits
+page inventory 1
+wait 2
+frames 6 workbench-toys
+shot workbench-toys
+expect fits
+page inventory 2
+wait 2
+frames 6 plushie
+shot plushie
+expect fits
+tab errands
+click "upgrades"
+wait 2
+frames 6 errand-upgrades
+shot errand-upgrades
+expect fits
+tab home
+wait 2
+frames 8 home-again
+shot home-again
+expect fits
+view corner
+wait 2
+frames 10 corner
+shot corner
+expect fits

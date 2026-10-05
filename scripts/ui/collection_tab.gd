@@ -32,7 +32,9 @@ var _mode: PanelContainer  # the pets | toys | book switch
 var _toys_button: Button
 var _dirty := true
 var _knacks_seen := ""  # which knack kinds showed when the grid was last drawn (see _knacks_key)
-var _queued := false  # a rebuild is waiting for the end of the frame
+var _queued := false  # a rebuild is waiting for the end of the frame (or for REBUILD_GAP_MS to pass)
+var _built_ms := -100000  # when the bookcase was last built (ticks, ms)
+const REBUILD_GAP_MS := 1000
 var _all := false  # the next rebuild builds the whole bookcase again (see _mark_dirty)
 
 
@@ -125,9 +127,16 @@ func _mark_dirty(rarities: Array = [], all := false) -> void:
 	if _shelf.visible and is_visible_in_tree() and not rarities.is_empty() and not _shelf.rarity in rarities:
 		return
 	_dirty = true
-	if not _queued:
-		_queued = true
+	if _queued:
+		return
+	_queued = true
+	# late in the game pets come and go every second: a rebuild right away, then at most one a
+	# second (a rebuild of a big bookcase is tens of ms)
+	var wait := REBUILD_GAP_MS - (Time.get_ticks_msec() - _built_ms)
+	if all or wait <= 0 or not is_inside_tree():
 		_flush.call_deferred()
+	else:
+		get_tree().create_timer(wait / 1000.0).timeout.connect(_flush)
 
 
 func _flush() -> void:
@@ -246,6 +255,7 @@ func _stall_rarity() -> String:
 
 func _rebuild() -> void:
 	_dirty = false
+	_built_ms = Time.get_ticks_msec()
 	_homes_key = _homes_state()
 	_knacks_seen = _knacks_key()
 	_room.visible = GameState.room_shown()

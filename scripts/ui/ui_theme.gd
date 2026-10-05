@@ -460,26 +460,12 @@ static func named_color(color_name: String, fallback := PINK) -> Color:
 
 ## A whole number in full with thousands commas: 1,234,567.
 static func full_num(n: int) -> String:
-	var s := str(absi(n))
-	var out := ""
-	while s.length() > 3:
-		out = "," + s.right(3) + out
-		s = s.left(s.length() - 3)
-	return ("-" if n < 0 else "") + s + out
+	return NumFormat.full(n)
 
 
+## A number short: 9,999, then 12.3k, 4.5M ... 3.1Qa (see NumFormat.short).
 static func num(n: float) -> String:
-	var a := absf(n)
-	if a < 10000.0:
-		return full_num(roundi(n))
-	var units := ["k", "M", "B", "T"]
-	var v := a
-	for u in units:
-		v /= 1000.0
-		if v < 1000.0:
-			var digits := 1 if v < 100.0 else 0
-			return ("-" if n < 0 else "") + (str(snappedf(v, pow(10, -digits))).trim_suffix(".0")) + u
-	return "%.2e" % n
+	return NumFormat.short(n)
 
 
 static func percent(fraction: float) -> String:

@@ -20,6 +20,9 @@ var _detail := VBoxContainer.new()
 var _picked := ""
 var _signs := HBoxContainer.new()
 var _newest := ""
+var _stale := false  # GameState changed: the tree and the card catch up (at most every STALE_EVERY s)
+var _stale_wait := 0.0
+const STALE_EVERY := 0.5
 
 
 func _init() -> void:
@@ -44,10 +47,8 @@ func _init() -> void:
 	scroll.add_child(_detail)
 	side.add_child(scroll)
 	add_child(side)
-	GameState.changed.connect(func():
-		if is_visible_in_tree():
-			tree.queue_redraw()
-			_build_detail())
+	# GameState.changed fires on every passive coin: catch up in _process, not on each one
+	GameState.changed.connect(func(): _stale = true)
 	visibility_changed.connect(func():
 		if is_visible_in_tree():
 			var newest := Machine.newest(GameState.machine, Catalog.shared())
@@ -66,6 +67,16 @@ func _init() -> void:
 			tree.queue_redraw()
 			_build_signs()
 			_build_detail())
+
+
+## The tree and the card catch up on GameState changes, at most every STALE_EVERY seconds.
+func _process(delta: float) -> void:
+	_stale_wait -= delta
+	if _stale and _stale_wait <= 0.0 and is_visible_in_tree():
+		_stale = false
+		_stale_wait = STALE_EVERY
+		tree.queue_redraw()
+		_build_detail()
 
 
 ## A sign per globe you have (once there are two), top left of the tree: tap one to pan to its part.
@@ -193,7 +204,9 @@ func _build_detail() -> void:
 		text = "not yet"
 	var go := UiTheme.button(text, func():
 		if GameState.buy_machine_upgrade(_picked):
-			MachineTab.cheer(self, _picked))
+			MachineTab.cheer(self, _picked)
+			_stale = true  # the new level and price show straight away, not with the next catch-up
+			_stale_wait = 0.0)
 	go.disabled = why != ""
 	_detail.add_child(go)
 
@@ -229,6 +242,11 @@ class TreeMap extends Control:
 	var _time := 0.0
 	var _alpha := 1.0  # older globes' nodes fade behind the one you're looking at
 	var _tween: Tween
+	var _breath := Control.new()  # the breathing rings round the nodes you can work on now, redrawn every frame
+	var _rings: Array = []  # [centre, radius, colour, alpha] per breathing node, from the last _draw
+	var _drawn_view := Rect2()  # the view the last _draw framed (a pan redraws)
+	var _looks := {}  # node id -> its Machine.look, during one _draw
+	var _drawing := false
 
 	## Frames globe `g`'s part of the tree (its "view"), sliding over when `animate`.
 	func frame(g: String, animate: bool) -> void:
@@ -247,11 +265,26 @@ class TreeMap extends Control:
 	func _init() -> void:
 		mouse_filter = MOUSE_FILTER_STOP
 		clip_contents = true
+		# the tree itself only redraws when something changes (it took ~10 ms late in the game)
+		_breath.mouse_filter = MOUSE_FILTER_IGNORE
+		_breath.set_anchors_preset(PRESET_FULL_RECT)
+		_breath.draw.connect(_draw_breath)
+		add_child(_breath)
+		resized.connect(queue_redraw)
 
 	func _process(delta: float) -> void:
 		if is_visible_in_tree():
 			_time += delta
-			queue_redraw()
+			if _view != _drawn_view:
+				queue_redraw()
+			if not _rings.is_empty():
+				_breath.queue_redraw()
+
+	func _draw_breath() -> void:
+		var breathe := 0.5 + 0.5 * sin(_time * 3.0)
+		for ring in _rings:
+			var color: Color = ring[2]
+			_breath.draw_arc(ring[0], ring[1] + 4.0 + breathe * 4.0, 0, TAU, 40, Color(color, (0.5 - breathe * 0.35) * float(ring[3])), 2.0, true)
 
 	func _scale() -> float:
 		return minf((size.x - 60.0) / _view.size.x, (size.y - 50.0) / _view.size.y)
@@ -265,7 +298,11 @@ class TreeMap extends Control:
 		return (26.0 if n.branch in MachineTreeView.REPAIRS else 21.0) * clampf(_scale(), 0.75, 1.2)
 
 	func _shown(n: Dictionary) -> bool:
-		return not Machine.look(GameState.machine, Catalog.shared(), n.id) in ["away", "hidden"]
+		if not _drawing:  # clicks see the machine as it is now
+			return not Machine.look(GameState.machine, Catalog.shared(), n.id) in ["away", "hidden"]
+		if not _looks.has(n.id):
+			_looks[n.id] = Machine.look(GameState.machine, Catalog.shared(), n.id)
+		return not _looks[n.id] in ["away", "hidden"]
 
 	## A colour faded like the node being drawn.
 	func _k(c: Color) -> Color:
@@ -286,6 +323,10 @@ class TreeMap extends Control:
 			mouse_default_cursor_shape = CURSOR_POINTING_HAND if over else CURSOR_ARROW
 
 	func _draw() -> void:
+		_drawn_view = _view
+		_rings.clear()
+		_looks.clear()  # worked out once per draw (_draw_name asks about every node on the row)
+		_drawing = true
 		draw_style_box(UiTheme.box(UiTheme.PAPER, UiTheme.LINE, 14, 2, 0), Rect2(Vector2.ZERO, size))
 		var catalog := Catalog.shared()
 		var state: Dictionary = GameState.machine
@@ -318,8 +359,7 @@ class TreeMap extends Control:
 					draw_circle(c, r, _k(UiTheme.PAGE.lerp(color, 0.3)))
 					draw_arc(c, r, 0, TAU, 40, _k(color), 3.0, true)
 				"next":
-					var breathe := 0.5 + 0.5 * sin(_time * 3.0)
-					draw_arc(c, r + 4.0 + breathe * 4.0, 0, TAU, 40, _k(Color(color, 0.5 - breathe * 0.35)), 2.0, true)
+					_rings.append([c, r, color, _alpha])
 					draw_circle(c, r, _k(UiTheme.RAISED))
 					_dashed_ring(c, r, color)
 				_:
@@ -332,10 +372,12 @@ class TreeMap extends Control:
 			var level := Machine.owned(state, n.id)
 			var max_level := int(n.get("max", 1))
 			if max_level > 1:
+				# the body font: the display font's slash leans back ("3\3")
 				var pill := "%d/%d" % [level, max_level]
-				var pr := Rect2(c + Vector2(-16, r - 8), Vector2(32, 15))
+				var pw := maxf(32.0, UiTheme.BODY_FONT.get_string_size(pill, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 10.0)
+				var pr := Rect2(c + Vector2(-pw / 2.0, r - 8), Vector2(pw, 15))
 				draw_style_box(UiTheme.box(_k(UiTheme.GOLD), _k(UiTheme.GOLD), 7, 0, 0), pr)
-				draw_string(UiTheme.DISPLAY_FONT, pr.position + Vector2(0, 12), pill, HORIZONTAL_ALIGNMENT_CENTER, pr.size.x, 11, _k(UiTheme.DEEP))
+				draw_string(UiTheme.BODY_FONT, pr.position + Vector2(0, 11.5), pill, HORIZONTAL_ALIGNMENT_CENTER, pr.size.x, 11, _k(UiTheme.DEEP))
 			# waiting for a bit you don't have
 			if look == "next" and not Machine.maxed(state, catalog, n.id):
 				var need := Machine.bits_cost(catalog, n.id)
@@ -354,6 +396,7 @@ class TreeMap extends Control:
 			else:
 				_draw_name(font, n, c, label_y, _k(name_color))
 		_alpha = 1.0
+		_drawing = false
 
 	## A first-globe node's name under it, wrapped to the room between it and its neighbours on the
 	## same row (and the panel's edges) so names never run into each other; a smaller hand if a word

@@ -30,6 +30,8 @@ var _picked := ""  # uid of a resting pet waiting to be put on a job (a stand-in
 var _dirty := true
 var _stale := false  # pets came or went: built again at most every STALE_EVERY seconds
 var _stale_at := 0.0
+var _crews_stale := false  # crews changed by themselves: built again with the next catch-up
+var _built_ms := -100000  # when the board was last built (ticks, ms)
 const STALE_EVERY := 3.0
 var _resting: Array = []  # uids of the resting pets shown (cards, then stand-ins), worked out once per rebuild
 var _resting_n := 0  # everyone resting, cards and herd
@@ -124,14 +126,20 @@ func _init() -> void:
 	shoebox.add_child(_box)
 	_jobs_page.add_child(shoebox)
 
-	GameState.jobs_changed.connect(func(): _dirty = true)
+	# crews change by themselves every second late on (new pets join): then the board is built
+	# again right away only when it's been a while, else with the next catch-up
+	GameState.jobs_changed.connect(func():
+		if not GameState.crews_by_themselves or Time.get_ticks_msec() - _built_ms >= int(STALE_EVERY * 1000.0):
+			_dirty = true
+		else:
+			_crews_stale = true)
 	GameState.unlocked.connect(func(e: Dictionary):
 		_dirty = true  # a new job may have opened: show it
 		if e.opens.any(func(o): return str(o).begins_with("job:")):
 			show_page(0))
 	GameState.adventures_changed.connect(func():
 		if GameState.away().size() != _away_count:
-			_dirty = true)
+			_stale = true)  # pets off on trips aren't resting: the box catches up
 	# pets coming and going (boxes opened, sent off: every second late on) only move the counts
 	# and faces: the board catches up every few seconds instead of building itself every time
 	GameState.collection.pets_added.connect(func(_p): _stale = true)
@@ -219,8 +227,10 @@ func _process(delta: float) -> void:
 	if not _jobs_page.visible:
 		return
 	_stale_at -= delta
-	if _dirty or (_stale and _stale_at <= 0.0):
+	if _dirty or (_crews_stale and _stale_at <= 0.0):
 		_rebuild()
+	elif _stale and _stale_at <= 0.0:
+		_refresh_resting()
 	for job_id in _meters:
 		_meters[job_id].fill = GameState.job_fill_now(job_id)
 	_tick -= delta
@@ -235,6 +245,8 @@ func _process(delta: float) -> void:
 
 func _rebuild() -> void:
 	_dirty = false
+	_crews_stale = false
+	_built_ms = Time.get_ticks_msec()
 	_stale = false
 	_stale_at = STALE_EVERY
 	_meters.clear()
@@ -257,6 +269,23 @@ func _rebuild() -> void:
 		var tilted := Tilted.new(notes[i], TILTS[i % TILTS.size()])
 		tilted.size_flags_horizontal = SIZE_EXPAND_FILL  # the notes share the board's width
 		_notes.add_child(tilted)
+	_rebuild_box()
+
+
+## Pets came or went (late in the game, every second): only the resting box is built again, unless
+## what the notes show about resting pets changed too (none at all, the move steps, the picked one).
+func _refresh_resting() -> void:
+	var n := GameState.resting_count()
+	var faces := GameState.resting_faces(RESTING_POLAROIDS + 1)
+	if (n == 0) != (_resting_n == 0) or (GameState.spare_count() > STEPS_AFTER) != _steps_row.visible \
+			or (_picked != "" and not _picked in faces):
+		_rebuild()
+		return
+	_stale = false
+	_stale_at = STALE_EVERY
+	_resting_n = n
+	_resting = faces
+	_away_count = GameState.away().size()
 	_rebuild_box()
 
 
@@ -459,6 +488,7 @@ func _put_on(job: Dictionary, count: int, uids: Array = []) -> void:
 
 
 func _take_off(job: Dictionary, count: int, uids: Array = []) -> void:
+	_dirty = true
 	var gone := GameState.take_off_job(job.id, count, uids)
 	if gone == 1:
 		PetBubble.say_line(self, "errands_off", { "name": _name(GameState.last_moved) })

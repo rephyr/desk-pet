@@ -148,8 +148,9 @@ func _show_spread() -> void:
 		sb.corner_radius_bottom_left = 0
 		sb.corner_radius_bottom_right = 0
 		sb.border_width_bottom = 0
-		sb.content_margin_left = 10
-		sb.content_margin_right = 10
+		# beside the wishing jar the book is narrower: slimmer marks, so six with a star each still fit
+		sb.content_margin_left = 7 if narrow else 10
+		sb.content_margin_right = 7 if narrow else 10
 		sb.content_margin_bottom = 10 if on else 6
 		for state in ["normal", "hover", "pressed", "hover_pressed"]:
 			mark.add_theme_stylebox_override(state, sb)

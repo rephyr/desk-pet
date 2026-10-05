@@ -194,14 +194,14 @@ static func face_for(rarity: String) -> Pet:
 	if rarity == "":
 		return null
 	var c := GameState.collection
-	var cards := c.cards_of(rarity)
-	for i in range(cards.size() - 1, -1, -1):
-		if Herd.plain(GameState.catalog, cards[i].finish):
-			return cards[i]
+	var plain := c.newest_plain(rarity)
+	if plain:
+		return plain
 	for f in GameState.catalog.finishes:
 		var k := Herd.key(rarity, str(f.id))
 		if c.herd_count(k) > 0:
 			return c.get_pet(c.stand_in_uids(k, 1)[0])
+	var cards := c.cards_of(rarity)
 	return cards[-1] if not cards.is_empty() else null
 
 

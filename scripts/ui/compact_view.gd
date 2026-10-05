@@ -138,7 +138,7 @@ func set_pet_out(out: bool) -> void:
 
 func _refresh() -> void:
 	_feed.text = HomeTab.feed_text()
-	(_coins.find_child("Amount", true, false) as Label).text = ExpandedView._thousands(GameState.coins)
+	(_coins.find_child("Amount", true, false) as Label).text = UiTheme.num(GameState.coins)
 	# jobs your pet hasn't learned yet stay out of sight
 	_packs_toggle.visible = GameState.knows_job("boxes")
 	_packs_toggle.set_pressed_no_signal(GameState.packs_on)

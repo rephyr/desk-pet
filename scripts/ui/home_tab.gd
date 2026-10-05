@@ -256,7 +256,7 @@ func _draw_pile() -> void:
 		draw_set_transform(p, [-0.14, 0.09, -0.05, 0.12, -0.1, 0.03, -0.07, 0.1, 0.0][i])
 		draw_texture_rect(PackArt.texture(box.get("art", {}), PACK_W), Rect2(-pack / 2.0, pack), false)
 	draw_set_transform(Vector2.ZERO)
-	var badge := "×%d" % total
+	var badge := "×%s" % UiTheme.num(total)
 	var w := UiTheme.DISPLAY_FONT.get_string_size(badge, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 18.0
 	var r := Rect2(at + Vector2(36, -pack.y - (ceili(shown / 3.0) - 1) * 24.0 - 12.0), Vector2(w, 22))
 	draw_style_box(UiTheme.box(UiTheme.RAISED, UiTheme.PINK_SEAM, 11, 2, 0), r)
@@ -391,7 +391,7 @@ func _open_gift() -> void:
 	for i in int(got.boxes):
 		_flying.append({ "from": _gift_at + Vector2(i * 14.0, -20.0), "age": -0.12 * i, "box": str(got.box) })
 	var n := int(got.boxes)
-	_floaters.append({ "text": "+%d box%s" % [n, "es" if n > 1 else ""], "at": _pile_spot() + Vector2(0, -96), "age": 0.0, "color": UiTheme.PINK })
+	_floaters.append({ "text": "+%s box%s" % [UiTheme.num(n), "es" if n > 1 else ""], "at": _pile_spot() + Vector2(0, -96), "age": 0.0, "color": UiTheme.PINK })
 	if not (got.toy as Dictionary).is_empty():
 		MachineTab.show_toy(self, _prize, got.toy)
 	_dirty = true
@@ -527,9 +527,9 @@ func _found(found: Dictionary) -> void:
 	var at := _dig.dive_point() + Vector2(0, -70)
 	var lines: Array[Array] = []
 	if found.has("coins"):
-		lines.append(["+%d coins" % found.coins, UiTheme.CYAN])
+		lines.append(["+%s coins" % UiTheme.num(found.coins), UiTheme.CYAN])
 	if found.has("xp"):
-		lines.append(["+%d xp" % found.xp, UiTheme.GOLD])
+		lines.append(["+%s xp" % UiTheme.num(found.xp), UiTheme.GOLD])
 	if found.has("part"):
 		lines.append(["a part!", UiTheme.LILAC])
 	for i in lines.size():
@@ -777,15 +777,15 @@ func _refresh() -> void:
 
 	var boxes := GameState.boxes_on_pile()
 	if GameState.can_auto_open() and boxes > 0:
-		_set_note("boxes", "%s is opening the pile" % _name.text, "%d left" % boxes, true)
+		_set_note("boxes", "%s is opening the pile" % _name.text, "%s left" % UiTheme.num(boxes), true)
 	else:
-		_set_note("boxes", "%d boxes on your pile" % boxes if boxes > 0 else "your pile is empty", "", boxes > 0)
+		_set_note("boxes", "%s boxes on your pile" % UiTheme.num(boxes) if boxes > 0 else "your pile is empty", "", boxes > 0)
 	_show_note("boxes", _tab_shown("boxes"))
 
 	var parts := 0
 	for key in GameState.parts:
 		parts += int(GameState.parts[key])
-	_set_note("parts", "%d parts to sew on" % parts if parts > 0 else "no parts yet", "", parts > 0)
+	_set_note("parts", "%s parts to sew on" % UiTheme.num(parts) if parts > 0 else "no parts yet", "", parts > 0)
 	_show_note("parts", _tab_shown("inventory"))
 
 	var ready := GameState.spotted.size() + GameState.rumours.size()

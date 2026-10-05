@@ -227,7 +227,7 @@ func _buy(box_id: String) -> void:
 	var n: int = _amount[box_id]
 	if GameState.buy_boxes(box_id, n):
 		var box_name := str(Catalog.shared().box(box_id).name)
-		PetBubble.say(self, "%d more %ses on the pile!" % [n, box_name] if n > 1 else "a %s for the pile!" % box_name)
+		PetBubble.say(self, "%s more %ses on the pile!" % [UiTheme.num(n), box_name] if n > 1 else "a %s for the pile!" % box_name)
 
 
 static func _page_name(page_id: String) -> String:

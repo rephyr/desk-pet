@@ -249,9 +249,9 @@ func _grab(p: Dictionary) -> void:
 	var at := _pickup_at(p)
 	var text := ""
 	if got.has("coins"):
-		text = "+%d coins" % got.coins
+		text = "+%s coins" % UiTheme.num(got.coins)
 	elif got.has("xp"):
-		text = "+%d xp" % got.xp
+		text = "+%s xp" % UiTheme.num(got.xp)
 		_xp_grabbed += int(got.xp)
 	elif got.has("heal"):
 		text = "feels better!" if int(got.heal) > 0 else "a nice leaf!"
@@ -354,12 +354,12 @@ func _draw() -> void:
 		draw_arc(Vector2(x, 52), 5.0, 0.0, TAU, 16, UiTheme.PINK if done else UiTheme.PINK_SEAM, 2.0, true)
 		x += 15.0
 	x += 8.0
-	var bag := "%d in the bag" % Rewards.total(run.loot, "coins")
+	var bag := "%s in the bag" % UiTheme.num(Rewards.total(run.loot, "coins"))
 	draw_texture_rect(_coin_icon, Rect2(x, 45, 14, 14), false)
 	draw_string(_note_font, Vector2(x + 18, 57), bag, HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UiTheme.CYAN)
 	x += 30.0 + _note_font.get_string_size(bag, HORIZONTAL_ALIGNMENT_LEFT, -1, 13).x
 	draw_texture_rect(_xp_icon, Rect2(x, 45, 14, 14), false)
-	draw_string(_note_font, Vector2(x + 18, 57), "%d xp" % (run.xp + _xp_grabbed), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UiTheme.GOLD)
+	draw_string(_note_font, Vector2(x + 18, 57), "%s xp" % UiTheme.num(run.xp + _xp_grabbed), HORIZONTAL_ALIGNMENT_LEFT, -1, 13, UiTheme.GOLD)
 	if run.status == RunState.Status.WAITING:
 		draw_string(_title_font, Vector2(_pet_x() + 22.0, ground - 90.0), "!", HORIZONTAL_ALIGNMENT_LEFT, -1, 30, UiTheme.PINK)
 	if _streak >= 2:

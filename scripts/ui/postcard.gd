@@ -120,10 +120,10 @@ func show_trip(trip: Dictionary) -> void:
 		if key.begins_with("box:"):
 			var n := int(loot[key])
 			var box_name := str(Catalog.shared().box(key.substr(4)).get("name", "box"))
-			tags.add_child(UiTheme.tag("a %s" % box_name if n == 1 else "%d %ses" % [n, box_name], UiTheme.LILAC))
+			tags.add_child(UiTheme.tag("a %s" % box_name if n == 1 else "%s %ses" % [UiTheme.num(n), box_name], UiTheme.LILAC))
 	for key: String in loot:
 		if key.begins_with("bit:"):
-			tags.add_child(UiTheme.chip("bit_" + key.substr(4), "%d %s" % [int(loot[key]), MachineTab.bit_name(key.substr(4), int(loot[key]))], UiTheme.TEXT))
+			tags.add_child(UiTheme.chip("bit_" + key.substr(4), "%s %s" % [UiTheme.num(int(loot[key])), MachineTab.bit_name(key.substr(4), int(loot[key]))], UiTheme.TEXT))
 	for find_name in trip.finds:
 		tags.add_child(UiTheme.tag(find_name, UiTheme.GOLD))
 	var heard := Rewards.total(loot, "rumour")

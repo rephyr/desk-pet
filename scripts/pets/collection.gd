@@ -53,6 +53,7 @@ var _herd_total := 0
 ## The plain-finish cards, in pull order: all refold() ever needs to look at, so a pile of holo
 ## cards (always cards) costs it nothing.
 var _plain_cards: Array[Pet] = []
+var _by_rarity := {}  # rarity -> its cards in pull order (cards_of), cleared whenever the cards change
 var _plain_finish := {}  # finish id -> plain (Herd.plain, worked out once per finish)
 
 const LEAVE_FACES := 16  # stand-in looks worked out for the stars of a count going (then cycled)
@@ -117,6 +118,7 @@ func add(new_pets: Array[Pet], sorter := Callable()) -> Array[Pet]:
 				homes_n += 1
 			continue
 		pets.append(pet)
+		_by_rarity.clear()
 		_by_uid[pet.uid] = pet
 		if _is_plain(pet.finish):
 			_plain_cards.append(pet)
@@ -168,6 +170,7 @@ func remove(uids: Array[String]) -> void:
 			if pet == null:
 				continue
 			pets.erase(pet)
+			_by_rarity.clear()
 			_plain_cards.erase(pet)
 			_by_uid.erase(uid)
 			_tally(pet.rarity, pet.finish, -1)
@@ -217,6 +220,7 @@ func leave(counts: Dictionary, uids: Array, star := true) -> int:
 		if drop.size() <= 64:
 			for uid in drop:
 				pets.erase(drop[uid])
+				_by_rarity.clear()
 				_plain_cards.erase(drop[uid])
 		else:
 			var cards: Array[Pet] = []
@@ -224,6 +228,7 @@ func leave(counts: Dictionary, uids: Array, star := true) -> int:
 				if not drop.has(pet.uid):
 					cards.append(pet)
 			pets = cards
+			_by_rarity.clear()
 			var plain: Array[Pet] = []
 			for pet in _plain_cards:
 				if not drop.has(pet.uid):
@@ -398,12 +403,14 @@ func refold() -> void:
 	if gone.size() <= 64:
 		for uid in uids:
 			pets.erase(gone[uid])  # a few: erase is a native loop, quicker than a rebuild
+			_by_rarity.clear()
 	else:
 		var cards: Array[Pet] = []
 		for pet in pets:
 			if not gone.has(pet.uid):
 				cards.append(pet)
 		pets = cards
+		_by_rarity.clear()
 	herd_ever = true
 	pets_folded.emit(uids, keys)
 	herd_changed.emit(keys)
@@ -437,12 +444,23 @@ func herd_count(key: String) -> int:
 	return int(herd.get(key, 0))
 
 
+## The newest plain card of a rarity (null if none): from the plain cards only, not every card.
+func newest_plain(rarity: String) -> Pet:
+	for i in range(_plain_cards.size() - 1, -1, -1):
+		if _plain_cards[i].rarity == rarity:
+			return _plain_cards[i]
+	return null
+
+
 ## The cards of one rarity, in pull order.
 func cards_of(rarity: String) -> Array[Pet]:
+	if _by_rarity.is_empty():  # one pass for every rarity, kept until the cards change
+		for pet in pets:
+			if not _by_rarity.has(pet.rarity):
+				_by_rarity[pet.rarity] = [] as Array[Pet]
+			(_by_rarity[pet.rarity] as Array[Pet]).append(pet)
 	var out: Array[Pet] = []
-	for pet in pets:
-		if pet.rarity == rarity:
-			out.append(pet)
+	out.assign(_by_rarity.get(rarity, []))
 	return out
 
 
@@ -461,10 +479,14 @@ func stand_in_uids(key: String, n: int, skip := {}, offset := 0) -> Array[String
 	return out
 
 
-func to_dict() -> Dictionary:
+## `copy`: nothing in it is shared with the live collection (a save written on another thread).
+func to_dict(copy := false) -> Dictionary:
 	var list := []
 	for pet in pets:
-		list.append(pet.to_dict())
+		list.append(pet.to_dict(copy))
+	if copy:
+		return { "pets": list, "herd": herd.duplicate(), "active": active_uid, "next_id": _next_id, "seen": _seen.duplicate(),
+			"fallen": fallen.duplicate(), "fallen_n": fallen_n, "stand_next": stand_next.duplicate(), "herd_ever": herd_ever }
 	return { "pets": list, "herd": herd, "active": active_uid, "next_id": _next_id, "seen": _seen, "fallen": fallen,
 		"fallen_n": fallen_n, "stand_next": stand_next, "herd_ever": herd_ever }
 
@@ -475,6 +497,7 @@ func to_dict() -> Dictionary:
 ## everything that keeps pets busy has loaded).
 func load_from(d: Dictionary) -> void:
 	pets.clear()
+	_by_rarity.clear()
 	_plain_cards.clear()
 	_by_uid.clear()
 	_seen.clear()
@@ -538,6 +561,13 @@ func _see(key: String) -> void:
 	_seen[key] = _seen.get(key, 0) + 1
 	if key.begins_with("finish:"):
 		_finishes_seen[key.get_slice(":", 2)] = true
+
+
+## A card's rarity changed (a rarer part sewn on): its counts move to its new shelf.
+func retier(pet: Pet, old_rarity: String) -> void:
+	_tally(old_rarity, pet.finish, -1)
+	_tally(pet.rarity, pet.finish, 1)
+	_by_rarity.clear()
 
 
 func _tally(rarity: String, finish: String, n: int) -> void:

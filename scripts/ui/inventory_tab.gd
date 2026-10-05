@@ -218,7 +218,7 @@ func _part_tile(key: String, count: int, i: int) -> Control:
 	var picked := key == _picked
 	panel.draw.connect(func():
 		if count > 1:
-			var badge := "×%d" % count
+			var badge := "×%s" % UiTheme.num(count)
 			var w := UiTheme.BODY_FONT.get_string_size(badge, HORIZONTAL_ALIGNMENT_LEFT, -1, UiTheme.SMALL).x + 12.0
 			var r := Rect2(panel.size.x - w + 6.0, -7.0, w, 18.0)
 			panel.draw_style_box(UiTheme.box(UiTheme.DEEP, UiTheme.LINE, 9, 2, 0), r)

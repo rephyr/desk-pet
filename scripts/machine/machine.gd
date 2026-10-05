@@ -263,23 +263,46 @@ static func counts(catalog: Catalog, n: Dictionary, key: String, g: String) -> b
 ## e.g. coins_x.
 static func mult(state: Dictionary, catalog: Catalog, key: String, g := "") -> float:
 	g = _g(state, catalog, g)
+	var memo := _memo_key(state, catalog, "x" + key, g)
+	if _memo.has(memo):
+		return _memo[memo]
 	var m := 1.0
 	for n in catalog.machine_tree.nodes:
 		var level := owned(state, n.id)
 		if level > 0 and n.each.has(key) and counts(catalog, n, key, g):
 			m *= pow(float(n.each[key]), level)
+	_remember(memo, m)
 	return m
 
 
 ## Everything bought added up for one effect on a globe (0 when nothing has it), e.g. chutes, shiny.
 static func add(state: Dictionary, catalog: Catalog, key: String, g := "") -> float:
 	g = _g(state, catalog, g)
+	var memo := _memo_key(state, catalog, "+" + key, g)
+	if _memo.has(memo):
+		return _memo[memo]
 	var total := 0.0
 	for n in catalog.machine_tree.nodes:
 		var level := owned(state, n.id)
 		if level > 0 and n.each.has(key) and counts(catalog, n, key, g):
 			total += float(n.each[key]) * level
+	_remember(memo, total)
 	return total
+
+
+## mult() and add() walk the whole tree and run every frame and every capsule late in the game, so
+## their answers are kept per upgrades bought (they read only those and the globe, already resolved).
+static var _memo := {}
+
+
+static func _memo_key(state: Dictionary, catalog: Catalog, key: String, g: String) -> String:
+	return "%d|%d|%s|%s" % [state.get("bought", {}).hash(), catalog.get_instance_id(), key, g]
+
+
+static func _remember(memo: String, value: float) -> void:
+	if _memo.size() > 512:
+		_memo.clear()
+	_memo[memo] = value
 
 
 ## Whether any node of a globe has this effect (fixed or not).

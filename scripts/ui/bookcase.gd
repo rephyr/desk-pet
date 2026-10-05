@@ -87,14 +87,31 @@ func rebuild(all := false) -> void:
 		_cushion_key = cushion_key
 		_build_cushion(on_top)
 	var looks: Array[String] = []
+	var shown: Array[String] = []
 	for tier in catalog.tiers:
 		if c.count_of(tier.id) > 0:  # hidden until found: no empty mythic shelf
 			looks.append(ShelfPlank.look_of(str(tier.id), stall_on))
+			shown.append(str(tier.id))
 	var planks := _planks.get_children().filter(func(n): return n is ShelfPlank and not n.is_queued_for_deletion())
-	if not all and planks.map(func(p: ShelfPlank): return p.look) == looks:
-		for plank: ShelfPlank in planks:
-			plank.refresh_numbers()
+	if not all and planks.map(func(p: ShelfPlank): return p.rarity) == shown:
+		# the same shelves: only a plank whose look changed is built again (new pets on it), the
+		# rest just move their numbers
+		var swapped := false
+		for i in planks.size():
+			var plank: ShelfPlank = planks[i]
+			if plank.look == looks[i]:
+				plank.refresh_numbers()
+				continue
+			var fresh := ShelfPlank.new(shown[i], i, stall_on)
+			fresh.opened.connect(_plank_tapped)
+			fresh.custom_minimum_size.y = plank.custom_minimum_size.y
+			_planks.add_child(fresh)
+			_planks.move_child(fresh, plank.get_index())
+			plank.queue_free()
+			swapped = true
 		pick(picked)
+		if swapped:
+			_fit_planks.call_deferred()
 		return
 	UiTheme.clear(_planks)
 	var i := 0

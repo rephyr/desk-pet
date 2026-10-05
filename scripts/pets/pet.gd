@@ -28,14 +28,15 @@ func display_name(catalog: Catalog) -> String:
 	return " ".join(words)
 
 
-func to_dict() -> Dictionary:
+## `copy`: its parts, traits and stats are copies (for a save written on another thread).
+func to_dict(copy := false) -> Dictionary:
 	var d := {
 		"uid": uid,
-		"parts": parts,
-		"sewn": sewn,
+		"parts": parts.duplicate() if copy else parts,
+		"sewn": sewn.duplicate() if copy else sewn,
 		"finish": finish,
-		"traits": traits,
-		"stats": stats,
+		"traits": traits.duplicate() if copy else traits,
+		"stats": stats.duplicate() if copy else stats,
 		"rarity": rarity,
 		"box": box,
 		"pulled_at": pulled_at,

@@ -28,6 +28,10 @@
 					"everyone came home! {home} of {sent}! yay!",
 					"all {sent} back safe and sound!"
 				],
+				"back_one": [
+					"home from {place}! safe and sound! yay!",
+					"back from {place}! that was fun!"
+				],
 				"back_some": [
 					"only {home} came back! they must have found somewhere nicer!",
 					"{lost} of them stayed at {place}! it must be lovely there!",
@@ -121,6 +125,10 @@
 				"back_all": [
 					"all {sent} home! perfect day!",
 					"everybody's back! group hug!"
+				],
+				"back_one": [
+					"home from {place}! perfect day!",
+					"back from {place}, all smiles!"
 				],
 				"back_some": [
 					"{home} came back, and {lost} made new friends!",
@@ -216,6 +224,10 @@
 					"{home} of {sent}! flawless! just like me!",
 					"all home! my coaching works!"
 				],
+				"back_one": [
+					"back from {place}! flawless, like me!",
+					"{place}: done. my coaching works!"
+				],
 				"back_some": [
 					"{lost} stayed to guard {place}. very brave of them!",
 					"only {home} back? the rest are still winning, probably!",
@@ -309,6 +321,10 @@
 				"back_all": [
 					"{home}… of {sent}… that's all of them… i think…",
 					"everyone… yay… *yawn*"
+				],
+				"back_one": [
+					"oh… back from {place}… yay…",
+					"home… from {place}… *yawn*"
 				],
 				"back_some": [
 					"{home} came back… the others must be napping there…",
@@ -404,6 +420,10 @@
 					"all {sent}! i counted twice! phew!",
 					"everybody's home! i can breathe again!"
 				],
+				"back_one": [
+					"back from {place}! safe! phew!",
+					"home from {place}! i can breathe again!"
+				],
 				"back_some": [
 					"only {home}? the others just got a bit lost! they'll find the way!",
 					"{lost} are still out? they're fine! they're totally fine!",
@@ -497,6 +517,10 @@
 				"back_all": [
 					"{home} of {sent}. a nice round number.",
 					"all back. i counted with my eye."
+				],
+				"back_one": [
+					"{place} gave one back. how polite.",
+					"back from {place}. i counted to one."
 				],
 				"back_some": [
 					"{home} came back. {lost} stayed to look at things.",
