@@ -158,7 +158,7 @@ static func pay(job: Dictionary, fills: int, crew: int, rng: RandomNumberGenerat
 				total += got
 		else:
 			total = fills * each * (1.0 + big * (big_x - 1.0)) * (1.0 + shiny * (shiny_pay - 1.0))
-		loot["coins"] = maxi(1, roundi(total))
+		loot["coins"] = Rewards.coins(total)  # (held under int's top: a long time away can pay past it)
 	if p.has("coins"):
 		var lo := int(p.coins[0])
 		var hi := int(p.coins[1])

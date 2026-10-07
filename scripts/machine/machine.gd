@@ -493,7 +493,7 @@ static func loot(prize: Dictionary, state: Dictionary, catalog: Catalog, rng: Ra
 	match str(prize.kind):
 		"coins", "golden":
 			var n := rng.randi_range(int(prize.coins[0]), int(prize.coins[1]))
-			return { "coins": maxi(1, roundi(n * (coin_value(state, catalog, g) if value < 0.0 else value) * pay)) }
+			return { "coins": Rewards.coins(n * (coin_value(state, catalog, g) if value < 0.0 else value) * pay) }
 		"xp":
 			return { "xp": int(prize.get("amount", 1)) }
 		"part":

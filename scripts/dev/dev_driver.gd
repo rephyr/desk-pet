@@ -107,6 +107,7 @@ extends Node
 ##   fill-up               the army card's "fill up" (the shelves fill the entrance, plainest first)
 ##   down                  the army goes down the well (fails if it can't)
 ##   down-at <n>           the army's run has n floors behind it (halfway along the next one)
+##   desk-still <s>        the dungeon page's desk isn't built again for s seconds (once at most)
 ##   down-done             the army's run is over now: it comes home
 ##   deep <n>              the army has been down to floor n before (bands and orders open up)
 ##   wisps <n>             you have exactly n wisps
@@ -669,6 +670,12 @@ func _step(w: PackedStringArray) -> String:
 			if int(w[1]) < floors.size():
 				t += Dungeon.floor_seconds(GameState.catalog, run, int(floors[int(w[1])].f)) / 2.0
 			run.at = Time.get_unix_time_from_system() - t
+		"desk-still":  # desk-still <seconds>: the dungeon page's desk isn't built again for that long (once at most)
+			var view: DungeonView = home.full_game().adventures.dungeon_view
+			var before := view.desk_builds
+			await get_tree().create_timer(float(w[1])).timeout
+			if view.desk_builds > before + 1:
+				return "the desk was built %d times in %s s" % [view.desk_builds - before, w[1]]
 		"down-done":  # the run is over now
 			if not GameState.dungeon_running():
 				return "the army isn't down there"

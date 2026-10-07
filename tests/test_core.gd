@@ -205,6 +205,15 @@ func _test_numbers() -> void:
 	for n: float in cases:
 		_check(NumFormat.short(n) == cases[n], "NumFormat.short(%s) is %s (got %s)" % [n, cases[n], NumFormat.short(n)])
 	_check(NumFormat.full(-1234567) == "-1,234,567", "NumFormat.full puts in commas")
+	_check(NumFormat.short(2e36) == "2,000Dc", "past the last unit stays in it (got %s)" % NumFormat.short(2e36))
+	_check(not "%" in NumFormat.short(INF) and not "%" in NumFormat.short(-INF), "endless numbers still read (got %s)" % NumFormat.short(INF))
+	_check(NumFormat.short(NAN) == "0", "not-a-number reads 0 (got %s)" % NumFormat.short(NAN))
+	# coin sums past int's top hold at the top instead of wrapping round to 1 or below zero
+	_check(Rewards.coins(2.7e19) == Rewards.TOP and Rewards.coins(0.4) == 1 and Rewards.coins(41.6) == 42, "big payouts are held, small ones round (got %d)" % Rewards.coins(2.7e19))
+	_check(Rewards.plus(Rewards.TOP - 5, 100) == Rewards.TOP and Rewards.plus(3, 4) == 7, "sums stop at the top")
+	var sum := { "coins": Rewards.TOP }
+	Rewards.add(sum, { "coins": Rewards.TOP })
+	_check(int(sum.coins) == Rewards.TOP, "loot added past the top stays there (got %d)" % int(sum.coins))
 	_check(NumFormat.apart(4.21e12, 4.23e12) == ["4.21T", "4.23T"], "before → after shows the change (%s)" % [NumFormat.apart(4.21e12, 4.23e12)])
 	_check(NumFormat.apart(4.2e12, 5.0e12) == ["4.2T", "5T"], "before → after stays short when it can")
 
