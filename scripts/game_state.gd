@@ -40,6 +40,7 @@ var toys_part := ToysPart.new(self)
 var machine_part := MachinePart.new(self)
 var boxes_part := BoxesPart.new(self)
 var homes_part := HomesPart.new(self)
+var workshop_part := WorkshopPart.new(self)
 # ---- end of the parts ----
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
@@ -348,135 +349,6 @@ static func box_cost(box: Dictionary, value: float, count := 1) -> int:
 # ---- new homes: the stall on the pets tab and the sorting rule (see NewHomes) ---------------
 
 # ---- the shed workshop (F3, data/workshop.json) ----------------------------------------
-
-## Whether the shed workshop is open (the old shed is ours and the whistle is found).
-func workshop_open() -> bool:
-	return feature_on("workshop")
-
-
-## Whether tapping the shed opens the workshop card: it's open and something's still pinned.
-func workshop_shown() -> bool:
-	return workshop_open() and not Workshop.pinned(workshop).is_empty()
-
-
-## Whether a drawing is built (its chore is taken away).
-func built(id: String) -> bool:
-	return Workshop.has(workshop, id)
-
-
-## How many pets of a rarity could go and help on a pinned drawing right now: plain pets the new
-## homes stall may take (see spare_pick), as many as still help it (Workshop.useful).
-func helpers_can_go(id: String, rarity: String) -> int:
-	var useful := Workshop.useful(catalog, workshop, id, rarity)
-	if useful <= 0:
-		return 0
-	return mini(useful, homes_can_go(rarity))
-
-
-## `n` pets of a rarity (-1: as many as help) go and help build a pinned drawing. They come off
-## their errands and machines if they have to, and stay on for good: they leave the collection with
-## no star. Returns how many went.
-func send_helpers(id: String, rarity: String, n := 1) -> int:
-	if not workshop_open() or not id in Workshop.pinned(workshop):
-		return 0
-	var useful := Workshop.useful(catalog, workshop, id, rarity)
-	if useful <= 0:
-		return 0
-	var gone := int(_take_spare(rarity, useful if n < 0 else mini(n, useful), 0, false).n)
-	if gone <= 0:
-		return 0
-	Workshop.take(catalog, workshop, id, rarity, gone)
-	workshop_changed.emit("")
-	changed.emit()
-	save_game()
-	return gone
-
-
-## Builds a full drawing: the next one is pinned in its spot and the built thing stands on the map.
-func build_drawing(id: String) -> bool:
-	if not workshop_open() or Workshop.build(catalog, workshop, id) == null:
-		return false
-	_built(id)
-	return true
-
-
-## Dev: a pinned drawing is built for free, whatever its helpers.
-func debug_build(id: String) -> bool:
-	if Workshop.finish(catalog, workshop, id) == null:
-		return false
-	_built(id)
-	return true
-
-
-func _built(id: String) -> void:
-	_milestone("built_" + id)
-	if id == "chart":
-		jobs_changed.emit()  # every errand has "new pets join here" now
-	workshop_changed.emit(id)
-	adventures_changed.emit()
-	changed.emit()
-	save_game()
-
-
-## The next postcard waiting (the bell rope welcomed its trip back), taken off the pile, or {}.
-func take_postcard() -> Dictionary:
-	return postcards.pop_front() if not postcards.is_empty() else {}
-
-
-## The weather vane answers a trip waiting at a plain choice with your last pick there (see
-## Workshop.vane_pick). Never the trip you're watching on the trail. Returns whether it answered.
-func _vane(run: RunState) -> bool:
-	if not built("vane") or run == watching:
-		return false
-	var pick := Workshop.vane_pick(catalog, workshop, run)
-	if pick < 0:
-		return false
-	run.answer = pick
-	_advance(run)
-	return true
-
-
-## What the built things do every second: the bell rope welcomes trips back (their postcards wait),
-## the garden spade digs the room's rummage spots, the sewing basket mends resting toys.
-func _workshop_chores(now: float) -> void:
-	var gap := clampf(now - _mend_at, 0.0, 60.0) if _mend_at > 0.0 else 0.0
-	_mend_at = now
-	if built("basket"):
-		# quietly, once a minute (the toy views rebuild on toys_changed)
-		_mend_acc += gap
-		if _mend_acc >= 60.0:
-			var per := float(catalog.workshop.get("basket_mend_per_hour", 0.0)) * _mend_acc / 3600.0
-			_mend_acc = 0.0
-			if Toys.mend(toys, per, now):
-				toys_changed.emit()
-	if built("spade") and not tutorial_active():
-		for spot in catalog.rummage_spots:
-			if rummage_ready(str(spot.id)):
-				rummage(str(spot.id))
-	if built("bell"):
-		_ring_bell()
-
-
-## The bell rope: every trip you sent that's home is welcomed back by itself (not the one you're
-## watching on the trail; your pet's own trips welcome themselves already). Its postcard waits.
-func _ring_bell() -> void:
-	var keep := int(catalog.workshop.get("letterbox_keep", 30))
-	for run in runs.duplicate():
-		if run.auto or run == watching or run.status != RunState.Status.DONE:
-			continue
-		var told := announcements.size()
-		var trip := collect_run(run)
-		if trip.is_empty():
-			continue
-		# what your pet has to say about this trip goes with its postcard (told when it pops up)
-		trip.news = news
-		trip.announce = announcements.slice(told)
-		news = {}
-		announcements.resize(told)
-		postcards.append(trip)
-		while postcards.size() > keep:
-			postcards.pop_front()
-
 
 # ---- unlocks ---------------------------------------------------------------
 
@@ -6015,4 +5887,18 @@ func sacrifice_toy(id: String) -> String: return toys_part.sacrifice_toy(id)
 func sacrifice_toys(id: String, tries: int) -> Dictionary: return toys_part.sacrifice_toys(id, tries)
 func combine_toy_all(edition: String) -> int: return toys_part.combine_toy_all(edition)
 func shine_toy(edition: String) -> bool: return toys_part.shine_toy(edition)
+
+# workshop_part.gd
+func workshop_open() -> bool: return workshop_part.workshop_open()
+func workshop_shown() -> bool: return workshop_part.workshop_shown()
+func built(id: String) -> bool: return workshop_part.built(id)
+func helpers_can_go(id: String, rarity: String) -> int: return workshop_part.helpers_can_go(id, rarity)
+func send_helpers(id: String, rarity: String, n := 1) -> int: return workshop_part.send_helpers(id, rarity, n)
+func build_drawing(id: String) -> bool: return workshop_part.build_drawing(id)
+func debug_build(id: String) -> bool: return workshop_part.debug_build(id)
+func _built(id: String) -> void: workshop_part._built(id)
+func take_postcard() -> Dictionary: return workshop_part.take_postcard()
+func _vane(run: RunState) -> bool: return workshop_part._vane(run)
+func _workshop_chores(now: float) -> void: workshop_part._workshop_chores(now)
+func _ring_bell() -> void: workshop_part._ring_bell()
 # ---- end of the forwarders ----
