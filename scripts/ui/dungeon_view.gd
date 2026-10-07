@@ -742,8 +742,11 @@ func _notification(what: int) -> void:
 ## build); a new run or no run frees them.
 func _keep_rows() -> void:
 	if is_instance_valid(_rows_box):
+		var kept := _rows.values()
 		for child in _rows_box.get_children():
 			_rows_box.remove_child(child)
+			if not child in kept:  # (the "down the rope" line isn't kept: it would leak)
+				child.free()
 	_rows_box = null
 	var run_at := float(GameState.dungeon.run.get("at", 0.0)) if _well_run() else -1.0
 	if run_at != _rows_run:
