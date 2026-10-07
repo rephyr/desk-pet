@@ -827,8 +827,9 @@ What she found, and what we're doing about it, in order (P1 first).
   it 8). The next tab (gear) needs a plan: group tabs, a second column, or tabs that live inside
   others (e.g. gear inside adventures). **Done for A2:** gear lives inside adventures (adventures |
   upgrades), no new tab.
-- **X2. GameState is big (~4000 lines now):** split into parts (machine, errands, automation, runs)
-  when a step touches it anyway.
+- **X2. GameState is big:** done (lane x2). The code is in 21 parts under scripts/state/ (one per
+  area), GameState keeps the state and forwarders; see docs/architecture.md "GameState and its parts"
+  and tools/state_parts.py.
 - **X3. Tuning numbers in data/**, not code (some still in game_state.gd).
 - **X4. Tests:** done. `tests/test_core.gd` now tests GameState itself in a test profile
   (`_test_game_state`, run with `-- --profile=core-test-<lane>`): save migrations v14..now plus a
