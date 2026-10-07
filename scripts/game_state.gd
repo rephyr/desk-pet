@@ -53,6 +53,7 @@ var plushie_part := PlushiePart.new(self)
 var edge_part := EdgePart.new(self)
 var wish_part := WishPart.new(self)
 var adventures_part := AdventuresPart.new(self)
+var gear_part := GearPart.new(self)
 # ---- end of the parts ----
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
@@ -1014,99 +1015,6 @@ func add_xp(amount: int) -> int:
 
 # ---- gear: upgrades to adventuring, bought with xp (see Gear, data/gear.json) ----
 
-func gear_level(id: String) -> int:
-	return Gear.level(gear, id)
-
-
-## The gear stickers on the path right now, in path order (see Gear.shown).
-func shown_gear() -> Array[Dictionary]:
-	return Gear.shown(catalog, gear, is_open)
-
-
-## Why a gear can't take another level ("" if it can, xp aside): "hidden" (not on the path yet) or "max".
-func gear_block(id: String) -> String:
-	var g := Gear.info(catalog, id)
-	if g.is_empty() or not shown_gear().any(func(s): return s.id == id):
-		return "hidden"
-	return "max" if gear_level(id) >= int(g.max) else ""
-
-
-## xp for a gear's next level.
-func gear_price(id: String) -> int:
-	return Gear.price(catalog, id, gear_level(id))
-
-
-## Buys a gear's next level with xp. Returns whether it could.
-func buy_gear(id: String) -> bool:
-	if gear_block(id) != "" or xp < gear_price(id):
-		return false
-	xp -= gear_price(id)
-	gear[id] = gear_level(id) + 1
-	gear_changed.emit()
-	changed.emit()
-	save_game()
-	return true
-
-
-## Sets a gear's level outright (the dev driver's "gear" step).
-func set_gear_level(id: String, level: int) -> void:
-	var g := Gear.info(catalog, id)
-	if g.is_empty():
-		return
-	gear[id] = clampi(level, 0, int(g.max))
-	gear_changed.emit()
-	changed.emit()
-
-
-## The upgrades page opens with the first xp (and stays open once something's bought).
-func gear_page_open() -> bool:
-	return xp > 0 or gear.values().any(func(lv): return int(lv) > 0)
-
-
-## The gear a trip there would pack (for the place card's time and odds).
-func trip_gear(location_id: String) -> Dictionary:
-	return Gear.for_trip(catalog, gear, catalog.location(location_id))
-
-
-## A trip's haul, boosted as it's collected: the loot and coins boosts multiply its coins (and so
-## does the tote bag in the trip's `packed` gear), and loot times luck gives a chance of an extra copy
-## of every part and box. The trip's `knacks` (RunState.knacks): the party's own loot share, and
-## "finds" gives a chance of an extra copy of every part and bit.
-## Returns the coins' "why so much?" (see Boosts.why; {} when there were no coins).
-func _boost_trip_loot(loot: Dictionary, packed := {}, knacks := {}) -> Dictionary:
-	var tote := 1.0 + Gear.value(catalog, packed, "coins")
-	var more := boost("loot") * float(knacks.get("loot", 1.0))  # the party's own knacks too
-	var lucky := more * boost("luck")
-	var finds := float(knacks.get("finds", 1.0))  # knacks: more bits and parts
-	var why := {}
-	for key: String in loot.keys():
-		if key.begins_with("part:") and not feature_on("parts"):
-			loot.erase(key)  # parts come much later in the game
-			continue
-		if key == "coins":
-			var found := int(loot[key])
-			loot[key] = coins_int(int(loot[key]) * more * boost("coins") * tote)
-			why = Boosts.why("found on the way", found, [
-				{ "name": _coin_gear_name(packed), "x": tote },
-				{ "name": "the party's badges", "x": float(knacks.get("loot", 1.0)) },
-				{ "name": "our boosts", "x": boost("loot") * boost("coins") }], int(loot[key]))
-		elif key.begins_with("part:"):
-			loot[key] = int(loot[key]) + Rewards.count(int(loot[key]) * (lucky - 1.0 + finds - 1.0), _rng)
-		elif key.begins_with("box:"):
-			loot[key] = int(loot[key]) + Rewards.count(int(loot[key]) * (lucky - 1.0), _rng)
-		elif key.begins_with("bit:") and finds > 1.0:
-			loot[key] = int(loot[key]) + Rewards.count(int(loot[key]) * (finds - 1.0), _rng)
-	return why
-
-
-## The name of the gear that brings more trip coins ("a tote bag"), for the trip's "why so much?".
-func _coin_gear_name(packed: Dictionary) -> String:
-	for g in Gear.all(catalog):
-		if int(packed.get(str(g.id), 0)) > 0 and g.each.has("coins"):
-			return str(g.name)
-	return "our gear"
-
-
 # ---- capsule toys ------------------------------------------------------------------
 
 static func _without(loot: Dictionary, key: String) -> Dictionary:
@@ -1923,6 +1831,17 @@ func _auto_place(uids: Array, counts := {}, only: Array = [], by_themselves := f
 func _take_off(uids: Array) -> Array: return errands_part._take_off(uids)
 func _pet_speed(pet: Pet, job: Dictionary) -> float: return errands_part._pet_speed(pet, job)
 func _crews_changed(joined: Variant = null) -> void: errands_part._crews_changed(joined)
+
+# gear_part.gd
+func gear_level(id: String) -> int: return gear_part.gear_level(id)
+func shown_gear() -> Array[Dictionary]: return gear_part.shown_gear()
+func gear_block(id: String) -> String: return gear_part.gear_block(id)
+func gear_price(id: String) -> int: return gear_part.gear_price(id)
+func buy_gear(id: String) -> bool: return gear_part.buy_gear(id)
+func set_gear_level(id: String, level: int) -> void: gear_part.set_gear_level(id, level)
+func gear_page_open() -> bool: return gear_part.gear_page_open()
+func trip_gear(location_id: String) -> Dictionary: return gear_part.trip_gear(location_id)
+func _boost_trip_loot(loot: Dictionary, packed := {}, knacks := {}) -> Dictionary: return gear_part._boost_trip_loot(loot, packed, knacks)
 
 # homes_part.gd
 func room_cap() -> int: return homes_part.room_cap()
