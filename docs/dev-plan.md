@@ -111,8 +111,7 @@ What she found, and what we're doing about it, in order (P1 first).
   adventures / errands / automation for a new affordable upgrade (GameState.buyable /
   upgrade_news / saw_upgrades). DESIGN.md: the Carrot Rule. Flow goals. Pace (steady, 5 runs):
   lights 73 -> 60 min, better drops 113 -> 104, automation 124 -> 115; new glass still waits
-  ~27 min on 1 glass (few pets early). NOT done: the midnight globe (porch_machine find + its
-  nodes porch_dust / porch_hatch don't exist yet: content to build).
+  ~27 min on 1 glass (few pets early). The midnight globe: built 2026-10-07 (lane midnight, see A5).
   Then (same day): the backyard's own bit is sure on a finished trip (chance 1.0, was 0.6-0.8),
   and the pace sim learned `--parties=many` (every spare pet out, each party somewhere else). The
   real early bottleneck was one party at a time (the sim, and players nobody told). Many parties,
@@ -317,7 +316,7 @@ What she found, and what we're doing about it, in order (P1 first).
   whose big `pets` steps now fill pages (errand_jobs, errands_crowd, workers, fits) pass with
   `stickers off` / closing the popup.
 
-### A5. The machine later: a globe per map page  (sunset globe BUILT + VERIFIED 2026-09-29, lane globes, merged as save v30)
+### A5. The machine later: a globe per map page  (sunset globe BUILT + VERIFIED 2026-09-29, lane globes, merged as save v30; midnight globe BUILT 2026-10-07, lane midnight)
 - Rummaging → machine bits, pull value grows with income, a globe per map page, "better drops"
   mystery balls. **Prep:** which of these still matter now that automation exists.
 - **Emilia picked (2026-09-28, docs/picks.md): a globe per map page** (sunny today, sunset from
@@ -342,6 +341,15 @@ What she found, and what we're doing about it, in order (P1 first).
   paper lantern). Fixes list, a sign per globe on the tree. **Midnight is data only** (next door
   is in now, so it can be built next). Flow globes. Open: dim named fixes vs the "no ???" rule,
   which bits the pills show, repair prices vs bits as the gate.
+- **Midnight built (lane midnight, 2026-10-07, notes in docs/plans/MIDNIGHT-done.md):** next door's
+  porch machine (find `porch_machine`, event `nd_porch_machine` on the porch once the sunset hatch
+  is open; the old `nd_machine` teaser stops then via `until_machine`). 5 repairs off the sunset
+  hatch: brush out the cobwebs (works) > a chain for the crank (x2, +1 chute) > new bulbs (x2,
+  lights) > moon glass (x3, glass) > the rusted hatch (x5: midnight boxes, pet boxes, toys). Bits
+  from next door once it's home: chain links (their gate, doghouse), bulbs (greenhouse), moon glass
+  (their pond), hinges (porch, doghouse). Step 72 (x1.05 at the cobwebs). Midnight toy set (little
+  bat, fluffy slipper, teacup, crescent moon). Three globes side by side while it's broken; once it
+  works the sunny globe steps off the stage. No save bump. Flow midnight.
 - Done already (small picks): fever stays a burst, the capsule machine shows its odds, design.md's
   stale "the machine is NEVER automated" fixed.
 
@@ -632,8 +640,8 @@ What she found, and what we're doing about it, in order (P1 first).
   it in with its own colour + a flag; danger x0.5, loot x1.2, `local` events stop; backyard after
   40 visits once next door is open), `StreetPage` draws it, place card lights row / risky / x1.2.
   Opened by past the edge (C2) through `GameState.open_page("next_door")` (unlock `earn: called`).
-  Next door brings midnight boxes and looks. Flow next_door. Not yet: the porch's midnight globe
-  (A5), next door adding worker machines/tables to the whistle's caps.
+  Next door brings midnight boxes and looks. Flow next_door. The porch's midnight globe: built
+  (A5, lane midnight). Not yet: next door adding worker machines/tables to the whistle's caps.
 
 ### E3. The hard dungeon unlocks sacrificing  (the sewing room BUILT 2026-09-29, lane sewing, merged as save v35)
 - **Emilia picked (2026-09-29): the sewing room**: a side door on well floor 20 (tap it and the
@@ -935,7 +943,7 @@ are collected at the end of docs/picks.md. The bigger ones:
 
 (Done 2026-09-29: merge verified and pushed, the errands note hidden, the pace fixes + third run.)
 Emilia plays the new pace by hand and answers the open questions above (the A1 "still off" list
-first) → A5's midnight globe (next door is in) → F2's handoff rules → X2
+first) → A5's midnight globe (BUILT, lane midnight) → F2's handoff rules → X2
 (split GameState, ~6000+ lines now) → Phase G (sound, art, Windows build).
 
 Each step's **Prep** can be done ahead: answering its questions or picking its mockup look makes

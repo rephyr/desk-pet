@@ -226,7 +226,8 @@ knows the UI exists; state changes are announced with signals (`GameState.change
   `PackOpening`; `OddsCard` is the "prizes" tag that flips into the odds card, from
   `Machine.odds` via `GameState.machine_odds`, refilled on machine_upgraded / toys_changed /
   unlocked / tutorial_changed while open, placed on the stage's resize; machine globes: the tab shows
-  the newest two globes side by side in a `StageHolder`, one `MachineStage` each (`globe`, `hand`,
+  the globes in use side by side in a `StageHolder` (the behind globe, the hand globe and the newest
+  one: two or three), one `MachineStage` each (`globe`, `hand`,
   `compact`; only the hand one takes input and shows the counter, the one behind shows your pet /
   workers on its lever and their `pet_cranked` capsules; a stage keeps its globe while it stays on
   show, so capsules in flight survive a globe arriving; what a stage draws from is worked out in
