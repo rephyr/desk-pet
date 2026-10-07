@@ -60,6 +60,7 @@ var _floor_label: Label = null
 var _rows := {}  # this run's floor rows on the run card, by floor (kept between builds)
 var _rows_box: VBoxContainer = null  # the run card's list they're in
 var _rows_run := -1.0  # the run they belong to (its start time)
+var desk_builds := 0  # how often the desk was built (for flows: it must not be every frame)
 var _floor_done := false  # a floor of the run just finished: the desk (not the wall) builds again
 
 
@@ -262,6 +263,7 @@ func _rebuild() -> void:
 
 
 func _build_desk(a: Dictionary, rules: Dictionary) -> void:
+	desk_builds += 1
 	var keep := 0  # (the open hold card's shelf list stays where it was scrolled to)
 	if is_instance_valid(_hold_scroll) and _hold_scroll_f == _hold_f:
 		keep = _hold_scroll.scroll_vertical

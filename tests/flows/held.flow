@@ -129,3 +129,8 @@ expect text "109k"
 expect no-text "109,000"             # the card's count reads like the pill and the meter
 expect fits
 shot deep_pills                      # 35.1k/72k and 109k/216k slid in, under their landings
+down                                 # the army sets off with landing 60's card open: the card stays put
+wait 1                               # (it was built again every frame, its buttons never took a click)
+expect text "landing 60"
+desk-still 1.5
+expect fits
