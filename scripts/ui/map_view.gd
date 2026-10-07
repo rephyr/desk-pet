@@ -626,6 +626,8 @@ func _draw_torn_paper() -> void:
 	var w := paper_width()
 	var h := size.y
 	var r := 14.0
+	if w < r * 2.0 + 20.0 or h < r * 2.0 + 2.0:
+		return  # not laid out yet: too small a sheet to tear (it can't be triangulated)
 	var pts := PackedVector2Array()
 	for i in 5:  # the top-left corner, rounded
 		var a := PI + (PI / 2.0) * i / 4.0

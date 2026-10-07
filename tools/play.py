@@ -72,7 +72,8 @@ try:
             continue
         break
     code = result.returncode
-    errors = [l for l in out.splitlines() if "ERROR" in l or "SCRIPT ERROR" in l or "Xvfb failed" in l]
+    (folder / "godot.log").write_text(out)  # the whole output, for grepping warnings / leaks
+    errors =[l for l in out.splitlines() if "ERROR" in l or "SCRIPT ERROR" in l or "Xvfb failed" in l]
     if code == 0 and any("SCRIPT ERROR" in l for l in errors):
         code = 3  # every step passed, but a script broke along the way
 except subprocess.TimeoutExpired:
