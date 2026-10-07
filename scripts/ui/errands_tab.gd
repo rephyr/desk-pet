@@ -309,7 +309,7 @@ func _job_note(job: Dictionary) -> Control:
 	var title := UiTheme.title(job.name, 17, color)
 	title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART  # a long name wraps rather than widening the board
 	title.custom_minimum_size = Vector2(60, 0)
-	title.add_theme_constant_override("line_spacing", -4)
+	title.add_theme_constant_override("line_spacing", -1)  # tighter and a wrapped name's lines touch
 	names.add_child(title)
 	names.add_child(UiTheme.label("brings " + str(job.brings), UiTheme.MUTED, UiTheme.SMALL))
 	head.add_child(names)
