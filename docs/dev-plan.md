@@ -316,6 +316,10 @@ What she found, and what we're doing about it, in order (P1 first).
 - **Verified (2026-09-28):** tests + flow book pass (every spread `expect fits`), and the flows
   whose big `pets` steps now fill pages (errand_jobs, errands_crowd, workers, fits) pass with
   `stickers off` / closing the popup.
+- **Prep ready (2026-10-07, lane mockups3):** several popups at once (two full pages, the bag
+  popup on the postcard, coming back after hours): design/mockups/screens/news-pile.html, looks A
+  one at a time with a stack / B a pile on the rug / C one welcome back letter. Decisions in
+  docs/plans/MOCKUPS3-done.md.
 
 ### A5. The machine later: a globe per map page  (sunset globe BUILT + VERIFIED 2026-09-29, lane globes, merged as save v30)
 - Rummaging → machine bits, pull value grows with income, a globe per map page, "better drops"
@@ -342,6 +346,11 @@ What she found, and what we're doing about it, in order (P1 first).
   paper lantern). Fixes list, a sign per globe on the tree. **Midnight is data only** (next door
   is in now, so it can be built next). Flow globes. Open: dim named fixes vs the "no ???" rule,
   which bits the pills show, repair prices vs bits as the gate.
+- **Prep ready (2026-10-07, lane mockups3):** the midnight globe, design/mockups/screens/midnight-globe.html:
+  three globes on the stage (A in a row, B the old ones on a shelf, C one at a time with the signs),
+  5 midnight fixes (dust it off, a new bulb, magnets for the flap, frosted glass, the rusted hatch)
+  and bit names (bulbs, fuses, magnets, frosted glass from the porch, doghouse, their pond, the
+  greenhouse). Decisions in docs/plans/MOCKUPS3-done.md.
 - Done already (small picks): fever stays a burst, the capsule machine shows its odds, design.md's
   stale "the machine is NEVER automated" fixed.
 
@@ -707,6 +716,10 @@ What she found, and what we're doing about it, in order (P1 first).
     rare, epic, mythic for the 1st..5th). Wisps now only come from the well and its rooms.
   - **Handoff:** later you give pets rules (bank at 3, never risk the body) and they play worse
     than you.
+    **Prep ready (2026-10-07, lane mockups3):** design/mockups/screens/plushie-handoff.html, looks A
+    the rules card (you | lilac blob, bank at, never risk the, nudge) / B tags on the reels (a rule
+    per part, nudges on the lever) / C a job on the automation tab with the pet's notebook.
+    Decisions in docs/plans/MOCKUPS3-done.md.
   - One layer now; a second whole-pet axis can come much later (ideas in docs/brainstorms.md).
 - **Picked since:** the upgrade is **buttons** (F1). **The darker currency is ONE currency called
   "wisps"**, colour **candy floss coral**, with two sources: lanterns (dungeon floors) and stuffing
