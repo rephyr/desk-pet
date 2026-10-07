@@ -52,6 +52,7 @@ var sewing_part := SewingPart.new(self)
 var plushie_part := PlushiePart.new(self)
 var edge_part := EdgePart.new(self)
 var wish_part := WishPart.new(self)
+var adventures_part := AdventuresPart.new(self)
 # ---- end of the parts ----
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
@@ -371,18 +372,6 @@ const PARTIES := "parties"  # feature: send small parties (see PARTY_SIZES)
 const PARTY_SIZES := [["parties", 3], ["parties_5", 5], ["parties_10", 10]]
 
 
-## Debug: a handful of random parts, one of each rarity, to try sewing with.
-func debug_give_parts() -> void:
-	for tier in catalog.tiers:
-		var slots: Array = Catalog.SLOTS.filter(func(s): return not catalog.parts_of_tier(s, tier.id).is_empty())
-		var slot: String = slots[_rng.randi_range(0, slots.size() - 1)]
-		var options := catalog.parts_of_tier(slot, tier.id)
-		var key := "%s:%s" % [slot, options[_rng.randi_range(0, options.size() - 1)].id]
-		parts[key] = int(parts.get(key, 0)) + 1
-	changed.emit()
-	save_game()
-
-
 ## Debug: a completely fresh game, as a new player would start it. The old save is copied to
 ## user://save-before-new-game-<time>.json first, so it can be put back by hand.
 func debug_new_game() -> void:
@@ -570,283 +559,12 @@ static func school_face(k: String, n: int) -> String:
 
 # ---- adventures -------------------------------------------------------------
 
-## uid -> true for every pet that's out on a trip (including trips back but not welcomed yet, and
-## pets that stayed there: they leave when the trip is welcomed back).
-func away() -> Dictionary:
-	var out := {}
-	for run in runs:
-		for uid in run.party.uids:
-			out[uid] = true
-		for uid in run.party.lost:
-			out[uid] = true
-	return out
-
-
-## Pets that can be sent: not your active pet or the plushie machine's keeper, and not already
-## away or in the dungeon's army. Pets on errands can: going on an adventure takes them off their
-## errand. From each count in the herd, up to data/herd.json "stand_ins" stand-ins (they come home
-## into the count, or leave it).
-func sendable_pets() -> Array[Pet]:
-	var gone := _out()
-	var keeper := _plushie_keeper_uid()  # the plushie machine's keeper stays home
-	var out: Array[Pet] = []
-	for pet in collection.pets:
-		if pet.uid != collection.active_uid and pet.uid != keeper and not gone.has(pet.uid):
-			out.append(pet)
-	out.append_array(_sendable_stand_ins(gone))
-	return out
-
-
-## Up to data/herd.json "stand_ins" stand-ins from each count, leaving out ones away or leading.
-func _sendable_stand_ins(gone: Dictionary) -> Array[Pet]:
-	var out: Array[Pet] = []
-	var skip := _stand_ins_out(gone)
-	var out_of := {}  # count key -> stand-ins already away or leading
-	for uid: String in skip:
-		Herd.put(out_of, Herd.key_of(uid), 1)
-	var per := int(catalog.herd.get("stand_ins", 10))
-	var army := army_herd_keys()  # the dungeon's army keeps its pets
-	for k in collection.herd:
-		var free := collection.herd_count(k) - int(out_of.get(k, 0)) - int(army.get(k, 0))
-		if free > 0:
-			for uid in collection.stand_in_uids(k, mini(per, free), skip):
-				out.append(collection.get_pet(uid))
-	return out
-
-
-## `by_you`: you sent it (not your pet's or the workers' auto parties): it may take a scout note.
-func send_on_adventure(location_id: String, pets: Array[Pet], by_you := true) -> RunState:
-	var location := catalog.location(location_id)
-	var gone := away()
-	var going: Array[Pet] = []
-	var picked := {}
-	var herd_left := {}  # count key -> stand-ins of it that may still go
-	var leading := {}
-	if pets.any(func(p): return p != null and Herd.is_stand_in(p.uid)):
-		leading = _stand_ins_out(gone)
-		for uid: String in leading:
-			Herd.put(herd_left, Herd.key_of(uid), -1)
-	for pet in pets:  # the sendable ones (see sendable_pets), checked one by one: parties go out hundreds at a time
-		if pet == null or picked.has(pet.uid) or pet.uid == collection.active_uid or gone.has(pet.uid):
-			continue
-		if Herd.is_stand_in(pet.uid):
-			var k := Herd.key_of(pet.uid)
-			if leading.has(pet.uid) or collection.herd_count(k) + int(herd_left.get(k, 0)) <= 0:
-				continue
-			Herd.put(herd_left, k, -1)
-		elif collection.get_pet(pet.uid) != pet:
-			continue
-		picked[pet.uid] = true
-		going.append(pet)
-	if not location_open(location) or going.is_empty() or going.size() > max_party(location_id):
-		return null
-	# stand-ins: resting ones first; past those they come off errands (then machines and tables)
-	var need := {}
-	for pet in going:
-		if Herd.is_stand_in(pet.uid):
-			Herd.put(need, Herd.key_of(pet.uid), 1)
-	if not need.is_empty():  # (resting_herd goes over every pet: only when stand-ins go)
-		var free := resting_herd()
-		for k in need:
-			if int(need[k]) > int(free.get(k, 0)):
-				_herd_off_places(k, int(need[k]) - int(free.get(k, 0)))
-	# every trip packs the gear you have when it sets off (yours, your pet's and the workers' parties;
-	# never dungeons, see Gear.for_trip)
-	var run := AdventureRunner.start(location_id, going, Time.get_unix_time_from_system(), _rng.randi(), catalog, finds, machine.bought,
-		Gear.for_trip(catalog, gear, location), trip_knacks(going), workers_total(), is_ours(location_id), sent_to(location_id),
-		_count_find_tries(location, going.size()))
-	sent[location_id] = sent_to(location_id) + going.size()
-	run.parts = feature_on("parts")
-	# auto parties (your pet's, the workers') never take a note: skip the looking around for them
-	if by_you and scout_notes > 0 and Jobs.takes_note(catalog, location, by_you, scout_notes,
-			Intel.left_to_find(location, _place_known, not Rumours.hearable(catalog, heard, is_open).is_empty(), catalog)):
-		scout_notes -= 1
-		run.scout = Jobs.scout_note(catalog)
-		jobs_changed.emit()
-	runs.append(run)
-	_rest_changed()
-	_take_off(going.map(func(p): return p.uid))
-	_take_off_workers(going.map(func(p): return p.uid))
-	visited[location_id] = true
-	_check_tutorial()
-	adventures_changed.emit()
-	changed.emit()
-	save_game()
-	return run
-
-
-## The player picks an option at the event a run is waiting at.
-func answer_event(run: RunState, option_index: int) -> void:
-	if not run in runs or run.status != RunState.Status.WAITING:
-		return
-	if not option_index in AdventureRunner.allowed_options(run.current_event(catalog), run.party, catalog.location(run.location_id)):
-		return
-	run.answer = option_index
-	workshop.vane[Workshop.vane_key(run.location_id, str(run.current_event(catalog).get("id", "")))] = option_index  # the weather vane remembers
-	_advance(run)
-	adventures_changed.emit()
-	changed.emit()
-	save_game()
-
-
-## Collects a run that's back: what it found is handed out, the pets that didn't come back leave
-## the collection. Returns what goes on the trip's postcard (see Postcard), or {} if it isn't back yet:
-## { place, doodle, photo: [{ pet, home }] in the order they set out, notes: [{ text, stayed }], loot,
-## xp gained, spotted: [{ name, doodle }], finds: [names] }.
-func collect_run(run: RunState) -> Dictionary:
-	if not run in runs or run.status != RunState.Status.DONE:
-		return {}
-	runs.erase(run)
-	_rest_changed()
-	trips_done += 1
-	var location := catalog.location(run.location_id)
-	# a visit (somebody made it home): one of next door's lights goes out (your pet whispers about it
-	# on trips you sent)
-	if run.party.size() > 0 and add_visits(run.location_id) == "dark" and not run.auto:
-		announcements.append(Ours.say(catalog, "say_dark", location))
-	var photo: Array[Dictionary] = []
-	for uid: String in run.party.stats:  # everyone who set out, in order
-		var pet := collection.get_pet(uid)
-		if pet:
-			photo.append({ "pet": pet, "home": not uid in run.party.lost })
-	var new_finds: Array[String] = []
-	for key: String in run.loot:
-		if key.begins_with("find:") and not finds.has(key.substr(5)):
-			var find_name := str(catalog.finds.get(key.substr(5), {}).get("name", "something"))
-			new_finds.append(find_name)
-			announcements.append("%s found %s!" % [run.party.who(), find_name])
-	var coins_why := _boost_trip_loot(run.loot, run.gear, run.knacks)
-	grant(run.loot, false)
-	collection.remove(run.party.lost)
-	_clamp_herd_places()
-	# the pets that came home go where new pets join (nothing on: they rest)
-	_place_new(photo.filter(func(p): return p.home).map(func(p): return p.pet.uid))
-	collection.refold()  # pets home again may fold into the herd
-	var found := _spot_places(run)
-	# experience: from the trip itself, and a lot for discovering things
-	var gained := add_xp(run.xp + XP_SPOTTED * found.size() + XP_FIND * new_finds.size())
-	var spotted_names: Array[String] = []
-	var spotted_places: Array[Dictionary] = []
-	for id in found:
-		var place := catalog.location(id)
-		spotted_names.append(str(place.name))
-		spotted_places.append({ "name": place.name, "doodle": str(place.get("map", {}).get("doodle", "")) })
-	news = { "place": location.name, "home": run.party.size(),
-		"sent": run.party.setting_out(), "parts": Rewards.total(run.loot, "part"),
-		"spotted": spotted_names, "who": run.party.who() }
-	adventures_changed.emit()
-	changed.emit()
-	save_game()
-	var notes: Array[Dictionary] = []
-	for entry in run.history:
-		if str(entry.get("text", "")) != "":
-			notes.append({ "text": str(entry.text), "stayed": int(entry.get("lost", 0)) > 0 })
-	return { "place": location.name, "doodle": str(location.get("map", {}).get("doodle", "")), "photo": photo,
-		"notes": notes, "loot": run.loot.duplicate(), "xp": gained, "spotted": spotted_places, "finds": new_finds,
-		"coins_why": coins_why }
-
-
 # ---- the trail (clicking along a trip yourself) -----------------------------------
 
 const XP_SPOTTED := 10  # xp for a pet spotting a new place
 const XP_FIND := 25  # xp for bringing home a special find
 const TREAT_SPEED := 3.0  # how many times as fast they walk while they zoom
 const TRAIL_COINS := [0.2, 0.5]  # a coin pickup is worth this times the place's loot (garden: about 1)
-
-
-## You tossed a treat on the trail: the pets chase it and walk TREAT_SPEED times as fast for
-## treat_zoom() seconds. Then the next treat takes treat_every() seconds. Returns whether it worked.
-func toss_treat(run: RunState) -> bool:
-	if not run in runs or run.status == RunState.Status.DONE or treat_ready_in(run) > 0.0:
-		return false
-	var now := Time.get_unix_time_from_system()
-	_treats[run] = { "zoom_until": now + treat_zoom(run), "ready_at": now + treat_every(run) }
-	return true
-
-
-## Seconds before you can toss this trip the next treat (a treat pouch makes it quicker).
-func treat_every(run: RunState) -> float:
-	return Gear.value(catalog, run.gear, "treat_every")
-
-
-## Seconds this trip's pets zoom along after a treat (a treat pouch makes it longer).
-func treat_zoom(run: RunState) -> float:
-	return Gear.value(catalog, run.gear, "treat_zoom") * run.knack("treats")
-
-
-## The most a streak of grabs on the trail multiplies what you grab (sticky paws raise it).
-func streak_max(run: RunState) -> float:
-	return Gear.value(catalog, run.gear, "streak_max")
-
-
-## How much more likely a part is on the trail (sharper eyes), once parts are open.
-func trail_part_x(run: RunState) -> float:
-	return Gear.value(catalog, run.gear, "part_x")
-
-
-## Seconds until you can toss this trip another treat (0: now).
-func treat_ready_in(run: RunState) -> float:
-	return maxf(0.0, float(_treats.get(run, {}).get("ready_at", 0.0)) - Time.get_unix_time_from_system())
-
-
-## Whether this trip's pets are zooming after a treat.
-func zooming(run: RunState) -> bool:
-	return float(_treats.get(run, {}).get("zoom_until", 0.0)) > Time.get_unix_time_from_system()
-
-
-## Zooming pets eat up the walk faster (while they're walking, not while they wait at an event).
-func _zoom_runs(delta: float) -> void:
-	if _treats.is_empty():
-		return
-	var now := Time.get_unix_time_from_system()
-	var moved := false
-	for run: RunState in _treats.keys():
-		if not run in runs:
-			_treats.erase(run)
-			continue
-		if zooming(run) and run.status == RunState.Status.WALKING:
-			run.next_at = maxf(now, run.next_at - delta * (TREAT_SPEED - 1.0))
-			if run.next_at <= now:
-				moved = _advance(run) or moved
-	if moved:
-		adventures_changed.emit()
-		changed.emit()
-
-
-## You grabbed something on the trail. Coins go in the trip's bag (lost with the pet), a part waits
-## for you to keep it (keep_trail_part), xp is yours straight away, a leaf heals a sore paw. `bonus` grows with a streak of grabs.
-## Returns what it was worth, e.g. { "coins": 3 }, for the little "+3" that pops up.
-func trail_pickup(run: RunState, kind: String, bonus := 1.0) -> Dictionary:
-	if not run in runs or run.status == RunState.Status.DONE:
-		return {}
-	var location := AdventureRunner.place(run, catalog)
-	var paws := (1.0 + Gear.value(catalog, run.gear, "pickups")) * run.knack("pickups")  # sticky paws (and knacks): worth more
-	match kind:
-		"coins":
-			var amount := maxi(1, roundi(_rng.randf_range(TRAIL_COINS[0], TRAIL_COINS[1]) * float(location.loot) * bonus * paws))
-			Rewards.add(run.loot, { "coins": amount })
-			return { "coins": amount }
-		"xp":
-			var amount := add_xp(maxi(1, roundi(bonus)) if paws <= 1.0 else maxi(1, Rewards.count(bonus * paws, _rng)))
-			changed.emit()
-			return { "xp": amount }
-		"heal":
-			return { "heal": run.party.heal(1, _rng) }
-		"part":
-			# not in the bag yet: you pick "add to bag" or "leave it" first (keep_trail_part)
-			var part := Rewards.roll_part(str(location.box), _rng, catalog, location.get("part_slots", []))
-			return { "part": "part:%s:%s" % part }
-	return {}
-
-
-## You kept a part the pet picked up on the trail: into the trip's bag, or straight into yours
-## if the trip was already welcomed back while you were deciding.
-func keep_trail_part(run: RunState, key: String) -> void:
-	if run in runs:
-		Rewards.add(run.loot, { key: 1 })
-		changed.emit()
-	else:
-		grant({ key: 1 })
 
 
 ## A coin amount worked out as a float, rounded and kept under COINS_MAX: past int's top it would
@@ -906,38 +624,6 @@ func grant_wisps(n: int, quiet := false) -> void:
 	wisps += n
 	if not quiet:
 		changed.emit()
-
-
-func _advance_runs() -> void:
-	var moved := false
-	for run in runs:
-		moved = _advance(run) or moved
-		moved = _vane(run) or moved
-	if moved:
-		changed.emit()
-		adventures_changed.emit()
-
-
-## Plays whatever has come due on a run. Returns true if anything happened.
-func _advance(run: RunState) -> bool:
-	var before := run.status
-	var added := AdventureRunner.resolve(run, Chooser.for_run(run), Time.get_unix_time_from_system(), catalog, finds)
-	if run.status == RunState.Status.DONE and before != RunState.Status.DONE:
-		run_ended.emit(run)
-	return not added.is_empty() or run.status != before
-
-
-## Debug: everything that's walking arrives now (runs still wait for your answers).
-func debug_finish_runs() -> void:
-	var now := Time.get_unix_time_from_system()
-	for run in runs:
-		for i in 50:
-			if run.status != RunState.Status.WALKING:
-				break
-			run.next_at = minf(run.next_at, now)
-			_advance(run)
-	adventures_changed.emit()
-	changed.emit()
 
 
 # ---- presents ---------------------------------------------------------------
@@ -2049,6 +1735,28 @@ func _notification(what: int) -> void:
 
 
 # ---- forwarders: the parts' functions, so GameState.<name>() works as before (tools/state_parts.py writes this block) ----
+
+# adventures_part.gd
+func debug_give_parts() -> void: adventures_part.debug_give_parts()
+func away() -> Dictionary: return adventures_part.away()
+func sendable_pets() -> Array[Pet]: return adventures_part.sendable_pets()
+func _sendable_stand_ins(gone: Dictionary) -> Array[Pet]: return adventures_part._sendable_stand_ins(gone)
+func send_on_adventure(location_id: String, pets: Array[Pet], by_you := true) -> RunState: return adventures_part.send_on_adventure(location_id, pets, by_you)
+func answer_event(run: RunState, option_index: int) -> void: adventures_part.answer_event(run, option_index)
+func collect_run(run: RunState) -> Dictionary: return adventures_part.collect_run(run)
+func toss_treat(run: RunState) -> bool: return adventures_part.toss_treat(run)
+func treat_every(run: RunState) -> float: return adventures_part.treat_every(run)
+func treat_zoom(run: RunState) -> float: return adventures_part.treat_zoom(run)
+func streak_max(run: RunState) -> float: return adventures_part.streak_max(run)
+func trail_part_x(run: RunState) -> float: return adventures_part.trail_part_x(run)
+func treat_ready_in(run: RunState) -> float: return adventures_part.treat_ready_in(run)
+func zooming(run: RunState) -> bool: return adventures_part.zooming(run)
+func _zoom_runs(delta: float) -> void: adventures_part._zoom_runs(delta)
+func trail_pickup(run: RunState, kind: String, bonus := 1.0) -> Dictionary: return adventures_part.trail_pickup(run, kind, bonus)
+func keep_trail_part(run: RunState, key: String) -> void: adventures_part.keep_trail_part(run, key)
+func _advance_runs() -> void: adventures_part._advance_runs()
+func _advance(run: RunState) -> bool: return adventures_part._advance(run)
+func debug_finish_runs() -> void: adventures_part.debug_finish_runs()
 
 # automation_part.gd
 func auto_jobs() -> Array[Dictionary]: return automation_part.auto_jobs()
