@@ -47,6 +47,7 @@ var errands_part := ErrandsPart.new(self)
 var automation_part := AutomationPart.new(self)
 var workers_part := WorkersPart.new(self)
 var dungeon_part := DungeonPart.new(self)
+var perks_part := PerksPart.new(self)
 # ---- end of the parts ----
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
@@ -812,104 +813,6 @@ func debug_sewn(n: int) -> void:
 
 
 # ---- the wisps perk tree on the well wall (see Perks, data/perks.json) -----------------
-
-## A perk's level (0 = not bought).
-func perk_level(id: String) -> int:
-	return Perks.level(perks, id)
-
-
-## The perks on the wall now, in order: the chain's nails the army has been deep enough for (and
-## whose needs is open), then the 2 tips once the chain is done. [] while the dungeon is closed.
-func perks_shown() -> Array[String]:
-	if not dungeon_open():
-		return []
-	return Perks.shown(catalog, perks, int(dungeon.deep), is_open)
-
-
-## What a perk's next level costs in wisps (-1 when maxed).
-func perk_price(id: String) -> int:
-	return Perks.price(catalog, perks, id)
-
-
-## Whether a perk can be bought now, wisps aside: it shows, it isn't maxed, the one above has a level.
-func perk_available(id: String) -> bool:
-	return dungeon_open() and Perks.available(catalog, perks, id, int(dungeon.deep), is_open)
-
-
-## Whether a perk on the well wall can be bought right now with the wisps you hold (the perks
-## button's gold dot).
-func perks_affordable() -> bool:
-	for id in perks_shown():
-		if perk_available(id) and wisps >= perk_price(id):
-			return true
-	return false
-
-
-## The next perk down the chain the army hasn't been deep enough for yet (its "needs" open): the
-## wall's carrot ({} when there's none).
-func perk_carrot() -> Dictionary:
-	if not dungeon_open():
-		return {}
-	for p in Perks.chain(catalog):
-		if int(p.get("floor", 0)) > int(dungeon.deep) and (str(p.get("needs", "")) == "" or is_open(str(p.needs))):
-			return p
-	return {}
-
-
-## Buys a perk's next level with wisps. False when it can't (not there yet, maxed, not enough wisps).
-func buy_perk(id: String) -> bool:
-	if not dungeon_open():
-		return false
-	var cost := Perks.buy(catalog, perks, id, wisps, int(dungeon.deep), is_open)
-	if cost < 0:
-		return false
-	wisps -= cost
-	_perks_changed(id)
-	return true
-
-
-## Sets a perk's level for free (dev steps and tests).
-func debug_perk(id: String, lv: int) -> void:
-	if Perks.perk(catalog, id).is_empty():
-		return
-	perks[id] = lv
-	perks = Perks.clean(catalog, perks)
-	_perks_changed(id)
-
-
-func _perks_changed(id: String) -> void:
-	_boosts_changed()
-	if not dungeon_running():
-		_trim_army_herd()  # (a wider entrance never trims; kept for a save with a narrower one)
-	dungeon_changed.emit()  # (the well's nails and the nail card rebuild from this)
-	changed.emit()
-	save_game()
-
-
-## The number a count gives now: its base plus its perk's step (see Perks.count).
-func perk_count(name: String) -> float:
-	return Perks.count(catalog, perks, name)
-
-
-## Cards that fight in the dungeon's front row (data/dungeon.json front_row, the pinwheel perk adds).
-func front_row_size() -> int:
-	return int(perk_count("front_row"))
-
-
-## Extra plushie holds from the perks (the thimble).
-func perk_holds() -> int:
-	return int(perk_count("holds"))
-
-
-## Extra plushie nudges per pet that hops in (the ribbon).
-func perk_nudges() -> int:
-	return int(perk_count("nudges"))
-
-
-## Hours your pet keeps leading the army while the game is closed (the music box; 0 without it).
-func perk_away_hours() -> float:
-	return perk_count("away_hours")
-
 
 # ---- keep lines: the sorting card keeps pets as cards (see Sewing) --------------------
 
@@ -3104,6 +3007,21 @@ func capsule_seconds() -> float: return machine_part.capsule_seconds()
 func bit_hint(bit: String) -> String: return machine_part.bit_hint(bit)
 func fever_left() -> float: return machine_part.fever_left()
 func buy_machine_upgrade(id: String) -> bool: return machine_part.buy_machine_upgrade(id)
+
+# perks_part.gd
+func perk_level(id: String) -> int: return perks_part.perk_level(id)
+func perks_shown() -> Array[String]: return perks_part.perks_shown()
+func perk_price(id: String) -> int: return perks_part.perk_price(id)
+func perk_available(id: String) -> bool: return perks_part.perk_available(id)
+func perks_affordable() -> bool: return perks_part.perks_affordable()
+func perk_carrot() -> Dictionary: return perks_part.perk_carrot()
+func buy_perk(id: String) -> bool: return perks_part.buy_perk(id)
+func debug_perk(id: String, lv: int) -> void: perks_part.debug_perk(id, lv)
+func perk_count(name: String) -> float: return perks_part.perk_count(name)
+func front_row_size() -> int: return perks_part.front_row_size()
+func perk_holds() -> int: return perks_part.perk_holds()
+func perk_nudges() -> int: return perks_part.perk_nudges()
+func perk_away_hours() -> float: return perks_part.perk_away_hours()
 
 # rest_part.gd
 func _resting() -> Dictionary: return rest_part._resting()
