@@ -1,0 +1,455 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Plushie Rules</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* F2's handoff (lanes/mockups3): "later you give pets rules (bank at 3, never risk the body) and
+     they play worse than you". The plushie machine as built (look A, the cabinet: keeper, hopper,
+     5 reels with bank / hold / nudge, wisps). Here a pet spins it for you by its rules.
+     Three looks for where the rules live; each frame plays itself (a spin every 2.4 s here) so you
+     can watch the rules work. Numbers are placeholders. */
+  :root { --wisp: #ff9e7d; --chalk: color-mix(in srgb, var(--text) 72%, transparent); }
+  body { display: block; padding: 24px 24px 60px; }
+  .sheet { width: 920px; margin: 0 auto; }
+  .sheet h1 { font: var(--display-weight) 28px/1 var(--display); color: var(--pink); margin: 0 0 6px; }
+  .sheet .lede { color: var(--muted); margin: 0 0 16px; max-width: 82ch; }
+  .sheet h2 { font: var(--display-weight) 20px/1 var(--display); color: var(--gold); margin: 30px 0 4px; }
+  .sheet h2 + p { color: var(--muted); margin: 0 0 10px; }
+  .app { margin: 0 auto; }
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+  .content { flex: 1; min-height: 0; }
+
+  .mc { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; user-select: none; }
+  .bar { display: flex; align-items: center; gap: 10px; min-height: 30px; }
+  .seg button { font-size: 12px; }
+  .wispchip { margin-left: auto; display: flex; align-items: center; gap: 7px; padding: 2px 14px 2px 8px; border-radius: 999px; background: var(--deep); border: 2px solid color-mix(in srgb, var(--wisp) 40%, var(--line)); color: var(--wisp); }
+  .wispchip b { font: 400 17px/1 var(--display); font-variant-numeric: tabular-nums; font-weight: 400; }
+  .sym { display: block; flex: none; }
+  .ttl { margin: 0; font: 400 14px/1 var(--display); color: var(--lilac); white-space: nowrap; }
+  .muted { color: var(--muted); }
+  .num { font-variant-numeric: tabular-nums; }
+  .tier { color: var(--tc); font-size: 11px; }
+
+  /* the cabinet, compact */
+  .stage { position: relative; border-radius: var(--r-panel); background: var(--paper); border: 2px solid var(--line); min-height: 0; overflow: hidden; display: flex; flex-direction: column; align-items: center; }
+  .cab { position: relative; }
+  .cabbox { position: relative; padding: 10px 12px 10px; background: color-mix(in srgb, var(--pink) 16%, var(--page)); border: 3px solid var(--pink); border-radius: 26px 26px 16px 16px; box-shadow: var(--lift); }
+  .bulbs { display: flex; justify-content: space-between; padding: 0 14px 6px; }
+  .bulbs i { width: 7px; height: 7px; border-radius: 50%; background: var(--lilac-seam); }
+  .bulbs.on i:nth-child(2n) { background: var(--pink); }
+  .bulbs.on i:nth-child(2n+1) { background: var(--lilac); }
+  .heads, .win, .under { display: grid; grid-template-columns: repeat(5, var(--rw, 66px)); gap: 7px; justify-content: center; }
+  .heads div { text-align: center; line-height: 1.15; }
+  .heads small { display: block; font-size: 10px; color: var(--muted); }
+  .heads b { font-weight: 400; font-size: 11px; }
+  .win { position: relative; margin-top: 3px; padding: 6px; background: var(--deep); border: 2px solid var(--pink-seam); border-radius: 12px; }
+  .reel { position: relative; height: 126px; overflow: hidden; border-radius: 9px; background: color-mix(in srgb, var(--text) 5%, var(--raised)); border: 2px solid var(--line); display: flex; flex-direction: column; }
+  .reel .cell { height: 42px; flex: none; display: grid; place-items: center; }
+  .reel .cell.side { opacity: .35; }
+  .reel.full { border-color: var(--pink-seam); }
+  .reel.banked { border: 2px dashed var(--pink); }
+  .reel.still { opacity: .5; }
+  .reel.careful { border-color: color-mix(in srgb, var(--mint) 60%, var(--line)); }
+  .reel.land .mid { animation: land .3s cubic-bezier(.3, 1.6, .5, 1); }
+  @keyframes land { 0% { transform: translateY(-8px); } }
+  .under { margin-top: 6px; }
+  .under > div { display: flex; flex-direction: column; gap: 4px; align-items: center; }
+  .marks { display: flex; gap: 3px; justify-content: center; }
+  .marks i { width: 9px; height: 9px; border-radius: 50%; border: 2px solid var(--line); }
+  .marks i.on { background: var(--pink); border-color: var(--pink); }
+  .marks i.held { border: 2px dashed var(--pink); }
+  .state { font-size: 10px; line-height: 14px; height: 14px; color: var(--muted); white-space: nowrap; }
+  .state.kept { color: var(--pink); }
+  .state.hold { color: var(--lilac); }
+  .lever { position: absolute; right: -34px; top: 74px; width: 30px; height: 120px; }
+  .lever .mount { position: absolute; left: -4px; bottom: 16px; width: 24px; height: 34px; border-radius: 8px; background: var(--raised); border: 3px solid var(--lilac-seam); }
+  .lever .arm { position: absolute; left: 8px; bottom: 34px; width: 5px; height: 76px; border-radius: 3px; background: var(--lilac); transform-origin: 50% 100%; transition: transform .18s var(--ease-out); }
+  .lever .arm::after { content: ""; position: absolute; left: 50%; top: -12px; width: 20px; height: 20px; margin-left: -10px; border-radius: 50%; background: var(--pink); border: 2px solid var(--deep); }
+  .lever.pulled .arm { transform: scaleY(-.5); }
+  .player { position: absolute; width: 48px; height: 54px; transition: transform .18s var(--ease-out); }
+  .player.pull { transform: translateY(10px) rotate(6deg); }
+  .stool { position: absolute; width: 44px; height: 22px; }
+  .hopline { display: flex; align-items: center; gap: 8px; font-size: 11px; }
+  .hopline img { width: 32px; height: 36px; }
+  .fed { display: flex; align-items: center; gap: 8px; font-size: 11px; line-height: 1.35; }
+  .fed img { width: 40px; height: 45px; }
+  .fed b { font-weight: 400; font-size: 12px; display: block; }
+  .pdots { display: inline-flex; gap: 3px; vertical-align: middle; }
+  .pdots i { width: 7px; height: 7px; border-radius: 50%; background: var(--c, var(--pink)); }
+  .pdots i.off { background: none; border: 2px solid var(--line); }
+
+  /* rule pieces */
+  .who { display: flex; align-items: center; gap: 8px; }
+  .who .seg button { display: inline-flex; align-items: center; gap: 4px; padding: 2px 9px; }
+  .who img { width: 16px; height: 18px; }
+  .rule { display: flex; align-items: center; flex-wrap: wrap; gap: 5px 6px; font-size: 12px; line-height: 1.3; }
+  .step { display: inline-flex; align-items: center; gap: 2px; }
+  .step button { width: 20px; height: 20px; padding: 0; border-radius: 6px; font-size: 12px; line-height: 1; }
+  .step b { min-width: 22px; text-align: center; font: 400 15px/1 var(--display); color: var(--pink); font-weight: 400; display: inline-flex; align-items: center; justify-content: center; gap: 2px; }
+  .chipsel { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+  .chipsel button { padding: 1px 8px; font-size: 11px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); color: var(--muted); cursor: pointer; }
+  .chipsel button:hover { color: var(--pink); border-color: var(--pink-seam); }
+  .chipsel button.on { color: var(--text); background: var(--pink-pressed); border-color: var(--pink); }
+  .chipsel.care button.on { background: color-mix(in srgb, var(--mint) 18%, var(--deep)); border-color: var(--mint); }
+  .tally { display: grid; grid-template-columns: auto 1fr; gap: 3px 8px; align-items: center; font-size: 12px; }
+  .tally b { font: 400 15px/1 var(--display); font-weight: 400; text-align: right; font-variant-numeric: tabular-nums; }
+  .tally .pos { color: var(--pink); }
+  .tally .neg { color: var(--wisp); }
+
+  /* A: the rules card */
+  .a-body { display: grid; grid-template-columns: 1fr 252px; grid-template-rows: minmax(0, 1fr); gap: 14px; flex: 1; min-height: 0; }
+  .a-stage { padding: 30px 0 0 22px; align-items: flex-start; }
+  .a-side { display: flex; flex-direction: column; gap: 9px; padding: 11px 13px; min-height: 0; }
+  .keeperline { display: flex; align-items: center; gap: 8px; }
+  .keeperline .pic { width: 46px; height: 50px; display: grid; place-items: center; border-radius: 12px; background: var(--deep); border: 2px solid var(--tc); transform: rotate(-3deg); flex: none; }
+  .keeperline .pic img { width: 40px; height: 45px; }
+  .keeperline b { font: 400 14px/1.05 var(--display); color: var(--pink); font-weight: 400; display: block; }
+  .keeperline span { font-size: 11px; display: inline-flex; align-items: center; gap: 3px; }
+  .stagefoot { position: absolute; left: 12px; right: 12px; bottom: 10px; display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+
+  /* B: tags on the reels */
+  .b-body { display: grid; grid-template-columns: 1fr 218px; grid-template-rows: minmax(0, 1fr); gap: 14px; flex: 1; min-height: 0; }
+  .b-stage { padding: 14px 0 0 20px; align-items: flex-start; }
+  .tags { display: grid; grid-template-columns: repeat(5, var(--rw)); gap: 7px; justify-content: center; margin-top: 2px; }
+  .tagc { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 10px 2px 7px; border-radius: 6px 6px 10px 10px; background: color-mix(in srgb, var(--gold) 9%, var(--raised)); border: 2px solid color-mix(in srgb, var(--gold) 35%, var(--line)); transform: rotate(var(--t)); }
+  .tagc::before { content: ""; position: absolute; top: 3px; left: 50%; width: 6px; height: 6px; margin-left: -3px; border-radius: 50%; background: var(--deep); border: 1.5px solid color-mix(in srgb, var(--gold) 45%, var(--line)); }
+  .tagc::after { content: ""; position: absolute; top: -12px; left: 50%; width: 2px; height: 12px; background: color-mix(in srgb, var(--gold) 45%, var(--line)); }
+  .tagc .lbl { font-size: 10px; color: var(--muted); line-height: 1; }
+  .tagc .step b { font-size: 14px; min-width: 16px; }
+  .tagc .step button { width: 17px; height: 17px; font-size: 11px; }
+  .heart { display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px 1px 4px; border-radius: 999px; font-size: 10px; background: var(--deep); border: 2px solid var(--line); color: var(--muted); cursor: pointer; }
+  .heart svg { width: 12px; height: 12px; }
+  .heart.on { color: var(--mint); border-color: var(--mint); }
+  .levertag { position: absolute; padding: 8px 8px 6px; width: 104px; border-radius: 6px 6px 10px 10px; background: color-mix(in srgb, var(--gold) 9%, var(--raised)); border: 2px solid color-mix(in srgb, var(--gold) 35%, var(--line)); transform: rotate(4deg); display: flex; flex-direction: column; gap: 4px; align-items: center; font-size: 10px; }
+  .levertag .chipsel { justify-content: center; }
+  .levertag .chipsel button { font-size: 10px; padding: 0 6px; }
+  .b-side { display: flex; flex-direction: column; gap: 9px; padding: 11px 13px; min-height: 0; }
+
+  /* C: the automation tab, a job card + the pet's notebook */
+  .c-body { display: grid; grid-template-columns: 1fr 262px; grid-template-rows: minmax(0, 1fr); gap: 14px; flex: 1; min-height: 0; }
+  .jobs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: 158px; gap: 10px; align-content: start; min-height: 0; }
+  .job { position: relative; display: flex; flex-direction: column; gap: 5px; padding: 8px 9px; border-radius: var(--r-xl); background: color-mix(in srgb, var(--jc) 8%, var(--raised)); border: 2px solid color-mix(in srgb, var(--jc) 45%, var(--line)); box-shadow: var(--lift); }
+  .job.on { border: 2px dashed var(--pink); transform: rotate(-1deg); }
+  .job h4 { margin: 0; font: 400 13px/1.1 var(--display); color: var(--jc); font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .job .well { flex: 1; position: relative; border-radius: 10px; background: var(--deep); border: 2px solid var(--line); display: grid; place-items: center; overflow: hidden; }
+  .job .well svg { width: 96px; height: 70px; }
+  .job .well .sit { position: absolute; right: 8px; bottom: 4px; width: 32px; height: 36px; }
+  .job .nb { font-size: 10px; color: var(--muted); text-align: center; }
+  .job.faded .well > * { opacity: .35; }
+  .notebook { position: relative; display: flex; flex-direction: column; gap: 0; padding: 12px 14px 10px 30px; min-height: 0; border-radius: 6px 12px 12px 6px; background:
+      repeating-linear-gradient(to bottom, transparent 0 25px, color-mix(in srgb, var(--lilac) 18%, transparent) 25px 27px) 0 34px / 100% calc(100% - 34px) no-repeat, var(--raised);
+    border: 2px solid var(--lilac-seam); box-shadow: var(--lift); }
+  .notebook::before { content: ""; position: absolute; left: 20px; top: 0; bottom: 0; width: 2px; background: color-mix(in srgb, var(--pink) 45%, transparent); }
+  .notebook .rings { position: absolute; left: 4px; top: 16px; bottom: 16px; display: flex; flex-direction: column; justify-content: space-between; }
+  .notebook .rings i { width: 10px; height: 10px; border-radius: 50%; background: var(--deep); border: 2px solid var(--lilac-seam); }
+  .notebook h3 { margin: 0 0 6px; height: 22px; font: 400 17px/22px var(--display); color: var(--pink); font-weight: 400; transform: rotate(-2deg); transform-origin: left; display: flex; align-items: center; gap: 6px; }
+  .notebook h3 img { width: 24px; height: 27px; margin-top: -6px; }
+  .crayon { min-height: 27px; display: flex; align-items: center; flex-wrap: wrap; gap: 4px 5px; font: 400 13px/1.2 var(--display); color: var(--text); font-weight: 400; padding: 1px 0; }
+  .crayon .chipsel button { font-family: var(--body); }
+  .crayon .step b { font-size: 16px; }
+  .notebook .tally { margin-top: 8px; font-family: var(--body); }
+  .scribble { display: inline-block; padding: 0 3px; border-bottom: 2px solid var(--pink); }
+  .notebook .feet { margin-top: auto; display: flex; align-items: center; gap: 8px; padding-top: 6px; font-size: 11px; color: var(--muted); font-family: var(--body); }
+
+  /* decisions (not a game screen) */
+  .decide { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .decide .box { padding: 12px 14px; }
+  .decide h3 { margin: 0 0 6px; font: var(--display-weight) 15px/1 var(--display); color: var(--lilac); }
+  .decide p { margin: 0; font-size: 12px; color: var(--text); }
+  .decide p + p { margin-top: 4px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <h1>the plushie machine: your pet's rules</h1>
+  <p class="lede">F2's handoff. Later in the game a pet spins the plushie machine for you, by rules you give it: "bank at 3, never risk the body". It plays worse than you (slower, and it only nudges and holds the way its rules say). The keeper here is gold dragon (body 4, palette 2, pattern 1, eyes 3, accessory full); lilac blob, your pet, spins. Each frame plays itself: change a rule and watch it.</p>
+
+  <h2>Look A: the rules card</h2>
+  <p>The machine as built; your pet stands on a stool at the lever. The side card turns into its rules: who spins (you | lilac blob), then sentences with steppers, like the sorting rule.</p>
+  <div class="app" data-look="a"></div>
+
+  <h2>Look B: tags on the reels</h2>
+  <p>The rules hang on the machine: a paper tag under every reel ("bank at", a heart for "careful") and one on the lever for nudges. A rule per part, so the body can be careful and the pattern greedy.</p>
+  <div class="app" data-look="b"></div>
+
+  <h2>Look C: a job on the automation tab</h2>
+  <p>Spinning is one more job card for your pet (one job at a time, like the crank). Its rules are its own notebook page, in its crayon.</p>
+  <div class="app" data-look="c"></div>
+
+  <h2>to decide</h2>
+  <div class="decide" id="decide"></div>
+</div>
+
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+  TABS.forEach(t => { t.news = false; });
+
+  // ---------- symbols (the game's doodles: button, blank, crack, wisp) ----------
+  function sym(kind, size = 22) {
+    let inner;
+    if (kind === "up") inner = `<circle cx="12" cy="12" r="8.4" fill="color-mix(in srgb, var(--pink) 40%, var(--page))" stroke="var(--pink)" stroke-width="2.2"/><circle cx="10" cy="10" r="1.3" fill="var(--deep)"/><circle cx="14" cy="10" r="1.3" fill="var(--deep)"/><circle cx="10" cy="14" r="1.3" fill="var(--deep)"/><circle cx="14" cy="14" r="1.3" fill="var(--deep)"/>`;
+    else if (kind === "crack") inner = `<path d="M4.5 13 L8 9.5 L11 13.5 L14 9 L17 13 L19.5 10.5" fill="none" stroke="var(--text)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>`;
+    else if (kind === "wisp") inner = `<path d="M12 21 Q6 18 7 12 Q8 8 12 4 Q12 9 15 10 Q18 12 17 16 Q16 20 12 21 Z" fill="color-mix(in srgb, var(--wisp) 35%, var(--page))" stroke="var(--wisp)" stroke-width="2" stroke-linejoin="round"/>`;
+    else if (kind === "heart") inner = `<path d="M12 20 Q4 14 4 9 Q4 5 8 5 Q10.5 5 12 7.5 Q13.5 5 16 5 Q20 5 20 9 Q20 14 12 20 Z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>`;
+    else inner = `<path d="M8 12.4 Q12 11.2 16 12.4" fill="none" stroke="var(--muted)" stroke-width="2.4" stroke-linecap="round" opacity=".7"/>`;
+    return `<svg class="sym" width="${size}" height="${size}" viewBox="0 0 24 24" aria-hidden="true">${inner}</svg>`;
+  }
+
+  const SLOTS = ["body", "palette", "pattern", "eyes", "accessory"];
+  const PARTS = ["dragon", "gold", "circuit", "sparkle", "crown"];
+  const UP = [34, 26, 18, 11, 5], CRACK = [8, 11, 15, 19, 24];
+  const NEEDS = ["common", "common", "rare", "epic", "mythic"];
+  const TIERS = ["common", "uncommon", "rare", "epic", "legendary", "mythic"];
+  const FEED = [["epic", "bubblegum-fox", "bubblegum fox"], ["rare", "sky-bunny", "sky bunny"], ["uncommon", "mint-bear", "mint bear"], ["epic", "toxic-cat", "toxic cat"]];
+  const tc = t => `var(--tier-${t})`;
+  const pick = a => a[Math.floor(Math.random() * a.length)];
+  const NUDGE = ["never", "off a crack", "always"];
+  const CHEER = ["wheee!", "round and round!", "here it comes!", "spin spin spin!"];
+  const YAY = ["a new button!! so pretty!", "sewn on tight!", "that one's staying forever!"];
+  const OOPS = ["oops! a button popped. i'll find it later!", "eek, a crack! sorry, gold dragon!"];
+  const CAREFUL = "i'm being so careful with the body!";
+
+  class Sim {
+    constructor(app) {
+      this.app = app; this.look = app.dataset.look;
+      this.ups = [4, 2, 1, 3, 5];
+      this.rules = { bankAt: 3, careful: { body: true }, nudge: 1, perReel: [2, 3, 3, 2, 3], heart: [true, false, false, true, false] };
+      this.who = "pet";
+      this.held = [0, 0, 0, 0, 0]; this.banked = [false, false, false, false, false];
+      this.strip = SLOTS.map(() => ["blank", "blank", "up"]);
+      this.fi = 0; this.spins = 4; this.nudges = 2;
+      this.tally = { spins: 212, sewn: 31, popped: 6, pets: 58 };
+      this.hopper = 48;
+      this.wisps = 18400;
+      this.pulled = false; this.landed = new Set();
+      this.say("i'm on the lever! you can rest your paws.");
+      this.render();
+      app.addEventListener("click", e => this.click(e));
+      setInterval(() => this.tick(), 2400);
+    }
+    get fed() { return FEED[this.fi]; }
+    say(t) { const b = this.app.querySelector(".top .bubble"); if (b) b.textContent = t; this.line = t; }
+    bankAt(i) { return this.look === "b" ? this.rules.perReel[i] : this.rules.bankAt; }
+    careful(i) { return this.look === "b" ? this.rules.heart[i] : !!this.rules.careful[SLOTS[i]]; }
+    full(i) { return this.ups[i] >= 5; }
+    still(i) { return !this.full(i) && TIERS.indexOf(this.fed[0]) < TIERS.indexOf(NEEDS[this.ups[i]]); }
+    roll(i) { const r = Math.random() * 100, u = UP[Math.min(this.ups[i], 4)], c = CRACK[Math.min(this.ups[i], 4)]; return r < u ? "up" : r < u + c ? "crack" : "blank"; }
+    tick() {
+      if (this.who !== "pet") return;
+      this.pulled = true; this.landed = new Set();
+      let ups = 0, pops = 0;
+      // the pet's rules: a careful part is banked as soon as it holds anything (never held);
+      // a reel is held until it holds "bank at", then banked
+      SLOTS.forEach((s, i) => {
+        if (this.full(i) || this.banked[i] || this.still(i)) return;
+        let land = this.roll(i);
+        if (land === "crack" && this.nudges > 0 && this.rules.nudge === 1) { this.nudges--; land = this.roll(i) === "crack" ? "blank" : this.roll(i); }
+        else if (land !== "up" && this.nudges > 0 && this.rules.nudge === 2) { this.nudges--; land = this.roll(i); }
+        this.strip[i] = [this.roll(i), land, this.roll(i)];
+        this.landed.add(i);
+        if (land === "up") { this.held[i] += 1; ups++; }
+        if (land === "crack") { if (this.held[i]) this.held[i] = 0; else if (this.ups[i] > 0) { this.ups[i]--; pops++; } }
+        if (this.held[i] > 0 && (this.careful(i) || this.held[i] >= this.bankAt(i) || this.ups[i] + this.held[i] >= 5)) {
+          this.ups[i] = Math.min(5, this.ups[i] + this.held[i]); this.tally.sewn += this.held[i]; this.held[i] = 0; this.banked[i] = true;
+        }
+      });
+      this.tally.spins++; this.tally.popped += pops; this.spins--;
+      if (this.spins <= 0) {
+        SLOTS.forEach((s, i) => { if (this.held[i]) { this.ups[i] = Math.min(5, this.ups[i] + this.held[i]); this.tally.sewn += this.held[i]; this.held[i] = 0; } });
+        this.banked = this.banked.map(() => false);
+        this.fi = (this.fi + 1) % FEED.length; this.spins = TIERS.indexOf(this.fed[0]) + 1; this.hopper = Math.max(0, this.hopper - 1); this.tally.pets++;
+        if (this.ups.every(u => u >= 5)) this.ups = [4, 2, 1, 3, 5];
+      }
+      this.say(pops ? pick(OOPS) : ups ? (this.careful(0) && this.landed.has(0) && this.strip[0][1] === "up" ? CAREFUL : pick(YAY)) : pick(CHEER));
+      this.render();
+      setTimeout(() => { this.pulled = false; this.app.querySelectorAll(".lever").forEach(l => l.classList.remove("pulled")); this.app.querySelectorAll(".player").forEach(l => l.classList.remove("pull")); }, 300);
+    }
+    click(e) {
+      const b = e.target.closest("[data-act]"); if (!b || !this.app.contains(b)) return;
+      const [act, arg] = b.dataset.act.split(":"), i = Number(arg);
+      if (act === "bank") this.rules.bankAt = Math.max(1, Math.min(5, this.rules.bankAt + i));
+      if (act === "rbank") { const [r, d] = arg.split("|").map(Number); this.rules.perReel[r] = Math.max(1, Math.min(5, this.rules.perReel[r] + d)); }
+      if (act === "heart") this.rules.heart[i] = !this.rules.heart[i];
+      if (act === "care") this.rules.careful[arg] = !this.rules.careful[arg];
+      if (act === "nudge") this.rules.nudge = i;
+      if (act === "who") { this.who = arg; this.say(arg === "pet" ? "my turn! i know the rules." : "your turn! i'll watch."); }
+      this.render();
+    }
+
+    // ---- pieces ----
+    marks(i) { return `<div class="marks">${[0, 1, 2, 3, 4].map(k => `<i class="${k < this.ups[i] ? "on" : k < this.ups[i] + this.held[i] ? "held" : ""}"></i>`).join("")}</div>`; }
+    stateOf(i) {
+      if (this.full(i)) return `<span class="state kept">full!</span>`;
+      if (this.still(i)) return `<span class="state">needs ${NEEDS[this.ups[i]]}</span>`;
+      if (this.banked[i]) return `<span class="state kept">kept!</span>`;
+      if (this.held[i]) return `<span class="state hold">holding</span>`;
+      return `<span class="state"></span>`;
+    }
+    reel(i) {
+      const cls = [this.full(i) ? "full" : "", this.banked[i] ? "banked" : "", this.still(i) ? "still" : "", this.landed.has(i) ? "land" : "", this.careful(i) && !this.full(i) ? "careful" : ""].join(" ");
+      if (this.full(i)) return `<div class="reel ${cls}"><div class="cell side"></div><div class="cell mid">${sym("up", 28)}</div><div class="cell side"></div></div>`;
+      return `<div class="reel ${cls}">${this.strip[i].map((s, k) => `<div class="cell ${k === 1 ? "mid" : "side"}">${sym(s, k === 1 ? 26 : 20)}</div>`).join("")}</div>`;
+    }
+    cabinet(rw, extraUnder = "") {
+      return `<div class="cab" style="--rw:${rw}px"><div class="cabbox">
+          <div class="bulbs ${this.pulled ? "on" : ""}">${"<i></i>".repeat(16)}</div>
+          <div class="heads">${SLOTS.map((s, i) => `<div><small>${s}</small><b>${PARTS[i]}</b></div>`).join("")}</div>
+          <div class="win">${SLOTS.map((s, i) => this.reel(i)).join("")}</div>
+          <div class="under">${SLOTS.map((s, i) => `<div>${this.marks(i)}${this.stateOf(i)}</div>`).join("")}</div>
+        </div>
+        <div class="lever ${this.pulled && this.who === "pet" ? "pulled" : ""}"><div class="arm"></div><div class="mount"></div></div>
+        ${extraUnder}</div>`;
+    }
+    playerAt(x, y) {
+      if (this.who !== "pet") return "";
+      return `<svg class="stool" style="left:${x - 2}px; top:${y + 50}px" viewBox="0 0 44 22"><rect x="2" y="2" width="40" height="7" rx="3" fill="color-mix(in srgb, var(--rust, #8a6448) 50%, var(--page))" stroke="#8a6448" stroke-width="2"/><path d="M8 9 L6 21 M36 9 L38 21" stroke="#8a6448" stroke-width="3" stroke-linecap="round"/></svg>
+        <img class="px player ${this.pulled ? "pull" : ""}" style="left:${x}px; top:${y}px" src="../assets/pets/lilac-blob.png" alt="">`;
+    }
+    whoSeg() {
+      return `<div class="who"><div class="seg"><button class="${this.who === "you" ? "on" : ""}" data-act="who:you">you</button><button class="${this.who === "pet" ? "on" : ""}" data-act="who:pet"><img class="px" src="../assets/pets/lilac-blob.png" alt="">lilac blob</button></div></div>`;
+    }
+    fedLine() {
+      const [t, id, name] = this.fed;
+      return `<div class="fed" style="--tc:${tc(t)}"><img class="px" src="../assets/pets/${id}.png" alt=""><div><b>${name}</b><span class="tier">${t}</span><br>spins <span class="pdots">${Array.from({ length: TIERS.indexOf(t) + 1 }, (_, k) => `<i class="${k < this.spins ? "" : "off"}"></i>`).join("")}</span> nudges <span class="pdots" style="--c:var(--lilac)">${Array.from({ length: Math.max(this.nudges, 1) }, (_, k) => `<i class="${k < this.nudges ? "" : "off"}"></i>`).join("")}</span></div></div>`;
+    }
+    hopperLine() { return `<div class="hopline"><img class="px" src="../assets/pets/peach-cat.png" alt=""><span class="muted">hopper</span><b class="num" style="font-weight:400">${this.hopper}</b><span class="muted">/ 50</span></div>`; }
+    tallyRows() {
+      return `<div class="tally">
+        <span class="muted">spins</span><b class="num">${this.tally.spins}</b>
+        <span style="display:flex;align-items:center;gap:4px">${sym("up", 14)}<span class="muted">sewn on</span></span><b class="pos">+${this.tally.sewn}</b>
+        <span style="display:flex;align-items:center;gap:4px">${sym("crack", 14)}<span class="muted">popped</span></span><b class="neg">−${this.tally.popped}</b>
+        <span class="muted">pets fed</span><b class="num">${this.tally.pets}</b></div>`;
+    }
+    step(act, v, glyph = "") { return `<span class="step"><button class="btn" data-act="${act}:-1">−</button><b>${v}${glyph}</b><button class="btn" data-act="${act}:1">+</button></span>`; }
+    nudgeSel() { return `<span class="chipsel">${NUDGE.map((n, k) => `<button class="${this.rules.nudge === k ? "on" : ""}" data-act="nudge:${k}">${n}</button>`).join("")}</span>`; }
+    careSel() { return `<span class="chipsel care">${SLOTS.map(s => `<button class="${this.rules.careful[s] ? "on" : ""}" data-act="care:${s}">${s}</button>`).join("")}</span>`; }
+
+    frame(content) {
+      const tab = this.look === "c" ? "automation" : "inventory";
+      const t = t2 => `<a class="tab${t2.id === tab ? " on" : ""}" href="${t2.id}.html"><span data-icon="${t2.icon}"></span>${t2.label}</a>`;
+      return `<nav class="spine"><svg class="sky" width="80" height="600" aria-hidden="true">${stars(70)}</svg>
+          <div class="moon">${this.who === "pet" && this.look !== "c" ? `<span class="empty-seat"></span>` : `<img class="px" src="../assets/pets/lilac-blob.png" alt="">`}</div>
+          ${TABS.map(t).join("")}<div class="grow"></div>${t({ id: "settings", label: "", icon: "settings" })}</nav>
+        <main class="page dots"><div class="top"><div class="bubble">${this.line || ""}</div>
+          <span class="chip coins"><span data-icon="coin"></span>9.1B</span><span class="chip xp"><span data-icon="xp"></span>412k</span>
+          <div class="winbtns"><button>▾</button><button>✕</button></div></div>
+          <div class="content">${content}</div></main>`;
+    }
+    bar() { return `<div class="bar"><div class="seg"><button>your pet</button><button>toys</button><button class="on">plushie machine</button></div><span class="wispchip">${sym("wisp", 18)}<b>${(this.wisps / 1000).toFixed(1)}k</b></span></div>`; }
+
+    render() {
+      const html = { a: () => this.renderA(), b: () => this.renderB(), c: () => this.renderC() }[this.look]();
+      this.app.innerHTML = this.frame(html);
+      paintIcons(this.app);
+    }
+
+    renderA() {
+      return `<div class="mc">${this.bar()}<div class="a-body">
+        <div class="stage a-stage">
+          ${this.cabinet(66)}
+          ${this.playerAt(470, 120)}
+          <div class="stagefoot">${this.fedLine()}${this.hopperLine()}</div>
+        </div>
+        <div class="a-side sticker">
+          <div class="keeperline" style="--tc:${tc("legendary")}"><div class="pic"><img class="px" src="../assets/pets/gold-dragon.png" alt=""></div><div><b>gold dragon</b><span>${sym("up", 13)}${this.ups.reduce((a, b) => a + b, 0)} buttons</span></div></div>
+          ${this.whoSeg()}
+          <hr class="stitch-line">
+          <p class="ttl">lilac blob's rules</p>
+          <div class="rule">bank at ${this.step("bank", this.rules.bankAt, sym("up", 13))}</div>
+          <div class="rule">never risk the ${this.careSel()}</div>
+          <div class="rule">nudge ${this.nudgeSel()}</div>
+          <hr class="stitch-line">
+          ${this.tallyRows()}
+        </div></div></div>`;
+    }
+
+    renderB() {
+      const tags = SLOTS.map((s, i) => {
+        if (this.full(i)) return `<div></div>`;
+        return `<div class="tagc" style="--t:${[-3, 2, -1.5, 3, -2][i]}deg"><span class="lbl">bank at</span>
+          <span class="step"><button class="btn" data-act="rbank:${i}|-1">−</button><b>${this.rules.perReel[i]}</b><button class="btn" data-act="rbank:${i}|1">+</button></span>
+          <span class="heart ${this.rules.heart[i] ? "on" : ""}" data-act="heart:${i}">${sym("heart", 12)}careful</span></div>`;
+      }).join("");
+      return `<div class="mc">${this.bar()}<div class="b-body">
+        <div class="stage b-stage">
+          ${this.cabinet(70, `<div class="tags" style="--rw:70px">${tags}</div>`)}
+          ${this.playerAt(498, 108)}
+          <div class="levertag" style="left:462px; top:232px"><span class="muted">nudge</span><span class="chipsel" style="flex-direction:column;align-items:stretch">${NUDGE.map((n, k) => `<button class="${this.rules.nudge === k ? "on" : ""}" data-act="nudge:${k}">${n}</button>`).join("")}</span></div>
+        </div>
+        <div class="b-side sticker">
+          <div class="keeperline" style="--tc:${tc("legendary")}"><div class="pic"><img class="px" src="../assets/pets/gold-dragon.png" alt=""></div><div><b>gold dragon</b><span>${sym("up", 13)}${this.ups.reduce((a, b) => a + b, 0)} buttons</span></div></div>
+          ${this.whoSeg()}
+          <hr class="stitch-line">
+          ${this.fedLine()}
+          ${this.hopperLine()}
+          <hr class="stitch-line">
+          ${this.tallyRows()}
+        </div></div></div>`;
+    }
+
+    renderC() {
+      const mini = `<svg viewBox="0 0 96 70"><path d="M30 4 L66 4 L58 14 L38 14 Z" fill="color-mix(in srgb, var(--lilac) 14%, var(--page))" stroke="var(--lilac-seam)" stroke-width="2"/><rect x="10" y="14" width="76" height="48" rx="10" fill="color-mix(in srgb, var(--pink) 16%, var(--page))" stroke="var(--pink)" stroke-width="2.5"/>
+        ${[0, 1, 2, 3, 4].map(k => `<rect x="${16 + k * 13.4}" y="24" width="11" height="22" rx="3" fill="var(--deep)" stroke="var(--pink-seam)" stroke-width="1.4"/><circle cx="${21.5 + k * 13.4}" cy="35" r="3.4" fill="${this.strip[k][1] === "up" || this.full(k) ? "var(--pink)" : "none"}" stroke="${this.strip[k][1] === "crack" ? "var(--text)" : "var(--pink)"}" stroke-width="1.2"/>`).join("")}
+        <path d="M86 40 L94 22" stroke="var(--lilac)" stroke-width="3" stroke-linecap="round"/><circle cx="94" cy="20" r="4" fill="var(--pink)"/></svg>`;
+      const crank = `<svg viewBox="0 0 96 70"><circle cx="40" cy="26" r="16" fill="color-mix(in srgb, var(--lilac) 10%, var(--page))" stroke="var(--lilac)" stroke-width="2.5"/><path d="M26 42 L54 42 L56 62 L24 62 Z" fill="color-mix(in srgb, var(--pink) 20%, var(--page))" stroke="var(--pink)" stroke-width="2.5"/><path d="M56 50 L66 50 L66 40" stroke="var(--gold)" stroke-width="3" fill="none" stroke-linecap="round"/></svg>`;
+      const gate = `<svg viewBox="0 0 96 70"><path d="M20 64 L20 22 Q48 2 76 22 L76 64" fill="none" stroke="var(--mint)" stroke-width="3"/><path d="M48 12 L48 -2 L60 4 L48 8" fill="var(--pink)" stroke="var(--pink)" stroke-width="2"/></svg>`;
+      const box = `<svg viewBox="0 0 96 70"><rect x="24" y="30" width="48" height="32" rx="5" fill="color-mix(in srgb, var(--gold) 14%, var(--page))" stroke="var(--gold)" stroke-width="2.5"/><path d="M20 22 L76 22 L76 32 L20 32 Z" fill="var(--raised)" stroke="var(--gold)" stroke-width="2.5"/></svg>`;
+      const lantern = `<svg viewBox="0 0 96 70"><path d="M48 6 L48 14" stroke="var(--wisp)" stroke-width="2.5"/><rect x="36" y="14" width="24" height="34" rx="8" fill="color-mix(in srgb, var(--wisp) 18%, var(--page))" stroke="var(--wisp)" stroke-width="2.5"/><circle cx="48" cy="31" r="5" fill="var(--wisp)"/></svg>`;
+      const on = this.who === "pet";
+      const job = (name, c, art, here, picked) => `<div class="job ${picked ? "on" : ""} ${here ? "" : "faded"}" style="--jc:${c}"><h4>${name}</h4><div class="well">${art}${here ? `<img class="px sit" src="../assets/pets/lilac-blob.png" alt="">` : ""}</div><div class="nb">${here ? "" : "nobody here"}</div></div>`;
+      return `<div class="mc"><div class="bar"><div class="seg"><button class="on">your pet</button><button>workers</button></div></div><div class="c-body">
+        <div class="jobs">
+          ${job("crank the machine", "var(--pink)", crank, false)}
+          ${job("adventures", "var(--mint)", gate, false)}
+          ${job("open boxes", "var(--gold)", box, false)}
+          ${job("lead the army", "var(--wisp)", lantern, false)}
+          ${job("spin the plushie machine", "var(--pink)", mini, on, true)}
+        </div>
+        <div class="notebook"><div class="rings"><i></i><i></i><i></i><i></i></div>
+          <h3><img class="px" src="../assets/pets/lilac-blob.png" alt="">my rules</h3>
+          <div class="crayon">i bank at ${this.step("bank", this.rules.bankAt)} buttons</div>
+          <div class="crayon">i never risk the</div>
+          <div class="crayon">${this.careSel()}</div>
+          <div class="crayon">i nudge</div>
+          <div class="crayon">${this.nudgeSel()}</div>
+          <div class="crayon">i sew on <span class="scribble">gold dragon</span></div>
+          ${this.tallyRows()}
+          <div class="feet">${this.hopperLine()}</div>
+        </div></div></div>`;
+    }
+  }
+
+  document.querySelectorAll(".app").forEach(app => new Sim(app));
+
+  const DECIDE = [
+    ["1. which look", "A the rules card, B tags on the reels, C a job on the automation tab."],
+    ["2. what \"never risk the body\" means", "Picked here: that part is banked the moment it holds a button, never held. A crack can still pop a sewn one.", "Other way: the pet leaves that reel still (no risk, but no new buttons there either)."],
+    ["3. how it plays worse than you", "Picked here: slower (a spin every few seconds), never holds past its \"bank at\", only nudges the way its rule says, never buys wisps things.", "Other ideas: it sometimes forgets a nudge; it can't use the wild 6th reel."],
+    ["4. who spins and how it opens", "Your active pet as one more automation job (C), or a pet on a stool at the machine (A, B).", "Opens with: a well wall perk, a shed workshop drawing, or the sewing room's rolled rooms."],
+    ["5. while the game is closed", "Keeps spinning (like the crank with the stool), or only while the game is open (like lead the army)."],
+    ["6. where the hopper comes from", "The pet only spins what's in the hopper (you fill it), or the sorting rule's keep lines top it up for it."],
+  ];
+  document.getElementById("decide").innerHTML = DECIDE.map(([h, ...ps]) => `<div class="box sticker"><h3>${h}</h3>${ps.map(p => `<p>${p}</p>`).join("")}</div>`).join("");
+  applyLook(loadLook());
+</script>
+</body>
+</html>
