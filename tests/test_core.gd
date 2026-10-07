@@ -1481,20 +1481,39 @@ func _test_globes(catalog: Catalog) -> void:
 	AdventureRunner._finish_treat(well, catalog.location("well"), catalog, {})
 	_check(well.history.is_empty() and well.xp == 0, "the old well gives no treat until the pulleys can come")
 
-	# an injected midnight catalog: any number of globes
-	var cat2 := Catalog.new()
-	var tree: Dictionary = cat2.machine_tree.duplicate(true)
-	tree.nodes.append({ "id": "porch_dust", "globe": "midnight", "branch": "sunset", "at": [390, -440], "name": "dust", "icon": "nest", "max": 1, "coins": 1, "grow": 1, "bits": {}, "each": {}, "fixes": "nest", "from": "hatch" })
-	tree.nodes.append({ "id": "porch_hatch", "globe": "midnight", "branch": "sunset", "at": [390, -520], "name": "hatch", "icon": "hatch", "max": 1, "coins": 1, "grow": 1, "bits": {}, "each": { "coins_x": 2, "chutes": 1 }, "fixes": "hatch", "from": "porch_dust" })
-	cat2.machine_tree = tree
+	# the midnight globe: next door's porch machine, its repairs off the sunset hatch
+	_check(catalog.finds.has("porch_machine"), "the porch machine is a real find")
+	var mid_ev: Array = catalog.events.values().filter(func(e): return str(e.get("find", "")) == "porch_machine")
+	_check(mid_ev.size() == 1 and str(mid_ev[0].get("after_machine", "")) == "hatch" and mid_ev[0].get("auto", false)
+		and catalog.location("porch").pool.any(func(p): return p.event == mid_ev[0].id), "the midnight globe turns up on the porch, once the sunset hatch is open")
+	var teaser: Dictionary = catalog.events.get("nd_machine", {})
+	_check(AdventureRunner.can_meet(teaser, {}, {}) and not AdventureRunner.can_meet(teaser, {}, { "hatch": 1 }), "the porch's broken machine makes way for the find once the sunset hatch is open")
+	_check(str(Machine.node(catalog, "porch_dust").get("from", "")) == "hatch" and Machine.globe_of(catalog, Machine.node(catalog, "porch_dust")) == "midnight", "the midnight branch grows off the sunset hatch")
+	var mid_fixes := Machine.repairs(catalog, "midnight")
+	_check(mid_fixes.size() >= 4 and mid_fixes.size() <= 6 and mid_fixes[0].id == "porch_dust" and mid_fixes.back().id == "porch_hatch", "the midnight globe has a short repair chain, dust first, hatch last")
+	_check(str(Machine.globe(catalog, "midnight").works) == "porch_dust" and str(Machine.globe(catalog, "midnight").hatch) == "porch_hatch", "the midnight globe works after the dust, opens at its hatch")
+	_check(Machine.bits_of(catalog, "midnight") == ["link", "bulb", "moonglass", "hinge"], "the midnight globe has its bits")
+	for b in Machine.bits_of(catalog, "midnight"):
+		var from: Array = catalog.locations.filter(func(l): return str(l.get("page", "")) == "next_door" and l.get("finish_rewards", []).any(func(r): return r.get("id", "") == b and r.get("after", "") == "porch_machine"))
+		_check(not from.is_empty(), "midnight bit %s drops next door, once the porch machine is home" % b)
 	var three := { "bought": state.bought.duplicate(), "globes": ["sunny", "sunset", "midnight"] }
-	_check(Machine.hand(three, cat2) == "sunset" and Machine.behind(three, cat2) == "sunny" and Machine.newest(three, cat2) == "midnight", "a broken midnight globe: you pull the sunset one")
+	_check(Machine.hand(three, catalog) == "sunset" and Machine.behind(three, catalog) == "sunny" and Machine.newest(three, catalog) == "midnight", "a broken midnight globe: you pull the sunset one")
+	_check(mid_fixes.all(func(n): return Machine.look(three, catalog, n.id) in ["next", "dim"]), "the whole midnight chain shows once it's home")
 	three.bought.porch_dust = 1
-	_check(Machine.hand(three, cat2) == "midnight" and Machine.behind(three, cat2) == "sunset", "the midnight globe works: you pull it, the sunset one is behind")
-	_check(is_equal_approx(Machine.coin_value(three, cat2, "midnight"), Machine.coin_value(three, cat2, "sunset") / Machine.step(cat2, "sunset") * Machine.step(cat2, "midnight")), "midnight capsules: every older globe's coins x its step")
-	_check(Machine.chutes(three, cat2, "midnight") == 1 and Machine.box_of(three, cat2, "midnight") == "sunset", "before its hatch the midnight globe has one chute and drops sunset boxes")
-	three.bought.porch_hatch = 1
-	_check(Machine.box_of(three, cat2, "midnight") == "midnight" and Machine.chutes(three, cat2, "midnight") == 2 and Machine.chutes(three, cat2, "sunset") == 2, "its hatch: midnight boxes, and its chute is its own")
+	_check(Machine.hand(three, catalog) == "midnight" and Machine.behind(three, catalog) == "sunset", "the midnight globe works: you pull it, the sunset one is behind")
+	_check(is_equal_approx(Machine.coin_value(three, catalog, "midnight"), Machine.coin_value(three, catalog, "sunset") / Machine.step(catalog, "sunset") * Machine.step(catalog, "midnight")), "midnight capsules: every older globe's coins x its step")
+	_check(Machine.step(catalog, "midnight") > Machine.step(catalog, "sunset"), "the midnight step is bigger than the sunset one")
+	_check(Machine.chutes(three, catalog, "midnight") == 1 and Machine.box_of(three, catalog, "midnight") == "sunset" and Machine.toy_sets(three, catalog, "midnight") == ["backyard", "sunset"], "before its hatch the midnight globe has one chute and drops what the sunset one does")
+	_check(not Machine.lights_on(three, catalog, "midnight") and Machine.shiny_chance(three, catalog, "midnight") == 0.0, "no lights or shiny balls on the midnight globe yet")
+	for n in mid_fixes:
+		three.bought[n.id] = 1
+	_check(Machine.box_of(three, catalog, "midnight") == "midnight" and Machine.box_of(three, catalog, "sunset") == "sunset", "its hatch: midnight boxes on the midnight globe only")
+	_check(Machine.loot(box_prize, three, catalog, rng, 1.0, "midnight").has("box:midnight"), "a box out of the midnight globe is a midnight box")
+	_check(Machine.toy_sets(three, catalog, "midnight") == ["backyard", "sunset", "midnight"] and Machine.toy_sets(three, catalog, "sunset") == ["backyard", "sunset"], "midnight toys only on the midnight globe, after its hatch")
+	_check(Machine.chutes(three, catalog, "midnight") == 2 and Machine.chutes(three, catalog, "sunset") == 2, "the chain's chute is the midnight globe's own")
+	_check(Machine.lights_on(three, catalog, "midnight") and Machine.shiny_chance(three, catalog, "midnight") > 0.0, "bulbs and moon glass: lights and shiny balls on the midnight globe")
+	_check(not Machine.repairs_left(three, catalog, "midnight"), "all midnight fixes done")
+	_check(Toys.of_sets(catalog, ["midnight"]).size() == 4, "the midnight set has four toys")
 
 	# GameState: the find brings the globe home, bits wait for it, errands and your pet's crank use
 	# the globe behind yours, the v29 -> v30 migration (a GameState in this test profile only)
@@ -1518,6 +1537,13 @@ func _test_globes_game(catalog: Catalog) -> void:
 	_check(int(gs.bits.get("cork", 0)) == 3, "corks count once it's home")
 	gs.greet_globe("sunset")
 	_check(gs.globe_news() == "", "shown once")
+	gs.grant({ "bit:bulb": 2 })
+	_check(int(gs.bits.get("bulb", 0)) == 0, "no bulbs before the porch machine is home")
+	gs.grant({ "find:porch_machine": 1 })
+	_check(gs.machine.globes == ["sunny", "sunset", "midnight"] and gs.globe_news() == "midnight", "its find brings the midnight globe home")
+	gs.grant({ "bit:bulb": 2 })
+	_check(int(gs.bits.get("bulb", 0)) == 2, "bulbs count once it's home")
+	gs.greet_globe("midnight")
 	var sunny_v := Machine.coin_value(gs.machine, catalog, "sunny")
 	gs.machine.bought["nest"] = 1
 	gs.machine.bought["cork"] = 1

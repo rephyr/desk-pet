@@ -12,8 +12,8 @@ extends HBoxContainer
 
 const MAP := Vector2(600, 540)  # the first globe's part of the tree's map, see data/machine_tree.json "at"
 const BRANCH_COLORS := { "repair": "pink", "coins": "cyan", "chutes": "mint", "balls": "gold", "shiny": "lilac", "lights": "gold", "drops": "pink" }
-const BRANCH_NAMES := { "repair": "a repair", "coins": "coins", "chutes": "chutes", "balls": "extra balls", "shiny": "shiny balls", "lights": "lights", "drops": "the big one", "sunset": "a repair" }
-const REPAIRS := ["repair", "drops", "sunset"]  # branches whose nodes are fixed (not upgraded), drawn big
+const BRANCH_NAMES := { "repair": "a repair", "coins": "coins", "chutes": "chutes", "balls": "extra balls", "shiny": "shiny balls", "lights": "lights", "drops": "the big one", "sunset": "a repair", "midnight": "a repair" }
+const REPAIRS := ["repair", "drops", "sunset", "midnight"]  # branches whose nodes are fixed (not upgraded), drawn big
 
 var tree := TreeMap.new()
 var _detail := VBoxContainer.new()

@@ -1,0 +1,151 @@
+# A5 the midnight globe (look A): once the sunset globe is all fixed and next door is open, a pet
+# brings the porch machine home from the porch. It slides in beside the others: three globes side by
+# side (the sunny one the workers crank, the sunset one you pull, the broken midnight one), its fixes
+# list takes "next up"'s place and the bits pills show its bits. Brushing out the cobwebs makes it
+# work: your hand pulls it now (its lever flops until the chain), the sunny globe steps off the stage
+# and the workers crank the sunset one. Chain links, bulbs, moon glass and hinges fix the rest; its
+# hatch gives midnight boxes and the midnight toys. The upgrades page frames the midnight branch.
+from rich
+view full
+stickers off                  # new pets here can fill a book page: no sticker popups over the shots
+pets 12
+coins 900000000000000
+fix tape
+fix oil
+fix flap
+fix glass
+fix wires
+fix chute2
+fix chute3
+fix chute4
+fix shine 10
+fix heavy 3
+fix double 5
+fix triple 2
+fix shiny 5
+fix fever 3
+fix drops
+fix nest
+fix cork
+fix pulley
+fix amber
+fix hatch
+toy snail
+find intel_fence
+find tiny_machine
+wait popup
+click "lovely"
+wait popup
+click "lovely"
+wait popup
+click "lovely"
+find sunset_globe
+open next_door
+wait popup
+click "lovely"
+teach machine
+task machine
+auto-tool crank 3
+tab automation
+wait 1
+click "teach the others"
+wait 1
+click "workers"
+wait 1
+spots machine 3
+wait 1
+click "fill up"
+wait 1
+tab machine
+wait 3
+expect no-text "midnight fixes"
+expect fits
+shot before
+find porch_machine
+wait 2.5
+expect text "midnight fixes"
+expect text "0 chain links"
+expect text "0 moon glass"
+expect fits
+shot arrived
+click "upgrades"
+wait 0.8
+expect fits
+shot tree_arrived
+page machine 0
+wait 0.5
+click name:fix_row_porch_chain
+wait 0.3
+shot row_chain
+click name:fix_row_porch_dust
+bits link 6
+bits bulb 5
+bits moonglass 5
+bits hinge 5
+wait 0.3
+click "fix it"
+wait 1.5
+expect fits
+shot dust_fixed
+pull 1 0.6
+shot flop_pull
+wait 1.5
+click "fix it"
+wait 1.5
+expect fits
+shot chain
+pull 1 0.3
+shot two_chutes
+wait 1.5
+click "fix it"
+wait 1.5
+shot bulbs
+click "fix it"
+wait 1.5
+shot moon_glass
+click "fix it"
+wait 1.5
+expect no-text "midnight fixes"
+expect text "next up"
+expect fits
+shot hatch
+task none                     # your pet and the workers stop cranking the sunset globe: its capsules drop sunset boxes
+off machine
+wait 1
+give-box sunset =0            # so the check below only sees what the hand pull gives
+give-box midnight =0
+next-prize box
+pull 1 1.8
+expect pile midnight 1+
+expect pile sunset 0
+shot midnight_box
+wait 3
+click "upgrades"
+wait 0.8
+expect fits
+shot tree_midnight
+click name:sign_sunset
+wait 1
+expect fits
+shot tree_sunset
+click name:sign_midnight
+wait 1
+expect fits
+shot tree_back
+toy moon normal 1
+toy bat normal 1
+tab collection
+click "toys"
+wait 0.5
+click name:set_midnight
+wait 0.3
+expect text "midnight friends"
+expect fits
+shot midnight_toys
+unlock location:greenhouse
+map-page next_door
+place greenhouse
+wait 1
+expect text "brings home bulbs"
+expect fits
+shot greenhouse_card

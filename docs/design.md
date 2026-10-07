@@ -421,7 +421,7 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   Mockup: design/mockups/screens/capsules.html. **Next:** rummaging changes to finding machine bits;
   pull value grows with the rest of your income; rewards get tuned.
   **Globes (A5, built, look A):** a globe per map page (data/machine_tree.json "globes"): sunny,
-  sunset, midnight (data only until next door exists). Once the sunny globe's hatch is open and the
+  sunset, midnight. Once the sunny globe's hatch is open and the
   tiny machine is home, the next far fields trip brings home the **sunset globe** (event
   `fields_sunset_globe`), broken: leaves and a nest inside, holes in the glass with a capsule
   dribbling out, a heavy lever that sags, cloudy glass, a rusted crooked hatch. It stands beside the
@@ -439,6 +439,18 @@ which steps back while you open. Made in LMMS by tools/music/pack_sounds.py.
   glass are its own (the sunset globe starts with one chute, no lights, no shiny until amber glass).
   Its hatch makes box and pet box prizes sunset boxes and adds the sunset toy set (firefly,
   hedgehog, sleepy owl, paper lantern) to the toy roll. Until then it drops what the sunny one does.
+  **The midnight globe** is next door's porch machine: once the sunset hatch is open, the porch
+  (next door) brings it home (event `nd_porch_machine`, find `porch_machine`; the porch's old
+  "broken capsule machine" event stops then). Broken: cobwebs and a little spider inside, foggy
+  glass, a snapped crank chain (the lever flops like the sunset sag), popped bulbs, a rusted hatch.
+  Its repairs grow off the sunset hatch: brush out the cobwebs (works) > a chain for the crank (x2,
+  a second chute) > new bulbs (x2, lights) > moon glass (x3, glass) > the rusted hatch (x5: midnight
+  boxes, midnight pet boxes, the midnight toy set: little bat, fluffy slipper, teacup, crescent
+  moon). Its bits drop next door once it's home: chain links (their gate, the doghouse), bulbs (the
+  greenhouse), moon glass (their pond), hinges (the porch, the doghouse). Step x72 (the cobwebs keep
+  your pull at least as good, x1.05). While it's broken three globes stand side by side (the one
+  your workers crank, the one you pull, the broken one); once it works the sunny globe steps off
+  the stage (nobody cranks it any more) and the workers crank the sunset one.
 
 ## Adventures (idle side)
 

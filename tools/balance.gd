@@ -234,19 +234,21 @@ func _pick(style: String, run: RunState, location: Dictionary, catalog: Catalog)
 
 ## The machine globes (data/machine_tree.json): coins a pull by hand (every chute, extra balls, shiny,
 ## fever) and a worker's capsule on the globe behind, with the sunny globe all fixed and then after
-## each sunset fix. Fixing the nest moves your hand to the sunset globe: that must never make your
-## pull worse (tune the sunset globe's "step" if it does).
+## each sunset fix, then each midnight fix. The repair that makes a globe work moves your hand to it:
+## that must never make your pull worse (tune that globe's "step" if it does).
 func _globes(catalog: Catalog) -> void:
 	var state := { "bought": {}, "globes": ["sunny"] }
 	for n in catalog.machine_tree.nodes:
 		if Machine.globe_of(catalog, n) == Machine.first_globe(catalog):
 			state.bought[n.id] = int(n.get("max", 1))
 	print("\nglobes: coins a pull by hand, and a worker's capsule on the globe behind (sunny all fixed)")
-	print("%-18s %-7s %14s %-7s %14s" % ["after", "hand", "coins/pull", "behind", "coins/capsule"])
-	var rows: Array = [["sunny all fixed", []], ["sunset home", ["@sunset"]]]
-	for n in Machine.repairs(catalog, "sunset"):
-		rows.append([str(n.id), [str(n.id)]])
-	var sunny_pull := 0.0
+	print("%-18s %-8s %14s %-8s %14s" % ["after", "hand", "coins/pull", "behind", "coins/capsule"])
+	var rows: Array = [["sunny all fixed", []]]
+	for g in Machine.globes(catalog).slice(1):
+		rows.append(["%s home" % g.id, ["@" + str(g.id)]])
+		for n in Machine.repairs(catalog, str(g.id)):
+			rows.append([str(n.id), [str(n.id)]])
+	var last_pull := 0.0
 	for row in rows:
 		for id in row[1]:
 			if str(id).begins_with("@"):
@@ -257,12 +259,12 @@ func _globes(catalog: Catalog) -> void:
 		var behind := Machine.behind(state, catalog)
 		var pull := _per_pull(state, catalog, hand)
 		var worker := _per_capsule(state, catalog, behind)
-		if row[0] == "sunny all fixed":
-			sunny_pull = pull
-		print("%-18s %-7s %14s %-7s %14s" % [row[0], hand, _num(pull), behind, _num(worker)])
-		if row[0] == "nest":
-			var ok := pull >= sunny_pull
-			print("  %s: the nest %s (x%.2f)" % ["ok" if ok else "WORSE", "keeps your pull at least as good" if ok else "makes your pull worse: tune the sunset step", pull / maxf(sunny_pull, 0.001)])
+		var works := Machine.globes(catalog).filter(func(g): return str(g.get("works", "")) == str(row[0]))
+		print("%-18s %-8s %14s %-8s %14s" % [row[0], hand, _num(pull), behind, _num(worker)])
+		if not works.is_empty():
+			var ok := pull >= last_pull
+			print("  %s: %s %s (x%.2f)" % ["ok" if ok else "WORSE", row[0], "keeps your pull at least as good" if ok else "makes your pull worse: tune the %s step" % works[0].id, pull / maxf(last_pull, 0.001)])
+		last_pull = pull
 
 
 ## Coins in one capsule from a globe on average (coins and golden capsules, shiny ones pay more).

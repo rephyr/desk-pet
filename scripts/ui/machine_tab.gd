@@ -14,16 +14,20 @@ extends VBoxContainer
 const NEXT_UP := 3  # upgrades shown next to the machine
 const MAX_PILLS := 4  # bits pills at the top (more would push past the window)
 
-## The two globe stages. A stage keeps its globe while that globe stays on show (so capsules on
-## their way out of it aren't lost when a new globe comes home); the older globe stands on the left.
-var stages: Array[MachineStage] = [MachineStage.new(), MachineStage.new()]
+## The globe stages (up to three on show). A stage keeps its globe while that globe stays on show
+## (so capsules on their way out of it aren't lost when a new globe comes home); older globes stand
+## on the left.
+var stages: Array[MachineStage] = [MachineStage.new(), MachineStage.new(), MachineStage.new()]
 ## The globe you pull by hand (the dev driver, the tutorial and pet boxes use it).
 var stage: MachineStage:
 	get:
 		for s in stages:
 			if s.visible and s.hand:
 				return s
-		return stages[1] if stages[1].visible else stages[0]
+		for i in range(stages.size() - 1, -1, -1):
+			if stages[i].visible:
+				return stages[i]
+		return stages[0]
 var upgrades := MachineTreeView.new()
 ## The prize card in the stage's top right corner (hidden in the tutorial: capsules only hold coins then).
 var odds := OddsCard.new()
@@ -62,8 +66,9 @@ func _init() -> void:
 		s.size_flags_vertical = SIZE_EXPAND_FILL
 		_holder.row.add_child(s)
 		s.pet_box.connect(_open_box)
-	stages[0].visible = false
-	stages[0].setup("", false, false)
+	for s in stages.slice(0, stages.size() - 1):
+		s.visible = false
+		s.setup("", false, false)
 	_holder.add_child(odds)
 	_holder.resized.connect(func(): odds.place(_holder.size))
 	_next_side.custom_minimum_size = Vector2(236, 0)
@@ -159,19 +164,22 @@ func pull() -> void:
 	stage.pull_by_itself()
 
 
-## Which globes stand on the stage: the newest two you have (the one you pull always among them),
-## side by side; just the one while it's the only globe.
+## Which globes stand on the stage, side by side, oldest on the left: the one your pet and workers
+## crank, the one you pull and the newest (still broken) one: two or three globes, just the one
+## while it's the only globe. A globe nobody uses any more steps off.
 func _layout() -> void:
 	var catalog := Catalog.shared()
 	var state: Dictionary = GameState.machine
 	var home := Machine.home(state, catalog)
 	var hand := Machine.hand(state, catalog)
+	var want := [Machine.behind(state, catalog), hand, home.back()]
 	var shown: Array[String] = []
-	shown.assign(home.slice(maxi(0, home.size() - 2)))
-	if not shown.has(hand):
-		shown = [hand, home.back()]
-	var two := shown.size() == 2
-	# a stage that already shows one of these globes keeps it; the other stage takes the rest
+	for g in home:
+		if want.has(g):
+			shown.append(g)
+	var side := shown.size() >= 2
+	var ratios: Array = [0.62, 0.82, 1.0] if shown.size() == 3 else [0.8, 1.0]
+	# a stage that already shows one of these globes keeps it; the other stages take the rest
 	var by_globe := {}
 	var free: Array[MachineStage] = []
 	for s in stages:
@@ -188,10 +196,10 @@ func _layout() -> void:
 	for i in shown.size():
 		var s: MachineStage = by_globe[shown[i]]
 		s.visible = true
-		s.setup(shown[i], shown[i] == hand, two)
-		s.size_flags_stretch_ratio = 0.8 if two and i == 0 else 1.0
+		s.setup(shown[i], shown[i] == hand, side)
+		s.size_flags_stretch_ratio = float(ratios[i]) if side else 1.0
 		_holder.row.move_child(s, i)
-	_holder.two = two
+	_holder.two = side
 	_holder.queue_redraw()
 
 
@@ -885,9 +893,10 @@ class MachineStage extends Control:
 	func _mended(fix: String) -> bool:
 		return _fix_state.has(fix) and not _fix_state[fix]
 
-	## Where the lever rests: straight up, or drooping while it sags (before its pulley).
+	## Where the lever rests: straight up, or drooping while it sags (before its pulley) or flops
+	## (before the midnight globe's crank gets its chain).
 	func _rest() -> float:
-		return SAG if _broken("sag") else 0.0
+		return SAG if _broken("sag") or _broken("chain") else 0.0
 
 	# ---- where things are ----------------------------------------------------------
 
@@ -1129,7 +1138,8 @@ class MachineStage extends Control:
 	func fixed(id: String) -> void:
 		var where := { "tape": Vector2(260, 100), "glass": GLOBE, "oil": Vector2(335, 330), "flap": Vector2(200, 370),
 			"wires": Vector2(200, 309), "drops": Vector2(200, 31), "chute2": Vector2(200, 370), "chute3": Vector2(200, 370), "chute4": Vector2(200, 370),
-			"nest": Vector2(200, 60), "cork": GLOBE, "pulley": Vector2(335, 220), "amber": GLOBE, "hatch": Vector2(200, 31) }
+			"nest": Vector2(200, 60), "cork": GLOBE, "pulley": Vector2(335, 220), "amber": GLOBE, "hatch": Vector2(200, 31),
+			"porch_dust": Vector2(200, 100), "porch_chain": Vector2(320, 300), "porch_bulbs": Vector2(200, 309), "porch_glass": GLOBE, "porch_hatch": Vector2(200, 31) }
 		var at: Vector2 = where.get(id, GLOBE)
 		_shake = 0.6
 		_jolt = 0.6
@@ -1481,7 +1491,7 @@ class MachineStage extends Control:
 		var font := UiTheme.DISPLAY_FONT
 		var text := str(info.get("name", globe))
 		var w := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, 14).x + 36.0
-		var at := Vector2(_to_screen(Vector2(200, 0)).x, _to_screen(Vector2(0, 8)).y - 20.0)
+		var at := Vector2(_inside(_to_screen(Vector2(200, 0)).x - w / 2.0, w) + w / 2.0, _to_screen(Vector2(0, 8)).y - 20.0)
 		var tilt := -0.035 if _is_first else 0.035
 		draw_set_transform(at, tilt, Vector2.ONE)
 		var rect := Rect2(Vector2(-w / 2.0, -13), Vector2(w, 26))
@@ -1524,11 +1534,17 @@ class MachineStage extends Control:
 			var w := 0.0
 			for part in parts:
 				w += font.get_string_size(str(part[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
-			var x := cx - w / 2.0
+			var x := _inside(cx - w / 2.0, w)
 			for part in parts:
 				draw_string(font, Vector2(x, y), str(part[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 12, part[1])
 				x += font.get_string_size(str(part[0]), HORIZONTAL_ALIGNMENT_LEFT, -1, 12).x
 			y += 15.0
+
+	## Side by side, a narrow stage's sign or stat line can be wider than the stage: where it starts
+	## (`x`, `w` wide) so it stays inside the panel all the globes stand in.
+	func _inside(x: float, w: float) -> float:
+		var room := (get_parent() as Control).size.x if get_parent() is Control else size.x
+		return clampf(x, 8.0 - position.x, maxf(8.0 - position.x, room - position.x - 8.0 - w))
 
 	func _draw_rays() -> void:
 		if _fever_level <= 0.0:
@@ -1549,17 +1565,25 @@ class MachineStage extends Control:
 			# amber glass: the whole globe glows warm, like the sky just before bedtime
 			draw_circle(GLOBE, GLOBE_R, Color(tint.lerp(UiTheme.GOLD, 0.45), 0.11 + 0.03 * sin(_time * 1.5)))
 			draw_circle(GLOBE + Vector2(0, 50), GLOBE_R * 0.7, Color(UiTheme.PINK, 0.05))
+		if _mended("fog"):
+			# moon glass: a cool glow, like the sky at midnight
+			draw_circle(GLOBE, GLOBE_R, Color(tint, 0.10 + 0.03 * sin(_time * 1.2)))
 		if _broken("nest"):
 			_draw_nest_inside()
 		for b in _balls:
 			draw_capsule(self, b.rest + b.off, 20.0, b.color, b.rot)
+		if _broken("fog"):
+			_draw_fog()
+		elif _mended("fog"):
+			for st in MOON_STARS:
+				draw_sparkle(self, st[0], st[1] * (0.65 + 0.35 * sin(_time * 2.2 + st[0].x)), Color(UiTheme.TEXT, 0.75))
 		# hides capsules poking out past the glass
 		draw_arc(GLOBE, GLOBE_R + 13.0, 0, TAU, 72, UiTheme.PAPER, 26.0, true)
 		if _fever_level > 0.0:
 			draw_circle(GLOBE, GLOBE_R + 14.0, Color(UiTheme.GOLD, 0.10 * _fever_level))
 		draw_arc(GLOBE, GLOBE_R, 0, TAU, 72, tint.lerp(UiTheme.GOLD, _fever_level), 3.5, true)
 		var old_glass := _broken("glass")
-		var cloudy := old_glass or _broken("amber")
+		var cloudy := old_glass or _broken("amber") or _broken("fog")
 		var shine := Color(UiTheme.TEXT, 0.15 if cloudy else 0.35)
 		draw_polyline(_quad(Vector2(126, 96), Vector2(140, 66), Vector2(172, 52), 12), shine, 4.0, true)
 		draw_polyline(_quad(Vector2(112, 128), Vector2(113, 118), Vector2(116, 110), 6), shine, 4.0, true)
@@ -1592,10 +1616,14 @@ class MachineStage extends Control:
 		_draw_hatch()
 		if _broken("nest"):
 			_draw_leaves()
+		if _broken("cobwebs"):
+			_draw_cobwebs()
 
 	const RUST := Color("8a6448")
 	const CORK := Color("d9a066")
 	const HOLES := [Vector2(128, 116), Vector2(284, 168), Vector2(180, 238)]
+	const MOON_STARS := [[Vector2(118, 98), 6.0], [Vector2(286, 122), 5.0], [Vector2(160, 52), 4.0], [Vector2(262, 214), 5.0], [Vector2(104, 192), 4.0]]
+	const SILK := Color(0.93, 0.9, 1.0, 0.5)
 
 	## The hatch on top: rusted shut until the globe's hatch repair opens it (the sunny globe's is
 	## pink; a later globe's hangs crooked and rusty until then).
@@ -1647,6 +1675,51 @@ class MachineStage extends Control:
 			draw_colored_polygon(pts, greens[i % greens.size()])
 			draw_line(at - Vector2(10, 0).rotated(ang), at + Vector2(10, 0).rotated(ang), UiTheme.DEEP, 1.2, true)
 
+	## Fog drifting in the glass (before the midnight globe's moon glass).
+	func _draw_fog() -> void:
+		var fog := Color(UiTheme.TEXT.lerp(_glass_color(), 0.5), 0.16)
+		for i in 5:
+			var y := GLOBE.y - 80.0 + i * 40.0
+			var half := sqrt(maxf(0.0, GLOBE_R * GLOBE_R - pow(y - GLOBE.y, 2))) * 0.85
+			var x := GLOBE.x + sin(_time * 0.35 + i * 1.7) * half * 0.2
+			var pts := PackedVector2Array()
+			for k in 24:
+				var a := TAU * k / 24.0
+				pts.append(Vector2(x + cos(a) * half * 0.8, y + sin(a) * (16.0 + 4.0 * sin(_time * 0.6 + i))))
+			draw_colored_polygon(pts, fog)
+
+	## Cobwebs in the glass and a little spider bobbing on its thread (before they're brushed out).
+	func _draw_cobwebs() -> void:
+		_web(GLOBE + Vector2(-0.7, -0.7) * GLOBE_R, 0.0, PI / 2.0, 74.0)
+		_web(GLOBE + Vector2(0.78, 0.55) * GLOBE_R, PI, PI * 1.5, 58.0)
+		_web(Vector2(84, 268), -PI / 2.0, 0.0, 30.0)
+		var y := 132.0 + sin(_time * 1.6) * 10.0
+		draw_line(Vector2(214, 34), Vector2(214, y), SILK, 1.2, true)
+		var spider := _body_color().darkened(0.6)
+		for side in [-1.0, 1.0]:
+			for k in 4:
+				var a := -0.7 + k * 0.45
+				var knee := Vector2(214, y + 4) + Vector2(side * 9.0, -6.0 + k * 3.0).rotated(side * a * 0.2)
+				draw_polyline(PackedVector2Array([Vector2(214, y + 4), knee, knee + Vector2(side * 4.0, 6.0)]), spider, 1.6, true)
+		draw_circle(Vector2(214, y + 5), 6.5, spider)
+		draw_circle(Vector2(214, y - 2), 4.0, spider)
+		draw_circle(Vector2(212.5, y - 2.5), 1.0, UiTheme.TEXT)
+		draw_circle(Vector2(215.5, y - 2.5), 1.0, UiTheme.TEXT)
+
+	## One web: spokes from `c` between two angles, and three sagging rings across them.
+	func _web(c: Vector2, from_a: float, to_a: float, r: float) -> void:
+		var spokes := 5
+		var dirs: Array[Vector2] = []
+		for i in spokes:
+			var d := Vector2.from_angle(lerpf(from_a, to_a, float(i) / (spokes - 1)))
+			dirs.append(d)
+			draw_line(c, c + d * r, SILK, 1.2, true)
+		for ring in [0.35, 0.65, 0.95]:
+			for i in spokes - 1:
+				var a: Vector2 = c + dirs[i] * r * ring
+				var b: Vector2 = c + dirs[i + 1] * r * ring
+				draw_polyline(_quad(a, (a + b) / 2.0 - ((a + b) / 2.0 - c) * 0.12, b, 6), SILK, 1.1, true)
+
 	## A strip of tape across the crack.
 	func _tape(at: Vector2, angle: float) -> void:
 		var d := Vector2(cos(angle), sin(angle))
@@ -1680,9 +1753,12 @@ class MachineStage extends Control:
 		for i in need:
 			var at := Vector2(144.0 + w * (i + 0.5), 309)
 			if not working:
-				# chewed wires: dead little bulbs until they're rewired
+				# chewed wires: dead little bulbs until they're rewired (popped ones on the midnight globe)
 				draw_circle(at, r, UiTheme.DEEP)
 				draw_arc(at, r, 0, TAU, 16, UiTheme.LINE, 1.8, true)
+				if _broken("bulbs"):
+					draw_line(at + Vector2(-r, -r) * 0.6, at + Vector2(r, r) * 0.6, UiTheme.MUTED, 1.4, true)
+					draw_line(at + Vector2(r * 0.6, -r * 0.6), at + Vector2(0, r * 0.2), UiTheme.MUTED, 1.4, true)
 				continue
 			var on := i < lit and hand
 			if _fever_level > 0.0:
@@ -1697,7 +1773,7 @@ class MachineStage extends Control:
 			draw_polyline(_quad(Vector2(262, 318), Vector2(282, 330), Vector2(272, 346), 8), UiTheme.MUTED, 2.0, true)
 			draw_line(Vector2(272, 346), Vector2(268, 350), UiTheme.GOLD, 2.0, true)
 			draw_line(Vector2(272, 346), Vector2(277, 350), UiTheme.GOLD, 2.0, true)
-		var rusty := _broken("rust") or _broken("nest")
+		var rusty := _broken("rust") or _broken("nest") or _broken("cobwebs")
 		if rusty:
 			for r_at in [[Vector2(108, 300), 6.0], [Vector2(118, 312), 3.5], [Vector2(292, 388), 5.0], [Vector2(96, 392), 4.0], [Vector2(300, 296), 3.0]]:
 				draw_circle(r_at[0], r_at[1], RUST)
@@ -1745,6 +1821,18 @@ class MachineStage extends Control:
 		if hand and _idle > 6.0 and not _held and _spring_t < 0.0:
 			beg = maxf(0.0, sin(_time * 5.0)) * 2.5
 		tip.y += beg
+		if _broken("chain"):
+			# the crank's snapped chain, dangling off the lever's mount
+			var swing := sin(_time * 1.8) * 0.12
+			for i in 6:
+				_link(Vector2(342, 350) + Vector2(0, 8.0 * i).rotated(swing), i % 2 == 0)
+		elif _mended("chain"):
+			# its new chain, from a hook by the floor up to the lever
+			var from := Vector2(358, 398)
+			var to := PIVOT.lerp(tip, 0.7) + Vector2(5, 0)
+			var n := maxi(3, int(from.distance_to(to) / 8.0))
+			for i in n:
+				_link(from.lerp(to, (i + 0.5) / n), i % 2 == 0)
 		if _mended("sag"):
 			# the pulley that holds the heavy lever up
 			var wheel := Vector2(PIVOT.x + 26.0, PIVOT.y - ARM - 44.0)
@@ -1767,6 +1855,14 @@ class MachineStage extends Control:
 		draw_circle(tip, r, knob)
 		draw_arc(tip, r, 0, TAU, 32, UiTheme.DEEP, 2.5, true)
 		draw_circle(tip - Vector2(r, r) * 0.35, r * 0.26, Color(UiTheme.TEXT, 0.55))
+
+	## One chain link: a ring seen flat or side on.
+	func _link(at: Vector2, flat: bool) -> void:
+		var c := UiTheme.TEXT.lerp(_glass_color(), 0.5)
+		if flat:
+			_ellipse(at, 5.0, 3.2, Color(c, 0.0), c, false)
+		else:
+			draw_line(at - Vector2(0, 4.5), at + Vector2(0, 4.5), c, 2.4, true)
 
 	## Half a capsule, open side down (top) or up (bottom), centred on the origin.
 	func _draw_half(r: float, color: Color, top: bool, alpha: float) -> void:

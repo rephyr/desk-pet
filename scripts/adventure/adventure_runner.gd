@@ -79,11 +79,13 @@ static func pick_events(location: Dictionary, rng_seed: int, found := {}, catalo
 
 ## Whether an event can turn up yet: a find's event stops once it's found, one with "after" waits
 ## until that find is home, one with "after_machine" until that node on the capsule machine's tree
-## is fixed, one with "after_workers" until you have that many workers, and one with "after_sent"
-## until that many pets have been sent to its place before (every party added up). On an `ours`
-## trip the locals ("local") don't.
+## is fixed (one with "until_machine" stops once that node is), one with "after_workers" until you
+## have that many workers, and one with "after_sent" until that many pets have been sent to its
+## place before (every party added up). On an `ours` trip the locals ("local") don't.
 static func can_meet(e: Dictionary, found := {}, fixed := {}, workers := 0, ours := false, sent := 0) -> bool:
 	if e.has("after_machine") and int(fixed.get(str(e.after_machine), 0)) <= 0:
+		return false
+	if e.has("until_machine") and int(fixed.get(str(e.until_machine), 0)) > 0:
 		return false
 	if workers < int(e.get("after_workers", 0)):
 		return false

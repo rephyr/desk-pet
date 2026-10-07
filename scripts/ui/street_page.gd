@@ -328,5 +328,7 @@ static func name_lines(text: String) -> Array[String]:
 
 
 static func _centred(ci: CanvasItem, font: Font, at: Vector2, text: String, font_size: int, color: Color) -> void:
+	if font_size <= 0:
+		return  # the street before it has a size (its first frame on screen)
 	var width := font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x
 	ci.draw_string(font, at - Vector2(width / 2.0, 0), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
