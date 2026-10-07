@@ -989,8 +989,8 @@ func _process(delta: float) -> void:
 		if _shop_stuck.visible and not GameState.workshop_shown():
 			_show_map(true)  # the last drawing is built: the shed is just the shed again
 		# trips the bell rope welcomed back: their postcards, one at a time, when you're not busy on a
-		# card (with the letterbox built they wait in it for you)
-		if _main.visible and not _postcard.visible and not _trail.visible and not _picker.visible and not _shop_stuck.visible \
+		# card or an unlock card is up (with the letterbox built they wait in it for you)
+		if _main.visible and not _postcard.visible and not UnlockPopup.up and not _trail.visible and not _picker.visible and not _shop_stuck.visible \
 				and not GameState.postcards.is_empty() and not GameState.built("letter"):
 			_show_postcard(GameState.take_postcard())
 

@@ -2253,6 +2253,7 @@ func _collection_dict(n: int, spread := false, rng_seed := 11) -> Dictionary:
 		batch.append(roller.roll("starter", str(tiers[i % tiers.size()].id) if spread else "common"))
 	for pet in batch:
 		pet.fav = true  # favourites never fold into the herd: these tests follow pets by uid (the herd has its own)
+		pet.pulled_at = 1790000000  # the roller stamps the clock: saves built a second apart must still match
 	var c := Collection.new()
 	c.add(batch)
 	c.set_active("1")
