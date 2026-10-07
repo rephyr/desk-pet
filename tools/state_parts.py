@@ -213,7 +213,7 @@ def rewrite(text, gs_names, own, report):
         return lo
 
     toks = [t for t in tokens(text)]
-    code = [t for t in toks if t[0] not in ("comment", "nl")]
+    code = [t for t in toks if t[0] not in ("comment", "nl") and not t[1].isspace()]
 
     # scopes: name -> list of (from offset, to offset)
     scopes = {}
@@ -296,7 +296,7 @@ def rewrite(text, gs_names, own, report):
     last = 0
     prev_sig = None  # the previous code token
     for kind, t, off in toks:
-        if kind in ("comment", "nl"):
+        if kind in ("comment", "nl") or t.isspace():
             continue
         if kind == "ident":
             after_dot = prev_sig is not None and prev_sig[1] in (".", "@")
