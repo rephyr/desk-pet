@@ -1,0 +1,45 @@
+# The bell rope welcomes a trip back while an unlock card is up: its postcard waits for the card,
+# so the two never stack.
+from rich
+view full
+stickers off                  # new pets here can fill a book page: no sticker popups over the shots
+unlock location:shed
+unlock feature:whistle
+open next_door
+wait popup
+click "lovely"
+wait 0.5
+visit shed 40
+wait popup
+click "lovely"
+wait 0.5
+build bell
+expect built bell
+tab adventures
+wait 1
+click "‹ map"  # the save has a trip out at the garden path: off the trail, so the bell rope takes it
+wait 0.5
+open beyond
+wait popup
+walk
+answer
+walk
+answer
+walk
+answer
+walk
+answer
+walk
+answer
+walk
+wait 2.5
+expect no-text "greetings from"
+shot bell_waits
+click "lovely"
+wait 2.5
+expect text "greetings from"
+expect fits
+shot bell_postcard
+click "lovely"
+wait 1
+expect no-text "greetings from"
