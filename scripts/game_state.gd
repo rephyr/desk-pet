@@ -55,6 +55,7 @@ var wish_part := WishPart.new(self)
 var adventures_part := AdventuresPart.new(self)
 var gear_part := GearPart.new(self)
 var boosts_part := BoostsPart.new(self)
+var care_part := CarePart.new(self)
 # ---- end of the parts ----
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
@@ -577,166 +578,7 @@ static func coins_int(f: float) -> int:
 
 # ---- presents ---------------------------------------------------------------
 
-## Presents in the pocket, waiting for you to open them.
-func gifts_waiting() -> int:
-	return int(gifts.pocket)
-
-
-## Whether presents come yet: from when the boxes tab opens (hidden until then).
-func gifts_open() -> bool:
-	return tab_open("boxes")
-
-
-## Moves the present clock on to `now` (every second while open, and once on load for the time
-## closed: the same either way). `save`: save when one came in.
-func _tick_gifts(now: float, save := true) -> void:
-	var started := float(gifts.next_at) > 0.0
-	var added := Gifts.tick(gifts, catalog.gifts, now, gifts_open())
-	if added > 0 or started != (float(gifts.next_at) > 0.0):
-		gifts_changed.emit()
-		if save:
-			save_game()
-
-
-## Opens a present from the pocket: it's rolled now, so the box is your newest tier today. Boxes go
-## on your pile; a toy capsule goes into your toys, the way the machine gives one. Never bits, never
-## a pet. Returns { box, boxes, toy: { id, finish, new } or {} }, or {} when the pocket is empty.
-func open_gift() -> Dictionary:
-	if gifts_waiting() <= 0:
-		return {}
-	gifts.pocket = gifts_waiting() - 1
-	var toys_open := _machine_gives("toy")
-	var got := Gifts.roll(catalog.gifts, _rng, toys_open)
-	if debug_gift_roll != "" and OS.is_debug_build():
-		got = { "boxes": 2 if debug_gift_roll == "two" else 1, "toy": debug_gift_roll == "toy" and toys_open }
-		debug_gift_roll = ""
-	var box := newest_box_id()
-	var toy := {}
-	if got.toy:
-		var t := Toys.roll(catalog, _rng, boost("luck"), Machine.toy_sets(machine, catalog))  # only sets whose hatch is open
-		toy = { "id": t.id, "finish": t.finish, "new": Toys.add(toys, t.id, t.finish) }
-		toys_changed.emit()
-	grant({ "box:" + box: int(got.boxes) })  # checks unlocks (a first toy) and emits changed
-	gifts_changed.emit()
-	save_game()
-	return { "box": box, "boxes": int(got.boxes), "toy": toy }
-
-
-## Debug: n presents in the pocket now (up to the pocket's size), the clock started.
-func debug_set_gifts(n: int) -> void:
-	gifts.pocket = clampi(n, 0, Gifts.cap(catalog.gifts))
-	if float(gifts.next_at) <= 0.0:
-		gifts.next_at = Time.get_unix_time_from_system() + Gifts.every(catalog.gifts)
-	gifts_changed.emit()
-
-
-## Debug: the present clock moves `hours` on (to check the step and the pocket's size).
-func debug_gift_clock(hours: float) -> void:
-	if float(gifts.next_at) > 0.0:
-		gifts.next_at = float(gifts.next_at) - hours * 3600.0
-	_tick_gifts(Time.get_unix_time_from_system())
-
-
 # ---- care -----------------------------------------------------------------
-
-## Coins a snack (the feed button) costs now: data/care.json "snack" capsules at what a plain capsule
-## is worth, so it grows with the machine.
-func snack_price() -> int:
-	return Care.snack_price(catalog, capsule_value())
-
-
-## Gives your pet a snack, if it has room for one and you can pay. Returns whether it ate.
-func feed() -> bool:
-	var price := snack_price()
-	var snack: Dictionary = catalog.care.get("snack", {})
-	if coins < price or hunger >= float(snack.get("full_at", 99)):
-		return false
-	coins -= price
-	hunger = minf(100.0, hunger + float(snack.get("food", 30)))
-	happiness = minf(100.0, happiness + float(snack.get("mood", 5)))
-	_check_care()
-	changed.emit()
-	return true
-
-
-## A pat: mood goes up, at most once every data/care.json pat.every seconds (a pat in between is
-## still a pat, just no mood).
-func pat() -> void:
-	var p: Dictionary = catalog.care.get("pat", {})
-	var now := Time.get_unix_time_from_system()
-	if now - _pat_at < float(p.get("every", 0)):
-		return
-	_pat_at = now
-	happiness = minf(100.0, happiness + float(p.get("mood", 8)))
-	_check_care()
-	changed.emit()
-
-
-## Sets food and mood (the dev step `care`), kept between the floor and 100.
-func set_care(food: float, mood: float) -> void:
-	hunger = clampf(food, Care.floor_value(catalog), 100.0)
-	happiness = clampf(mood, Care.floor_value(catalog), 100.0)
-	_check_care()
-	changed.emit()
-
-
-## Food or mood moved: when a care buff turned on or off, the boosts it's on are worked out again.
-func _check_care() -> void:
-	var now := Care.on_ids(catalog, hunger, happiness)
-	if now == _care_on:
-		return
-	_care_on = now
-	_forget_care_boosts()
-	if not _loading:
-		changed.emit()
-
-
-## The kept totals of the kinds care boosts go stale (a buff turned on or off, or time away began
-## or ended).
-func _forget_care_boosts() -> void:
-	for b in catalog.care.get("buffs", []):
-		_boosts.erase(str(b.kind))
-
-
-## Does `work` for time the computer slept without the care buffs: like food and mood, they only
-## count while the game is open (time closed is the same: boost_parts leaves them out while loading).
-func _without_care(work: Callable) -> void:
-	_away = true
-	_forget_care_boosts()
-	work.call()
-	_away = false
-	_forget_care_boosts()
-
-
-## Whether your pet can rummage in its room yet (once you have a pet).
-func rummage_open() -> bool:
-	return collection.active() != null
-
-
-## Whether this spot in your pet's room has something in it.
-func rummage_ready(spot_id: String) -> bool:
-	return rummage_open() and float(rummaged.get(spot_id, 0.0)) <= Time.get_unix_time_from_system()
-
-
-## Your pet dug through a spot in its room: coins, sometimes xp, now and then a common part. The
-## spot refills after a while. Returns what it found, e.g. { "coins": 3, "xp": 1 } (empty if the
-## spot wasn't ready).
-func rummage(spot_id: String) -> Dictionary:
-	var spot := catalog.rummage_spot(spot_id)
-	if spot.is_empty() or not rummage_ready(spot_id):
-		return {}
-	rummaged[spot_id] = Time.get_unix_time_from_system() + float(spot.refill)
-	var found := { "coins": roundi(_rng.randi_range(int(spot.coins[0]), int(spot.coins[1])) * boost("rummage")) }
-	if _rng.randf() < float(spot.get("xp_chance", 0.0)):
-		found.xp = add_xp(1)
-	var loot := { "coins": found.coins }
-	if feature_on("parts") and _rng.randf() < float(spot.get("part_chance", 0.0)):
-		var key := "part:%s:%s" % Rewards.roll_part(Jobs.COMMON_BOX, _rng, catalog)
-		loot[key] = 1
-		found.part = key
-	grant(loot)
-	return found
-
 
 # ---- the capsule machine ------------------------------------------------------
 
@@ -750,11 +592,6 @@ static func _without(loot: Dictionary, key: String) -> Dictionary:
 	var out := loot.duplicate()
 	out.erase(key)
 	return out
-
-
-func set_pet_out(value: bool) -> void:
-	pet_out = value
-	changed.emit()
 
 
 # ---- saving ---------------------------------------------------------------
@@ -1477,6 +1314,25 @@ func dismiss_pinned(uid := "") -> void: boxes_part.dismiss_pinned(uid)
 func take_idle_log() -> Dictionary: return boxes_part.take_idle_log()
 func _log_idle(add: Dictionary) -> void: boxes_part._log_idle(add)
 func newest_box_id() -> String: return boxes_part.newest_box_id()
+
+# care_part.gd
+func gifts_waiting() -> int: return care_part.gifts_waiting()
+func gifts_open() -> bool: return care_part.gifts_open()
+func _tick_gifts(now: float, save := true) -> void: care_part._tick_gifts(now, save)
+func open_gift() -> Dictionary: return care_part.open_gift()
+func debug_set_gifts(n: int) -> void: care_part.debug_set_gifts(n)
+func debug_gift_clock(hours: float) -> void: care_part.debug_gift_clock(hours)
+func snack_price() -> int: return care_part.snack_price()
+func feed() -> bool: return care_part.feed()
+func pat() -> void: care_part.pat()
+func set_care(food: float, mood: float) -> void: care_part.set_care(food, mood)
+func _check_care() -> void: care_part._check_care()
+func _forget_care_boosts() -> void: care_part._forget_care_boosts()
+func _without_care(work: Callable) -> void: care_part._without_care(work)
+func rummage_open() -> bool: return care_part.rummage_open()
+func rummage_ready(spot_id: String) -> bool: return care_part.rummage_ready(spot_id)
+func rummage(spot_id: String) -> Dictionary: return care_part.rummage(spot_id)
+func set_pet_out(value: bool) -> void: care_part.set_pet_out(value)
 
 # dungeon_part.gd
 func take_dungeon_news() -> Dictionary: return dungeon_part.take_dungeon_news()
