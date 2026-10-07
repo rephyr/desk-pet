@@ -105,3 +105,20 @@ func shine_toy(edition: String) -> bool:
 	gs.toys_changed.emit()
 	gs.save_game()
 	return true
+
+
+## Sews a part from the inventory onto your active pet (see Grafting), with `buttons` buttons on it
+## (a part that came off a pet with buttons). Returns { ok, old }, or {}.
+func sew_part(slot: String, part_id: String, buttons := 0) -> Dictionary:
+	var pet := gs.collection.active()
+	var was := pet.rarity if pet else ""
+	var result := Grafting.sew(pet, slot, part_id, gs.parts, gs._rng, gs.catalog, buttons)
+	if result.is_empty():
+		return result
+	if pet.rarity != was:  # a pet is as rare as its rarest part: it moved shelves
+		gs.collection.retier(pet, was)
+	gs.collection.pet_changed.emit(pet)
+	gs.collection.active_changed.emit(pet)  # everything showing your pet redraws it
+	gs.changed.emit()
+	gs.save_game()
+	return result

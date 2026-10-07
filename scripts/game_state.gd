@@ -530,23 +530,6 @@ var whistle_since := { "hauled": {}, "put": 0 }  # what the whistle did since yo
 
 # ---- grafting ----------------------------------------------------------------
 
-## Sews a part from the inventory onto your active pet (see Grafting), with `buttons` buttons on it
-## (a part that came off a pet with buttons). Returns { ok, old }, or {}.
-func sew_part(slot: String, part_id: String, buttons := 0) -> Dictionary:
-	var pet := collection.active()
-	var was := pet.rarity if pet else ""
-	var result := Grafting.sew(pet, slot, part_id, parts, _rng, catalog, buttons)
-	if result.is_empty():
-		return result
-	if pet.rarity != was:  # a pet is as rare as its rarest part: it moved shelves
-		collection.retier(pet, was)
-	collection.pet_changed.emit(pet)
-	collection.active_changed.emit(pet)  # everything showing your pet redraws it
-	changed.emit()
-	save_game()
-	return result
-
-
 # ---- tutorial ----------------------------------------------------------------
 
 # ---- past the edge and the little school: pets spent for good (C2) ----------------------
@@ -1593,6 +1576,7 @@ func sacrifice_toy(id: String) -> String: return toys_part.sacrifice_toy(id)
 func sacrifice_toys(id: String, tries: int) -> Dictionary: return toys_part.sacrifice_toys(id, tries)
 func combine_toy_all(edition: String) -> int: return toys_part.combine_toy_all(edition)
 func shine_toy(edition: String) -> bool: return toys_part.shine_toy(edition)
+func sew_part(slot: String, part_id: String, buttons := 0) -> Dictionary: return toys_part.sew_part(slot, part_id, buttons)
 
 # unlocks_part.gd
 func is_unlocked(id: String) -> bool: return unlocks_part.is_unlocked(id)
