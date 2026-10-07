@@ -325,6 +325,7 @@ class TreeMap extends Control:
 	func _draw() -> void:
 		_drawn_view = _view
 		_rings.clear()
+		_breath.queue_redraw()  # (the rings overlay follows every tree draw, even when none are left)
 		_looks.clear()  # worked out once per draw (_draw_name asks about every node on the row)
 		_drawing = true
 		draw_style_box(UiTheme.box(UiTheme.PAPER, UiTheme.LINE, 14, 2, 0), Rect2(Vector2.ZERO, size))

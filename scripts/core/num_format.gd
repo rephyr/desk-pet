@@ -17,6 +17,8 @@ static func full(n: int) -> String:
 ## A number short: in full under 10,000, then 12.3k, 456M, 7.8B, 1.2T, 3.4Qa ... (the idle-game
 ## units, so late-game coins never turn into 3.11e+15). `extra`: more decimals (see apart).
 static func short(n: float, extra := 0) -> String:
+	if is_nan(n):
+		return "0"
 	var a := absf(n)
 	if a < 10000.0:
 		return full(roundi(n))
@@ -28,7 +30,9 @@ static func short(n: float, extra := 0) -> String:
 		var shown := snappedf(v, pow(10, -digits))
 		if shown < 1000.0:  # 999.96k rounds up to the next unit, never "1000k"
 			return ("-" if n < 0 else "") + str(shown).trim_suffix(".0") + u
-	return "%.2e" % n
+	# past the last unit: the last unit, however many of them ("%e" isn't a GDScript format)
+	var top := minf(snappedf(a / 1e33, 1.0), 9e15)  # (an endless number shows as the biggest one)
+	return ("-" if n < 0 else "") + full(roundi(top)) + units[-1]
 
 
 ## A "before → after" pair short, with as many more decimals as it takes (up to 3) for a change to

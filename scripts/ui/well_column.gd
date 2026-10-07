@@ -27,10 +27,12 @@ const MORE_BELOW := 8  # floors drawn past the deepest one in a band that goes o
 const BAND_LANE := 26.0  # the band names' strip down the left (no pebbles in it)
 
 var _ys: Array[float] = [GROUND]  # floor -> the y of its landing (0 is the grass)
+var _halves: Array[float] = [0.0]  # floor -> half the shaft's width there (worked out with _ys)
 var _to := 10  # the last floor drawn
 var _words := {}  # floor -> [word, heat]
 var _party: Array[Texture2D] = []  # the army's first few faces while it's down there
 var _pos := -1.0  # where the army is (floors), -1 when home
+var _drawn_pos := -1.0  # where it was when the column was last drawn
 var _sew_door := SewDoor.new()
 var _holds := {}  # landing -> HoldSpot
 var _hold_picked := 0  # the landing whose card is open (0: none)
@@ -77,8 +79,11 @@ func refresh(a: Dictionary = {}, rules: Dictionary = {}) -> void:
 		shown = maxi(maxi(deep, int(state.target)), int(Dungeon.data(catalog).bands.back().from)) + MORE_BELOW
 	_to = maxi(shown, 1)
 	_ys = [GROUND]
+	_halves = [float(WIDTH.get(str(Dungeon.band_of(catalog, 1).kind), 70.0)) / 2.0]
 	for f in range(1, _to + 1):
-		_ys.append(_ys[f - 1] + float(FLOOR_H.get(str(Dungeon.band_of(catalog, f).kind), 20.0)))
+		var kind := str(Dungeon.band_of(catalog, f).kind)
+		_ys.append(_ys[f - 1] + float(FLOOR_H.get(kind, 20.0)))
+		_halves.append(float(WIDTH.get(kind, 70.0)) / 2.0)
 	custom_minimum_size = Vector2(150, _ys[_to] + TAIL)
 	# feeling words on the next few floors (and the target), for the army lined up (none: no words)
 	_words = {}
@@ -178,10 +183,10 @@ func door_y() -> float:
 
 
 ## Moves the walking army along (called often while it's down there).
+## The whole column is drawn again only once the army has walked a pixel (or onto another floor).
 func tick() -> void:
-	var now := GameState.dungeon_floor_now()
-	if absf(now - _pos) > 0.01:
-		_pos = now
+	_pos = GameState.dungeon_floor_now()
+	if absf(y_at(maxf(_pos, 0.0)) - y_at(maxf(_drawn_pos, 0.0))) >= 1.0 or floori(_pos) != floori(_drawn_pos):
 		queue_redraw()
 
 
@@ -231,10 +236,13 @@ func _gui_input(event: InputEvent) -> void:
 
 
 func _half(f: int) -> float:
+	if f >= 1 and f < _halves.size():
+		return _halves[f]
 	return float(WIDTH.get(str(Dungeon.band_of(GameState.catalog, maxi(f, 1)).kind), 70.0)) / 2.0
 
 
 func _draw() -> void:
+	_drawn_pos = _pos
 	var catalog := GameState.catalog
 	var state: Dictionary = GameState.dungeon
 	var deep := int(state.deep)
@@ -430,11 +438,19 @@ func _draw() -> void:
 			draw_texture_rect(_party[i], Rect2(Vector2(cx - 22.0 + i * 12.0, py), Vector2(16, 18)), false)
 
 
+## The first floor whose landing is at or below `y` (_to past the last one).
 func _floor_at(y: float) -> int:
-	for f in range(1, _to + 1):
-		if _ys[f] >= y:
-			return f
-	return _to
+	var lo := 1
+	var hi := _to
+	if _ys[hi] < y:
+		return _to
+	while lo < hi:  # (a binary search: the soil's pebbles ask this hundreds of times a draw)
+		var mid := (lo + hi) >> 1
+		if _ys[mid] >= y:
+			hi = mid
+		else:
+			lo = mid + 1
+	return lo
 
 
 func _well_mouth(cx: float, w: float) -> void:

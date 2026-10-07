@@ -182,7 +182,7 @@ static func graft_line(pet: Pet, kind: String, fail_chance: float, rng: RandomNu
 static func work_summary(pet: Pet, log: Dictionary, rng: RandomNumberGenerator, catalog: Catalog) -> String:
 	var bits: Array[String] = []
 	if int(log.get("coins", 0)) > 0:
-		bits.append("◆%d" % log.coins)
+		bits.append("◆%s" % NumFormat.short(int(log.coins)))
 	if int(log.get("parts", 0)) > 0:
 		bits.append("%d part%s" % [log.parts, "s" if int(log.parts) > 1 else ""])
 	if int(log.get("boxes", 0)) > 0:

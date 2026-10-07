@@ -54,10 +54,28 @@ static func roll(reward: Dictionary, party: Party, location: Dictionary, rng: Ra
 	return { "%s:%s" % [kind, reward.get("id", "")]: n } if n > 0 else {}
 
 
+const TOP := 9000000000000000000  # sums stop here (GameState.COINS_MAX): past int's top they'd wrap negative
+
+
+## a + b, held at ±TOP instead of wrapping round.
+static func plus(a: int, b: int) -> int:
+	if b > 0 and a > TOP - b:
+		return TOP
+	if b < 0 and a < -TOP - b:
+		return -TOP
+	return a + b
+
+
+## A whole coin amount worked out as a float: rounded, at least 1, at most TOP (roundi past int's
+## top gives int's bottom).
+static func coins(f: float) -> int:
+	return roundi(minf(f, float(TOP))) if f >= 1.0 else 1
+
+
 ## Adds loot into a running total.
 static func add(into: Dictionary, loot: Dictionary) -> void:
 	for key in loot:
-		into[key] = int(into.get(key, 0)) + int(loot[key])
+		into[key] = plus(int(into.get(key, 0)), int(loot[key]))
 
 
 ## How many things of a kind are in some loot (e.g. all the parts).
@@ -65,7 +83,7 @@ static func total(loot: Dictionary, kind: String) -> int:
 	var n := 0
 	for key in loot:
 		if key == kind or key.begins_with(kind + ":"):
-			n += int(loot[key])
+			n = plus(n, int(loot[key]))
 	return n
 
 

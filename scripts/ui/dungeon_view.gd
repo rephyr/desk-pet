@@ -57,6 +57,9 @@ var _hold_scroll_f := 0  # the landing that list belongs to
 var _done_shown := -1  # the run's floors behind the army at the last rebuild
 var _walk_bar: ProgressBar = null  # the run card's walking bar and floor number (moved every frame)
 var _floor_label: Label = null
+var _rows := {}  # this run's floor rows on the run card, by floor (kept between builds)
+var _rows_box: VBoxContainer = null  # the run card's list they're in
+var _rows_run := -1.0  # the run they belong to (its start time)
 var _floor_done := false  # a floor of the run just finished: the desk (not the wall) builds again
 
 
@@ -179,7 +182,8 @@ func _process(delta: float) -> void:
 			_wall.refresh()
 	elif _floor_done:  # a floor of the run is behind the army: only the desk changes
 		_floor_done = false
-		_build_desk(GameState.army(), {})
+		var a := GameState.army()
+		_build_desk(a, GameState.army_rules(a) if int(a.sent) > 0 else {})
 	if not _followed and _scroll.size.y > 0.0 and _column.size.y >= _column.custom_minimum_size.y - 0.5:
 		_followed = true  # once the column has its size: scroll to where the army is
 		_follow()
@@ -220,8 +224,10 @@ func _key(a: Dictionary) -> String:
 	var key := "%s|%s|%s|%d|%s|%s|%s" % [str(a.cards.map(func(p): return p.uid)), str(a.keys), str(GameState.dungeon.cards),
 		int(a.sent), GameState.collection.active_uid, str(GameState.dungeon_running()), str(GameState.sewing_open())]
 	var hold_open := _hold_f > 0 and not Dungeon.is_held(GameState.catalog, GameState.dungeon, _hold_f)
-	for tier in GameState.catalog.tiers:
-		key += "|%d" % GameState.army_herd_room(tier.id)
+	for tier in GameState.catalog.tiers:  # (as the shelf rows show it: short, and the pips' fill)
+		var room := GameState.army_herd_room(tier.id)
+		var on := int(a.herd.get(str(tier.id), 0))
+		key += "|%s:%d:%s" % [UiTheme.num(room), roundi(float(on) / room * 100.0) if room > 0 else -1, str(on >= room)]
 		if hold_open:  # (capped at what the landing still needs: steady once the herd outgrows it)
 			key += "/%d" % GameState.hold_can_go(_hold_f, tier.id)
 	if _picking:
@@ -262,7 +268,10 @@ func _build_desk(a: Dictionary, rules: Dictionary) -> void:
 	_hold_scroll = null
 	_walk_bar = null
 	_floor_label = null
+	_keep_rows()
 	UiTheme.clear(_desk)
+	# (every way through here notes the floors done, or _tick_run would ask for a desk every frame)
+	_done_shown = Dungeon.floors_done(GameState.catalog, GameState.dungeon.run, _run_seconds()) if _well_run() else -1
 	if _hold_f > 0 and not _hold_f in GameState.hold_spots():
 		_drop_hold()
 	if _hold_f > 0:
@@ -270,10 +279,8 @@ func _build_desk(a: Dictionary, rules: Dictionary) -> void:
 		_desk.add_child(_orders(a, rules))
 		return
 	if _well_run():
-		_done_shown = Dungeon.floors_done(GameState.catalog, GameState.dungeon.run, _run_seconds())
 		_desk.add_child(_run_card(a))
 		return
-	_done_shown = -1
 	if not _running and not GameState.dungeon_report.is_empty():
 		_desk.add_child(_home_card(GameState.dungeon_report))
 		return
@@ -705,8 +712,12 @@ func _run_card(a: Dictionary) -> Control:
 	var front := {}
 	for pet in a.cards.slice(0, GameState.front_row_size()):
 		front[pet.uid] = pet
-	for i in range(done - 1, -1, -1):
-		rows_box.add_child(_floor_row(floors[i], front, run))
+	for i in range(done - 1, -1, -1):  # (rows built for earlier floors of this run come back as they were)
+		var f := int(floors[i].f)
+		if not _rows.has(f):
+			_rows[f] = _floor_row(floors[i], front, run)
+		rows_box.add_child(_rows[f])
+	_rows_box = rows_box
 	if done == 0:
 		var start := int(run.get("start", 0))
 		rows_box.add_child(UiTheme.label("landing %d, everyone holding on" % start if start > 0 else "down the rope", UiTheme.MUTED, UiTheme.SMALL + 1))
@@ -716,6 +727,29 @@ func _run_card(a: Dictionary) -> Control:
 	scroll.add_child(rows_box)
 	col.add_child(scroll)
 	return card
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_PREDELETE:  # (kept floor rows out of the tree go with the page)
+		for row in _rows.values():
+			if is_instance_valid(row) and row.get_parent() == null:
+				row.free()
+
+
+## Takes this run's floor rows out of the desk before it's cleared (they're kept for the next
+## build); a new run or no run frees them.
+func _keep_rows() -> void:
+	if is_instance_valid(_rows_box):
+		for child in _rows_box.get_children():
+			_rows_box.remove_child(child)
+	_rows_box = null
+	var run_at := float(GameState.dungeon.run.get("at", 0.0)) if _well_run() else -1.0
+	if run_at != _rows_run:
+		for row in _rows.values():
+			if is_instance_valid(row):
+				row.free()
+		_rows = {}
+		_rows_run = run_at
 
 
 ## The floor the army is walking (or the last one it reached).
@@ -1534,6 +1568,8 @@ class _PipSlider extends Control:
 	var _have := 0
 	var _on_set: Callable
 	var _drag := -1.0  # while dragging: the fraction shown
+	var _less := false  # the press was on the last pip on: one less when let go (until it drags off)
+	var _press_k := -1
 
 	func _init(color: Color, on: int, have: int, on_set: Callable) -> void:
 		_color = color
@@ -1558,16 +1594,24 @@ class _PipSlider extends Control:
 			if event.pressed:
 				var k := _pip_at(event.position.x)
 				var cur := roundi(_frac() * 10.0)
+				_less = k == cur
+				_press_k = k
 				_drag = (k - 1) / 10.0 if k == cur else k / 10.0
 				queue_redraw()
 			elif _drag >= 0.0:
 				var n := ceili(_have * _drag - 0.0001) if _have < 10 else roundi(_have * _drag)  # (a small shelf: every pip counts)
+				if _less and _have < 10:  # (rounding up would give the same count back)
+					n = maxi(_on - 1, 0)
 				_drag = -1.0
+				_less = false
 				_on_set.call(n)
 			accept_event()
 		elif event is InputEventMouseMotion and _drag >= 0.0 and (event.button_mask & MOUSE_BUTTON_MASK_LEFT):
-			_drag = _pip_at(event.position.x) / 10.0
-			queue_redraw()
+			var k := _pip_at(event.position.x)
+			if not (_less and k == _press_k):  # (a wobble on the pressed pip is still a tap)
+				_less = false
+				_drag = k / 10.0
+				queue_redraw()
 			accept_event()
 
 	func _draw() -> void:

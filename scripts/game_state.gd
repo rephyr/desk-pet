@@ -45,6 +45,7 @@ static var tool_saves := false
 const SAVE_VERSION := 43
 const PINNED_MAX := 10  # good pulls waiting to be seen: older ones stop waiting (and may fold into the herd)
 const SPARE_FRESH_MS := 1000  # spare_shelves() is worked out again at least this often
+const SPARE_BIG := 5000  # past this many cards spare_shelves() keeps its count 3x as long, even as pets come and go
 const WORKER_BOXES_MAX := 2000  # box workers open at most this many boxes in one go (every pet is rolled)
 const OFFLINE_CAP := 12.0 * 3600.0
 const FRAME_GAP := 5.0  # a frame this long means the computer slept: counts as closed (no care drain)
@@ -213,6 +214,8 @@ var _away := false  # working through time the computer slept: no care buffs (se
 var _pat_at := -INF  # when a pat last gave mood (unix seconds; data/care.json pat.every)
 var _save_timer := 0.0
 var _save_task := -1  # a save being written on a worker thread (WorkerThreadPool task id), see save_game
+var _save_soon := -1.0  # seconds until a save something asked for is written (-1: none waiting), see save_game
+const SAVE_SOON := 1.5  # a few taps in a row write one save, not one each
 var _run_timer := 0.0
 var _tick_phase := 0  # which quarter of the once-a-second work runs next (see _process)
 const TICK_PHASE := 0.25
@@ -331,9 +334,12 @@ func _process(delta: float) -> void:
 		_tick_phase = (_tick_phase + 1) % 4
 
 	_save_timer += delta
-	if _save_timer >= 30.0:
+	if _save_soon > 0.0:
+		_save_soon = maxf(0.0, _save_soon - delta)
+	if (_save_timer >= 30.0 or _save_soon == 0.0) and not _still_writing():  # (never waits on the last write)
 		_save_timer = 0.0
-		save_game()
+		_save_soon = -1.0
+		_write_save()
 
 
 # ---- boxes ----------------------------------------------------------------
@@ -729,7 +735,7 @@ func may_go_finish(finish: String) -> bool:
 ## with none are left out). Kept for a second at most: pickers ask every frame.
 func spare_shelves() -> Dictionary:
 	# with tens of thousands of cards a count takes tens of ms: then it's kept a little longer
-	var fresh := SPARE_FRESH_MS * (3 if collection.pets.size() > 5000 else 1)
+	var fresh := SPARE_FRESH_MS * (3 if collection.pets.size() > SPARE_BIG else 1)
 	if _spare.is_empty() or Time.get_ticks_msec() - _spare_at > fresh:
 		_spare = { "shelves": {} }
 		_spare_at = Time.get_ticks_msec()
@@ -1069,6 +1075,7 @@ func set_rule(key: String, value) -> void:
 			if catalog.finish(str(value)).id == str(value):
 				homes.rule.keep = str(value)
 	_rest_changed()  # the keep line: which finishes may go anywhere (and the army holds)
+	_spare_changed()
 	homes_rule_changed.emit()
 	changed.emit()
 	save_game()
@@ -1696,7 +1703,8 @@ func _resting() -> Dictionary:
 ## Something changed who's resting: it's worked out again when next asked.
 func _rest_changed() -> void:
 	_rest = {}
-	_spare = {}
+	if collection.pets.size() <= SPARE_BIG:  # (past that, pets come and go every second: the count waits its few seconds)
+		_spare = {}
 
 
 ## Pets from the herd that are busy: count key -> on errands, working, away or leading a party.
@@ -1861,7 +1869,20 @@ func _on_folded(uids: Array, keys: Array) -> void:
 	for w in from_workers:
 		automation.workers[w] = automation.workers[w].filter(func(uid): return not from_workers[w].has(str(uid)))
 	if not from_jobs.is_empty():
-		_crews_changed()
+		# a fold only turns crew cards into the same crew's counts: like pets joining, the errands
+		# board may catch up a little later (late on this happens with every new pet)
+		for job in from_jobs:
+			for uid in from_jobs[job]:
+				_job_of.erase(uid)
+			if _crew_speeds.has(job):
+				_crew_speeds[job].n = 0
+			for tips in _crew_tips.values():
+				if tips.has(job):
+					tips[job].n = 0
+		var was := crews_by_themselves
+		crews_by_themselves = true
+		_crews_changed({})
+		crews_by_themselves = was
 	if not from_workers.is_empty():
 		_workers_changed()
 	_rest_changed()
@@ -2438,14 +2459,11 @@ func _place_new(uids: Array) -> void:
 	var joined: Array = open_jobs().filter(func(j): return job_joins(j.id)).map(func(j): return j.id)
 	if not joined.is_empty():
 		_auto_place(cards, counts, joined, true)
-	# the rule's "go to work" pets nobody took: every open errand
-	var left: Array = []
-	var still := {}
-	for pet in resting_cards():
-		still[pet.uid] = true
-	for uid in forced:
-		if still.has(str(uid)):
-			left.append(str(uid))
+	if forced.is_empty():
+		return
+	# the rule's "go to work" pets nobody took: every open errand (they were resting: only a crew
+	# or a machine could have taken them)
+	var left: Array = forced.map(func(u): return str(u)).filter(func(u: String): return not Herd.is_stand_in(u) and not _job_of.has(u) and not _worker_of.has(u))
 	if not left.is_empty():
 		_auto_place(left, {}, [], true)
 
@@ -2724,7 +2742,7 @@ func _log_idle(add: Dictionary) -> void:
 			list.append_array(add[key])
 			idle_log[key] = list
 		else:
-			idle_log[key] = int(idle_log.get(key, 0)) + int(add[key])
+			idle_log[key] = Rewards.plus(int(idle_log.get(key, 0)), int(add[key]))  # (kept until your pet tells you: never wraps)
 
 
 # ---- automation: your pet does one job for you, see Automation and data/automation.json ----
@@ -3401,7 +3419,7 @@ func _pet_capsule(ctx: Dictionary) -> Dictionary:
 		loot.coins = coins_int(int(loot.coins) * ctx.coins_x)
 	if shiny:
 		for k in loot:
-			loot[k] = roundi(int(loot[k]) * ctx.shiny_pay)
+			loot[k] = coins_int(float(loot[k]) * ctx.shiny_pay)
 	var toy := {}
 	if prize.kind == "toy":
 		var t := Toys.roll(catalog, _rng, ctx.luck, ctx.sets)
@@ -4624,6 +4642,7 @@ func set_keep_line(i: int, pick: String) -> bool:
 	_keep_lines_changed()
 	collection.refold()
 	_rest_changed()
+	_spare_changed()
 	homes_rule_changed.emit()
 	changed.emit()
 	save_game()
@@ -5810,7 +5829,7 @@ func _capsule(first: bool, lucky: bool, pay: float, pet_due := false, g := "") -
 		loot.coins = coins_int(int(loot.coins) * boost("coins"))  # shown as it is
 	if shiny:
 		for k in loot:
-			loot[k] = roundi(int(loot[k]) * Machine.shiny_pay(machine, catalog, g))
+			loot[k] = coins_int(float(loot[k]) * Machine.shiny_pay(machine, catalog, g))
 	var toy := {}
 	var pet: Pet = null
 	if prize.kind == "pet":
@@ -6456,13 +6475,30 @@ func set_pet_out(value: bool) -> void:
 
 # ---- saving ---------------------------------------------------------------
 
-## `wait`: written before this returns (quitting); otherwise the running game writes it on a worker
-## thread (late in the game a save is megabytes of JSON, ~300 ms).
+## `wait`: written before this returns (quitting); otherwise the running game writes it a moment
+## later on a worker thread (late in the game copying it takes ~150 ms and the JSON ~300 ms: a few
+## taps in a row write it once, and never wait for the last write).
 func save_game(wait := false) -> void:
 	if not _can_save:
 		return
 	if _hold_saves:  # automation is working through a tick (or loading): the next autosave has it
 		return
+	if not wait and is_inside_tree():
+		if _save_soon < 0.0:
+			_save_soon = SAVE_SOON
+		return
+	_write_save(wait)
+
+
+## Whether the last save is still being written on its worker thread.
+func _still_writing() -> bool:
+	return _save_task >= 0 and not WorkerThreadPool.is_task_completed(_save_task)
+
+
+func _write_save(wait := false) -> void:
+	if not _can_save or _hold_saves:
+		return
+	_save_soon = -1.0
 	var data := {
 		"version": SAVE_VERSION,
 		"coins": coins,
