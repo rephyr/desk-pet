@@ -60,7 +60,14 @@ and `lanes/merge` merges them one by one (save versions renumbered in merge orde
 `DESK_PETS_LANE=<lane>` so each lane plays in its own test profile and Xvfb display. **Every lane
 is merged now; nothing is building.**
 
-Known small open items: the "new: the bag!" popup can land on the trip postcard; balance note (a
+**Lanes (2026-10-07, merged in lanes/merge2, not pushed):** fixes (14 bug reports, docs/plans/FIXES-done.md),
+sweep (full check run + small fixes, SWEEP-done.md), postcard (bell rope postcards wait for an
+unlock card; the flaky "v21 and v2x saves load the same" test fixed, POSTCARD-done.md), mockups3
+(prep: plushie handoff, midnight globe, news pile, MOCKUPS3-done.md), midnight (the midnight
+globe, MIDNIGHT-done.md), x2 (GameState split into 21 parts, X2-done.md). No save bump: still v43.
+
+Known small open items: the "new: the bag!" popup can land on the trip postcard (the bell rope case
+is fixed; the news-pile mockup covers the rest); balance note (a
 huge scrapyard crew floods the bag); the welcome-back payout scales 200 rolled capsules up to
 every pull (one lucky golden can be multiplied thousands of times). (The sunny tree's overlapping
 node labels are fixed: names wrap to their room.)
@@ -957,8 +964,8 @@ are collected at the end of docs/picks.md. The bigger ones:
 
 (Done 2026-09-29: merge verified and pushed, the errands note hidden, the pace fixes + third run.)
 Emilia plays the new pace by hand and answers the open questions above (the A1 "still off" list
-first) → A5's midnight globe (BUILT, lane midnight) → F2's handoff rules → X2
-(split GameState, ~6000+ lines now) → Phase G (sound, art, Windows build).
+first) → A5's midnight globe (BUILT, lane midnight, merged 2026-10-07) → F2's handoff rules
+(prep ready: design/mockups/screens/plushie-handoff.html) → X2 (DONE, merged 2026-10-07) → Phase G (sound, art, Windows build).
 
 Each step's **Prep** can be done ahead: answering its questions or picking its mockup look makes
 it ready, so a long unattended run can build ready steps back to back.
