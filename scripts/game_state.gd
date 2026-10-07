@@ -1,3 +1,4 @@
+class_name GameStateNode
 extends Node
 ## Autoload "GameState": the player's progress (coins, care stats, pets, the bag of boxes and
 ## parts, adventures, unlocks) and saving it.
@@ -33,6 +34,10 @@ signal plushie_changed  # the plushie machine changed: a pet fed in, a keeper pi
 signal plushie_spun(result: Dictionary)  # the plushie machine spun (or banked, nudged, brought the next pet in), see plushie_spin()
 signal wish_changed(step: int)  # the wish moved or pets went into its jar; step = the step that just filled (0: none)
 signal workshop_changed(built_id: String)  # helpers joined a drawing in the shed workshop, or one was built (its id)
+
+# ---- GameState's parts, by area (scripts/state/): the code lives there, the state stays here ----
+var toys_part := ToysPart.new(self)
+# ---- end of the parts ----
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
 ## Headless tests set this before making a GameState: it starts empty and never loads or saves
@@ -911,34 +916,6 @@ func _built(id: String) -> void:
 ## The next postcard waiting (the bell rope welcomed its trip back), taken off the pile, or {}.
 func take_postcard() -> Dictionary:
 	return postcards.pop_front() if not postcards.is_empty() else {}
-
-
-## Plays whose time is up end (the toys wear a little); with the toy shelf built your pet takes
-## the same toy back down for the same length (unless you tapped it: this one goes back on the
-## shelf). Returns the editions that ended and weren't handed again.
-func _finish_plays(now: float) -> Array:
-	var again: Array = Toys.ending(toys, now) if built("shelf") else []
-	var ended := Toys.finish_plays(toys, now)
-	var handed := false
-	for p in again:
-		if Toys.play(toys, catalog, str(p.key), str(p.play), now):
-			ended.erase(p.key)
-			handed = true
-	if handed:
-		toys_changed.emit()
-		save_game()
-	return ended
-
-
-## With the toy shelf built, whether the shelf hands this play again when it ends (tapping the
-## playing toy flips it). Returns the new setting, or false when there's nothing to flip.
-func toy_again(edition: String) -> bool:
-	if not built("shelf"):
-		return false
-	var on := Toys.flip_again(toys, edition, Time.get_unix_time_from_system())
-	toys_changed.emit()
-	save_game()
-	return on
 
 
 ## The weather vane answers a trip waiting at a plain choice with your last pick there (see
@@ -4046,8 +4023,6 @@ func _home_again() -> void:
 	save_game()
 
 
-
-
 ## Pets a run lost leave the collection (a star each, never a word about them). Returns how many.
 func _run_losses(run: Dictionary) -> int:
 	var lost := Dungeon.run_lost(run)
@@ -6285,75 +6260,6 @@ func capsule_seconds() -> float:
 
 # ---- capsule toys ------------------------------------------------------------------
 
-## Your pet starts playing with a toy (Toys.play). Returns whether it could.
-func play_toy(edition: String, play_id: String) -> bool:
-	if not Toys.play(toys, catalog, edition, play_id, Time.get_unix_time_from_system()):
-		return false
-	toys_changed.emit()
-	changed.emit()
-	save_game()
-	return true
-
-
-## Fixes a toy's wear on the workbench. Returns whether you could afford it.
-func fix_toy(edition: String) -> bool:
-	var price := Toys.fix_cost(toys, catalog, edition)
-	if price <= 0 or coins < price or Toys.playing(toys, edition, Time.get_unix_time_from_system()):
-		return false
-	coins -= price
-	toys.owned[edition].wear = 0.0
-	toys_changed.emit()
-	changed.emit()
-	save_game()
-	return true
-
-
-## Combines spares into the next level (Toys.combine). Returns whether it could.
-func combine_toy(edition: String) -> bool:
-	if not Toys.combine(toys, catalog, edition):
-		return false
-	toys_changed.emit()
-	save_game()
-	return true
-
-
-## Sacrifices spares of a toy for a chance at a special finish. Returns the finish, or "".
-func sacrifice_toy(id: String) -> String:
-	if not Toys.can_sacrifice(toys, catalog, id):
-		return ""
-	var got := Toys.sacrifice(toys, catalog, id, _rng)
-	toys_changed.emit()
-	save_game()
-	return got
-
-
-## Up to `tries` sacrifices at once (Toys.sacrifice_many). Returns finish (or "nothing") -> how many.
-func sacrifice_toys(id: String, tries: int) -> Dictionary:
-	var got := Toys.sacrifice_many(toys, catalog, id, tries, _rng)
-	if not got.is_empty():
-		toys_changed.emit()
-		save_game()
-	return got
-
-
-## Levels an edition up as far as its spares go (Toys.combine_all). Returns the levels.
-func combine_toy_all(edition: String) -> int:
-	var n := Toys.combine_all(toys, catalog, edition)
-	if n > 0:
-		toys_changed.emit()
-		save_game()
-	return n
-
-
-## Shines a favourite one star (Toys.shine). Returns whether it could.
-func shine_toy(edition: String) -> bool:
-	if not Toys.shine(toys, catalog, edition):
-		return false
-	toys_changed.emit()
-	save_game()
-	return true
-
-
 ## Where pets find a machine bit, for the upgrade card when you're short of one: the open places
 ## whose treat bag holds it, or, before any of those is found, a place that leads there.
 func bit_hint(bit: String) -> String:
@@ -7066,3 +6972,18 @@ func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_EXIT_TREE:
 		_finish_save()  # even if this save can't go ahead, the one on its way gets written
 		save_game(true)
+
+
+# ---- forwarders: the parts' functions, so GameState.<name>() works as before (tools/state_parts.py writes this block) ----
+
+# toys_part.gd
+func _finish_plays(now: float) -> Array: return toys_part._finish_plays(now)
+func toy_again(edition: String) -> bool: return toys_part.toy_again(edition)
+func play_toy(edition: String, play_id: String) -> bool: return toys_part.play_toy(edition, play_id)
+func fix_toy(edition: String) -> bool: return toys_part.fix_toy(edition)
+func combine_toy(edition: String) -> bool: return toys_part.combine_toy(edition)
+func sacrifice_toy(id: String) -> String: return toys_part.sacrifice_toy(id)
+func sacrifice_toys(id: String, tries: int) -> Dictionary: return toys_part.sacrifice_toys(id, tries)
+func combine_toy_all(edition: String) -> int: return toys_part.combine_toy_all(edition)
+func shine_toy(edition: String) -> bool: return toys_part.shine_toy(edition)
+# ---- end of the forwarders ----
