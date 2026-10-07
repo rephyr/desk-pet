@@ -1,6 +1,6 @@
 {
 	"_note": "Capsule toys: they come out of the capsule machine (data/machine.json prize kind \"toy\"). Toys are collected in SETS (a set belongs to a machine globe, data/machine_tree.json: a later globe's set only rolls once that globe's rusted hatch is open, and only on that globe or a newer one); each toy has a TIER (tiers: its base boost, how much each level adds, how often it drops, what fixing it costs), a BONUS kind and pixel ART (14 x 14 rows, letters are colours from \"palette\", . is empty). Bonus kinds: coins (everything pays more coins), luck (the machine and adventures), xp, speed (capsules open faster), fever (fever lasts longer and pays more), toys (toys come out more often), loot (adventures bring more home), all (coins, xp and luck). A toy only works while your pet PLAYS with it (\"play\": how long, and how much it wears the toy), one toy per play slot (\"slots\" to start, +1 for each finished set); while it plays you can't switch. Playing WEARS a toy (0 new .. 1 worn out): its boost shrinks down to \"worn_floor\" of the extra; the workbench fixes it for the tier's \"fix_cost\" coins x wear. Every level makes it \"sturdier\" (wears that much slower). FINISHES multiply the extra part of the boost; \"finish_odds\" is how often a toy comes out in each. Each toy you own is one EDITION (toy + finish) with a level; more copies of the same edition are spares: \"combine\" is how many spares take it to the next level (level 2, 3, ...), up to \"max_level\": then it's a FAVOURITE, always on and never wears. SACRIFICE: \"spares\" spares of one toy's normal edition for a chance at a special finish of it (odds shown), gone either way. SHINE: past max level, spares shine a favourite: star n takes \"first\" x \"x\"^(n-1) spares, and every star counts like \"levels\" more levels.",
-	"palette": { "o": "#1a0f22", "w": "#f5dcec", "W": "#c9b3c2", "p": "#ff79c6", "P": "#a64f81", "m": "#8fe8c0", "M": "#4f9d80", "g": "#ffe08a", "G": "#b8914a", "c": "#8be9fd", "C": "#4fa9c9", "l": "#c9a0ff", "L": "#7d62a3", "k": "#f3c4b4", "b": "#8a6448", "B": "#5c4130", "s": "#ff9f8a", "S": "#a8604f", "a": "#ffb347", "A": "#b87a2a", "y": "#fff1a8" },
+	"palette": { "o": "#1a0f22", "w": "#f5dcec", "W": "#c9b3c2", "p": "#ff79c6", "P": "#a64f81", "m": "#8fe8c0", "M": "#4f9d80", "g": "#ffe08a", "G": "#b8914a", "c": "#8be9fd", "C": "#4fa9c9", "l": "#c9a0ff", "L": "#7d62a3", "k": "#f3c4b4", "b": "#8a6448", "B": "#5c4130", "s": "#ff9f8a", "S": "#a8604f", "a": "#ffb347", "A": "#b87a2a", "y": "#fff1a8", "n": "#a99cff", "N": "#453f8f", "d": "#7d72e0" },
 	"tiers": {
 		"common": { "base": 1.1, "per_level": 0.05, "weight": 60, "fix_cost": 20 },
 		"uncommon": { "base": 1.2, "per_level": 0.1, "weight": 28, "fix_cost": 50 },
@@ -51,6 +51,15 @@
 				{ "id": "hedgehog", "name": "hedgehog", "tier": "common", "bonus": "coins", "does": "more coins from everything" },
 				{ "id": "owl", "name": "sleepy owl", "tier": "uncommon", "bonus": "xp", "does": "more xp from everything" },
 				{ "id": "lantern", "name": "paper lantern", "tier": "rare", "bonus": "fever", "does": "fever lasts longer and pays more" }
+			]
+		},
+		{
+			"id": "midnight", "name": "midnight friends", "globe": "midnight",
+			"toys": [
+				{ "id": "bat", "name": "little bat", "tier": "common", "bonus": "speed", "does": "capsules open faster" },
+				{ "id": "slipper", "name": "fluffy slipper", "tier": "common", "bonus": "loot", "does": "adventures bring more home" },
+				{ "id": "teacup", "name": "teacup", "tier": "uncommon", "bonus": "toys", "does": "toys come out of capsules more often" },
+				{ "id": "moon", "name": "crescent moon", "tier": "rare", "bonus": "all", "does": "more coins, xp and luck" }
 			]
 		}
 	],
@@ -245,6 +254,70 @@
 			"....oooooo....",
 			".....oGGo.....",
 			"......oo......",
+			".............."
+		],
+		"bat": [
+			"..............",
+			".....o..o.....",
+			"....oNooNo....",
+			".o..oNNNNo..o.",
+			"oNNoNwNNwNoNNo",
+			"oNdNNNNNNNNdNo",
+			"oNddNNkkNNddNo",
+			".oNddNkkNddNo.",
+			"..oNdoNNodNo..",
+			"...oo.oo.oo...",
+			"..............",
+			"..............",
+			"..............",
+			".............."
+		],
+		"slipper": [
+			"..............",
+			"..............",
+			"..............",
+			"........oo....",
+			".......owwo...",
+			"......owwwwo..",
+			"....oowwwwwo..",
+			"..oopppwwwwPo.",
+			".oppppppppppPo",
+			"oppppppppppppo",
+			"oPPPPPPPPPPPPo",
+			".oWWWWWWWWWWo.",
+			"..oooooooooo..",
+			".............."
+		],
+		"teacup": [
+			"..............",
+			".....o...o....",
+			"....o...o.....",
+			".....o...o....",
+			"..............",
+			".oooooooooo...",
+			".onnnnnnnnoo..",
+			".onnynnnnnono.",
+			".onyyynnnnono.",
+			".onnynnnnnoo..",
+			"..onnnnnnno...",
+			"...ooooooo....",
+			".oNNNNNNNNNNo.",
+			"..oooooooooo.."
+		],
+		"moon": [
+			"..............",
+			".....oooo.....",
+			"...ooyyyyo....",
+			"..oyyyyoo.....",
+			".oyyyyo.......",
+			".oyyyo....g...",
+			"oyyyyo...ggg..",
+			"oyyyyo....g...",
+			"oyyyyyo.......",
+			".oyyyyyoo.....",
+			"..oyyyyyyoooo.",
+			"...ooyyyyyyo..",
+			".....oooooo...",
 			".............."
 		]
 	}

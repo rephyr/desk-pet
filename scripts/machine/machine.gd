@@ -12,7 +12,7 @@ extends RefCounted
 ## Everything that depends on the globe takes `globe` ("" = the hand globe).
 
 ## The tree's branches (bits live in machine_tree.json "bits").
-const BRANCHES := ["repair", "coins", "chutes", "balls", "shiny", "lights", "drops", "sunset"]
+const BRANCHES := ["repair", "coins", "chutes", "balls", "shiny", "lights", "drops", "sunset", "midnight"]
 ## Effects that only count on their own globe; every other effect counts on its own globe and on
 ## every newer one (a sunset globe gets the sunny globe's coins, extra balls, shiny, fever, drops).
 const OWN_GLOBE := ["chutes", "lights", "glass"]

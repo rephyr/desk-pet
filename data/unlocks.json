@@ -103,6 +103,7 @@
 		{ "id": "tiny_machine", "name": "a tiny capsule machine" },
 		{ "id": "whistle", "name": "a tiny whistle" },
 		{ "id": "sunset_globe", "name": "a sunset globe" },
+		{ "id": "porch_machine", "name": "the porch machine" },
 		{ "id": "deep_rope", "name": "a rope going down" },
 		{ "id": "little_key", "name": "a tiny key" },
 		{ "id": "plushie_machine", "name": "a working plushie machine", "given_by": "the sewing room's last room (data/sewing.json rooms 'first')" }
