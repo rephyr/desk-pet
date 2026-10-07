@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Midnight Globe</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* A5, the third globe (lanes/mockups3). The porch machine from next door comes home as the
+     midnight globe, broken, and joins the sunny and sunset globes on the machine tab. Its short
+     repair branch needs new bits from next door. The newest globe turns by hand; your pet, workers
+     and errands pay at the one behind (sunset). The question here: how do THREE globes share the
+     stage? The fixes list is look A from globes.html (picked), the same in every frame.
+     Every frame is the 920x600 window. Numbers and bit names are placeholders. */
+  :root { --sunset: #ff9f8a; --sunset-seam: #a8604f; --rust: #8a6448; --mid: #a99cff; --mid-body: #7d72e0; --mid-seam: #453f8f; }
+  body { display: block; padding: 24px 24px 48px; min-height: 0; }
+  .sheet-hd { width: 920px; margin: 0 auto 18px; }
+  .sheet-hd h1 { margin: 0 0 4px; font: var(--display-weight) 26px/1 var(--display); color: var(--pink); }
+  .sheet-hd p { margin: 0; color: var(--muted); max-width: 800px; }
+  .look { width: 920px; margin: 0 auto 34px; }
+  .look .cap { display: flex; align-items: baseline; gap: 12px; margin: 0 0 8px; }
+  .look .cap b { font: var(--display-weight) 20px/1 var(--display); color: var(--gold); font-weight: 400; white-space: nowrap; }
+  .look .cap span { color: var(--muted); }
+  .content { flex: 1; min-height: 0; }
+
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+
+  .page2 { display: flex; flex-direction: column; gap: 10px; height: 100%; min-height: 0; }
+  .bar { display: flex; align-items: center; gap: 10px; min-height: 30px; }
+  .seg button { font-size: 12px; }
+  .bits { margin-left: auto; display: flex; gap: 6px; }
+  .bit { display: flex; align-items: center; gap: 5px; white-space: nowrap; padding: 3px 10px 3px 6px; border-radius: 999px; background: var(--deep); border: 2px solid var(--line); font-size: 12px; }
+  .bit svg { width: 18px; height: 18px; }
+  .bit.none { color: var(--locked); }
+  .body { display: grid; grid-template-columns: 1fr 246px; grid-template-rows: minmax(0, 1fr); gap: 14px; flex: 1; min-height: 0; }
+  .muted { color: var(--muted); }
+
+  .stage { position: relative; border-radius: var(--r-panel); background: var(--page); border: 2px solid var(--line); overflow: hidden; min-height: 0; }
+  .stage .floor { position: absolute; left: 0; right: 0; bottom: 58px; height: 2px; background: var(--lilac-seam); opacity: .7; }
+  .mach { display: block; overflow: visible; }
+  .lever-arm { transform-box: view-box; }
+  .pulling { animation: pull 1.8s var(--ease-out) infinite; }
+  @keyframes pull { 0%, 18% { transform: rotate(0deg); } 40% { transform: rotate(48deg); } 62%, 100% { transform: rotate(0deg); } }
+  .slow { animation-duration: 2.6s; }
+  .bob { animation: bob 2.6s ease-in-out infinite; transform-box: fill-box; transform-origin: center bottom; }
+  @keyframes bob { 0%, 100% { transform: none; } 25% { transform: translate(1px, -2px) rotate(3deg); } 75% { transform: translate(-1px, 0) rotate(-2deg); } }
+  .hum { animation: hum 2.2s ease-in-out infinite; }
+  @keyframes hum { 50% { opacity: .35; } }
+  .sign { display: inline-flex; align-items: center; gap: 6px; font: 400 13px/1 var(--display); padding: 5px 9px 4px 6px; border-radius: 6px; background: var(--raised); border: 2px solid var(--c); color: var(--c); box-shadow: var(--lift); transform: rotate(var(--t, -2deg)); white-space: nowrap; }
+  .sign svg { width: 16px; height: 16px; }
+  .sign.small { font-size: 11px; padding: 3px 7px 2px 5px; }
+  .sign.small svg { width: 13px; height: 13px; }
+  .stat { font-size: 11px; color: var(--muted); text-align: center; line-height: 1.35; white-space: nowrap; }
+  .stat b { color: var(--cyan); font-weight: 400; }
+  .stat em { font-style: normal; color: var(--text); }
+  .hand { display: inline-flex; align-items: center; gap: 4px; color: var(--pink); }
+
+  /* the fixes list (look A of globes.html, as built) */
+  .disc { flex: none; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; border: 3px solid var(--mid); background: color-mix(in srgb, var(--mid) 30%, var(--page)); color: var(--mid); position: relative; }
+  .disc svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+  .disc.next { background: var(--raised); border-style: dashed; }
+  .disc.next::after { content: ""; position: absolute; inset: -7px; border-radius: 50%; border: 2px solid var(--mid); opacity: .5; animation: breathe 2s ease-in-out infinite; }
+  @keyframes breathe { 50% { transform: scale(1.14); opacity: .1; } }
+  .disc.dim { background: var(--deep); border-color: var(--line); color: var(--muted); }
+  .disc.dim svg { opacity: .5; }
+  .disc.big { width: 38px; height: 38px; }
+  .disc .tick { position: absolute; right: -6px; bottom: -4px; width: 16px; height: 16px; border-radius: 50%; background: var(--mint); color: var(--deep); font-size: 10px; line-height: 16px; text-align: center; }
+  .fixlist { display: flex; flex-direction: column; gap: 6px; padding: 12px; min-height: 0; overflow: hidden; }
+  .fixlist h3 { margin: 0 0 2px; display: flex; align-items: center; gap: 7px; font: 400 16px/1 var(--display); color: var(--mid); white-space: nowrap; }
+  .fixlist h3 svg { width: 20px; height: 20px; }
+  .fix { position: relative; display: grid; grid-template-columns: 34px 1fr; gap: 3px 9px; align-items: center; padding: 6px 8px; border-radius: 10px; background: var(--deep); border: 2px solid var(--line); cursor: pointer; }
+  .fix:not(:last-child)::after { content: ""; position: absolute; left: 24px; top: 100%; width: 3px; height: 8px; background: repeating-linear-gradient(to bottom, var(--line) 0 3px, transparent 3px 5px); }
+  .fix.owned::after { background: var(--mid-seam); }
+  .fix b { font-weight: 400; font-size: 12px; line-height: 1.2; }
+  .fix.dim b { color: var(--muted); }
+  .fix .needs { display: flex; flex-wrap: wrap; gap: 4px 8px; font-size: 11px; color: var(--muted); }
+  .fix .needs span { display: inline-flex; align-items: center; gap: 3px; }
+  .fix .needs svg { width: 14px; height: 14px; }
+  .fix .needs .short { color: var(--pink); }
+  .fix.open { border: 2px dashed var(--pink); background: var(--raised); }
+  .fix .more { display: none; }
+  .fix.open .more { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 6px; }
+  .fix .more p { margin: 0; font-size: 11px; line-height: 1.35; }
+  .fix .more .gain { color: var(--mint); }
+  .fix .more .btn { padding: 3px 8px; font-size: 12px; }
+  .fix .done { font-size: 11px; color: var(--mint); }
+
+  /* A: three in a row */
+  .row3 { position: absolute; left: 0; right: 0; bottom: 14px; display: flex; justify-content: space-between; align-items: flex-end; padding: 0 8px; }
+  .row3 .one { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+
+  /* B: the shelf */
+  .shelf { position: absolute; left: 10px; width: 222px; top: 168px; height: 12px; border-radius: 4px; background: color-mix(in srgb, var(--rust) 45%, var(--page)); border: 2px solid var(--rust); }
+  .shelf::before, .shelf::after { content: ""; position: absolute; top: 10px; width: 10px; height: 22px; border: 2px solid var(--rust); border-top: 0; border-radius: 0 0 6px 6px; }
+  .shelf::before { left: 18px; }
+  .shelf::after { right: 18px; }
+  .onshelf { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .ladder { position: absolute; left: 214px; top: 160px; width: 34px; height: 256px; overflow: hidden; }
+
+  /* C: the signs switch */
+  .signrow { position: absolute; left: 12px; right: 12px; top: 10px; display: flex; gap: 10px; align-items: center; }
+  .signrow .sign { cursor: pointer; opacity: .55; box-shadow: none; }
+  .signrow .sign:hover { opacity: .85; }
+  .signrow .sign.on { opacity: 1; box-shadow: var(--lift); outline: 2px dashed var(--pink); outline-offset: 3px; }
+  .solo { position: absolute; left: 0; right: 0; bottom: 14px; display: flex; flex-direction: column; align-items: center; gap: 5px; }
+  .crowd { display: flex; align-items: flex-end; }
+  .crowd img { width: 16px; height: 18px; margin-left: -3px; }
+  .crowd img:first-child { margin-left: 0; }
+  .crowd .n { margin-left: 4px; font: 400 12px/1 var(--display); color: var(--pink); }
+  .peek { position: absolute; top: 60px; display: flex; flex-direction: column; gap: 5px; align-items: flex-start; }
+
+  /* the bits names (not a game screen) */
+  .names { width: 920px; margin: 0 auto; }
+  .names h2 { margin: 0 0 4px; font: var(--display-weight) 20px/1 var(--display); color: var(--gold); font-weight: 400; }
+  .names > p { margin: 0 0 12px; color: var(--muted); }
+  .finds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .find { padding: 12px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; }
+  .find:nth-child(odd) { transform: rotate(-1.2deg); }
+  .find:nth-child(even) { transform: rotate(1deg); }
+  .find .pic { width: 64px; height: 64px; display: grid; place-items: center; background: var(--deep); border: 2px solid var(--lilac-seam); border-radius: 18px; }
+  .find .pic svg { width: 42px; height: 42px; }
+  .find b { font: 400 15px/1.1 var(--display); color: var(--pink); font-weight: 400; }
+  .find .say { font-size: 11px; line-height: 1.35; }
+  .find .tabname { font-size: 11px; color: var(--muted); }
+  .find .tabname em { font-style: normal; color: var(--lilac); }
+  .find.alt { opacity: .8; border-style: dashed; }
+</style>
+</head>
+<body>
+<div class="sheet-hd">
+  <h1>the machine: three globes</h1>
+  <p>A5, the midnight globe. A party at the porch next door finds the old capsule machine; it comes home broken as the midnight globe and stands with the other two. You pull the newest by hand; your pet, workers and errands pay at the sunset globe. Shown just after "dust it off": the bulb is next. The fixes list is the picked look from globes.html. The question is how three globes share the stage. Click the fixes, and in look C the signs.</p>
+</div>
+
+<section class="look" data-look="a">
+  <div class="cap"><b>Look A</b><span>three in a row, small to big: the oldest on the left, the one you pull on the right.</span></div>
+  <div class="app"></div>
+</section>
+
+<section class="look" data-look="b">
+  <div class="cap"><b>Look B</b><span>the old globes go up on a shelf at the back, their workers climb a ladder; the midnight globe stands on the floor.</span></div>
+  <div class="app"></div>
+</section>
+
+<section class="look" data-look="c">
+  <div class="cap"><b>Look C</b><span>one globe on the stage at a time; the globe signs along the top switch between them.</span></div>
+  <div class="app"></div>
+</section>
+
+<section class="names">
+  <h2>names for the midnight bits</h2>
+  <p>Found next door, one kind per place (pick 4; the frames use the first four). The dashed ones are spares.</p>
+  <div class="finds" id="finds"></div>
+</section>
+
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.find(t => t.id === "boxes").news = false;
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+
+  const num = n => n >= 1e9 ? (n / 1e9).toFixed(1).replace(/\.0$/, "") + "B" : n >= 1e6 ? (n / 1e6).toFixed(n >= 1e7 ? 0 : 1).replace(/\.0$/, "") + "M" : n >= 1e3 ? (n / 1e3).toFixed(n >= 1e4 ? 0 : 1).replace(/\.0$/, "") + "k" : String(n);
+  const COIN = `<svg viewBox="0 0 24 24"><path d="M12 3 L19.6 10.4 L12 21.2 L4.4 10.4 Z" fill="var(--cyan)"/><path d="M5 10.4 L19 10.4 M9.2 10.4 L12 4.2 L14.8 10.4 L12 19.8 L9.2 10.4" stroke="var(--page)" stroke-width="1.1" fill="none"/></svg>`;
+  const pet = (id, cls = "") => `<img class="px ${cls}" src="../assets/pets/${id}.png" alt="">`;
+  const CREW = ["peach-cat", "mint-blob", "mint-bear", "toxic-cat", "sky-bunny", "peach-bear", "lilac-cat", "bubblegum-fox", "midnight-bear"];
+
+  // ---------------- the midnight bits (placeholder names, see the bottom of the page) ----------------
+  const BIT_ART = {
+    bulb: `<path d="M12 3 Q18 3 18 9.5 Q18 13 15 15.5 L15 17 L9 17 L9 15.5 Q6 13 6 9.5 Q6 3 12 3 Z" fill="color-mix(in srgb, var(--gold) 30%, var(--page))" stroke="var(--gold)" stroke-width="2" stroke-linejoin="round"/><path d="M9 19 L15 19 M10 21 L14 21" stroke="var(--lilac)" stroke-width="2" stroke-linecap="round"/><path d="M10.5 12 L12 9 L13.5 12" fill="none" stroke="var(--gold)" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/>`,
+    fuse: `<rect x="7" y="6" width="10" height="12" rx="2" fill="color-mix(in srgb, var(--mid) 25%, var(--page))" stroke="var(--mid)" stroke-width="2"/><path d="M5 6 L19 6 M5 18 L19 18" stroke="var(--lilac)" stroke-width="2.6" stroke-linecap="round"/><path d="M12 8 Q9.6 10.5 12 12 Q14.4 13.5 12 16" fill="none" stroke="var(--gold)" stroke-width="1.5" stroke-linecap="round"/>`,
+    magnet: `<path d="M6 4 L6 12 Q6 19 12 19 Q18 19 18 12 L18 4 L14.4 4 L14.4 12 Q14.4 15.4 12 15.4 Q9.6 15.4 9.6 12 L9.6 4 Z" fill="color-mix(in srgb, var(--pink) 30%, var(--page))" stroke="var(--pink)" stroke-width="2" stroke-linejoin="round"/><path d="M6 7 L9.6 7 M14.4 7 L18 7" stroke="var(--text)" stroke-width="2"/>`,
+    frost: `<rect x="4.5" y="4.5" width="15" height="15" rx="3" fill="color-mix(in srgb, var(--mid) 18%, transparent)" stroke="var(--mid)" stroke-width="2"/><path d="M12 7.5 L12 16.5 M8.1 9.75 L15.9 14.25 M8.1 14.25 L15.9 9.75" stroke="var(--text)" stroke-width="1.4" stroke-linecap="round" opacity=".8"/>`,
+    bell: `<path d="M7 16 L7 11 Q7 6 12 6 Q17 6 17 11 L17 16 L19 18 L5 18 Z" fill="color-mix(in srgb, var(--gold) 25%, var(--page))" stroke="var(--gold)" stroke-width="2" stroke-linejoin="round"/><circle cx="12" cy="20" r="1.6" fill="var(--gold)"/><path d="M12 3.5 L12 6" stroke="var(--gold)" stroke-width="2" stroke-linecap="round"/>`,
+    hand: `<circle cx="12" cy="12" r="8" fill="none" stroke="var(--lilac)" stroke-width="2"/><path d="M12 12 L12 6.5 M12 12 L15.5 14" stroke="var(--pink)" stroke-width="2.2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.4" fill="var(--pink)"/>`,
+  };
+  const BIT_NAME = { bulb: ["bulb", "bulbs"], fuse: ["fuse", "fuses"], magnet: ["magnet", "magnets"], frost: ["frosted glass", "frosted glass"] };
+  const HAVE = { bulb: 1, fuse: 3, magnet: 0, frost: 0 };
+  const bitSvg = k => `<svg viewBox="0 0 24 24">${BIT_ART[k]}</svg>`;
+  const bitsBar = () => `<div class="bits">${Object.entries(HAVE).map(([k, n]) => `<span class="bit ${n ? "" : "none"}">${bitSvg(k)}${n} ${BIT_NAME[k][n === 1 ? 0 : 1]}</span>`).join("")}</div>`;
+
+  // ---------------- the midnight branch: 5 fixes (placeholder numbers, sunset prices x12) ----------------
+  const ICON = {
+    dust: `<path d="M5 18 L19 18"/><path d="M8 14 Q12 6 16 14"/><path d="M6 9 L6.1 9.1 M18 8 L18.1 8.1 M12 5 L12.1 5.1"/>`,
+    bulb: `<path d="M12 4 Q17 4 17 9.5 Q17 12.5 14.5 14.5 L14.5 16.5 L9.5 16.5 L9.5 14.5 Q7 12.5 7 9.5 Q7 4 12 4 Z"/><path d="M10 19.5 L14 19.5"/>`,
+    magnet: `<path d="M7 4 L7 12 Q7 18 12 18 Q17 18 17 12 L17 4"/><path d="M10.5 4 L10.5 12 Q10.5 14 12 14 Q13.5 14 13.5 12 L13.5 4"/>`,
+    frost: `<path d="M12 4 L12 20 M5 8 L19 16 M5 16 L19 8"/>`,
+    hatch: `<rect x="5" y="6" width="14" height="13" rx="2"/><path d="M5 11 L19 11"/><circle cx="15" cy="15" r="1"/>`,
+  };
+  const FIXES = [
+    { id: "dust", name: "dust it off", icon: "dust", state: "owned",
+      says: "it was under a blanket of dust. achoo! achoo!", gain: "capsules drop again", cost: [["coins", 24e6]] },
+    { id: "bulb", name: "a new bulb", icon: "bulb", state: "next",
+      says: "its little light is out. it's so dark in there!", gain: "x2 coins", cost: [["coins", 72e6], ["bulb", 2]] },
+    { id: "magnet", name: "magnets for the flap", icon: "magnet", state: "dim",
+      says: "the flap won't stay shut. capsules wobble out sideways!", gain: "x2 coins, and a second chute", cost: [["coins", 240e6], ["magnet", 1], ["fuse", 2]] },
+    { id: "frost", name: "frosted glass", icon: "frost", state: "dim",
+      says: "the glass is all scratched. frosted glass would glow like the moon.", gain: "x3 coins, shiny balls and lucky lights", cost: [["coins", 960e6], ["frost", 2]] },
+    { id: "hatch", name: "the rusted hatch", icon: "hatch", state: "dim", big: true,
+      says: "something hums behind it when i pull.", gain: "x5 coins, and whatever's humming in there", cost: [["coins", 3.6e9], ["bulb", 3], ["magnet", 3], ["fuse", 3], ["frost", 3]] },
+  ];
+  const fixed = id => FIXES.find(f => f.id === id)?.state === "owned";
+  const icoSvg = k => `<svg viewBox="0 0 24 24">${ICON[k]}</svg>`;
+  const disc = f => `<span class="disc ${f.state === "owned" ? "" : f.state} ${f.big ? "big" : ""}">${icoSvg(f.icon)}${f.state === "owned" ? `<span class="tick">✓</span>` : ""}</span>`;
+  const COINS_HAVE = 410e6;
+  const short = ([k, n]) => (k === "coins" ? COINS_HAVE : HAVE[k] || 0) < n;
+  const needsLine = f => `<div class="needs">${f.cost.map(c => `<span class="${short(c) ? "short" : ""}">${c[0] === "coins" ? COIN : bitSvg(c[0])}${c[0] === "coins" ? num(c[1]) : c[1]}</span>`).join("")}</div>`;
+  const fixList = S => `<div class="fixlist sticker"><h3>${MID_ICON}midnight fixes</h3>${FIXES.map(f => {
+      const blocked = f.cost.some(short);
+      return `<div class="fix ${f.state} ${f.id === S.picked ? "open" : ""}" data-pick="${f.id}">
+        ${disc(f)}<div><b>${f.name}</b>${f.state === "owned" ? `<div class="done">fixed ✓</div>` : needsLine(f)}</div>
+        <div class="more"><p>${f.says}</p><p class="gain">${f.gain}</p>${f.state === "owned" ? "" : `<button class="btn primary" ${blocked ? "disabled" : ""}>${blocked ? "not yet" : "fix it"}</button>`}</div>
+      </div>`; }).join("")}</div>`;
+
+  // ---------------- drawing the machines (globes.html's machine, plus the midnight one) ----------------
+  const CAPC = ["var(--pink)", "var(--cyan)", "var(--gold)", "var(--mint)", "var(--lilac)"];
+  const SUNC = ["var(--sunset)", "var(--gold)", "var(--pink)", "#ffb347"];
+  const MIDC = ["var(--mid)", "var(--lilac)", "var(--cyan)", "var(--mid-body)", "var(--pink)"];
+  function capsule(x, y, r, c, rot = 0) {
+    return `<g transform="translate(${x} ${y}) rotate(${rot})"><circle r="${r}" fill="color-mix(in srgb, var(--text) 85%, var(--page))" stroke="var(--page)" stroke-width="1.2"/><path d="M${-r} 0 A${r} ${r} 0 0 1 ${r} 0 Z" fill="${c}"/><path d="M${-r} 0 L${r} 0" stroke="var(--page)" stroke-width="1.2"/></g>`;
+  }
+  function capsulesIn(cx, cy, R, seed, fill, cols) {
+    let s = seed; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+    const r = R * .2, out = [];
+    for (let y = cy + R - r * 1.1; y > cy + R - 2 * R * fill; y -= r * 1.75) {
+      const half = Math.sqrt(Math.max(0, R * R - (y - cy) ** 2)) - r * 1.05;
+      for (let x = cx - half + (rnd() * r * .6); x <= cx + half; x += r * 2.05)
+        out.push(capsule(x.toFixed(1), (y + rnd() * 3 - 1.5).toFixed(1), r, cols[Math.floor(rnd() * cols.length)], Math.round(rnd() * 360)));
+    }
+    return out.join("");
+  }
+
+  // one machine in a 220 x 270 box. kind: sunny | sunset | midnight; workers: a worker on its lever + a few around it
+  let UID = 0;
+  function machine(o) {
+    const w = o.w || 220, h = w * 270 / 220, K = o.kind, id = "m" + (UID++);
+    const pal = { sunny: ["var(--lilac)", "var(--pink)", "var(--pink-seam)"], sunset: ["var(--sunset)", "var(--sunset)", "var(--sunset-seam)"], midnight: ["var(--mid)", "var(--mid-body)", "var(--mid-seam)"] }[K];
+    const [G, B, SEAM] = pal, M = K === "midnight";
+    const cx = 100, cy = 88, R = 64;
+    const chutes = K === "sunny" ? 3 : K === "sunset" ? 2 : (fixed("magnet") ? 2 : 1);
+    let glass = `<clipPath id="${id}-g"><circle cx="${cx}" cy="${cy}" r="${R - 2}"/></clipPath>`;
+    glass += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="color-mix(in srgb, ${G} ${M ? 14 : 9}%, var(--page))"/>`;
+    if (K === "sunset") glass += `<g clip-path="url(#${id}-g)" opacity=".16"><rect x="30" y="20" width="140" height="34" fill="var(--gold)"/><rect x="30" y="54" width="140" height="34" fill="var(--sunset)"/><rect x="30" y="88" width="140" height="70" fill="var(--pink)"/></g>`;
+    if (M) glass += `<g clip-path="url(#${id}-g)"><circle cx="128" cy="46" r="14" fill="var(--mid)" opacity=".18"/><circle cx="134" cy="42" r="12" fill="color-mix(in srgb, var(--mid) 14%, var(--page))"/>${[[64, 40], [86, 60], [118, 76], [140, 96], [72, 92]].map(([x, y], i) => `<circle class="hum" style="animation-delay:-${i * .4}s" cx="${x}" cy="${y}" r="1.6" fill="var(--gold)"/>`).join("")}</g>`;
+    glass += `<g clip-path="url(#${id}-g)">${capsulesIn(cx, cy, R, K === "sunny" ? 5 : K === "sunset" ? 11 : 23, K === "sunny" ? .82 : K === "sunset" ? .74 : .55, K === "sunny" ? CAPC : K === "sunset" ? SUNC : MIDC)}</g>`;
+    if (M && !fixed("frost")) glass += `<g clip-path="url(#${id}-g)" stroke="var(--text)" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".55"><path d="M48 70 L66 62 M52 82 L74 70 M120 118 L146 104 M126 130 L150 116 M90 36 L104 30"/><path d="M140 70 l6 -10 M144 74 l8 -6" opacity=".7"/></g>`;
+    if (M && !fixed("dust")) glass += `<circle cx="${cx}" cy="${cy}" r="${R - 2}" fill="var(--muted)" opacity=".45"/>`;
+    glass += `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${G}" stroke-width="3"/>`;
+    glass += `<path d="M58 54 Q70 34 92 28" fill="none" stroke="var(--text)" stroke-width="3" stroke-linecap="round" opacity=".35"/>`;
+    // the top: a cap (sunny, sunset) or the porch light bulb (midnight: out until "a new bulb")
+    let cap = `<rect x="86" y="18" width="28" height="10" rx="3" fill="var(--raised)" stroke="${G}" stroke-width="2"/>`;
+    if (M) {
+      const lit = fixed("bulb");
+      cap = `${lit ? `<circle cx="100" cy="2" r="16" fill="var(--gold)" opacity=".18"/>` : ""}
+        <path d="M100 -12 Q110 -12 110 -2 Q110 4 105 8 L105 14 L95 14 L95 8 Q90 4 90 -2 Q90 -12 100 -12 Z" fill="${lit ? "color-mix(in srgb, var(--gold) 55%, var(--page))" : "var(--deep)"}" stroke="${lit ? "var(--gold)" : "var(--muted)"}" stroke-width="2" stroke-linejoin="round"/>
+        ${lit ? "" : `<path d="M97 -6 L100 -2 L98 2 L102 6" fill="none" stroke="var(--muted)" stroke-width="1.4" stroke-linecap="round"/>`}
+        <rect x="88" y="14" width="24" height="12" rx="3" fill="var(--raised)" stroke="${G}" stroke-width="2"/>`;
+    }
+    const body = `<path d="M44 154 L156 154 L162 252 L38 252 Z" fill="color-mix(in srgb, ${B} 22%, var(--page))" stroke="${B}" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M40 150 Q100 142 160 150 L160 160 Q100 154 40 160 Z" fill="color-mix(in srgb, ${B} 30%, var(--page))" stroke="${B}" stroke-width="2.5" stroke-linejoin="round"/>`;
+    const lit = K === "midnight" ? (fixed("frost") ? 6 : 0) : K === "sunset" ? 6 : 5;
+    const lights = `<rect x="66" y="170" width="68" height="14" rx="4" fill="var(--deep)" stroke="var(--gold)" stroke-width="2"/>` +
+      Array.from({ length: 8 }, (_, i) => `<circle cx="${72 + i * 8}" cy="177" r="2.6" fill="${i < lit ? "var(--gold)" : "none"}" stroke="var(--gold)" stroke-width="1.2" opacity="${i < lit ? 1 : .6}"/>`).join("");
+    let flaps = "";
+    for (let i = 0; i < chutes; i++) {
+      const fw = 30, gap = 6, x0 = 100 - (chutes * fw + (chutes - 1) * gap) / 2 + i * (fw + gap);
+      const wonky = M && !fixed("magnet") ? ` transform="rotate(-9 ${x0 + fw / 2} 208)"` : "";
+      flaps += `<rect x="${x0}" y="196" width="${fw}" height="24" rx="4" fill="var(--deep)" stroke="${SEAM}" stroke-width="2"/><path${wonky} d="M${x0 + 8} 212 L${x0 + fw - 8} 212" stroke="${SEAM}" stroke-width="2" stroke-linecap="round"/>`;
+    }
+    let hatch = "";
+    if (K !== "sunny") {
+      const done = K === "sunset" || fixed("hatch");
+      hatch = `<rect x="70" y="228" width="60" height="16" rx="3" fill="${done ? "var(--deep)" : "color-mix(in srgb, var(--rust) 40%, var(--page))"}" stroke="${done ? SEAM : "var(--rust)"}" stroke-width="2" transform="${done ? "" : "rotate(-4 100 236)"}"/>` +
+        (done ? "" : `<circle cx="78" cy="234" r="2.4" fill="var(--rust)"/><circle cx="116" cy="238" r="3" fill="var(--rust)"/><circle cx="96" cy="232" r="1.6" fill="var(--rust)"/><circle cx="52" cy="226" r="2.4" fill="var(--rust)"/>`);
+    }
+    // the lever: workers hang on the old ones, yours is the pink knob on the newest
+    const px = 166, py = 206;
+    let lever;
+    if (o.workers) lever = `<g class="lever-arm pulling ${K === "sunny" ? "slow" : ""}" style="transform-origin:${px}px ${py}px">
+        <path d="M${px} ${py} L${px + 14} ${py - 48}" stroke="var(--gold)" stroke-width="5" stroke-linecap="round"/><circle cx="${px + 15}" cy="${py - 52}" r="7" fill="var(--pink)"/>
+        <image href="../assets/pets/${CREW[o.lead || 0]}.png" x="${px + 4}" y="${py - 50}" width="24" height="27" class="px"/></g>`;
+    else lever = `<g><path d="M${px} ${py} L${px + 14} ${py - 48}" stroke="var(--gold)" stroke-width="5" stroke-linecap="round"/><circle cx="${px + 15}" cy="${py - 52}" r="8" fill="var(--pink)" stroke="var(--text)" stroke-width="1.5"/></g>`;
+    const pivot = `<rect x="${px - 8}" y="${py - 10}" width="12" height="22" rx="4" fill="var(--raised)" stroke="${B}" stroke-width="2"/><circle cx="${px}" cy="${py}" r="3.5" fill="var(--gold)"/>`;
+    const tray = `<ellipse cx="100" cy="262" rx="78" ry="7" fill="var(--deep)" opacity=".8"/>`;
+    const out = M ? capsule(62, 256, 7, "var(--mid)", -20) + `<path d="M140 262 q8 -6 16 -1 q-8 4 -16 1 Z" fill="var(--muted)" opacity=".5"/>`
+      : K === "sunset" ? capsule(66, 256, 7, "var(--sunset)", -20) + capsule(130, 257, 7, "var(--gold)", 30) : capsule(64, 256, 7, "var(--mint)", 30) + capsule(122, 257, 7, "var(--cyan)", 10);
+    let crew = "";
+    if (o.workers) crew = [[18, 232], [132, 232], [4, 206]].slice(0, Math.min(3, o.workers - 1)).map(([x, y], i) => `<image href="../assets/pets/${CREW[(i + 1 + (o.lead || 0)) % CREW.length]}.png" x="${x}" y="${y}" width="24" height="27" class="px bob" style="animation-delay:-${i * .7}s"/>`).join("");
+    return `<svg class="mach" width="${w}" height="${h}" viewBox="0 0 220 270">${tray}${out}${body}${lights}${flaps}${hatch}${pivot}${lever}${glass}${cap}${crew}</svg>`;
+  }
+
+  const SUNNY_ICON = `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="5" fill="var(--gold)"/><path d="M12 2.5 L12 4.5 M12 19.5 L12 21.5 M2.5 12 L4.5 12 M19.5 12 L21.5 12 M5.3 5.3 L6.7 6.7 M17.3 17.3 L18.7 18.7 M5.3 18.7 L6.7 17.3 M17.3 6.7 L18.7 5.3" stroke="var(--gold)" stroke-width="2" stroke-linecap="round"/></svg>`;
+  const SUNSET_ICON = `<svg viewBox="0 0 24 24"><path d="M5 16 A7 7 0 0 1 19 16 Z" fill="var(--sunset)"/><path d="M2.5 16 L21.5 16 M6 19.5 L18 19.5" stroke="var(--sunset)" stroke-width="2" stroke-linecap="round"/><path d="M12 4 L12 6.5 M5 7.5 L6.6 9 M19 7.5 L17.4 9" stroke="var(--sunset)" stroke-width="2" stroke-linecap="round"/></svg>`;
+  const MID_ICON = `<svg viewBox="0 0 24 24"><path d="M15.5 3.5 A8.5 8.5 0 1 0 20.5 15 A7 7 0 0 1 15.5 3.5 Z" fill="var(--mid)"/><circle cx="18" cy="6" r="1.2" fill="var(--gold)"/></svg>`;
+  const GLOBES = {
+    sunny: { name: "sunny globe", icon: SUNNY_ICON, c: "var(--gold)" },
+    sunset: { name: "sunset globe", icon: SUNSET_ICON, c: "var(--sunset)" },
+    midnight: { name: "midnight globe", icon: MID_ICON, c: "var(--mid)" },
+  };
+  const sign = (k, t = "-2deg", cls = "") => `<span class="sign ${cls}" data-globe="${k}" style="--c:${GLOBES[k].c}; --t:${t}">${GLOBES[k].icon}${GLOBES[k].name}</span>`;
+  const STAT = {
+    sunny: () => `<div class="stat"><em>6 workers</em><br><b>2.4k</b> coins a capsule</div>`,
+    sunset: () => `<div class="stat"><em>48 workers</em><br><b>576k</b> coins a capsule</div>`,
+    midnight: () => `<div class="stat"><b>6.9M</b> coins a capsule<br>${fixed("magnet") ? 2 : 1} chute</div>`,
+  };
+  const crowd = (n, shown = 4, off = 1) => `<div class="crowd">${Array.from({ length: shown }, (_, i) => pet(CREW[(i + off) % CREW.length], "bob")).join("")}<span class="n">+${n - shown}</span></div>`;
+
+  // ---------------- the frame ----------------
+  function mountInto(app, say) {
+    const tab = t => `<a class="tab${t.id === "capsules" ? " on" : ""}" href="${t.id}.html"><span data-icon="${t.icon}"></span>${t.label}${t.news ? `<span class="new"></span>` : ""}</a>`;
+    app.innerHTML = `
+      <nav class="spine">
+        <svg class="sky" width="80" height="600" aria-hidden="true">${stars(60)}</svg>
+        <div class="moon" title="lilac blob, your active pet"><img class="px" src="../assets/pets/lilac-blob.png" alt="lilac blob"></div>
+        ${TABS.map(tab).join("")}
+        <div class="grow"></div>
+        ${tab({ id: "settings", label: "", icon: "settings" })}
+      </nav>
+      <main class="page dots">
+        <div class="top">
+          <div class="bubble">${say}</div>
+          <span class="chip coins"><span data-icon="coin"></span>410,882,100</span>
+          <span class="chip xp"><span data-icon="xp"></span>96.4k</span>
+          <div class="winbtns"><button title="shrink">▾</button><button title="close">✕</button></div>
+        </div>
+        <div class="content"></div>
+      </main>`;
+    return app.querySelector(".content");
+  }
+  const seg = () => `<div class="seg"><button class="on">machine</button><button>upgrades</button></div>`;
+  const page = (S, stage) => `<div class="page2"><div class="bar">${seg()}${bitsBar()}</div><div class="body">${stage}${fixList(S)}</div></div>`;
+
+  // ---------------- A: three in a row ----------------
+  function lookA(S) {
+    return page(S, `<div class="stage"><div class="floor" style="bottom:52px"></div>
+      <div class="row3">
+        <div class="one">${sign("sunny", "-3deg", "small")}${machine({ kind: "sunny", w: 128, workers: 6, lead: 0 })}${STAT.sunny()}</div>
+        <div class="one">${sign("sunset", "2deg", "small")}${machine({ kind: "sunset", w: 152, workers: 48, lead: 3 })}${STAT.sunset()}</div>
+        <div class="one" style="margin-bottom:0">${sign("midnight", "-1.5deg")}<div style="height:16px"></div>${machine({ kind: "midnight", w: 218 })}${STAT.midnight()}</div>
+      </div></div>`);
+  }
+
+  // ---------------- B: the shelf ----------------
+  function lookB(S) {
+    return page(S, `<div class="stage"><div class="floor"></div>
+      <div class="onshelf" style="left:16px; top:52px">${sign("sunny", "-3deg", "small")}${machine({ kind: "sunny", w: 82, workers: 6, lead: 0 })}</div>
+      <div class="onshelf" style="left:128px; top:46px">${sign("sunset", "3deg", "small")}${machine({ kind: "sunset", w: 92, workers: 48, lead: 3 })}</div>
+      <div class="shelf"></div>
+      <div style="position:absolute; left:18px; top:204px; display:flex; flex-direction:column; gap:6px; align-items:flex-start">
+        ${crowd(54, 5)}
+        <div class="stat" style="text-align:left"><em>54 workers</em> up there<br><b>2.4k</b> and <b>576k</b> a capsule</div>
+      </div>
+      <svg class="ladder" viewBox="0 0 34 256" aria-hidden="true"><g stroke="var(--rust)" stroke-width="3" stroke-linecap="round"><path d="M4 0 L10 300 M30 0 L24 300"/>${[24, 64, 104, 144, 184, 224, 264].map(y => `<path d="M${5 + y * .02} ${y} L${29 - y * .02} ${y}"/>`).join("")}</g>
+        <image href="../assets/pets/mint-bear.png" x="2" y="96" width="24" height="27" class="px bob"/><image href="../assets/pets/sky-bunny.png" x="6" y="190" width="24" height="27" class="px bob" style="animation-delay:-1s"/></svg>
+      <div style="position:absolute; left:296px; top:58px">${sign("midnight", "-1.5deg")}</div>
+      <div style="position:absolute; left:256px; bottom:30px; display:flex; flex-direction:column; align-items:center; gap:4px">${machine({ kind: "midnight", w: 258 })}${STAT.midnight()}</div>
+    </div>`);
+  }
+
+  // ---------------- C: one at a time, the signs switch ----------------
+  function lookC(S) {
+    const k = S.globe, newest = k === "midnight";
+    const m = newest ? machine({ kind: "midnight", w: 262 }) : machine({ kind: k, w: 240, workers: k === "sunny" ? 6 : 48, lead: k === "sunny" ? 0 : 3 });
+    return page(S, `<div class="stage"><div class="floor"></div>
+      <div class="signrow">${["sunny", "sunset", "midnight"].map((g, i) => sign(g, ["-2deg", "1.5deg", "-1deg"][i], g === k ? "on" : "")).join("")}</div>
+      ${newest ? "" : `<div class="peek" style="left:16px; top:70px">${crowd(k === "sunny" ? 6 : 48, 5, k === "sunny" ? 1 : 4)}</div>`}
+      <div class="solo">${m}${STAT[k]()}</div>
+    </div>`);
+  }
+
+  // ---------------- wire up each window ----------------
+  const LINES = {
+    a: "the porch machine came home! it hums in the dark.",
+    b: "the old ones get to sit up high now. like grandmas!",
+    c: "its little light is out. it's so dark in there!",
+  };
+  document.querySelectorAll(".look").forEach(sec => {
+    const L = sec.dataset.look;
+    const S = { picked: "bulb", globe: "midnight" };
+    const content = mountInto(sec.querySelector(".app"), LINES[L]);
+    const draw = () => {
+      content.innerHTML = { a: lookA, b: lookB, c: lookC }[L](S);
+      paintIcons(sec.querySelector(".app"));
+      content.querySelectorAll("[data-pick]").forEach(el => el.addEventListener("click", () => { S.picked = el.dataset.pick; draw(); }));
+      if (L === "c") content.querySelectorAll(".signrow [data-globe]").forEach(el => el.addEventListener("click", () => { S.globe = el.dataset.globe; draw(); }));
+    };
+    draw();
+  });
+
+  // ---------------- name ideas for the bits ----------------
+  const FINDS = [
+    { k: "bulb", name: "bulbs", say: "a little bulb! it still glows if i squeeze it.", from: "the porch" },
+    { k: "fuse", name: "fuses", say: "it fizzes in my paws. tickly!", from: "the doghouse" },
+    { k: "magnet", name: "magnets", say: "it keeps grabbing my spoon. rude!", from: "their pond" },
+    { k: "frost", name: "frosted glass", say: "it's like looking through a cloud.", from: "the greenhouse" },
+    { k: "bell", name: "doorbells", say: "ding dong! nobody's home. it's us!", from: "their gate", alt: true },
+    { k: "hand", name: "clock hands", say: "it points at the moon. always!", from: "their garden path", alt: true },
+  ];
+  document.getElementById("finds").innerHTML = FINDS.map(f => `<div class="find sticker ${f.alt ? "alt" : ""}">
+    <div class="pic">${bitSvg(f.k)}</div>
+    <b>${f.name}</b>
+    <div class="say">"${f.say}"</div>
+    <div class="tabname">from <em>${f.from}</em></div></div>`).join("");
+
+  applyLook(loadLook());
+</script>
+</body>
+</html>
