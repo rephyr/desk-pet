@@ -406,6 +406,8 @@ def forwarders():
 
 def register(cls, var):
     text = GS.read_text()
+    if not re.search(r'^class_name ' + GS_CLASS, text, re.M):
+        text = "class_name " + GS_CLASS + "\n" + text  # the parts type gs with it
     line = f"var {var} := {cls}.new(self)"
     if line in text:
         return

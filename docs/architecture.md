@@ -13,7 +13,8 @@ scripts/idle/        errands (Jobs) and automation (Automation): pure rules for 
 scripts/machine/     the capsule machine (Machine) and capsule toys (Toys): pure rules, see data/machine.json, data/toys.json
 scripts/dungeon/     the old well's dungeon (Dungeon): floors, power, a whole run worked out at once, pay; the sewing room (Sewing): rooms, chalk locks, keep lines; the wisps perks on the well wall (Perks); pure rules, see data/dungeon.json, data/sewing.json, data/perks.json
 scripts/dev/         debug-only: launch flags, test profiles, scripted test flows (DevDriver)
-scripts/game_state   the player's progress + saving (autoload "GameState")
+scripts/game_state   the player's progress + saving (autoload "GameState"): the state, signals, consts, the frame loop, forwarders
+scripts/state/       GameState's code, one part per area (MachinePart, ErrandsPart, SavePart, ...), see below
 scripts/ui/          screens and widgets; they read GameState and call its functions
 scripts/platform/    everything OS/compositor specific, behind WindowSource
 scripts/home.gd      the window: switches layers, sizes the window, runs the desktop pet
@@ -22,6 +23,29 @@ scripts/home.gd      the window: switches layers, sizes the window, runs the des
 Dependencies only point downwards: UI → GameState → pets → core → data. Nothing below the UI
 knows the UI exists; state changes are announced with signals (`GameState.changed`,
 `Collection.pets_added`, `Collection.active_changed`).
+
+## GameState and its parts
+
+`scripts/game_state.gd` (class_name `GameStateNode`, autoload `GameState`) keeps every var, signal
+and const, `_init`, `_process`, the statics, and a one-line forwarder for each part function that is
+public or that something outside its part calls. The code is in `scripts/state/<area>_part.gd`: each
+is a RefCounted that GameState makes (`var machine_part := MachinePart.new(self)`) and that works on
+the state through `gs` (`gs.coins`, `gs.save_game()`, `GameStateNode.SAVE_VERSION`). Callers keep
+using `GameState.<name>`; inside a part, call its own functions directly and everything else through
+`gs`. New code for an area goes in its part. `tools/state_parts.py` moves functions into a part
+(`move`), writes the forwarders again (`forwarders`) and checks every `gs.<name>` exists (`check`:
+Godot only finds a wrong name on a typed script instance when it runs). New parts are new class
+names: `godot --headless --import` once.
+
+Parts: adventures (trips, the trail), automation (your pet's job, auto adventures, the tick), boosts
+(boost/boost_parts, knacks, the book, grant/grant_wisps/add_xp), boxes (shop, pile, opening, your
+pet opening in the background, pins, the idle log), care (food, mood, presents, rummaging), dungeon
+(the army, runs, held landings), edge (past the edge, the school), errands (jobs, crews, tools),
+gear, homes (the room, new homes, spare_pick, the sorting rule, keep lines), machine (pulls,
+capsules, the tree, globes, bit hints), perks, plushie, rest (who's resting, picking, placing new
+pets), save (save, load, migrations, debug_new_game), sewing (the sewing room), toys (toys and
+grafting: the workbench), unlocks (unlocks, the map, rumours, next door, the tutorial, tab upgrade
+dots), wish, workers (spots, workers, the whistle), workshop (the shed workshop and its chores).
 
 ## Boosts
 
