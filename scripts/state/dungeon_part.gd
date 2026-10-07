@@ -1,7 +1,9 @@
 class_name DungeonPart
 extends RefCounted
-## A part of GameState (see tools/state_parts.py): its code for one area, on GameState's state
-## (gs). GameState forwards to it, so callers use GameState.<name>() as before.
+## GameState's code for the old well's dungeon: the army, its orders, runs down and home again, held
+## landings.
+## A part of GameState (see tools/state_parts.py): works on GameState's state through gs; GameState
+## forwards to it, so callers use GameState.<name>() as before.
 
 var gs: GameStateNode
 

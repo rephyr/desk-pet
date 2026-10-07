@@ -321,8 +321,9 @@ def rewrite(text, gs_names, own, report):
 
 def part_header(cls):
     return (f"class_name {cls}\nextends RefCounted\n"
-            f"## A part of GameState (see tools/state_parts.py): its code for one area, on GameState's state\n"
-            f"## (gs). GameState forwards to it, so callers use GameState.<name>() as before.\n\n"
+            f"## GameState's code for <what this area is>.\n"
+            f"## A part of GameState (see tools/state_parts.py): works on GameState's state through gs; GameState\n"
+            f"## forwards to it, so callers use GameState.<name>() as before.\n\n"
             f"var gs: {GS_CLASS}\n\n\nfunc _init(state: {GS_CLASS}) -> void:\n\tgs = state\n")
 
 

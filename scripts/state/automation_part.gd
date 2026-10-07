@@ -1,7 +1,9 @@
 class_name AutomationPart
 extends RefCounted
-## A part of GameState (see tools/state_parts.py): its code for one area, on GameState's state
-## (gs). GameState forwards to it, so callers use GameState.<name>() as before.
+## GameState's code for automation: what your pet does for you (one job, its tools, its own crank
+## and auto adventures) and working through time (also away).
+## A part of GameState (see tools/state_parts.py): works on GameState's state through gs; GameState
+## forwards to it, so callers use GameState.<name>() as before.
 
 var gs: GameStateNode
 

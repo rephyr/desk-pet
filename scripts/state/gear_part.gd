@@ -1,7 +1,9 @@
 class_name GearPart
 extends RefCounted
-## A part of GameState (see tools/state_parts.py): its code for one area, on GameState's state
-## (gs). GameState forwards to it, so callers use GameState.<name>() as before.
+## GameState's code for gear: the adventures' upgrades bought with xp, and what they do to a trip's
+## loot.
+## A part of GameState (see tools/state_parts.py): works on GameState's state through gs; GameState
+## forwards to it, so callers use GameState.<name>() as before.
 
 var gs: GameStateNode
 

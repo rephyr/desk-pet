@@ -1,7 +1,9 @@
 class_name BoostsPart
 extends RefCounted
-## A part of GameState (see tools/state_parts.py): its code for one area, on GameState's state
-## (gs). GameState forwards to it, so callers use GameState.<name>() as before.
+## GameState's code for boosts (every source multiplied, the receipts), knacks, the collection
+## book's stickers, and grant(): loot coming in.
+## A part of GameState (see tools/state_parts.py): works on GameState's state through gs; GameState
+## forwards to it, so callers use GameState.<name>() as before.
 
 var gs: GameStateNode
 

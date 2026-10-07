@@ -2,6 +2,9 @@ class_name GameStateNode
 extends Node
 ## Autoload "GameState": the player's progress (coins, care stats, pets, the bag of boxes and
 ## parts, adventures, unlocks) and saving it.
+## Its code lives in parts, one per area (scripts/state/*.gd, see tools/state_parts.py): GameState
+## keeps the state (every var, signal and const), the frame loop, and a one-line forwarder for every
+## function, so GameState.<name>() works from anywhere. New code for an area goes in its part.
 
 signal changed  # coins, care stats, the bag, adventures or unlocks changed
 signal run_ended(run: RunState)  # an adventure is back and waiting to be collected
@@ -78,6 +81,16 @@ const DEBUG_COINS := 1000
 const BACKGROUND_PACK_EVERY := 8.0  # seconds per pack your pet opens out of sight (its animation takes about this)
 const BACKGROUND_AFTER := 1.0  # out of sight this long before it switches to opening in the background
 const TUTORIAL_BOX := "tutorial"  # hidden box the tutorial's pets come from, see data/boxes.json
+const AUTOMATION := "automation"  # lets you send swarms that follow your rules
+const PARTIES := "parties"  # feature: send small parties (see PARTY_SIZES)
+## Party sizes the finds open: the cart, the wheelbarrow, the hay wagon (data/unlocks.json).
+const PARTY_SIZES := [["parties", 3], ["parties_5", 5], ["parties_10", 10]]
+const PET_CRANK_ROLLS := 200  # past this many pulls at once (back from being away) the rest pay like these
+const DESK_FACES := 2000000  # school faces past this sit at the desks
+const XP_SPOTTED := 10  # xp for a pet spotting a new place
+const XP_FIND := 25  # xp for bringing home a special find
+const TREAT_SPEED := 3.0  # how many times as fast they walk while they zoom
+const TRAIL_COINS := [0.2, 0.5]  # a coin pickup is worth this times the place's loot (garden: about 1)
 
 var catalog := Catalog.shared()
 var collection := Collection.new()
@@ -231,6 +244,9 @@ const TICK_PHASE := 0.25
 var _pack_timer := 0.0  # your pet opening the pile out of sight, see _open_in_background()
 var _pack_seen := 0.0  # seconds since a view last showed your pet opening packs
 var _treats := {}  # RunState -> { zoom_until, ready_at }: treats tossed on the trail (not saved)
+var _worker_of := {}  # uid -> job id, for every pet working as a worker
+var _worker_speed := {}  # job id -> its workers' speeds added up (see Automation.worker_speed)
+var whistle_since := { "hauled": {}, "put": 0 }  # what the whistle did since you last looked (not saved)
 
 
 # Loaded in _init, not _ready: the main scene is built before autoloads get _ready,
@@ -348,7 +364,13 @@ func _process(delta: float) -> void:
 		save_game()
 
 
-# ---- boxes ----------------------------------------------------------------
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_EXIT_TREE:
+		_finish_save()  # even if this save can't go ahead, the one on its way gets written
+		save_game(true)
+
+
+# ---- statics (callers use GameState.<name>(), the parts GameStateNode.<name>()) ----
 
 ## What `count` of a box cost in coins with a capsule worth `value`: its 'capsules' x value (so the
 ## shop keeps up with the machine, like errands), or a fixed 'price'.
@@ -359,26 +381,6 @@ static func box_cost(box: Dictionary, value: float, count := 1) -> int:
 	var one := maxi(1, roundi(minf(unit, Jobs.MAX_PRICE)))  # one box's price, rounded: 10 cost 10x that
 	return int(minf(float(one) * count, Jobs.MAX_PRICE))
 
-
-# ---- the room: one cap for every plain pet together (see Herd, data/herd.json) ----------------
-
-# ---- new homes: the stall on the pets tab and the sorting rule (see NewHomes) ---------------
-
-# ---- the shed workshop (F3, data/workshop.json) ----------------------------------------
-
-# ---- unlocks ---------------------------------------------------------------
-
-const AUTOMATION := "automation"  # lets you send swarms that follow your rules
-const PARTIES := "parties"  # feature: send small parties (see PARTY_SIZES)
-
-
-## Party sizes the finds open: the cart, the wheelbarrow, the hay wagon (data/unlocks.json).
-const PARTY_SIZES := [["parties", 3], ["parties_5", 5], ["parties_10", 10]]
-
-
-# ---- your pet at work ----------------------------------------------------------
-
-# ---- who's resting: not your active pet, not away on an adventure, not on an errand or working ----
 
 ## Spreads `n` pets over places so the smallest fill up first: place id -> how many it gets
 ## (`sizes` is place id -> how many it has now).
@@ -405,59 +407,10 @@ static func water_fill(sizes: Dictionary, n: int) -> Dictionary:
 	return out
 
 
-# ---- errands ---------------------------------------------------------------------------
-
-# ---- automation: your pet does one job for you, see Automation and data/automation.json ----
-
-const PET_CRANK_ROLLS := 200  # past this many pulls at once (back from being away) the rest pay like these
-
-
-# ---- workers: the other pets, once your pet has taught them a job ----
-
-var _worker_of := {}  # uid -> job id, for every pet working as a worker
-var _worker_speed := {}  # job id -> its workers' speeds added up (see Automation.worker_speed)
-
-
-# ---- the whistle: your pet manages the workers (Automation.whistle_plan) ----
-
-var whistle_since := { "hauled": {}, "put": 0 }  # what the whistle did since you last looked (not saved)
-
-
-# ---- the dungeon: the old well, all the way down (see Dungeon, data/dungeon.json) ----------
-
-# ---- held landings: crowds holding every 10th landing (see Dungeon.hold_need, data "hold") ----
-
-# ---- E3 the sewing room, off the well's floor 20 (see Sewing, data/sewing.json) ----------
-
-# ---- the wisps perk tree on the well wall (see Perks, data/perks.json) -----------------
-
-# ---- keep lines: the sorting card keeps pets as cards (see Sewing) --------------------
-
-# ---- the plushie machine (F1/F2, see Plushie) --------------------------------
-
-# ---- grafting ----------------------------------------------------------------
-
-# ---- tutorial ----------------------------------------------------------------
-
-# ---- past the edge and the little school: pets spent for good (C2) ----------------------
-
-const DESK_FACES := 2000000  # school faces past this sit at the desks
-
-
 ## A face for the school, `n` of a count: stand-in numbers of live pets only ever count up from 0,
 ## so these count down from -1 and never share a look (or a cached Pet) with one.
 static func school_face(k: String, n: int) -> String:
 	return Herd.uid(k, -1 - n)
-
-
-# ---- adventures -------------------------------------------------------------
-
-# ---- the trail (clicking along a trip yourself) -----------------------------------
-
-const XP_SPOTTED := 10  # xp for a pet spotting a new place
-const XP_FIND := 25  # xp for bringing home a special find
-const TREAT_SPEED := 3.0  # how many times as fast they walk while they zoom
-const TRAIL_COINS := [0.2, 0.5]  # a coin pickup is worth this times the place's loot (garden: about 1)
 
 
 ## A coin amount worked out as a float, rounded and kept under COINS_MAX: past int's top it would
@@ -466,30 +419,10 @@ static func coins_int(f: float) -> int:
 	return roundi(clampf(f, -float(COINS_MAX), float(COINS_MAX)))
 
 
-# ---- presents ---------------------------------------------------------------
-
-# ---- care -----------------------------------------------------------------
-
-# ---- the capsule machine ------------------------------------------------------
-
-# ---- the wishing jar (see Wish, data/wish.json) ----------------------------------
-
-# ---- gear: upgrades to adventuring, bought with xp (see Gear, data/gear.json) ----
-
-# ---- capsule toys ------------------------------------------------------------------
-
 static func _without(loot: Dictionary, key: String) -> Dictionary:
 	var out := loot.duplicate()
 	out.erase(key)
 	return out
-
-
-# ---- saving ---------------------------------------------------------------
-
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_EXIT_TREE:
-		_finish_save()  # even if this save can't go ahead, the one on its way gets written
-		save_game(true)
 
 
 # ---- forwarders: the parts' functions, so GameState.<name>() works as before (tools/state_parts.py writes this block) ----
