@@ -50,6 +50,7 @@ var dungeon_part := DungeonPart.new(self)
 var perks_part := PerksPart.new(self)
 var sewing_part := SewingPart.new(self)
 var plushie_part := PlushiePart.new(self)
+var edge_part := EdgePart.new(self)
 # ---- end of the parts ----
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
@@ -564,140 +565,6 @@ const DESK_FACES := 2000000  # school faces past this sit at the desks
 ## so these count down from -1 and never share a look (or a cached Pet) with one.
 static func school_face(k: String, n: int) -> String:
 	return Herd.uid(k, -1 - n)
-
-
-## Whether the beyond map has the signpost to send pets past: the edge is open and a page in
-## data/edge.json still needs pets.
-func edge_open() -> bool:
-	return feature_on("edge") and not Edge.done(catalog, edge)
-
-
-## Whether the beyond map is torn at the edge (it stays torn once every page is full).
-func edge_torn() -> bool:
-	return feature_on("edge")
-
-
-## Pets still to go before the page tucked under the edge opens.
-func edge_to_go() -> int:
-	return Edge.to_go(catalog, edge)
-
-
-## Whether the page past the edge `page_id` is full (the unlock earn key "edge").
-func edge_done(page_id: String) -> bool:
-	return Edge.page_full(catalog, edge, page_id)
-
-
-## Resting pets from the herd by rarity: rarity -> how many (rarities with none are left out).
-func resting_shelves() -> Dictionary:
-	var out := {}
-	var h := resting_herd()
-	for tier in catalog.tiers:
-		var n := 0
-		for k in h:
-			if Herd.rarity_of(k) == tier.id:
-				n += int(h[k])
-		if n > 0:
-			out[tier.id] = n
-	return out
-
-
-## Sends `n` pets of a rarity past the edge (-1: as many as are still to go): the ones that may go
-## (spare_pick), off their errands if they have to. They never come back: a star each, a scribble
-## on the page; a full page opens (_open_edge_pages). Returns how many went.
-func send_past_edge(rarity: String, n: int) -> int:
-	if not edge_open():
-		return 0
-	n = edge_to_go() if n < 0 else mini(n, edge_to_go())
-	if n <= 0:
-		return 0
-	var got := _take_spare(rarity, n, int(catalog.edge.get("stars_kept_per_send", 64)), true)  # a star each
-	var sent := int(got.n)
-	if sent <= 0:
-		return 0
-	Edge.add(catalog, edge, sent, got.palettes)
-	check_unlocks()
-	_open_edge_pages()
-	edge_changed.emit()
-	changed.emit()
-	save_game()
-	return sent
-
-
-## Every page past the edge that's full opens (next door: its unlock is `called`, see open_page).
-## Also after a load: a later build may have lowered a page's need (Edge.clean fills it then).
-func _open_edge_pages() -> void:
-	for p in Edge.pages(catalog):
-		var id := str(p.get("id", ""))
-		if edge_done(id) and not catalog.page_info(id).is_empty() and not page_open(id):
-			open_page(id)
-
-
-## Whether the school page is there.
-func school_open() -> bool:
-	return feature_on("school")
-
-
-## Sits `n` pets of a rarity down in the class (-1: every seat left): the ones that may go
-## (spare_pick), off their errands if they have to. Returns how many sat down.
-func seat_in_school(rarity: String, n: int) -> int:
-	if not school_open():
-		return 0
-	var left := School.seats_left(catalog, school)
-	n = left if n < 0 else mini(n, left)
-	if n <= 0:
-		return 0
-	var got := _take_spare(rarity, n, 0, false)  # they stay on as pupils: no stars
-	var sat := School.seat(catalog, school, got.counts)  # (n is at most the seats left: everyone sits)
-	school_changed.emit()
-	changed.emit()
-	save_game()
-	return Herd.total(sat)
-
-
-func class_full() -> bool:
-	return School.full(catalog, school)
-
-
-## You ring the bell: a full class stays on as teachers for good (no stars: they stay) and every worker gets
-## quicker. Returns whether it rang.
-func ring_bell() -> bool:
-	if not class_full():
-		return false
-	var number: int = school.classes.size()
-	var faces := []
-	var keys := School.desk_keys(catalog, school.seated, 3)
-	for i in keys.size():
-		faces.append(school_face(keys[i], number * 8 + i))
-	School.ring(catalog, school, faces)  # they stay on as teachers: no stars (only pets that leave or are lost)
-	school_changed_boost()
-	school_changed.emit()
-	automation_changed.emit()
-	jobs_changed.emit()
-	changed.emit()
-	save_game()
-	return true
-
-
-## How much quicker every worker is from the school's classes: the `school` source of the
-## "automation" and "errands" boosts (see boost_parts; machines, box tables, errand crews).
-func school_boost() -> float:
-	return _school_x
-
-
-## Works the school's boost out again (after the classes changed: the bell, a load, a new game).
-func school_changed_boost() -> void:
-	_school_x = School.boost(school)
-	_boosts_changed()
-
-
-## Pets a minute from box workers (a box holds one pet), or 0 when none are coming: no box workers,
-## a full room, or no boxes on the pile they may open (_workers_open).
-func pets_a_minute() -> float:
-	if workers_count("boxes") <= 0 or room_left() <= 0:
-		return 0.0
-	if not catalog.boxes.any(func(box): return not box.get("hidden", false) and pet_opens(box.id) and in_bag(box.id) > 0):
-		return 0.0
-	return workers_speed("boxes") * boost("automation") * 60.0 / Automation.worker_seconds(catalog, automation, "boxes")
 
 
 # ---- adventures -------------------------------------------------------------
@@ -2360,6 +2227,22 @@ func hold_room(f: int) -> int: return dungeon_part.hold_room(f)
 func hold_faces(f: int, n: int) -> Array: return dungeon_part.hold_faces(f, n)
 func send_holders(f: int, rarity: String, n: int) -> int: return dungeon_part.send_holders(f, rarity, n)
 func _army_while_away(saved_at: float, now: float) -> int: return dungeon_part._army_while_away(saved_at, now)
+
+# edge_part.gd
+func edge_open() -> bool: return edge_part.edge_open()
+func edge_torn() -> bool: return edge_part.edge_torn()
+func edge_to_go() -> int: return edge_part.edge_to_go()
+func edge_done(page_id: String) -> bool: return edge_part.edge_done(page_id)
+func resting_shelves() -> Dictionary: return edge_part.resting_shelves()
+func send_past_edge(rarity: String, n: int) -> int: return edge_part.send_past_edge(rarity, n)
+func _open_edge_pages() -> void: edge_part._open_edge_pages()
+func school_open() -> bool: return edge_part.school_open()
+func seat_in_school(rarity: String, n: int) -> int: return edge_part.seat_in_school(rarity, n)
+func class_full() -> bool: return edge_part.class_full()
+func ring_bell() -> bool: return edge_part.ring_bell()
+func school_boost() -> float: return edge_part.school_boost()
+func school_changed_boost() -> void: edge_part.school_changed_boost()
+func pets_a_minute() -> float: return edge_part.pets_a_minute()
 
 # errands_part.gd
 func _work_jobs(until: float) -> void: errands_part._work_jobs(until)
