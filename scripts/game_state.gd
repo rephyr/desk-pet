@@ -45,6 +45,7 @@ var unlocks_part := UnlocksPart.new(self)
 var rest_part := RestPart.new(self)
 var errands_part := ErrandsPart.new(self)
 var automation_part := AutomationPart.new(self)
+var workers_part := WorkersPart.new(self)
 # ---- end of the parts ----
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
@@ -519,367 +520,9 @@ var _worker_of := {}  # uid -> job id, for every pet working as a worker
 var _worker_speed := {}  # job id -> its workers' speeds added up (see Automation.worker_speed)
 
 
-## The job a pet works at in automation, or "".
-func worker_job(uid: String) -> String:
-	return str(_worker_of.get(uid, ""))
-
-
-## Whether a job has been taught to the other pets (it's on the workers page).
-func knows_others(id: String) -> bool:
-	return Automation.others(automation, id)
-
-
-## Jobs taught to the other pets, in order (the workers page).
-func worker_jobs() -> Array[Dictionary]:
-	var out: Array[Dictionary] = []
-	for j in auto_jobs():
-		if knows_others(j.id):
-			out.append(j)
-	return out
-
-
-## Why "teach the others" can't be bought for a job ("" when it can, coins aside), see Automation.
-func teach_others_block(id: String) -> String:
-	return Automation.teach_block(catalog, automation, id)
-
-
-func teach_others_cost(id: String) -> int:
-	return int(Automation.job(catalog, id).get("teach", {}).get("coins", 0))
-
-
-## Your pet teaches the other pets a job: the workers page opens (or gets the job). Returns whether
-## it worked.
-func teach_others(id: String) -> bool:
-	if teach_others_block(id) != "" or coins < teach_others_cost(id):
-		return false
-	coins -= teach_others_cost(id)
-	automation.others[id] = true
-	check_unlocks()  # the wishing jar waits for the box tables
-	automation_changed.emit()
-	changed.emit()
-	save_game()
-	return true
-
-
-## A job's workers (uids). Adventure parties keep their slot: an empty one is "".
-func workers_of(id: String) -> Array:
-	return automation.workers.get(id, [])
-
-
-## A job's workers from the herd: count key -> how many (never adventures: a party's leader keeps its slot).
-func workers_herd(id: String) -> Dictionary:
-	return automation.get("wherd", {}).get(id, {})
-
-
-## How many pets work at a job: cards and counts.
-func workers_count(id: String) -> int:
-	return workers_of(id).filter(func(uid): return str(uid) != "").size() + Herd.total(workers_herd(id))
-
-
-## Up to `n` of a job's workers to show (uids): cards first, then stand-ins for its counts.
-func worker_faces(id: String, n: int) -> Array:
-	var cards: Array = workers_of(id).filter(func(uid): return str(uid) != "").slice(0, n)
-	return _faces(cards, workers_herd(id), n, 20 + auto_jobs().map(func(j): return j.id).find(id))
-
-
-## Machines, tables or parties for a job's workers: [how many a buy gets, coins]. `n` -1: as many as
-## you can afford. Never more than are still out there (see spot_room).
-func spot_plan(id: String, n := 1) -> Array:
-	var spot: Dictionary = Automation.job(catalog, id).get("spot", {})
-	var room := spot_room(id)
-	if spot.is_empty() or room <= 0:
-		return [0, 0]
-	var have := Automation.spots(automation, id)
-	if n < 0:
-		n = maxi(1, Automation.affordable(catalog, automation, id, coins, room))
-	n = mini(n, room)
-	return [n, Jobs.tool_cost(spot, have, n)]
-
-
-## Buys machines (tables, parties) for a job's workers. Returns how many it bought.
-func buy_spots(id: String, n := 1) -> int:
-	var plan := spot_plan(id, n)
-	if not knows_others(id) or int(plan[0]) <= 0 or coins < int(plan[1]):
-		return 0
-	coins -= int(plan[1])
-	_add_spots(id, int(plan[0]))
-	automation_changed.emit()
-	changed.emit()
-	save_game()
-	return int(plan[0])
-
-
-## More spots for a job (paid for already). A new party goes to an open place that has none yet.
-func _add_spots(id: String, n: int) -> void:
-	automation.spots[id] = Automation.spots(automation, id) + n
-	if id == "adventures":
-		while automation.parties.size() < Automation.spots(automation, id):
-			automation.parties.append({ "place": _free_party_place(), "n": 0 })
-
-
-## An open place none of the workers' parties goes to yet (one that takes a party first), or "".
-func _free_party_place() -> String:
-	var taken := {}
-	for slot in automation.parties.size():
-		taken[str(auto_party(slot).place)] = true
-	var spare := ""
-	for l in party_places():
-		if taken.has(str(l.id)):
-			continue
-		if int(l.get("max_party", 0)) != 1:
-			return str(l.id)
-		if spare == "":
-			spare = str(l.id)
-	return spare
-
-
-## Open places the workers' parties can take by themselves: no dungeons, nothing risky that
-## isn't ours yet (pets get lost there only when you send them yourself).
-func party_places() -> Array[Dictionary]:
-	var out: Array[Dictionary] = []
-	for l in open_locations():
-		if str(l.get("type", "")) == "dungeon":
-			continue
-		if l.get("risky", false) and not is_ours(str(l.id)):
-			continue
-		out.append(l)
-	return out
-
-
-## The map pages that are open (their ids).
-func open_pages() -> Array:
-	return catalog.pages.filter(func(p): return page_open(str(p.id))).map(func(p): return str(p.id))
-
-
-## How many machines (tables, parties) there are for a job in the places you've taken.
-func spot_exist(id: String) -> int:
-	return Automation.exist(catalog, id, open_pages(), party_places().size())
-
-
-## How many are still out there to haul home: what a buy can get at most.
-func spot_room(id: String) -> int:
-	return Automation.out_there(catalog, automation, id, open_pages(), party_places().size())
-
-
-## Every worker, all jobs added up (cards and the herd).
-func workers_total() -> int:
-	var n := _worker_of.size()
-	for id in automation.get("wherd", {}):
-		n += Herd.total(workers_herd(str(id)))
-	return n
-
-
-## Puts resting pets on a job's empty machines (tables, parties), the best workers first: `count`
-## of them, -1 as many as there's room for. Pets from the herd lead parties as stand-ins. Returns
-## how many started.
-func put_workers(id: String, count := 1) -> int:
-	var free_spots := Automation.spots(automation, id) - workers_count(id)
-	if not knows_others(id) or free_spots <= 0:
-		return 0
-	var picked := _pick(resting_cards(), resting_herd(), mini(free_spots, count) if count >= 0 else free_spots,
-		func(p: Pet): return Automation.worker_speed(catalog, p), true)
-	return _add_workers(id, picked[0], picked[1])
-
-
-## Puts these resting cards (uids) and pets from the resting herd (`counts`) on a job's machines.
-## Returns how many started. `quiet`: no _workers_changed (the caller does it once, e.g. the whistle).
-func _add_workers(id: String, cards: Array, counts: Dictionary, quiet := false) -> int:
-	cards = cards.duplicate()
-	if id == "adventures":  # every party keeps its own slot: a pet from the herd leads it as a stand-in
-		var skip := _stand_ins_out()
-		for k in counts:
-			for uid in collection.stand_in_uids(k, int(counts[k]), skip):
-				cards.append(uid)
-				skip[uid] = true
-		counts = {}
-	var n := cards.size() + Herd.total(counts)
-	if n == 0:
-		return 0
-	var list: Array = workers_of(id).duplicate()
-	for uid in cards:  # empty party slots get a leader first
-		var hole := list.find("")
-		if hole >= 0:
-			list[hole] = uid
-		else:
-			list.append(uid)
-	automation.workers[id] = list
-	if not counts.is_empty():
-		var wh: Dictionary = automation.get("wherd", {})
-		if not wh.has(id):
-			wh[id] = {}
-		for k in counts:
-			Herd.put(wh[id], k, int(counts[k]))
-		automation.wherd = wh
-	if not quiet:
-		_workers_changed()
-	return n
-
-
-## Sends a job's workers home to rest: `count` of the slowest, -1 all. Returns how many.
-func take_off_workers(id: String, count := 1) -> int:
-	var list: Array = workers_of(id).filter(func(uid): return str(uid) != "")
-	var wh := workers_herd(id)
-	if list.is_empty() and wh.is_empty():
-		return 0
-	if id == "adventures":
-		var going := list.slice(list.size() - (list.size() if count < 0 else mini(count, list.size())))  # the last parties stop
-		_take_off_workers(going)
-		collection.refold()  # a leader that stopped may fold into the herd now
-		return going.size()
-	var pets: Array = []
-	for uid in list:
-		var pet := collection.get_pet(str(uid))
-		if pet:
-			pets.append(pet)
-	var picked := _pick(pets, wh, count, func(p: Pet): return Automation.worker_speed(catalog, p), false)
-	var n: int = picked[0].size()
-	for k in picked[1]:
-		Herd.take(wh, k, int(picked[1][k]))
-		n += int(picked[1][k])
-	if picked[0].is_empty():
-		_workers_changed()
-	else:
-		_take_off_workers(picked[0])
-	return n
-
-
-## Takes these pets off whatever machine, table or party they work at.
-func _take_off_workers(uids: Array) -> void:
-	var gone := {}
-	for uid in uids:
-		if _worker_of.has(uid):
-			gone[uid] = true
-	if gone.is_empty():
-		return
-	for id in automation.workers:
-		if id == "adventures":  # a party keeps its place: its slot just waits for a new leader
-			automation.workers[id] = automation.workers[id].map(func(uid): return "" if gone.has(uid) else uid)
-		else:
-			automation.workers[id] = automation.workers[id].filter(func(uid): return not gone.has(uid))
-	_workers_changed()
-
-
-func _workers_changed() -> void:
-	_rest_changed()
-	_worker_of.clear()
-	_worker_speed.clear()
-	for id in automation.workers:
-		for uid in automation.workers[id]:
-			if str(uid) != "":
-				_worker_of[uid] = id
-	automation_changed.emit()
-	jobs_changed.emit()
-	changed.emit()
-	save_game()
-
-
-## A job's workers' speeds added up (how many of your pet they're worth).
-func workers_speed(id: String) -> float:
-	if not _worker_speed.has(id):
-		var sum := 0.0
-		for uid in workers_of(id):
-			var pet := collection.get_pet(str(uid)) if str(uid) != "" else null
-			if pet:
-				sum += Automation.worker_speed(catalog, pet) * knack_own(pet, "automation")
-		var wh := workers_herd(id)
-		for k in wh:
-			sum += Automation.worker_speed(catalog, Herd.template(catalog, k)) * int(wh[k])
-		_worker_speed[id] = sum
-	return float(_worker_speed[id])
-
-
 # ---- the whistle: your pet manages the workers (Automation.whistle_plan) ----
 
 var whistle_since := { "hauled": {}, "put": 0 }  # what the whistle did since you last looked (not saved)
-
-
-## The whistle checks on everyone `checks` times: hauls spots home (coins, never under set aside)
-## and puts resting pets on the empty ones. Quiet: it all happens at once, one save at the end.
-func _whistle_checks(checks: int) -> void:
-	var jobs: Array = worker_jobs().map(func(j): return str(j.id))
-	var rooms := {}
-	for id in jobs:
-		rooms[id] = spot_room(id)
-	var out := 0  # the workers' parties that are out: their pets aren't resting
-	var leaders := workers_of("adventures")
-	for slot in leaders.size():
-		if str(leaders[slot]) != "" and auto_run(slot) != null:
-			out += 1
-	var plan := Automation.whistle_plan(catalog, automation, jobs, coins, rooms, resting_count(), checks, out)
-	if plan.buys.is_empty() and plan.fill.is_empty():
-		return
-	coins -= int(plan.spent)
-	for id in plan.buys:
-		_add_spots(id, int(plan.buys[id]))
-		whistle_since.hauled[id] = int(whistle_since.hauled.get(id, 0)) + int(plan.buys[id])
-	var at := 0
-	if not plan.fill.is_empty():  # the best workers first, cards and pets from the herd alike
-		var cards: Array = resting_cards().duplicate()
-		var counts: Dictionary = resting_herd().duplicate()
-		for id in plan.fill:
-			var picked := _pick(cards, counts, int(plan.fill[id]), func(p: Pet): return Automation.worker_speed(catalog, p), true)
-			var taken := {}
-			for uid in picked[0]:
-				taken[uid] = true
-			cards = cards.filter(func(p): return not taken.has(p.uid))
-			for k in picked[1]:
-				Herd.take(counts, k, int(picked[1][k]))
-			var n := _add_workers(id, picked[0], picked[1], true)
-			at += n
-			whistle_since.put = int(whistle_since.put) + n
-	if at > 0:
-		_workers_changed()
-	else:
-		automation_changed.emit()
-		changed.emit()
-		save_game()
-
-
-## You looked at the whistle's list: "since you looked" starts again.
-func whistle_seen() -> void:
-	whistle_since = { "hauled": {}, "put": 0 }
-
-
-## Turns a tick on the whistle's list on or off (`key` "haul" or "fill").
-func set_whistle_tick(id: String, key: String, on: bool) -> void:
-	var ticks: Dictionary = automation.whistle.ticks
-	var t: Dictionary = ticks.get(id, {})
-	t[key] = on
-	ticks[id] = t
-	automation_changed.emit()
-	save_game()
-
-
-## Set aside one step up (1) or down (-1).
-func step_whistle_keep(d: int) -> void:
-	automation.whistle.keep = Automation.keep_step(catalog, automation, d)
-	automation_changed.emit()
-	save_game()
-
-
-## Box workers open `count` boxes from your pile (the kinds your pet may open; they never buy any).
-## It counts boxes, not pets: a sunset box is one box however many pets are in it. At most
-## WORKER_BOXES_MAX at once (a long time away can't stall the load; the rest wait on the pile).
-func _workers_open(count: int) -> void:
-	if room_left() <= 0 and boxes_on_pile() > 0:
-		_room_hit()
-	count = mini(count, room_left())  # a full room: the boxes wait on the pile
-	var opened := 0
-	var good: Array = []
-	var pins: Array[String] = []
-	var split := BoxShop.split_open(bag, pet_box_order(), mini(count, WORKER_BOXES_MAX))
-	for box_id in split:
-		var before := in_bag(box_id)
-		var pulled := open_boxes(box_id, int(split[box_id]), "", true)
-		opened += before - in_bag(box_id)  # a room filling up mid-way opens fewer
-		for pet in pulled:
-			if is_good_pull(pet) and not _sent_home.has(pet.uid):  # not one the sorting rule sent off
-				if collection.get_pet(pet.uid) != null:  # a big batch may have folded it into the herd already
-					pins.append(pet.uid)
-				good.append(pet.display_name(catalog))
-	_pin(pins)
-	if opened > 0:
-		_log_idle({ "packs": opened, "good": good })
 
 
 # ---- the dungeon: the old well, all the way down (see Dungeon, data/dungeon.json) ----------
@@ -4186,6 +3829,37 @@ func _milestone(what: String) -> void: unlocks_part._milestone(what)
 func buyable(tab_id: String) -> Array[String]: return unlocks_part.buyable(tab_id)
 func upgrade_news(tab_id: String) -> bool: return unlocks_part.upgrade_news(tab_id)
 func saw_upgrades(tab_id: String) -> void: unlocks_part.saw_upgrades(tab_id)
+
+# workers_part.gd
+func worker_job(uid: String) -> String: return workers_part.worker_job(uid)
+func knows_others(id: String) -> bool: return workers_part.knows_others(id)
+func worker_jobs() -> Array[Dictionary]: return workers_part.worker_jobs()
+func teach_others_block(id: String) -> String: return workers_part.teach_others_block(id)
+func teach_others_cost(id: String) -> int: return workers_part.teach_others_cost(id)
+func teach_others(id: String) -> bool: return workers_part.teach_others(id)
+func workers_of(id: String) -> Array: return workers_part.workers_of(id)
+func workers_herd(id: String) -> Dictionary: return workers_part.workers_herd(id)
+func workers_count(id: String) -> int: return workers_part.workers_count(id)
+func worker_faces(id: String, n: int) -> Array: return workers_part.worker_faces(id, n)
+func spot_plan(id: String, n := 1) -> Array: return workers_part.spot_plan(id, n)
+func buy_spots(id: String, n := 1) -> int: return workers_part.buy_spots(id, n)
+func _add_spots(id: String, n: int) -> void: workers_part._add_spots(id, n)
+func party_places() -> Array[Dictionary]: return workers_part.party_places()
+func open_pages() -> Array: return workers_part.open_pages()
+func spot_exist(id: String) -> int: return workers_part.spot_exist(id)
+func spot_room(id: String) -> int: return workers_part.spot_room(id)
+func workers_total() -> int: return workers_part.workers_total()
+func put_workers(id: String, count := 1) -> int: return workers_part.put_workers(id, count)
+func _add_workers(id: String, cards: Array, counts: Dictionary, quiet := false) -> int: return workers_part._add_workers(id, cards, counts, quiet)
+func take_off_workers(id: String, count := 1) -> int: return workers_part.take_off_workers(id, count)
+func _take_off_workers(uids: Array) -> void: workers_part._take_off_workers(uids)
+func _workers_changed() -> void: workers_part._workers_changed()
+func workers_speed(id: String) -> float: return workers_part.workers_speed(id)
+func _whistle_checks(checks: int) -> void: workers_part._whistle_checks(checks)
+func whistle_seen() -> void: workers_part.whistle_seen()
+func set_whistle_tick(id: String, key: String, on: bool) -> void: workers_part.set_whistle_tick(id, key, on)
+func step_whistle_keep(d: int) -> void: workers_part.step_whistle_keep(d)
+func _workers_open(count: int) -> void: workers_part._workers_open(count)
 
 # workshop_part.gd
 func workshop_open() -> bool: return workshop_part.workshop_open()
