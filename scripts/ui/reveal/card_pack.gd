@@ -313,7 +313,8 @@ func _draw_strip() -> void:
 			colors = colors.duplicate()
 			for i in colors.size():
 				colors[i].a *= alpha
-		if points.size() >= 3:
+		# a fold right along an edge clips off a sliver too thin to triangulate: skip it
+		if points.size() >= 3 and not Geometry2D.triangulate_polygon(points).is_empty():
 			draw_polygon(points, colors)
 	draw_set_transform(Vector2.ZERO)
 ## A zigzag sealed edge along y, teeth pointing up (-1) or down (1).
