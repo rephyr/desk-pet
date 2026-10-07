@@ -51,6 +51,7 @@ var perks_part := PerksPart.new(self)
 var sewing_part := SewingPart.new(self)
 var plushie_part := PlushiePart.new(self)
 var edge_part := EdgePart.new(self)
+var wish_part := WishPart.new(self)
 # ---- end of the parts ----
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
@@ -1318,81 +1319,6 @@ func check_book() -> void:
 
 # ---- the wishing jar (see Wish, data/wish.json) ----------------------------------
 
-## Whether the wishing jar is out (beside the collection book).
-func wish_open() -> bool:
-	return feature_on("wish")
-
-
-## Wishes for a sticker you've found (a part's book key). Returns whether it worked.
-func set_wish(key: String) -> bool:
-	if not wish_open() or not Wish.can_wish(catalog, key) or collection.times_seen(key) <= 0 or wish.on == key:
-		return false
-	wish.on = key
-	wish_changed.emit(0)
-	save_game()
-	return true
-
-
-## The jar's shelves: rarity id -> { n: pets that may go (spare_pick), first: the face of the one
-## that would go first }.
-func wish_shelves() -> Dictionary:
-	var out := {}
-	var shelves := spare_shelves()
-	for r in shelves:
-		out[r] = { "n": int(shelves[r].n), "first": spare_face(str(r)) }
-	return out
-
-
-## Sends `n` pets of a rarity into the wished look's jar (-1: as many as fit): the ones that may go
-## (spare_pick), plainest finish first. They never come back (a star each). Returns { sent, before, after } (full
-## steps before and after).
-func send_to_wish(rarity: String, n: int) -> Dictionary:
-	var key: String = wish.on
-	var before := int(Wish.where(catalog, Wish.sent(wish, key)).full)
-	var out := { "sent": 0, "before": before, "after": before }
-	if not wish_open() or key == "" or n == 0:
-		return out
-	var room := Wish.room(catalog, wish, key)
-	var take := room if n < 0 else mini(n, room)
-	if take <= 0:
-		return out
-	var got := _take_spare(rarity, take, int(catalog.wish.get("dots", 90)), true)  # each one is a star in the night sky now
-	var sent := int(got.n)
-	if sent <= 0:
-		return out
-	Wish.add(catalog, wish, key, sent, got.palettes)
-	var after := int(Wish.where(catalog, Wish.sent(wish, key)).full)
-	if after > before:
-		_roller.wish = Wish.weights(catalog, wish)
-	out.sent = sent
-	out.after = after
-	wish_changed.emit(after if after > before else 0)
-	changed.emit()
-	save_game()
-	return out
-
-
-## Sets how many pets are in a look's jar and wishes for it (the dev driver's "wish" step).
-func debug_wish(key: String, sent_n := -1) -> bool:
-	if not Wish.can_wish(catalog, key):
-		return false
-	if collection.times_seen(key) <= 0:
-		collection.see(key)
-	wish.on = key
-	if sent_n >= 0:
-		var jar: Dictionary = wish.jars.get(key, { "sent": 0, "dots": [] })
-		jar.sent = clampi(sent_n, 0, Wish.total(catalog))
-		if (jar.dots as Array).is_empty():  # some colour to look at
-			var pals: Array = catalog.slots.palette.map(func(p): return str(p.id))
-			for i in mini(jar.sent, int(catalog.wish.get("dots", 90))):
-				jar.dots.append(pals[(i * 3 + (i >> 2)) % mini(5, pals.size())])
-		wish.jars[key] = jar
-	_roller.wish = Wish.weights(catalog, wish)
-	wish_changed.emit(0)
-	changed.emit()
-	return true
-
-
 ## Gives xp, boosted (the "xp" kind). Returns how much it really was.
 func add_xp(amount: int) -> int:
 	var real := roundi(amount * boost("xp"))
@@ -2474,6 +2400,13 @@ func _milestone(what: String) -> void: unlocks_part._milestone(what)
 func buyable(tab_id: String) -> Array[String]: return unlocks_part.buyable(tab_id)
 func upgrade_news(tab_id: String) -> bool: return unlocks_part.upgrade_news(tab_id)
 func saw_upgrades(tab_id: String) -> void: unlocks_part.saw_upgrades(tab_id)
+
+# wish_part.gd
+func wish_open() -> bool: return wish_part.wish_open()
+func set_wish(key: String) -> bool: return wish_part.set_wish(key)
+func wish_shelves() -> Dictionary: return wish_part.wish_shelves()
+func send_to_wish(rarity: String, n: int) -> Dictionary: return wish_part.send_to_wish(rarity, n)
+func debug_wish(key: String, sent_n := -1) -> bool: return wish_part.debug_wish(key, sent_n)
 
 # workers_part.gd
 func worker_job(uid: String) -> String: return workers_part.worker_job(uid)
