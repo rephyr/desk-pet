@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lots of News</title>
+<link rel="stylesheet" href="../shared/tokens.css">
+<link rel="stylesheet" href="../shared/themes.css">
+<link rel="stylesheet" href="../shared/base.css">
+<link rel="stylesheet" href="../shared/frame.css">
+<style>
+  /* Several things land at once (lanes/mockups3): open questions from A4 ("several full pages at
+     once queue their popups one by one, or one popup?"), the small open item "the new: the bag!
+     popup lands on top of the trip postcard", and coming back after hours when your pets did a lot.
+     Example pile: a full book page, an unlock (the wishing jar), a postcard from the orchard and
+     the plushie machine's news (from the F2 handoff). Three looks. */
+  :root { --wisp: #ff9e7d; }
+  body { display: block; padding: 24px 24px 60px; }
+  .sheet { width: 920px; margin: 0 auto; }
+  .sheet h1 { font: var(--display-weight) 28px/1 var(--display); color: var(--pink); margin: 0 0 6px; }
+  .sheet .lede { color: var(--muted); margin: 0 0 16px; max-width: 82ch; }
+  .sheet h2 { font: var(--display-weight) 20px/1 var(--display); color: var(--gold); margin: 30px 0 4px; }
+  .sheet h2 + p { color: var(--muted); margin: 0 0 10px; }
+  .app { margin: 0 auto; }
+  .spine { gap: 2px; }
+  .spine .tab { padding: 4px 0 2px; font-size: 10px; letter-spacing: -.2px; }
+  .moon { margin-bottom: 2px; }
+  .tab .new { position: absolute; top: 5px; right: 10px; width: 8px; height: 8px; border-radius: 50%; background: var(--gold); }
+  .content { position: relative; flex: 1; min-height: 0; }
+
+  /* the home room behind everything (simplified) */
+  .room { position: absolute; inset: 0; border-radius: var(--r-panel); background: var(--paper); border: 2px solid var(--line); overflow: hidden; }
+  .room .wall { position: absolute; left: 0; right: 0; top: 0; height: 66%; background: color-mix(in srgb, var(--lilac) 5%, var(--paper)); border-bottom: 3px solid var(--lilac-seam); }
+  .room .window { position: absolute; left: 60px; top: 40px; width: 120px; height: 100px; border-radius: 10px; border: 3px solid var(--lilac-seam); background: var(--deep); }
+  .room .window::before { content: ""; position: absolute; left: 50%; top: 0; bottom: 0; width: 3px; background: var(--lilac-seam); }
+  .room .rug { position: absolute; left: 50%; bottom: 30px; width: 300px; height: 46px; margin-left: -150px; border-radius: 50%; background: color-mix(in srgb, var(--pink) 14%, var(--page)); border: 3px dashed var(--pink-seam); }
+  .room .me { position: absolute; left: 50%; bottom: 56px; width: 64px; height: 72px; margin-left: -32px; }
+  .note { position: absolute; right: 30px; top: 30px; width: 160px; padding: 10px 12px; background: color-mix(in srgb, var(--gold) 12%, var(--raised)); border: 2px solid color-mix(in srgb, var(--gold) 40%, var(--line)); border-radius: 4px 4px 12px 4px; transform: rotate(2deg); font-size: 11px; line-height: 1.5; box-shadow: var(--lift); }
+  .note b { font: 400 13px/1 var(--display); color: var(--gold); font-weight: 400; display: block; margin-bottom: 4px; }
+  .dim { position: absolute; inset: 0; background: rgba(8, 3, 14, .62); border-radius: var(--r-panel); }
+
+  /* the news cards (as UnlockPopup / Postcard / book popup) */
+  .card { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px 18px 14px; width: 330px; text-align: center; background: var(--raised); border: 3px solid var(--c); border-radius: var(--r-panel); box-shadow: var(--lift), 0 0 18px color-mix(in srgb, var(--c) 35%, transparent); }
+  .card h3 { margin: 0; font: 400 21px/1.1 var(--display); color: var(--c); font-weight: 400; }
+  .card p { margin: 0; font-size: 12px; line-height: 1.45; }
+  .card .art { width: 96px; height: 72px; display: grid; place-items: center; }
+  .card .art svg { width: 72px; height: 72px; }
+  .card .btns { display: flex; gap: 8px; margin-top: 2px; }
+  .card .gain { color: var(--mint); }
+  .stackedge { position: absolute; width: 330px; height: 40px; border-radius: var(--r-panel); background: var(--raised); border: 3px solid var(--c); }
+  .pips { display: flex; gap: 5px; justify-content: center; }
+  .pips i { width: 8px; height: 8px; border-radius: 50%; background: var(--c); opacity: .35; }
+  .pips i.on { opacity: 1; }
+
+  /* B: the pile */
+  .pile { position: absolute; left: 34px; bottom: 26px; width: 150px; height: 120px; cursor: pointer; }
+  .env { position: absolute; width: 96px; height: 64px; border-radius: 6px; background: color-mix(in srgb, var(--c) 18%, var(--raised)); border: 2px solid var(--c); box-shadow: 0 3px 6px rgba(6, 2, 12, .5); }
+  .env::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 34px; background: linear-gradient(to bottom right, transparent 49%, var(--c) 49% 51%, transparent 51%) left / 50% 100% no-repeat, linear-gradient(to bottom left, transparent 49%, var(--c) 49% 51%, transparent 51%) right / 50% 100% no-repeat; opacity: .8; }
+  .env svg { position: absolute; right: 6px; bottom: 5px; width: 22px; height: 22px; }
+  .pile .holder { position: absolute; left: 92px; bottom: 30px; width: 48px; height: 54px; }
+  .side { position: absolute; right: 14px; top: 14px; bottom: 14px; width: 300px; display: flex; flex-direction: column; gap: 8px; }
+  .side .card { position: static; width: auto; box-shadow: var(--lift); }
+
+  /* C: the letter */
+  .letter { position: absolute; left: 50%; top: 18px; width: 460px; margin-left: -230px; padding: 16px 20px 14px; background: var(--raised); border: 3px solid var(--pink-seam); border-radius: 6px 6px var(--r-panel) var(--r-panel); box-shadow: var(--lift); transform: rotate(-.6deg); }
+  .letter::before { content: ""; position: absolute; left: 12px; right: 12px; top: 6px; height: 2px; background: repeating-linear-gradient(to right, var(--pink-seam) 0 6px, transparent 6px 11px); }
+  .letter h3 { margin: 6px 0 2px; font: 400 21px/1.1 var(--display); color: var(--pink); font-weight: 400; display: flex; align-items: center; gap: 8px; }
+  .letter h3 img { width: 32px; height: 36px; }
+  .letter .away { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .lrow { display: grid; grid-template-columns: 34px 1fr auto; gap: 10px; align-items: center; padding: 7px 4px; border-top: 2px dashed var(--line); }
+  .lrow .ic { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: var(--deep); border: 2px solid var(--c); }
+  .lrow .ic svg { width: 20px; height: 20px; }
+  .lrow b { display: block; font-weight: 400; font-size: 13px; color: var(--c); }
+  .lrow span { font-size: 11px; color: var(--muted); }
+  .lrow .btn { padding: 2px 10px; font-size: 12px; }
+  .letter .foot { display: flex; justify-content: center; padding-top: 8px; border-top: 2px dashed var(--line); }
+
+  .decide { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .decide .box { padding: 12px 14px; }
+  .decide h3 { margin: 0 0 6px; font: var(--display-weight) 15px/1 var(--display); color: var(--lilac); }
+  .decide p { margin: 0; font-size: 12px; }
+  .decide p + p { margin-top: 4px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="sheet">
+  <h1>lots of news at once</h1>
+  <p class="lede">You come back after a few hours: a book page filled up, the wishing jar turned up, a party is home from the orchard and lilac blob sewed buttons on gold dragon. Today each pops up on its own and they can land on top of each other (the bag popup on the postcard). Three ways to hand them over. Click around.</p>
+
+  <h2>Look A: one at a time, the rest stacked behind</h2>
+  <p>Exactly one card at a time; the ones still waiting peek out behind it as card edges in their colours. "lovely" brings the next to the front. A postcard never shares the screen with an unlock.</p>
+  <div class="app" data-look="a"></div>
+
+  <h2>Look B: a pile on the rug</h2>
+  <p>Nothing pops up. News lands as envelopes in a pile by your pet, and home gets a gold dot. Tap the pile: the top one opens on the side; the rest wait as long as you like.</p>
+  <div class="app" data-look="b"></div>
+
+  <h2>Look C: one welcome back letter</h2>
+  <p>Everything that landed while you were away comes as one letter, a row per thing (the same kind folded into one row: "2 book pages"). "show me ›" goes there; "lovely" closes it. While you play, things still pop up one by one (look A).</p>
+  <div class="app" data-look="c"></div>
+
+  <h2>to decide</h2>
+  <div class="decide" id="decide"></div>
+</div>
+
+<script src="../shared/pixel.js"></script>
+<script src="../shared/frame.js"></script>
+<script>
+  DOODLES.capsule = `<circle cx="12" cy="10" r="6.8"/><path d="M5.3 10 Q12 12.4 18.7 10"/><path d="M7.4 16 L6.6 20.4 Q12 21.2 17.4 20.4 L16.6 16"/>`;
+  ICONS.capsule = ICONS.boxes;
+  DOODLES.automation = `<circle cx="12" cy="12" r="2.6"/><path d="M12 5.2 Q16.8 5.4 18.6 9.6 Q19.4 14.6 15.6 17.8 Q11 20.4 6.8 17.4 Q3.9 13.6 5.8 8.6 Q7.8 5.4 12 5.2 Z"/><path d="M12 2.6 L12 5.2 M12 18.8 L12 21.4 M2.6 12 L5.2 12 M18.8 12 L21.4 12 M5.4 5.4 L7.1 7.1 M16.9 16.9 L18.6 18.6 M5.4 18.6 L7.1 16.9 M16.9 7.1 L18.6 5.4"/>`;
+  ICONS.automation = ICONS.settings;
+  TABS.splice(1, 0, { id: "capsules", label: "machine", icon: "capsule" });
+  TABS.splice(TABS.findIndex(t => t.id === "gear"), 1);
+  TABS.find(t => t.id === "pets").label = "collectibles";
+  TABS.find(t => t.id === "trips").label = "adventures";
+  TABS.find(t => t.id === "inventory").label = "workbench";
+  TABS.splice(TABS.findIndex(t => t.id === "errands") + 1, 0, { id: "automation", label: "automation", icon: "automation" });
+  TABS.forEach(t => { t.news = false; });
+
+  const ART = {
+    book: `<svg viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6 Q7.5 4 12 6 L12 20 Q7.5 18 3 20 Z"/><path d="M21 6 Q16.5 4 12 6 L12 20 Q16.5 18 21 20 Z"/><path d="M16.5 9 L17.2 10.6 L19 10.8 L17.6 12 L18 13.8 L16.5 12.9 L15 13.8 L15.4 12 L14 10.8 L15.8 10.6 Z" fill="var(--gold)"/></svg>`,
+    jar: `<svg viewBox="0 0 24 24" fill="none" stroke="var(--lilac)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3 L16 3 L16 6 Q20 8 20 13 L20 19 Q20 21 18 21 L6 21 Q4 21 4 19 L4 13 Q4 8 8 6 Z"/><circle cx="9" cy="15" r="1.4" fill="var(--pink)" stroke="none"/><circle cx="13" cy="17" r="1.4" fill="var(--mint)" stroke="none"/><circle cx="15" cy="13" r="1.4" fill="var(--cyan)" stroke="none"/></svg>`,
+    card: `<svg viewBox="0 0 24 24" fill="none" stroke="var(--mint)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M13 9 L18 9 M13 12 L17 12"/><path d="M5 16 L8 11 L11 16 Z" fill="var(--mint)"/></svg>`,
+    button: `<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4" fill="color-mix(in srgb, var(--pink) 40%, var(--page))" stroke="var(--pink)" stroke-width="2.2"/><circle cx="10" cy="10" r="1.3" fill="var(--deep)"/><circle cx="14" cy="10" r="1.3" fill="var(--deep)"/><circle cx="10" cy="14" r="1.3" fill="var(--deep)"/><circle cx="14" cy="14" r="1.3" fill="var(--deep)"/></svg>`,
+  };
+  const NEWS = [
+    { k: "book", c: "var(--gold)", title: "bodies page full!", text: "a cozy blanket!", gain: "automation 10% faster", go: "show me", row: "2 book pages full", rowsub: "bodies, eyes" },
+    { k: "jar", c: "var(--lilac)", title: "new: a wishing jar!", text: "a big glass jar turned up next to the sticker book. wish for a sticker, and pets who hop in help it come true.", go: "show me", row: "new: a wishing jar!", rowsub: "by the sticker book" },
+    { k: "card", c: "var(--mint)", title: "the orchard", text: "12 pets are home from the orchard! they found 2 corks and a toy capsule.", go: "welcome back", row: "home from the orchard", rowsub: "12 pets, 2 corks, a toy capsule" },
+    { k: "button", c: "var(--pink)", title: "gold dragon", text: "lilac blob sewed 31 buttons on gold dragon. 6 popped off. it's so fluffy now!", go: "show me", row: "31 buttons on gold dragon", rowsub: "6 popped off" },
+  ];
+  const cardHtml = (n, style = "", pips = "") => `<div class="card" style="--c:${n.c}; ${style}"><div class="art">${ART[n.k]}</div><h3>${n.title}</h3><p>${n.text}</p>${n.gain ? `<p class="gain">${n.gain}</p>` : ""}${pips}<div class="btns"><button class="btn primary" data-act="go">${n.go}</button><button class="btn" data-act="next">lovely</button></div></div>`;
+  const room = () => `<div class="room"><div class="wall"></div><div class="window"></div><div class="rug"></div><img class="px me" src="../assets/pets/lilac-blob.png" alt="">
+    <div class="note"><b>next up</b>rope: 37 / 100 pets sent<br>orchard trips 8 / 10</div></div>`;
+
+  function mount(app, say) {
+    const t = t2 => `<a class="tab${t2.id === "home" ? " on" : ""}" href="${t2.id}.html"><span data-icon="${t2.icon}"></span>${t2.label}${t2.dot ? `<span class="new"></span>` : ""}</a>`;
+    app.innerHTML = `<nav class="spine"><svg class="sky" width="80" height="600" aria-hidden="true">${stars(50)}</svg>
+        <div class="moon"><img class="px" src="../assets/pets/lilac-blob.png" alt=""></div>
+        ${TABS.map(x => t({ ...x, dot: app.dataset.look === "b" && x.id === "home" })).join("")}<div class="grow"></div>${t({ id: "settings", label: "", icon: "settings" })}</nav>
+      <main class="page dots"><div class="top"><div class="bubble">${say}</div>
+        <span class="chip coins"><span data-icon="coin"></span>9.1B</span><span class="chip xp"><span data-icon="xp"></span>412k</span>
+        <div class="winbtns"><button>▾</button><button>✕</button></div></div>
+        <div class="content"></div></main>`;
+    paintIcons(app);
+    return app.querySelector(".content");
+  }
+
+  // A: one at a time
+  function lookA(app) {
+    const c = mount(app, "you're back! so much happened!");
+    let i = 0;
+    const draw = () => {
+      const rest = NEWS.slice(i + 1);
+      const edges = rest.map((n, k) => `<div class="stackedge" style="--c:${n.c}; left:${237 + (k + 1) * 10}px; top:${54 - (k + 1) * 9}px; transform:rotate(${(k + 1) * 2}deg)"></div>`).reverse().join("");
+      const pips = `<div class="pips">${NEWS.map((n, k) => `<i class="${k === i ? "on" : ""}" style="--c:${n.c}"></i>`).join("")}</div>`;
+      c.innerHTML = room() + (i < NEWS.length ? `<div class="dim"></div>${edges}${cardHtml(NEWS[i], "left:237px; top:54px;", pips)}` : "");
+    };
+    c.addEventListener("click", e => { const b = e.target.closest("[data-act]"); if (b) { i = i >= NEWS.length - 1 ? 0 : i + 1; draw(); } });
+    draw();
+  }
+
+  // B: the pile
+  function lookB(app) {
+    const c = mount(app, "i kept your letters warm!");
+    let open = 0;
+    const draw = () => {
+      const left = NEWS.slice(open + 1);
+      const envs = left.map((n, k) => `<div class="env" style="--c:${n.c}; left:${k * 8}px; bottom:${k * 9}px; transform:rotate(${[-6, 4, -2][k % 3]}deg)">${ART[n.k]}</div>`).join("");
+      c.innerHTML = room() + `<div class="pile" data-act="pile">${envs}<img class="px holder" src="../assets/pets/lilac-blob.png" alt=""></div>`
+        + (open < NEWS.length ? `<div class="side">${cardHtml(NEWS[open])}</div>` : "");
+      c.querySelector(".me").style.display = "none";
+    };
+    c.addEventListener("click", e => { const b = e.target.closest("[data-act]"); if (b) { open = open >= NEWS.length - 1 ? 0 : open + 1; draw(); } });
+    draw();
+  }
+
+  // C: the letter
+  function lookC(app) {
+    const c = mount(app, "i wrote it all down for you!");
+    c.innerHTML = room() + `<div class="dim"></div><div class="letter">
+      <h3><img class="px" src="../assets/pets/lilac-blob.png" alt="">while you were away</h3>
+      <div class="away">3 h 12 min</div>
+      ${NEWS.map(n => `<div class="lrow" style="--c:${n.c}"><span class="ic">${ART[n.k]}</span><div><b>${n.row}</b><span>${n.rowsub}</span></div><button class="btn">show me ›</button></div>`).join("")}
+      <div class="foot"><button class="btn primary">lovely</button></div></div>`;
+  }
+
+  document.querySelectorAll(".app").forEach(app => ({ a: lookA, b: lookB, c: lookC })[app.dataset.look](app));
+
+  const DECIDE = [
+    ["1. which look", "A one at a time with the rest stacked behind, B a pile you open when you like, C one letter when you come back (A while you play)."],
+    ["2. same kind at once", "Two book pages full at the same moment: one card each, or one card with both stickers?"],
+    ["3. what waits for what", "Picked here: a postcard and an unlock never show together; the unlock waits until the postcard closes (the bag-on-postcard bug). Popups also wait while a box or the plushie machine is opening (as today)."],
+    ["4. what counts as news", "Only things that open something or change a pet (unlocks, book pages, finds, a party home, the plushie tally)? Or also small stuff (errand goals, toys worn out)?"],
+  ];
+  document.getElementById("decide").innerHTML = DECIDE.map(([h, ...ps]) => `<div class="box sticker"><h3>${h}</h3>${ps.map(p => `<p>${p}</p>`).join("")}</div>`).join("");
+  applyLook(loadLook());
+</script>
+</body>
+</html>
