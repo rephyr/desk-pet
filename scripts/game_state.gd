@@ -41,6 +41,7 @@ var machine_part := MachinePart.new(self)
 var boxes_part := BoxesPart.new(self)
 var homes_part := HomesPart.new(self)
 var workshop_part := WorkshopPart.new(self)
+var unlocks_part := UnlocksPart.new(self)
 # ---- end of the parts ----
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
@@ -356,216 +357,6 @@ const AUTOMATION := "automation"  # lets you send swarms that follow your rules
 const PARTIES := "parties"  # feature: send small parties (see PARTY_SIZES)
 
 
-func is_unlocked(id: String) -> bool:
-	return unlocks.has(id)
-
-
-func unlock(id: String) -> void:
-	if unlocks.has(id):
-		return
-	unlocks[id] = true
-	_knack_gates_changed()
-	_opened(id)
-	adventures_changed.emit()
-	changed.emit()
-	save_game()
-
-
-## A place you can go: its map page is open, and it's the page's first place or one a pet spotted
-## (or a rumour led to) and you said yes. Never a band of the dungeon (data/adventures.json "band").
-func location_open(location: Dictionary) -> bool:
-	if location.is_empty() or location.has("band") or not page_open(str(location.get("page", catalog.pages[0].id))):
-		return false  # a band of the old well's dungeon is never a trip
-	return location.get("start", false) or is_unlocked("location:" + location.id)
-
-
-func page_open(page_id: String) -> bool:
-	for page in catalog.pages:
-		if page.id == page_id:
-			return page.get("start", false) or is_unlocked("page:" + page_id)
-	return false
-
-
-## Whether a feature ("errands", "packs", "parties") has been unlocked on your adventures.
-func feature_on(feature: String) -> bool:
-	return is_unlocked("feature:" + feature)
-
-
-## Whether a tab is there: nothing opens it (always there), or what opens it has been unlocked.
-## A tab that isn't open is out of sight (hidden until earned, never shown locked).
-func tab_open(tab_name: String) -> bool:
-	for entry in catalog.unlock_list:
-		if ("tab:" + tab_name) in entry.opens and not is_unlocked("tab:" + tab_name):
-			return false
-	return true
-
-
-## Opens whatever you've earned on your adventures (data/unlocks.json).
-func check_unlocks() -> void:
-	for entry in catalog.unlock_list:
-		if entry.opens.all(func(o): return is_unlocked(o)) or not _earned(entry.earn):
-			continue
-		_open_entry(entry)
-	# a rumour of something that's open now has nothing left to lead to (the edge opened by itself)
-	rumours.assign(rumours.filter(func(id): return not catalog.rumour(id).get("unlocks", []).all(func(u): return is_open(str(u)))))
-
-
-## The find events at a place that a party of `n` could meet now (see AdventureRunner.can_meet).
-func find_events_at(location: Dictionary, n := 1 << 30) -> Array[Dictionary]:
-	var out: Array[Dictionary] = []
-	var ids: Array = location.get("events", []) + location.get("pool", []).map(func(p): return p.event)
-	for id in ids:
-		var e: Dictionary = catalog.events.get(str(id), {})
-		if e.has("find") and n >= int(e.get("min_party", 1)) and AdventureRunner.can_meet(e, finds, machine.bought,
-				workers_total(), is_ours(str(location.id)), sent_to(str(location.id))):
-			out.append(e)
-	return out
-
-
-## A party of `n` sets off for this place: every find it could meet counts the try. Returns the
-## events it meets for sure (their find has waited find_sure_by tries).
-func _count_find_tries(location: Dictionary, n: int) -> Array:
-	var sure := []
-	for e in find_events_at(location, n):
-		var f := str(e.find)
-		find_tries[f] = int(find_tries.get(f, 0)) + 1
-		if int(find_tries[f]) >= catalog.find_sure_by:
-			sure.append(str(e.id))
-	return sure
-
-
-## Opens an unlock: what it opens, its pet, your pet's news, its popup (the unlocked signal).
-func _open_entry(entry: Dictionary) -> void:
-	for o in entry.opens:
-		unlocks[o] = true
-		_opened(str(o))
-	if str(entry.get("pet_job", "")) != "":
-		_gift_pet(str(entry.pet_job))
-	if int(entry.get("button_gift", 0)) > 0:
-		_gift_buttons(int(entry.button_gift))
-	if str(entry.get("learns", "")) != "":
-		automation.taught[str(entry.learns)] = true  # your pet knows this job straight away
-		automation_changed.emit()
-	if str(entry.get("announce", "")) != "":
-		announcements.append(entry.announce)
-	unlocked.emit(entry)
-	_milestone(str(entry.id))
-	adventures_changed.emit()
-	changed.emit()
-
-
-## Opens a map page from the game's code: the hook for pages nothing you find opens by itself
-## (next door: "earn": { "called": true } in data/unlocks.json, opened by pets past the edge).
-## Its unlock pops up and your pet tells you, as if it had been earned; a page with no unlock of
-## its own just opens. Returns false if it was open already (or there's no such page).
-func open_page(page_id: String) -> bool:
-	if catalog.page_info(page_id).is_empty() or page_open(page_id):
-		return false
-	var entry := UnlockRules.opening(catalog.unlock_list, "page:" + page_id)
-	if entry.is_empty():
-		unlocks["page:" + page_id] = true
-		adventures_changed.emit()
-		changed.emit()
-	else:
-		_open_entry(entry)
-	if page_id == Ours.opens_with(catalog):
-		# places visited often enough already are ours now: the map colours them in next time you look
-		for location in catalog.locations:
-			if is_ours(location.id) and not location.get("ours_at_start", false):
-				unshown_ours[location.id] = true
-	page_opened.emit(page_id)
-	save_game()
-	return true
-
-
-## Something just opened: the whistle is your pet's managing job, known from the moment it's found.
-func _opened(id: String) -> void:
-	if id == "feature:" + Automation.WHISTLE:
-		automation.taught[Automation.WHISTLE] = true
-		automation_changed.emit()
-
-
-func _earned(earn: Dictionary) -> bool:
-	if earn.get("called", false):
-		return false  # only the game's code opens it (open_page)
-	if earn.has("find") and not finds.has(earn.find):
-		return false
-	if earn.get("first", "") == "part" and not parts_ever:
-		return false
-	if earn.get("first", "") == "toy" and toys.owned.is_empty():
-		return false
-	if trips_done < int(earn.get("trips", 0)):
-		return false
-	if earn.has("machine") and Machine.owned(machine, str(earn.machine)) <= 0:
-		return false
-	if packs_by_hand < int(earn.get("packs_opened", 0)):
-		return false
-	if earn.has("open") and not is_unlocked(str(earn.open)):
-		return false
-	if earn.has("taught") and not knows_job(str(earn.taught)):
-		return false
-	if earn.get("room", "") == "full" and not homes.room_was_full:
-		return false
-	if earn.has("ours") and not is_ours(str(earn.ours)):
-		return false
-	if int(homes.by_hand) < int(earn.get("homes_by_hand", 0)):
-		return false
-	if int(dungeon.deep) < int(earn.get("floor", 0)):
-		return false
-	if int(sewing.cleared) < int(earn.get("sewing", 0)):
-		return false
-	if earn.has("others") and not knows_others(str(earn.others)):
-		return false
-	var levels: Dictionary = earn.get("job_level", {})
-	for job_id in levels:
-		if job_level(str(job_id)) < int(levels[job_id]):
-			return false
-	if earn.has("all_places") and not all_places_open(str(earn.all_places)):
-		return false
-	if earn.has("edge") and not edge_done(str(earn.edge)):
-		return false
-	if int(edge.get("ever", 0)) < int(earn.get("edge_sent", 0)):
-		return false
-	return true
-
-
-## Whether every place on a map page is open (and the page itself). Dungeon bands don't count.
-func all_places_open(page_id: String) -> bool:
-	if not page_open(page_id):
-		return false
-	for location in catalog.locations:
-		if str(location.get("page", "")) == page_id and not location.has("band") and not location_open(location):
-			return false  # dungeon bands were places once: they never count
-	return true
-
-
-## A pet comes along with an unlock (the basket has one asleep in it) and starts on that errand, so
-## there's someone to do it even when your only other pet is out on an adventure.
-func _gift_pet(job_id: String) -> void:
-	var got: Array[Pet] = [_roller.roll(TUTORIAL_BOX)]
-	collection.add(got)
-	put_on_job(job_id, 1, [got[0].uid])
-
-
-## Buttons come with an unlock (the plushie machine sews one onto your active pet): on the part with
-## its best knack, else its body.
-func _gift_buttons(n: int) -> void:
-	var pet := collection.active()
-	if pet == null:
-		return
-	var slot := str(Knacks.best(catalog, pet, knack_gate).get("slot", "body"))
-	if Plushie.full(catalog, pet, slot):
-		slot = Plushie.wild_default(catalog, pet)
-	if slot != "" and Plushie.sew(catalog, pet, slot, n) > 0:
-		collection.pet_changed.emit(pet)
-		collection.active_changed.emit(pet)  # everything showing your pet redraws it
-
-
-## The oldest news your pet hasn't told you yet, or "" (then forgotten).
-func take_announcement() -> String:
-	return announcements.pop_front() if not announcements.is_empty() else ""
-
-
 ## What the army's last run was like, for your pet to say (once), or {}.
 func take_dungeon_news() -> Dictionary:
 	var news := dungeon_news
@@ -573,139 +364,8 @@ func take_dungeon_news() -> Dictionary:
 	return news
 
 
-## Whether an unlock id ("location:cellar", "automation", "parties") is open.
-func is_open(id: String) -> bool:
-	if id.begins_with("location:"):
-		return location_open(catalog.location(id.substr(9)))
-	return is_unlocked(id)
-
-
-## You say yes to a place a pet spotted: it opens right away.
-func follow_lead(location_id: String) -> void:
-	if not spotted.has(location_id):
-		return
-	spotted.erase(location_id)
-	unlocks["location:" + location_id] = true
-	_knack_gates_changed()  # a knack kind may be gated on the place
-	check_unlocks()  # the last place of a page may open something (the edge)
-	adventures_changed.emit()
-	changed.emit()
-	save_game()
-
-
-## A pet that made it home may have spotted somewhere new on the way.
-func _spot_places(run: RunState) -> Array[String]:
-	if run.party.size() == 0:
-		return []
-	var location := catalog.location(run.location_id)
-	var bonus := float(run.scout.get("spot", 0.0))
-	var found := Intel.roll(location, _place_known, spot_tries, _rng, bonus, run.knack("spots"))
-	for id in found:
-		spotted[id] = { "by": run.party.who(), "from": run.location_id }
-	return found
-
-
-## Whether you know a place: it's open, or a pet spotted it.
-func _place_known(id: String) -> bool:
-	return location_open(catalog.location(id)) or spotted.has(id)
-
-
-## Places you can go, in the data's order.
-func open_locations() -> Array[Dictionary]:
-	var out: Array[Dictionary] = []
-	for location in catalog.locations:
-		if location_open(location):
-			out.append(location)
-	return out
-
-
-## Whether next door is open, so places can become ours (see Ours).
-func next_door_open() -> bool:
-	return page_open(Ours.opens_with(catalog))
-
-
-## Trips welcomed back from a place.
-## Pets ever sent to a place, every party added up.
-func sent_to(location_id: String) -> int:
-	return int(sent.get(location_id, 0))
-
-
-func visits_at(location_id: String) -> int:
-	return int(visits.get(location_id, 0))
-
-
-## Lights still on in the house behind a next-door place (0 once it's ours).
-func lights_left(location_id: String) -> int:
-	return Ours.lights_left(catalog.location(location_id), visits_at(location_id))
-
-
-## Whether a place is ours: coloured in by your pet, safer, pays a bit more, no locals (see Ours).
-func is_ours(location_id: String) -> bool:
-	return Ours.is_ours(catalog, catalog.location(location_id), visits_at(location_id), next_door_open())
-
-
-## The map has started colouring in a place that just became ours (see unshown_ours).
-func ours_shown(location_id: String) -> void:
-	unshown_ours.erase(location_id)
-
-
-## Counts `n` more visits to a place. One light goes out each (next door); when the last goes out,
-## or a backyard place has had its many visits, the place becomes ours: your pet tells you and the
-## map colours it in. Returns "ours" if it just became ours, "dark" if a light went out, else "".
-func add_visits(location_id: String, n := 1) -> String:
-	var location := catalog.location(location_id)
-	if location.is_empty() or n <= 0:
-		return ""
-	var was_ours := is_ours(location_id)
-	var lit := lights_left(location_id)
-	visits[location_id] = visits_at(location_id) + n
-	if not was_ours and is_ours(location_id):
-		unshown_ours[location_id] = true
-		announcements.append(Ours.say(catalog, "say_ours", location))
-		return "ours"
-	return "dark" if next_door_open() and lights_left(location_id) < lit else ""
-
-
-## You decided to go where a rumour said: it opens what the rumour was about.
-func follow_rumour(rumour_id: String) -> void:
-	if not rumour_id in rumours:
-		return
-	rumours.erase(rumour_id)
-	for id in catalog.rumour(rumour_id).get("unlocks", []):
-		unlocks[id] = true
-	_knack_gates_changed()  # a knack kind may be gated on what it opened
-	check_unlocks()
-	adventures_changed.emit()
-	changed.emit()
-	save_game()
-
-
-## Pets came back with word of somewhere: hear up to `count` new rumours.
-func _hear_rumours(count: int) -> void:
-	var can := Rumours.hearable(catalog, heard, is_open)
-	if heard.is_empty() and count > 0 and not can.is_empty():
-		announcements.append("a rumour is word of somewhere new! it's on the map now. tap it and say yes, and we can go there!")
-	for i in mini(count, can.size()):
-		var rumour: Dictionary = can.pop_at(_rng.randi_range(0, can.size() - 1))
-		heard[rumour.id] = true
-		rumours.append(rumour.id)
-
-
 ## Party sizes the finds open: the cart, the wheelbarrow, the hay wagon (data/unlocks.json).
 const PARTY_SIZES := [["parties", 3], ["parties_5", 5], ["parties_10", 10]]
-
-
-## The biggest party you may send here: one pet, then bigger parties as things are found, swarms
-## with automation, and a location's own cap.
-func max_party(location_id: String) -> int:
-	var most := 1
-	for step in PARTY_SIZES:
-		if feature_on(step[0]):
-			most = maxi(most, step[1])
-	if is_unlocked(AUTOMATION):
-		most = 1 << 30
-	var cap := int(catalog.location(location_id).get("max_party", 0))
-	return mini(most, cap) if cap > 0 else most
 
 
 ## Debug: a handful of random parts, one of each rarity, to try sewing with.
@@ -718,16 +378,6 @@ func debug_give_parts() -> void:
 		parts[key] = int(parts.get(key, 0)) + 1
 	changed.emit()
 	save_game()
-
-
-func debug_unlock_all() -> void:
-	unlock(AUTOMATION)
-	for entry in catalog.unlock_list:
-		for o in entry.opens:
-			unlock(o)
-	spotted.clear()
-	for l in catalog.locations:
-		unlock("location:" + l.id)
 
 
 ## Debug: a completely fresh game, as a new player would start it. The old save is copied to
@@ -3970,70 +3620,6 @@ func sew_part(slot: String, part_id: String, buttons := 0) -> Dictionary:
 
 # ---- tutorial ----------------------------------------------------------------
 
-func tutorial_active() -> bool:
-	return tutorial != "done"
-
-
-## The current tutorial step's data (see data/tutorial.json), or {} when it's done.
-func tutorial_info() -> Dictionary:
-	for step in catalog.tutorial.steps:
-		if step.id == tutorial:
-			return step
-	return {}
-
-
-func _start_tutorial() -> void:
-	coins = 0
-	bag = {}
-	tutorial = catalog.tutorial.steps[0].id
-	collection.auto_active = true  # your first pet (out of the machine) is your active pet
-	started_at = Time.get_unix_time_from_system()
-	milestones = {}
-
-
-## Moves the tutorial on once its step is done: your first pet out of the machine, then (after a
-## while of building the machine up) a second one with a map, and it's sent on an adventure.
-func _check_tutorial() -> void:
-	var before := tutorial
-	for i in 4:
-		match tutorial:
-			"pull":
-				if collection.count() >= 1:
-					tutorial = "machine"
-					_milestone("first pet")
-			"machine":
-				if collection.count() >= 2:
-					tutorial = "send"
-					_milestone("adventures")
-			"send":
-				if not runs.is_empty():
-					tutorial = "done"
-					collection.auto_active = true
-	if tutorial != before:
-		tutorial_changed.emit()
-		save_game()
-
-
-## Debug: back to how a new game starts: only the first adventure type, no trips counted, no
-## rumours heard. Trips already out still finish.
-func debug_lock_all() -> void:
-	unlocks.clear()
-	_knack_gates_changed()
-	trips_done = 0
-	heard.clear()
-	rumours.clear()
-	finds.clear()
-	spotted.clear()
-	spot_tries.clear()
-	visits.clear()
-	sent.clear()
-	find_tries.clear()
-	unshown_ours.clear()
-	adventures_changed.emit()
-	changed.emit()
-	save_game()
-
-
 # ---- past the edge and the little school: pets spent for good (C2) ----------------------
 
 const DESK_FACES := 2000000  # school faces past this sit at the desks
@@ -4716,12 +4302,6 @@ func rummage(spot_id: String) -> Dictionary:
 
 # ---- the capsule machine ------------------------------------------------------
 
-## Notes how long into the game something happened (for pacing tests, shown in settings' dev part).
-func _milestone(what: String) -> void:
-	if started_at > 0.0 and not milestones.has(what):
-		milestones[what] = (Time.get_unix_time_from_system() - started_at) / 60.0
-
-
 ## How much one boost kind (see data/boosts.json "kinds") is multiplied right now, every source
 ## together (1.0 when nothing is). Called every frame (errand meters, the machine), so the totals are
 ## kept until a source changes (_boosts_changed; a play running out emits toys_changed).
@@ -5114,48 +4694,6 @@ func _coin_gear_name(packed: Dictionary) -> String:
 
 
 # ---- capsule toys ------------------------------------------------------------------
-
-## What can be bought on a tab right now, each as "id:level it would take" (the tab's news dot:
-## something you can afford that you haven't seen yet, see upgrade_news).
-func buyable(tab_id: String) -> Array[String]:
-	var out: Array[String] = []
-	match tab_id:
-		"machine":
-			for n in catalog.machine_tree.nodes:
-				if Machine.blocker(machine, catalog, str(n.id), coins, bits) == "":
-					out.append("%s:%d" % [n.id, Machine.owned(machine, str(n.id))])
-		"adventures":
-			if gear_page_open():
-				for g in shown_gear():
-					if gear_block(str(g.id)) == "" and xp >= gear_price(str(g.id)):
-						out.append("%s:%d" % [g.id, gear_level(str(g.id))])
-		"errands":
-			for t in Jobs.all_tools(catalog):
-				if errand_tool_block(str(t.id)) == "" and coins >= int(errand_tool_plan(str(t.id), 1)[1]):
-					out.append("%s:%d" % [t.id, errand_tool_level(str(t.id))])
-		"automation":
-			for j in auto_jobs():
-				if not knows_job(str(j.id)) and coins >= int(j.coins):
-					out.append("teach:" + str(j.id))
-			for t in Automation.all_tools(catalog):
-				if auto_tool_block(str(t.id)) == "" and coins >= auto_tool_cost(str(t.id)):
-					out.append("%s:%d" % [t.id, Automation.tool_level(automation, str(t.id))])
-	return out
-
-
-## Whether a tab has something new to buy: affordable, and not there yet the last time you looked.
-func upgrade_news(tab_id: String) -> bool:
-	var seen: Dictionary = _seen_buyable.get(tab_id, {})
-	return buyable(tab_id).any(func(k): return not seen.has(k))
-
-
-## You're looking at a tab: what it can buy now is seen (its dot goes out until something new).
-func saw_upgrades(tab_id: String) -> void:
-	var seen := {}
-	for k in buyable(tab_id):
-		seen[k] = true
-	_seen_buyable[tab_id] = seen
-
 
 static func _without(loot: Dictionary, key: String) -> Dictionary:
 	var out := loot.duplicate()
@@ -5887,6 +5425,46 @@ func sacrifice_toy(id: String) -> String: return toys_part.sacrifice_toy(id)
 func sacrifice_toys(id: String, tries: int) -> Dictionary: return toys_part.sacrifice_toys(id, tries)
 func combine_toy_all(edition: String) -> int: return toys_part.combine_toy_all(edition)
 func shine_toy(edition: String) -> bool: return toys_part.shine_toy(edition)
+
+# unlocks_part.gd
+func is_unlocked(id: String) -> bool: return unlocks_part.is_unlocked(id)
+func unlock(id: String) -> void: unlocks_part.unlock(id)
+func location_open(location: Dictionary) -> bool: return unlocks_part.location_open(location)
+func page_open(page_id: String) -> bool: return unlocks_part.page_open(page_id)
+func feature_on(feature: String) -> bool: return unlocks_part.feature_on(feature)
+func tab_open(tab_name: String) -> bool: return unlocks_part.tab_open(tab_name)
+func check_unlocks() -> void: unlocks_part.check_unlocks()
+func find_events_at(location: Dictionary, n := 1 << 30) -> Array[Dictionary]: return unlocks_part.find_events_at(location, n)
+func _count_find_tries(location: Dictionary, n: int) -> Array: return unlocks_part._count_find_tries(location, n)
+func open_page(page_id: String) -> bool: return unlocks_part.open_page(page_id)
+func _earned(earn: Dictionary) -> bool: return unlocks_part._earned(earn)
+func all_places_open(page_id: String) -> bool: return unlocks_part.all_places_open(page_id)
+func take_announcement() -> String: return unlocks_part.take_announcement()
+func is_open(id: String) -> bool: return unlocks_part.is_open(id)
+func follow_lead(location_id: String) -> void: unlocks_part.follow_lead(location_id)
+func _spot_places(run: RunState) -> Array[String]: return unlocks_part._spot_places(run)
+func _place_known(id: String) -> bool: return unlocks_part._place_known(id)
+func open_locations() -> Array[Dictionary]: return unlocks_part.open_locations()
+func next_door_open() -> bool: return unlocks_part.next_door_open()
+func sent_to(location_id: String) -> int: return unlocks_part.sent_to(location_id)
+func visits_at(location_id: String) -> int: return unlocks_part.visits_at(location_id)
+func lights_left(location_id: String) -> int: return unlocks_part.lights_left(location_id)
+func is_ours(location_id: String) -> bool: return unlocks_part.is_ours(location_id)
+func ours_shown(location_id: String) -> void: unlocks_part.ours_shown(location_id)
+func add_visits(location_id: String, n := 1) -> String: return unlocks_part.add_visits(location_id, n)
+func follow_rumour(rumour_id: String) -> void: unlocks_part.follow_rumour(rumour_id)
+func _hear_rumours(count: int) -> void: unlocks_part._hear_rumours(count)
+func max_party(location_id: String) -> int: return unlocks_part.max_party(location_id)
+func debug_unlock_all() -> void: unlocks_part.debug_unlock_all()
+func tutorial_active() -> bool: return unlocks_part.tutorial_active()
+func tutorial_info() -> Dictionary: return unlocks_part.tutorial_info()
+func _start_tutorial() -> void: unlocks_part._start_tutorial()
+func _check_tutorial() -> void: unlocks_part._check_tutorial()
+func debug_lock_all() -> void: unlocks_part.debug_lock_all()
+func _milestone(what: String) -> void: unlocks_part._milestone(what)
+func buyable(tab_id: String) -> Array[String]: return unlocks_part.buyable(tab_id)
+func upgrade_news(tab_id: String) -> bool: return unlocks_part.upgrade_news(tab_id)
+func saw_upgrades(tab_id: String) -> void: unlocks_part.saw_upgrades(tab_id)
 
 # workshop_part.gd
 func workshop_open() -> bool: return workshop_part.workshop_open()
