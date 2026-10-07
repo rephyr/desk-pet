@@ -42,6 +42,7 @@ var boxes_part := BoxesPart.new(self)
 var homes_part := HomesPart.new(self)
 var workshop_part := WorkshopPart.new(self)
 var unlocks_part := UnlocksPart.new(self)
+var rest_part := RestPart.new(self)
 # ---- end of the parts ----
 
 var save_path := DevProfile.path("save.json")  # user://save.json, or a test profile's (debug builds)
@@ -549,229 +550,6 @@ func open_jobs() -> Array[Dictionary]:
 
 # ---- who's resting: not your active pet, not away on an adventure, not on an errand or working ----
 
-## Who's resting, worked out once until crews, workers, trips, the army or the herd change:
-## { cards: [Pet], herd: { count key: n }, n: everyone, army_herd: { count key: n } (the dungeon's) }.
-func _resting() -> Dictionary:
-	if _rest.is_empty():
-		var gone := _out()
-		var cards: Array[Pet] = []
-		for pet in collection.pets:
-			if pet.uid != collection.active_uid and not gone.has(pet.uid) and not _job_of.has(pet.uid) and not _worker_of.has(pet.uid):
-				cards.append(pet)
-		var used := _herd_used(gone)
-		var army := _army_herd(used)  # the dungeon's army takes its pets from the herd after everyone else
-		for k in army:
-			Herd.put(used, k, int(army[k]))
-		var free := {}
-		var n := cards.size()
-		for k in collection.herd:
-			var left := collection.herd_count(k) - int(used.get(k, 0))
-			if left > 0:
-				free[k] = left
-				n += left
-		_rest = { "cards": cards, "herd": free, "n": n, "army_herd": army }
-	return _rest
-
-
-## Something changed who's resting: it's worked out again when next asked.
-func _rest_changed() -> void:
-	_rest = {}
-	_spare = {}
-
-
-## Pets from the herd that are busy: count key -> on errands, working, away or leading a party.
-func _herd_used(gone: Dictionary) -> Dictionary:
-	var used := {}
-	for job_id in jobs:
-		var h: Dictionary = jobs[job_id].get("herd", {})
-		for k in h:
-			Herd.put(used, k, int(h[k]))
-	var wh: Dictionary = automation.get("wherd", {})
-	for id in wh:
-		for k in wh[id]:
-			Herd.put(used, k, int(wh[id][k]))
-	for uid: String in _stand_ins_out(gone):
-		Herd.put(used, Herd.key_of(uid), 1)
-	return used
-
-
-## Stand-ins in use: away on an adventure or leading a workers' party. uid -> true.
-func _stand_ins_out(gone := {}) -> Dictionary:
-	var out := {}
-	for uid: String in (gone if not gone.is_empty() else away()):
-		if Herd.is_stand_in(uid):
-			out[uid] = true
-	for uid in workers_of("adventures"):
-		if Herd.is_stand_in(str(uid)):
-			out[str(uid)] = true
-	return out
-
-
-## Cards resting (whole pets), in pull order.
-func resting_cards() -> Array[Pet]:
-	return _resting().cards
-
-
-## Pets from the herd resting: count key -> how many.
-func resting_herd() -> Dictionary:
-	return _resting().herd
-
-
-## Everyone resting, cards and herd.
-func resting_count() -> int:
-	return int(_resting().n)
-
-
-## Up to `n` resting pets to show (uids): cards first, then stand-ins for the counts.
-func resting_faces(n: int) -> Array:
-	var cards: Array = resting_cards().slice(0, n).map(func(p): return p.uid)
-	return _faces(cards, resting_herd(), n, 7)
-
-
-## Resting pets as whole pets: every resting card, and up to data/herd.json "stand_ins" stand-ins
-## from each resting count (for parties).
-func resting_pets() -> Array[Pet]:
-	var out: Array[Pet] = resting_cards().duplicate()
-	out.append_array(_resting_stand_ins())
-	return out
-
-
-## Up to data/herd.json "stand_ins" stand-ins from each resting count.
-func _resting_stand_ins() -> Array[Pet]:
-	var out: Array[Pet] = []
-	var skip := _stand_ins_out()
-	var per := int(catalog.herd.get("stand_ins", 10))
-	var h := resting_herd()
-	for k in h:
-		for uid in collection.stand_in_uids(k, mini(per, int(h[k])), skip):
-			out.append(collection.get_pet(uid))
-	return out
-
-
-## Pets on your spare list: everyone but your active pet and pets away on adventures.
-func spare_count() -> int:
-	var gone := _out()
-	return maxi(0, collection.count() - (1 if collection.active() != null else 0) - gone.size())
-
-
-## Cards first, then stand-ins for `counts` (a different run of faces per `salt`), up to `n` uids.
-func _faces(cards: Array, counts: Dictionary, n: int, salt := 0) -> Array:
-	var out: Array = cards.slice(0, n)
-	for k in counts:
-		if out.size() >= n:
-			break
-		out.append_array(collection.stand_in_uids(k, mini(n - out.size(), int(counts[k])), {}, 1000 + salt * 64))
-	return out
-
-
-## Up to `n` stand-ins (uids) for pets in `counts`, a different run of faces per `salt`.
-func herd_faces(counts: Dictionary, n: int, salt := 0) -> Array:
-	return _faces([], counts, n, salt)
-
-
-## A rarity's cards split for its shelf: [always, newest]. Always: pets that stay cards (your active
-## pet first, then favourites, better finishes, new parts) and pets busy right now; newest: the other
-## plain cards, newest first.
-func shelf_split(rarity: String) -> Array:
-	var busy := _busy_uids()
-	var cards := collection.cards_of(rarity)
-	# only a few different ranks: bucket by rank, newest first inside each (no sort over thousands)
-	var by_rank := {}  # rank -> pets, newest first
-	var newest: Array[Pet] = []
-	var finish_ranks := {}
-	for i in range(cards.size() - 1, -1, -1):
-		var pet := cards[i]
-		if collection.always_card(pet) or busy.has(pet.uid):
-			if not finish_ranks.has(pet.finish):
-				finish_ranks[pet.finish] = catalog.finish_rank(pet.finish)
-			var r: int = (1000 if pet.uid == collection.active_uid else 0) + (500 if pet.fav else 0) \
-				+ int(finish_ranks[pet.finish]) * 10 + (1 if pet.new_part else 0)
-			if not by_rank.has(r):
-				by_rank[r] = []
-			by_rank[r].append(pet)
-		else:
-			newest.append(pet)
-	var ranks := by_rank.keys()
-	ranks.sort()
-	ranks.reverse()
-	var always: Array[Pet] = []
-	for r in ranks:
-		always.append_array(by_rank[r])
-	return [always, newest]
-
-
-## Uids that must stay whole cards right now: away, in the army, good pulls waiting to be seen, party leaders.
-func _busy_uids() -> Dictionary:
-	var out := _out()
-	for uid in pinned:
-		out[uid] = true
-	for uid in workers_of("adventures"):
-		if str(uid) != "":
-			out[str(uid)] = true
-	if feature_on("plushie") and str(plushie.keeper) != "":
-		out[str(plushie.keeper)] = true  # the plushie machine's keeper stays a card while it's picked
-	return out
-
-
-## Cards folded into the herd: the errand or machine they were on keeps them, as a count.
-func _on_folded(uids: Array, keys: Array) -> void:
-	var from_jobs := {}  # job id -> { uid: true }
-	var from_workers := {}
-	var wh: Dictionary = automation.get("wherd", {})
-	for i in uids.size():
-		var uid := str(uids[i])
-		var k := str(keys[i])
-		var job := str(_job_of.get(uid, ""))
-		if job != "" and jobs.has(job):
-			if not from_jobs.has(job):
-				from_jobs[job] = {}
-			from_jobs[job][uid] = true
-			Herd.put(_job_state(job).herd, k, 1)
-		var w := str(_worker_of.get(uid, ""))
-		if w != "" and w != "adventures":
-			if not from_workers.has(w):
-				from_workers[w] = {}
-			from_workers[w][uid] = true
-			if not wh.has(w):
-				wh[w] = {}
-			Herd.put(wh[w], k, 1)
-	automation.wherd = wh
-	for job in from_jobs:
-		jobs[job].crew = jobs[job].crew.filter(func(uid): return not from_jobs[job].has(uid))
-	for w in from_workers:
-		automation.workers[w] = automation.workers[w].filter(func(uid): return not from_workers[w].has(str(uid)))
-	if not from_jobs.is_empty():
-		_crews_changed()
-	if not from_workers.is_empty():
-		_workers_changed()
-	_rest_changed()
-
-
-## Picks pets out of `cards` and `counts` by `speed` (a Callable on a Pet): the fastest first, or
-## the slowest with `best_first` false; `count` -1 takes everyone. Returns [card uids, { key: n }].
-func _pick(cards: Array, counts: Dictionary, count: int, speed: Callable, best_first: bool) -> Array:
-	var options := []  # [speed, card uid or "", count key or "", how many]
-	for pet: Pet in cards:
-		options.append([speed.call(pet), pet.uid, "", 1])
-	for k in counts:
-		options.append([speed.call(Herd.template(catalog, k)), "", k, int(counts[k])])
-	options.sort_custom(func(a, b): return a[0] > b[0] if best_first else a[0] < b[0])
-	var left := count if count >= 0 else (1 << 62)
-	var out_cards: Array = []
-	var out_counts := {}
-	for o in options:
-		if left <= 0:
-			break
-		if o[1] != "":
-			out_cards.append(o[1])
-			left -= 1
-		else:
-			var take := mini(left, int(o[3]))
-			out_counts[o[2]] = take
-			left -= take
-	return [out_cards, out_counts]
-
-
 ## Spreads `n` pets over places so the smallest fill up first: place id -> how many it gets
 ## (`sizes` is place id -> how many it has now).
 static func water_fill(sizes: Dictionary, n: int) -> Dictionary:
@@ -1218,118 +996,6 @@ func job_joins(job_id: String) -> bool:
 	return bool(jobs.get(job_id, {}).get("join", false))
 
 
-## "New pets join here" on a job's machines (tables): new pets start there while it has empty
-## spots, the best workers first. Never adventures (parties keep their slots and "fill up").
-func set_worker_join(id: String, on: bool) -> void:
-	if id == "adventures" or not knows_others(id):
-		return
-	var wj: Dictionary = automation.get("wjoin", {})
-	if on:
-		wj[id] = true
-	else:
-		wj.erase(id)
-	automation.wjoin = wj
-	automation_changed.emit()
-	changed.emit()
-	save_game()
-
-
-func worker_joins(id: String) -> bool:
-	return automation.get("wjoin", {}).has(id)
-
-
-## "New pets join here" takes new pets up to this rarity only ("" = every rarity).
-func set_join_up_to(rarity: String) -> void:
-	if rarity != "" and not catalog.tiers.any(func(t): return t.id == rarity):
-		return
-	join_up_to = rarity
-	jobs_changed.emit()
-	changed.emit()
-	save_game()
-
-
-## Whether any job has "new pets join here" on.
-func any_join() -> bool:
-	for job in open_jobs():
-		if job_joins(job.id):
-			return true
-	for j in worker_jobs():
-		if worker_joins(j.id):
-			return true
-	return false
-
-
-## New pets (resting ones; a stand-in's uid is one from its count) go where "new pets join here" is
-## on: machines and tables with empty spots first (the best workers first), then the rest over the
-## errands that have it, the smallest crews first. Nothing on: they rest. Pets the sorting rule
-## sent to work (_to_work) that are still resting then go over every open errand.
-func _place_new(uids: Array) -> void:
-	var forced: Array = []
-	if not _to_work.is_empty():
-		forced = uids.filter(func(uid): return _to_work.has(str(uid)))
-		_to_work.clear()
-	if uids.is_empty() or tutorial_active() or not (forced.size() > 0 or any_join()):
-		return
-	var resting := {}
-	for pet in resting_cards():
-		resting[pet.uid] = true
-	var cards: Array = []
-	var counts := {}
-	var free := resting_herd()
-	for raw in uids:
-		var uid := str(raw)
-		if Herd.is_stand_in(uid):
-			var k := Herd.key_of(uid)
-			if int(counts.get(k, 0)) < int(free.get(k, 0)):
-				Herd.put(counts, k, 1)
-		elif resting.has(uid):
-			resting.erase(uid)
-			cards.append(uid)
-	# "up to" a rarity: rarer new pets stay resting (for the army, the edge...); the rule's pets still go
-	if join_up_to != "":
-		var top := catalog.rank(join_up_to)
-		cards = cards.filter(func(uid): return forced.has(uid) or catalog.rank(collection.get_pet(uid).rarity) <= top)
-		for k in counts.keys():
-			if catalog.rank(Herd.rarity_of(k)) > top:
-				counts.erase(k)
-	# machines and tables first, while they have room
-	for j in worker_jobs():
-		var id := str(j.id)
-		if id == "adventures" or not worker_joins(id) or (cards.is_empty() and counts.is_empty()):
-			continue
-		var space := Automation.spots(automation, id) - workers_count(id)
-		if space <= 0:
-			continue
-		var pets: Array = []
-		for uid in cards:
-			var pet := collection.get_pet(uid)
-			if pet:
-				pets.append(pet)
-		var picked := _pick(pets, counts, space, func(p: Pet): return Automation.worker_speed(catalog, p), true)
-		if picked[0].is_empty() and picked[1].is_empty():
-			continue
-		for uid in picked[0]:
-			cards.erase(uid)
-		for k in picked[1]:
-			Herd.take(counts, k, int(picked[1][k]))
-		_add_workers(id, picked[0], picked[1])
-	if cards.is_empty() and counts.is_empty():
-		return
-	var joined: Array = open_jobs().filter(func(j): return job_joins(j.id)).map(func(j): return j.id)
-	if not joined.is_empty():
-		_auto_place(cards, counts, joined, true)
-	# the rule's "go to work" pets nobody took: every open errand
-	var left: Array = []
-	var still := {}
-	for pet in resting_cards():
-		still[pet.uid] = true
-	for uid in forced:
-		if still.has(str(uid)):
-			left.append(str(uid))
-	if not left.is_empty():
-		_auto_place(left, {}, [], true)
-
-
 ## Puts these pets (the resting ones; a stand-in's uid is one from its count) and `counts` more from
 ## the resting herd on the errands with the smallest crews (only the errands in `only`, if given).
 ## `by_themselves`: new pets joining on their own (see crews_by_themselves).
@@ -1389,44 +1055,6 @@ func _take_off(uids: Array) -> Array:
 		jobs[job_id].crew = jobs[job_id].crew.filter(func(uid): return not gone.has(uid))
 	_crews_changed()
 	return gone.keys()
-
-
-## How many pets of one count work somewhere (errands, machines and tables).
-func _herd_at_places(k: String) -> int:
-	var n := 0
-	for job_id in jobs:
-		n += int(_job_state(job_id).herd.get(k, 0))
-	var wh: Dictionary = automation.get("wherd", {})
-	for id in wh:
-		n += int(wh[id].get(k, 0))
-	return n
-
-
-## Takes `n` pets of one count off wherever they work (errands first, then machines and tables), for
-## an adventure that needs more of them than are resting. Returns how many it took.
-func _herd_off_places(k: String, n: int) -> int:
-	var want := n
-	var crews := false
-	for job_id in jobs:
-		var h: Dictionary = _job_state(job_id).herd
-		var take := mini(n, int(h.get(k, 0)))
-		if take > 0:
-			Herd.take(h, k, take)
-			n -= take
-			crews = true
-	var workers := false
-	var wh: Dictionary = automation.get("wherd", {})
-	for id in wh:
-		var take := mini(n, int(wh[id].get(k, 0)))
-		if take > 0:
-			Herd.take(wh[id], k, take)
-			n -= take
-			workers = true
-	if crews:
-		_crews_changed()
-	if workers:
-		_workers_changed()
-	return want - n
 
 
 func _speed_of(uid: String, job: Dictionary) -> float:
@@ -5414,6 +5042,32 @@ func capsule_seconds() -> float: return machine_part.capsule_seconds()
 func bit_hint(bit: String) -> String: return machine_part.bit_hint(bit)
 func fever_left() -> float: return machine_part.fever_left()
 func buy_machine_upgrade(id: String) -> bool: return machine_part.buy_machine_upgrade(id)
+
+# rest_part.gd
+func _resting() -> Dictionary: return rest_part._resting()
+func _rest_changed() -> void: rest_part._rest_changed()
+func _herd_used(gone: Dictionary) -> Dictionary: return rest_part._herd_used(gone)
+func _stand_ins_out(gone := {}) -> Dictionary: return rest_part._stand_ins_out(gone)
+func resting_cards() -> Array[Pet]: return rest_part.resting_cards()
+func resting_herd() -> Dictionary: return rest_part.resting_herd()
+func resting_count() -> int: return rest_part.resting_count()
+func resting_faces(n: int) -> Array: return rest_part.resting_faces(n)
+func resting_pets() -> Array[Pet]: return rest_part.resting_pets()
+func _resting_stand_ins() -> Array[Pet]: return rest_part._resting_stand_ins()
+func spare_count() -> int: return rest_part.spare_count()
+func _faces(cards: Array, counts: Dictionary, n: int, salt := 0) -> Array: return rest_part._faces(cards, counts, n, salt)
+func herd_faces(counts: Dictionary, n: int, salt := 0) -> Array: return rest_part.herd_faces(counts, n, salt)
+func shelf_split(rarity: String) -> Array: return rest_part.shelf_split(rarity)
+func _busy_uids() -> Dictionary: return rest_part._busy_uids()
+func _on_folded(uids: Array, keys: Array) -> void: rest_part._on_folded(uids, keys)
+func _pick(cards: Array, counts: Dictionary, count: int, speed: Callable, best_first: bool) -> Array: return rest_part._pick(cards, counts, count, speed, best_first)
+func set_worker_join(id: String, on: bool) -> void: rest_part.set_worker_join(id, on)
+func worker_joins(id: String) -> bool: return rest_part.worker_joins(id)
+func set_join_up_to(rarity: String) -> void: rest_part.set_join_up_to(rarity)
+func any_join() -> bool: return rest_part.any_join()
+func _place_new(uids: Array) -> void: rest_part._place_new(uids)
+func _herd_at_places(k: String) -> int: return rest_part._herd_at_places(k)
+func _herd_off_places(k: String, n: int) -> int: return rest_part._herd_off_places(k, n)
 
 # toys_part.gd
 func _finish_plays(now: float) -> Array: return toys_part._finish_plays(now)
